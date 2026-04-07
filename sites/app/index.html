@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LibreCode - Download</title>
+  <meta name="description" content="Download LibreCode - the AI-powered development tool for terminal and desktop.">
+  <link rel="icon" type="image/png" href="/favicon.png">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+  <style>
+    /* ── Tokens ── */
+    :root {
+      --teal-400: #2DD4A8;
+      --teal-500: #0D9488;
+      --teal-600: #0A7E76;
+      --blue-500: #1E6CA0;
+      --blue-700: #15476C;
+      --amber-400: #FBBF24;
+      --amber-500: #D4A017;
+      --bg-dark: #0A0B0D;
+      --bg-card: #12141A;
+      --bg-card-hover: #1A1D26;
+      --text-primary: #F0F0F0;
+      --text-secondary: #A0A0A8;
+      --text-muted: #6B7280;
+      --gradient-brand: linear-gradient(135deg, var(--teal-500), var(--blue-500));
+      --font-display: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+
+    /* ── Reset ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font-display);
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      line-height: 1.6;
+    }
+
+    /* ── Layout ── */
+    .container {
+      max-width: 720px;
+      width: 100%;
+    }
+
+    /* ── Header ── */
+    .hero {
+      text-align: center;
+      padding: 3rem 0 2rem;
+    }
+
+    .hero-logo {
+      width: 200px;
+      height: auto;
+      margin-bottom: 1rem;
+    }
+
+    .hero h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: var(--gradient-brand);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.25rem;
+    }
+
+    .hero .tagline {
+      font-size: 1.1rem;
+      color: var(--text-secondary);
+      margin-bottom: 0.5rem;
+    }
+
+    .hero .version {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: var(--bg-card);
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    /* ── Quick Install ── */
+    .quick-install {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin: 2rem 0;
+    }
+
+    .quick-install h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .install-cmd {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--bg-dark);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 0.5rem;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .install-cmd:hover {
+      border-color: var(--teal-500);
+    }
+
+    .install-cmd:last-child { margin-bottom: 0; }
+
+    .install-cmd .label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--teal-400);
+      min-width: 70px;
+    }
+
+    .install-cmd code {
+      font-family: var(--font-mono);
+      font-size: 0.9rem;
+      color: var(--text-primary);
+      flex: 1;
+      user-select: all;
+    }
+
+    .install-cmd .copy-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem;
+      font-size: 0.85rem;
+      transition: color 0.15s;
+    }
+
+    .install-cmd .copy-btn:hover { color: var(--teal-400); }
+
+    /* ── Download Grid ── */
+    .downloads {
+      margin: 2rem 0;
+    }
+
+    .downloads h2 {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+    }
+
+    .platform-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .platform-card {
+      background: var(--bg-card);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      text-decoration: none;
+      color: var(--text-primary);
+      transition: all 0.15s;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .platform-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--teal-500);
+      transform: translateY(-1px);
+      box-shadow: 0 0 20px rgba(13, 148, 136, 0.15);
+    }
+
+    .platform-card .platform-icon {
+      font-size: 1.5rem;
+    }
+
+    .platform-card .platform-name {
+      font-weight: 600;
+      font-size: 1rem;
+    }
+
+    .platform-card .platform-detail {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .platform-card .platform-formats {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.25rem;
+    }
+
+    .format-badge {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      background: rgba(13, 148, 136, 0.15);
+      color: var(--teal-400);
+      padding: 0.15rem 0.5rem;
+      border-radius: 9999px;
+      border: 1px solid rgba(13, 148, 136, 0.2);
+    }
+
+    /* ── Section: Desktop ── */
+    .section-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+      margin-top: 2rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      margin-top: 3rem;
+      padding-top: 1.5rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      text-align: center;
+      width: 100%;
+    }
+
+    footer .mascot {
+      width: 60px;
+      height: auto;
+      margin-bottom: 0.75rem;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+    }
+
+    footer .mascot:hover { opacity: 1; }
+
+    footer p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    footer a {
+      color: var(--teal-400);
+      text-decoration: none;
+    }
+
+    footer a:hover { text-decoration: underline; }
+
+    /* ── Responsive ── */
+    @media (max-width: 480px) {
+      .hero h1 { font-size: 1.75rem; }
+      .platform-grid { grid-template-columns: 1fr; }
+      .install-cmd .label { min-width: 50px; font-size: 0.65rem; }
+      .install-cmd code { font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Hero -->
+    <div class="hero">
+      <img src="/logo-dark.png" alt="LibreCode" class="hero-logo">
+      <h1>LibreCode</h1>
+      <p class="tagline">Free Software. Modern Code.</p>
+      <span class="version">v1.2.27</span>
+    </div>
+
+    <!-- Quick Install -->
+    <div class="quick-install">
+      <h2>Quick Install</h2>
+      <div class="install-cmd" onclick="copyCmd(this)">
+        <span class="label">Nix</span>
+        <code>nix run github:techtoboggan/librecode</code>
+        <button class="copy-btn" aria-label="Copy">&#x2398;</button>
+      </div>
+      <div class="install-cmd" onclick="copyCmd(this)">
+        <span class="label">Fedora</span>
+        <code>sudo dnf copr enable techtoboggan/librecode && sudo dnf install librecode</code>
+        <button class="copy-btn" aria-label="Copy">&#x2398;</button>
+      </div>
+      <div class="install-cmd" onclick="copyCmd(this)">
+        <span class="label">Arch</span>
+        <code>yay -S librecode</code>
+        <button class="copy-btn" aria-label="Copy">&#x2398;</button>
+      </div>
+      <div class="install-cmd" onclick="copyCmd(this)">
+        <span class="label">macOS</span>
+        <code>brew install techtoboggan/tap/librecode</code>
+        <button class="copy-btn" aria-label="Copy">&#x2398;</button>
+      </div>
+    </div>
+
+    <!-- CLI Downloads -->
+    <div class="downloads">
+      <p class="section-label">CLI Binaries</p>
+      <div class="platform-grid">
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1F427;</span>
+          <span class="platform-name">Linux</span>
+          <span class="platform-detail">x64 &bull; arm64</span>
+          <div class="platform-formats">
+            <span class="format-badge">glibc</span>
+            <span class="format-badge">musl</span>
+            <span class="format-badge">tar.gz</span>
+          </div>
+        </a>
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1F34E;</span>
+          <span class="platform-name">macOS</span>
+          <span class="platform-detail">Apple Silicon &bull; Intel</span>
+          <div class="platform-formats">
+            <span class="format-badge">arm64</span>
+            <span class="format-badge">x64</span>
+          </div>
+        </a>
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1FA9F;</span>
+          <span class="platform-name">Windows</span>
+          <span class="platform-detail">x64 &bull; arm64</span>
+          <div class="platform-formats">
+            <span class="format-badge">exe</span>
+            <span class="format-badge">zip</span>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Desktop Downloads -->
+    <div class="downloads">
+      <p class="section-label">Desktop App</p>
+      <div class="platform-grid">
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1F427;</span>
+          <span class="platform-name">Linux Desktop</span>
+          <span class="platform-detail">Tauri-based GUI</span>
+          <div class="platform-formats">
+            <span class="format-badge">.deb</span>
+            <span class="format-badge">.rpm</span>
+            <span class="format-badge">.AppImage</span>
+          </div>
+        </a>
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1F34E;</span>
+          <span class="platform-name">macOS Desktop</span>
+          <span class="platform-detail">Universal binary</span>
+          <div class="platform-formats">
+            <span class="format-badge">.dmg</span>
+          </div>
+        </a>
+        <a href="#" class="platform-card">
+          <span class="platform-icon">&#x1FA9F;</span>
+          <span class="platform-name">Windows Desktop</span>
+          <span class="platform-detail">NSIS installer</span>
+          <div class="platform-formats">
+            <span class="format-badge">.exe</span>
+          </div>
+        </a>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+      <img src="/tater.png" alt="Tater" class="mascot">
+      <p>
+        <a href="https://librecode.io">About LibreCode</a> &bull;
+        <a href="https://github.com/techtoboggan/librecode">GitHub</a> &bull;
+        <a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE">MIT License</a>
+      </p>
+    </footer>
+  </div>
+
+  <script>
+    function copyCmd(el) {
+      const code = el.querySelector('code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const btn = el.querySelector('.copy-btn');
+        btn.textContent = '\u2713';
+        setTimeout(() => { btn.innerHTML = '&#x2398;'; }, 1500);
+      });
+    }
+  </script>
+</body>
+</html>
