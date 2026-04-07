@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "librecode-io",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "3100", "--directory", "sites/io"],
+      "port": 3100
+    },
+    {
+      "name": "librecode-app",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "3101", "--directory", "sites/app"],
+      "port": 3101
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/brand/logo-dark.png" alt="LibreCode" width="400">
+  <img src="assets/brand/logo-dark.svg" alt="LibreCode" width="400">
 </p>
 
 <h3 align="center">Free Software. Modern Code.</h3>
@@ -23,7 +23,7 @@
 ---
 
 <p align="center">
-  <img src="assets/mascot/tater-dark.png" alt="Tater - LibreCode mascot" width="180">
+  <img src="assets/mascot/tater.svg" alt="Tater - LibreCode mascot" width="180">
 </p>
 
 ## What is LibreCode?
