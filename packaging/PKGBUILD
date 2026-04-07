@@ -1,0 +1,18 @@
+# Maintainer: techtoboggan <tristan@techtoboggan.com>
+pkgname=librecode
+pkgver=1.2.27
+pkgrel=1
+pkgdesc='AI-powered development tool'
+arch=('x86_64' 'aarch64')
+url='https://github.com/techtoboggan/librecode'
+license=('MIT')
+depends=('ripgrep')
+source_x86_64=("${url}/releases/download/v${pkgver}/librecode-linux-x64.tar.gz")
+source_aarch64=("${url}/releases/download/v${pkgver}/librecode-linux-arm64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+    install -Dm755 bin/librecode "${pkgdir}/usr/bin/librecode"
+    install -Dm644 "${srcdir}/../LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+}

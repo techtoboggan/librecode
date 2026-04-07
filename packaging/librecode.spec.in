@@ -1,0 +1,35 @@
+%global debug_package %{nil}
+
+Name:           librecode
+Version:        @VERSION@
+Release:        1%{?dist}
+Summary:        AI-powered development tool
+License:        MIT
+URL:            https://github.com/techtoboggan/librecode
+Source0:        %{url}/releases/download/v%{version}/librecode-linux-x64.tar.gz
+Source1:        %{url}/releases/download/v%{version}/librecode-linux-arm64.tar.gz
+
+ExclusiveArch:  x86_64 aarch64
+
+%description
+LibreCode is an AI-powered development tool for the terminal.
+It provides an agentic coding assistant with support for multiple
+LLM providers, MCP servers, and a rich TUI interface.
+
+%prep
+%ifarch x86_64
+%setup -q -T -b 0 -n librecode-linux-x64
+%endif
+%ifarch aarch64
+%setup -q -T -b 1 -n librecode-linux-arm64
+%endif
+
+%install
+install -Dm755 bin/librecode %{buildroot}%{_bindir}/librecode
+
+%files
+%{_bindir}/librecode
+
+%changelog
+* %(date '+%%a %%b %%d %%Y') techtoboggan <tristan@techtoboggan.com> - %{version}-1
+- Release v%{version}

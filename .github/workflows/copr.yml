@@ -1,0 +1,36 @@
+name: COPR
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  copr:
+    name: Submit to COPR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate RPM spec
+        run: |
+          sed "s/@VERSION@/${{ steps.version.outputs.version }}/g" \
+            packaging/librecode.spec.in > packaging/librecode.spec
+
+      - name: Generate SRPM
+        uses: rpmbuild/rpmbuild-action@v1
+        with:
+          spec_file: packaging/librecode.spec
+          sources: ""
+          build_type: source
+
+      - name: Submit to COPR
+        env:
+          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+        run: |
+          pip install copr-cli
+          copr-cli build techtoboggan/librecode rpmbuild/SRPMS/*.src.rpm
