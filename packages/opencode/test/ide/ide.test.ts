@@ -62,20 +62,20 @@ describe("ide", () => {
     expect(Ide.ide()).toBe("unknown")
   })
 
-  test("should recognize vscode-insiders OPENCODE_CALLER", () => {
-    process.env["OPENCODE_CALLER"] = "vscode-insiders"
+  test("should recognize vscode-insiders LIBRECODE_CALLER", () => {
+    process.env["LIBRECODE_CALLER"] = "vscode-insiders"
 
     expect(Ide.alreadyInstalled()).toBe(true)
   })
 
-  test("should recognize vscode OPENCODE_CALLER", () => {
-    process.env["OPENCODE_CALLER"] = "vscode"
+  test("should recognize vscode LIBRECODE_CALLER", () => {
+    process.env["LIBRECODE_CALLER"] = "vscode"
 
     expect(Ide.alreadyInstalled()).toBe(true)
   })
 
-  test("should return false for unknown OPENCODE_CALLER", () => {
-    process.env["OPENCODE_CALLER"] = "unknown"
+  test("should return false for unknown LIBRECODE_CALLER", () => {
+    process.env["LIBRECODE_CALLER"] = "unknown"
 
     expect(Ide.alreadyInstalled()).toBe(false)
   })

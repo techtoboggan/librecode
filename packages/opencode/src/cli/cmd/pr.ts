@@ -90,7 +90,7 @@ export const PrCommand = cmd({
                 UI.println(`Found opencode session: ${sessionUrl}`)
                 UI.println(`Importing session...`)
 
-                const importResult = await Process.text(["opencode", "import", sessionUrl], {
+                const importResult = await Process.text(["librecode", "import", sessionUrl], {
                   nothrow: true,
                 })
                 if (importResult.code === 0) {
@@ -115,7 +115,7 @@ export const PrCommand = cmd({
         // Launch opencode TUI with session ID if available
         const { spawn } = await import("child_process")
         const opencodeArgs = sessionId ? ["-s", sessionId] : []
-        const opencodeProcess = spawn("opencode", opencodeArgs, {
+        const opencodeProcess = spawn("librecode", opencodeArgs, {
           stdio: "inherit",
           cwd: process.cwd(),
         })

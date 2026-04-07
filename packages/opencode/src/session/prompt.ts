@@ -36,7 +36,7 @@ import { $ } from "bun"
 import { pathToFileURL, fileURLToPath } from "url"
 import { ConfigMarkdown } from "../config/markdown"
 import { SessionSummary } from "./summary"
-import { NamedError } from "@opencode-ai/util/error"
+import { NamedError } from "@librecode/util/error"
 import { fn } from "@/util/fn"
 import { SessionProcessor } from "./processor"
 import { TaskTool } from "@/tool/task"
@@ -1333,7 +1333,7 @@ export namespace SessionPrompt {
     if (!userMessage) return input.messages
 
     // Original logic when experimental plan mode is disabled
-    if (!Flag.OPENCODE_EXPERIMENTAL_PLAN_MODE) {
+    if (!Flag.LIBRECODE_EXPERIMENTAL_PLAN_MODE) {
       if (input.agent.name === "plan") {
         userMessage.parts.push({
           id: PartID.ascending(),

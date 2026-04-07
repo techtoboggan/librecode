@@ -4,7 +4,7 @@ import { type IPty } from "bun-pty"
 import z from "zod"
 import { Log } from "../util/log"
 import { Instance } from "../project/instance"
-import { lazy } from "@opencode-ai/util/lazy"
+import { lazy } from "@librecode/util/lazy"
 import { Shell } from "@/shell/shell"
 import { Plugin } from "@/plugin"
 import { PtyID } from "./schema"
@@ -132,7 +132,7 @@ export namespace Pty {
       ...input.env,
       ...shellEnv.env,
       TERM: "xterm-256color",
-      OPENCODE_TERMINAL: "1",
+      LIBRECODE_TERMINAL: "1",
     } as Record<string, string>
 
     if (process.platform === "win32") {

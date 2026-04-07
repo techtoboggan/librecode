@@ -1,7 +1,7 @@
 import { BusEvent } from "@/bus/bus-event"
 import path from "path"
 import z from "zod"
-import { NamedError } from "@opencode-ai/util/error"
+import { NamedError } from "@librecode/util/error"
 import { Log } from "../util/log"
 import { iife } from "@/util/iife"
 import { Flag } from "../flag/flag"
@@ -9,8 +9,8 @@ import { Process } from "@/util/process"
 import { buffer } from "node:stream/consumers"
 
 declare global {
-  const OPENCODE_VERSION: string
-  const OPENCODE_CHANNEL: string
+  const LIBRECODE_VERSION: string
+  const LIBRECODE_CHANNEL: string
 }
 
 export namespace Installation {
@@ -25,7 +25,7 @@ export namespace Installation {
   }
 
   async function upgradeCurl(target: string) {
-    const body = await fetch("https://opencode.ai/install").then((res) => {
+    const body = await fetch("https://github.com/techtoboggan/librecode/install").then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.text()
     })
@@ -91,7 +91,7 @@ export namespace Installation {
   }
 
   export async function method() {
-    if (process.execPath.includes(path.join(".opencode", "bin"))) return "curl"
+    if (process.execPath.includes(path.join(".librecode", "bin"))) return "curl"
     if (process.execPath.includes(path.join(".local", "bin"))) return "curl"
     const exec = process.execPath.toLowerCase()
 
@@ -114,15 +114,15 @@ export namespace Installation {
       },
       {
         name: "brew" as const,
-        command: () => text(["brew", "list", "--formula", "opencode"]),
+        command: () => text(["brew", "list", "--formula", "librecode"]),
       },
       {
         name: "scoop" as const,
-        command: () => text(["scoop", "list", "opencode"]),
+        command: () => text(["scoop", "list", "librecode"]),
       },
       {
         name: "choco" as const,
-        command: () => text(["choco", "list", "--limit-output", "opencode"]),
+        command: () => text(["choco", "list", "--limit-output", "librecode"]),
       },
     ]
 
@@ -137,7 +137,7 @@ export namespace Installation {
     for (const check of checks) {
       const output = await check.command()
       const installedName =
-        check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "opencode" : "opencode-ai"
+        check.name === "brew" || check.name === "choco" || check.name === "scoop" ? "librecode" : "librecode"
       if (output.includes(installedName)) {
         return check.name
       }
@@ -155,10 +155,10 @@ export namespace Installation {
 
   async function getBrewFormula() {
     const tapFormula = await text(["brew", "list", "--formula", "anomalyco/tap/opencode"])
-    if (tapFormula.includes("opencode")) return "anomalyco/tap/opencode"
-    const coreFormula = await text(["brew", "list", "--formula", "opencode"])
-    if (coreFormula.includes("opencode")) return "opencode"
-    return "opencode"
+    if (tapFormula.includes("librecode")) return "anomalyco/tap/opencode"
+    const coreFormula = await text(["brew", "list", "--formula", "librecode"])
+    if (coreFormula.includes("librecode")) return "librecode"
+    return "librecode"
   }
 
   export async function upgrade(method: Method, target: string) {
@@ -207,7 +207,7 @@ export namespace Installation {
       }
 
       case "choco":
-        result = await Process.run(["choco", "upgrade", "opencode", `--version=${target}`, "-y"], { nothrow: true })
+        result = await Process.run(["choco", "upgrade", "librecode", `--version=${target}`, "-y"], { nothrow: true })
         break
       case "scoop":
         result = await Process.run(["scoop", "install", `opencode@${target}`], { nothrow: true })
@@ -231,9 +231,9 @@ export namespace Installation {
     await Process.text([process.execPath, "--version"], { nothrow: true })
   }
 
-  export const VERSION = typeof OPENCODE_VERSION === "string" ? OPENCODE_VERSION : "local"
-  export const CHANNEL = typeof OPENCODE_CHANNEL === "string" ? OPENCODE_CHANNEL : "local"
-  export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.OPENCODE_CLIENT}`
+  export const VERSION = typeof LIBRECODE_VERSION === "string" ? LIBRECODE_VERSION : "local"
+  export const CHANNEL = typeof LIBRECODE_CHANNEL === "string" ? LIBRECODE_CHANNEL : "local"
+  export const USER_AGENT = `opencode/${CHANNEL}/${VERSION}/${Flag.LIBRECODE_CLIENT}`
 
   export async function latest(installMethod?: Method) {
     const detectedMethod = installMethod || (await method())

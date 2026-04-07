@@ -1,4 +1,4 @@
-import type { NamedError } from "@opencode-ai/util/error"
+import type { NamedError } from "@librecode/util/error"
 import { MessageV2 } from "./message-v2"
 import { iife } from "@/util/iife"
 
@@ -64,7 +64,7 @@ export namespace SessionRetry {
     if (MessageV2.APIError.isInstance(error)) {
       if (!error.data.isRetryable) return undefined
       if (error.data.responseBody?.includes("FreeUsageLimitError"))
-        return `Free usage exceeded, add credits https://opencode.ai/zen`
+        return `Free usage exceeded, add credits https://github.com/techtoboggan/librecode/zen`
       return error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message
     }
 

@@ -9,7 +9,7 @@ import { proxy } from "hono/proxy"
 import { basicAuth } from "hono/basic-auth"
 import z from "zod"
 import { Provider } from "../provider/provider"
-import { NamedError } from "@opencode-ai/util/error"
+import { NamedError } from "@librecode/util/error"
 import { LSP } from "../lsp"
 import { Format } from "../format"
 import { TuiRoutes } from "./routes/tui"
@@ -79,9 +79,9 @@ export namespace Server {
         // Allow CORS preflight requests to succeed without auth.
         // Browser clients sending Authorization headers will preflight with OPTIONS.
         if (c.req.method === "OPTIONS") return next()
-        const password = Flag.OPENCODE_SERVER_PASSWORD
+        const password = Flag.LIBRECODE_SERVER_PASSWORD
         if (!password) return next()
-        const username = Flag.OPENCODE_SERVER_USERNAME ?? "opencode"
+        const username = Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"
         return basicAuth({ username, password })(c, next)
       })
       .use(async (c, next) => {
@@ -115,7 +115,7 @@ export namespace Server {
             )
               return input
 
-            // *.opencode.ai (https only, adjust if needed)
+            // *.librecode.ai (https only, adjust if needed)
             if (/^https:\/\/([a-z0-9-]+\.)*opencode\.ai$/.test(input)) {
               return input
             }
@@ -192,8 +192,8 @@ export namespace Server {
       )
       .use(async (c, next) => {
         if (c.req.path === "/log") return next()
-        const rawWorkspaceID = c.req.query("workspace") || c.req.header("x-opencode-workspace")
-        const raw = c.req.query("directory") || c.req.header("x-opencode-directory") || process.cwd()
+        const rawWorkspaceID = c.req.query("workspace") || c.req.header("x-librecode-workspace")
+        const raw = c.req.query("directory") || c.req.header("x-librecode-directory") || process.cwd()
         const directory = Filesystem.resolve(
           (() => {
             try {
@@ -223,9 +223,9 @@ export namespace Server {
         openAPIRouteHandler(app, {
           documentation: {
             info: {
-              title: "opencode",
+              title: "librecode",
               version: "0.0.3",
-              description: "opencode api",
+              description: "librecode api",
             },
             openapi: "3.1.1",
           },
@@ -255,7 +255,7 @@ export namespace Server {
         "/instance/dispose",
         describeRoute({
           summary: "Dispose instance",
-          description: "Clean up and dispose the current OpenCode instance, releasing all resources.",
+          description: "Clean up and dispose the current LibreCode instance, releasing all resources.",
           operationId: "instance.dispose",
           responses: {
             200: {
@@ -277,7 +277,7 @@ export namespace Server {
         "/path",
         describeRoute({
           summary: "Get paths",
-          description: "Retrieve the current working directory and related path information for the OpenCode instance.",
+          description: "Retrieve the current working directory and related path information for the LibreCode instance.",
           operationId: "path.get",
           responses: {
             200: {
@@ -340,7 +340,7 @@ export namespace Server {
         "/command",
         describeRoute({
           summary: "List commands",
-          description: "Get a list of all available commands in the OpenCode system.",
+          description: "Get a list of all available commands in the LibreCode system.",
           operationId: "command.list",
           responses: {
             200: {
@@ -414,7 +414,7 @@ export namespace Server {
         "/agent",
         describeRoute({
           summary: "List agents",
-          description: "Get a list of all available AI agents in the OpenCode system.",
+          description: "Get a list of all available AI agents in the LibreCode system.",
           operationId: "app.agents",
           responses: {
             200: {
@@ -436,7 +436,7 @@ export namespace Server {
         "/skill",
         describeRoute({
           summary: "List skills",
-          description: "Get a list of all available skills in the OpenCode system.",
+          description: "Get a list of all available skills in the LibreCode system.",
           operationId: "app.skills",
           responses: {
             200: {
@@ -557,11 +557,11 @@ export namespace Server {
       .all("/*", async (c) => {
         const path = c.req.path
 
-        const response = await proxy(`https://app.opencode.ai${path}`, {
+        const response = await proxy(`https://app.librecode.ai${path}`, {
           ...c.req,
           headers: {
             ...c.req.raw.headers,
-            host: "app.opencode.ai",
+            host: "app.librecode.ai",
           },
         })
         response.headers.set(
@@ -577,9 +577,9 @@ export namespace Server {
     const result = await generateSpecs(Default(), {
       documentation: {
         info: {
-          title: "opencode",
+          title: "librecode",
           version: "1.0.0",
-          description: "opencode api",
+          description: "librecode api",
         },
         openapi: "3.1.1",
       },

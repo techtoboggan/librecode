@@ -70,9 +70,9 @@
     "turbo": "2.8.13"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "workspace:*",
-    "@opencode-ai/script": "workspace:*",
-    "@opencode-ai/sdk": "workspace:*",
+    "@librecode/plugin": "workspace:*",
+    "@librecode/script": "workspace:*",
+    "@librecode/sdk": "workspace:*",
     "typescript": "catalog:"
   },
   "repository": {

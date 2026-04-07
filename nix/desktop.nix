@@ -24,7 +24,7 @@
   opencode,
 }:
 rustPlatform.buildRustPackage (finalAttrs: {
-  pname = "opencode-desktop";
+  pname = "librecode-desktop";
   inherit (opencode)
     version
     src
@@ -72,7 +72,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     patchShebangs packages/desktop/node_modules
 
     mkdir -p packages/desktop/src-tauri/sidecars
-    cp ${opencode}/bin/opencode packages/desktop/src-tauri/sidecars/opencode-cli-${stdenv.hostPlatform.rust.rustcTarget}
+    cp ${opencode}/bin/librecode packages/desktop/src-tauri/sidecars/librecode-cli-${stdenv.hostPlatform.rust.rustcTarget}
   '';
 
   # see publish-tauri job in .github/workflows/publish.yml
@@ -82,19 +82,16 @@ rustPlatform.buildRustPackage (finalAttrs: {
     "--no-sign" # no code signing or auto updates
   ];
 
-  # FIXME: workaround for concerns about case insensitive filesystems
-  # should be removed once binary is renamed or decided otherwise
-  # darwin output is a .app bundle so no conflict
   postFixup = lib.optionalString stdenv.hostPlatform.isLinux ''
-    mv $out/bin/OpenCode $out/bin/opencode-desktop
-    sed -i 's|^Exec=OpenCode$|Exec=opencode-desktop|' $out/share/applications/OpenCode.desktop
+    mv $out/bin/LibreCode $out/bin/librecode-desktop
+    sed -i 's|^Exec=LibreCode$|Exec=librecode-desktop|' $out/share/applications/LibreCode.desktop
   '';
 
   meta = {
-    description = "OpenCode Desktop App";
-    homepage = "https://opencode.ai";
+    description = "LibreCode Desktop App";
+    homepage = "https://github.com/techtoboggan/librecode";
     license = lib.licenses.mit;
-    mainProgram = "opencode-desktop";
+    mainProgram = "librecode-desktop";
     inherit (opencode.meta) platforms;
   };
 })

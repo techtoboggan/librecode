@@ -1,15 +1,15 @@
-import type { Hooks, PluginInput, Plugin as PluginInstance } from "@opencode-ai/plugin"
+import type { Hooks, PluginInput, Plugin as PluginInstance } from "@librecode/plugin"
 import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
-import { createOpencodeClient } from "@opencode-ai/sdk"
+import { createOpencodeClient } from "@librecode/sdk"
 import { Server } from "../server/server"
 import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
 import { CodexAuthPlugin } from "./codex"
 import { Session } from "../session"
-import { NamedError } from "@opencode-ai/util/error"
+import { NamedError } from "@librecode/util/error"
 import { CopilotAuthPlugin } from "./copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "@gitlab/opencode-gitlab-auth"
 
@@ -25,9 +25,9 @@ export namespace Plugin {
     const client = createOpencodeClient({
       baseUrl: "http://localhost:4096",
       directory: Instance.directory,
-      headers: Flag.OPENCODE_SERVER_PASSWORD
+      headers: Flag.LIBRECODE_SERVER_PASSWORD
         ? {
-            Authorization: `Basic ${Buffer.from(`${Flag.OPENCODE_SERVER_USERNAME ?? "opencode"}:${Flag.OPENCODE_SERVER_PASSWORD}`).toString("base64")}`,
+            Authorization: `Basic ${Buffer.from(`${Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"}:${Flag.LIBRECODE_SERVER_PASSWORD}`).toString("base64")}`,
           }
         : undefined,
       fetch: async (...args) => Server.Default().fetch(...args),
@@ -55,7 +55,7 @@ export namespace Plugin {
 
     let plugins = config.plugin ?? []
     if (plugins.length) await Config.waitForDependencies()
-    if (!Flag.OPENCODE_DISABLE_DEFAULT_PLUGINS) {
+    if (!Flag.LIBRECODE_DISABLE_DEFAULT_PLUGINS) {
       plugins = [...BUILTIN, ...plugins]
     }
 
