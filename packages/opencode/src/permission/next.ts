@@ -1,13 +1,16 @@
-import { runtime } from "@/effect/runtime"
+/**
+ * Permission module — public API.
+ *
+ * Migrated from Effect facade to direct re-exports per ADR-001.
+ */
+
 import { Config } from "@/config/config"
 import { fn } from "@/util/fn"
 import { Wildcard } from "@/util/wildcard"
-import { Effect } from "effect"
 import os from "os"
 import * as S from "./service"
 import type {
   Action as ActionType,
-  PermissionError,
   Reply as ReplyType,
   Request as RequestType,
   Rule as RuleType,
@@ -23,10 +26,6 @@ export namespace PermissionNext {
     return pattern
   }
 
-  function runPromise<A>(f: (service: S.PermissionService.Api) => Effect.Effect<A, PermissionError>) {
-    return runtime.runPromise(S.PermissionService.use(f))
-  }
-
   export const Action = S.Action
   export type Action = ActionType
   export const Rule = S.Rule
@@ -39,7 +38,6 @@ export namespace PermissionNext {
   export type Reply = ReplyType
   export const Approval = S.Approval
   export const Event = S.Event
-  export const Service = S.PermissionService
   export const RejectedError = S.RejectedError
   export const CorrectedError = S.CorrectedError
   export const DeniedError = S.DeniedError
@@ -66,12 +64,12 @@ export namespace PermissionNext {
     return rulesets.flat()
   }
 
-  export const ask = fn(S.AskInput, async (input) => runPromise((service) => service.ask(input)))
+  export const ask = fn(S.AskInput, async (input) => S.ask(input))
 
-  export const reply = fn(S.ReplyInput, async (input) => runPromise((service) => service.reply(input)))
+  export const reply = fn(S.ReplyInput, async (input) => S.reply(input))
 
   export async function list() {
-    return runPromise((service) => service.list())
+    return S.list()
   }
 
   export function evaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {

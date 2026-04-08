@@ -1,18 +1,26 @@
+/**
+ * Permission Service
+ *
+ * Manages tool execution permissions with a pending request queue.
+ * Supports allow/deny/ask rules with wildcard pattern matching.
+ *
+ * Migrated from Effect-ts to plain async per ADR-001.
+ */
+
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { Instance } from "@/project/instance"
-import { ProjectID } from "@/project/schema"
 import { MessageID, SessionID } from "@/session/schema"
 import { PermissionTable } from "@/session/session.sql"
 import { Database, eq } from "@/storage/db"
-import { InstanceState } from "@/util/instance-state"
 import { Log } from "@/util/log"
 import { Wildcard } from "@/util/wildcard"
-import { Deferred, Effect, Layer, Schema, ServiceMap } from "effect"
 import z from "zod"
 import { PermissionID } from "./schema"
 
 const log = Log.create({ service: "permission" })
+
+// ── Schemas ──
 
 export const Action = z.enum(["allow", "deny", "ask"]).meta({
   ref: "PermissionAction",
@@ -59,7 +67,7 @@ export const Reply = z.enum(["once", "always", "reject"])
 export type Reply = z.infer<typeof Reply>
 
 export const Approval = z.object({
-  projectID: ProjectID.zod,
+  projectID: z.string(),
   patterns: z.string().array(),
 })
 
@@ -75,39 +83,38 @@ export const Event = {
   ),
 }
 
-export class RejectedError extends Schema.TaggedErrorClass<RejectedError>()("PermissionRejectedError", {}) {
-  override get message() {
-    return "The user rejected permission to use this specific tool call."
+// ── Error types ──
+
+export class RejectedError extends Error {
+  override readonly name = "PermissionRejectedError"
+  constructor() {
+    super("The user rejected permission to use this specific tool call.")
   }
 }
 
-export class CorrectedError extends Schema.TaggedErrorClass<CorrectedError>()("PermissionCorrectedError", {
-  feedback: Schema.String,
-}) {
-  override get message() {
-    return `The user rejected permission to use this specific tool call with the following feedback: ${this.feedback}`
+export class CorrectedError extends Error {
+  override readonly name = "PermissionCorrectedError"
+  readonly feedback: string
+  constructor(opts: { feedback: string }) {
+    super(`The user rejected permission to use this specific tool call with the following feedback: ${opts.feedback}`)
+    this.feedback = opts.feedback
   }
 }
 
-export class DeniedError extends Schema.TaggedErrorClass<DeniedError>()("PermissionDeniedError", {
-  ruleset: Schema.Any,
-}) {
-  override get message() {
-    return `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules ${JSON.stringify(this.ruleset)}`
+export class DeniedError extends Error {
+  override readonly name = "PermissionDeniedError"
+  readonly ruleset: unknown
+  constructor(opts: { ruleset: unknown }) {
+    super(
+      `The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules ${JSON.stringify(opts.ruleset)}`,
+    )
+    this.ruleset = opts.ruleset
   }
 }
 
 export type PermissionError = DeniedError | RejectedError | CorrectedError
 
-interface PendingEntry {
-  info: Request
-  deferred: Deferred.Deferred<void, RejectedError | CorrectedError>
-}
-
-type State = {
-  pending: Map<PermissionID, PendingEntry>
-  approved: Ruleset
-}
+// ── Schemas for ask/reply inputs ──
 
 export const AskInput = Request.partial({ id: true }).extend({
   ruleset: Ruleset,
@@ -119,140 +126,136 @@ export const ReplyInput = z.object({
   message: z.string().optional(),
 })
 
-export declare namespace PermissionService {
-  export interface Api {
-    readonly ask: (input: z.infer<typeof AskInput>) => Effect.Effect<void, PermissionError>
-    readonly reply: (input: z.infer<typeof ReplyInput>) => Effect.Effect<void>
-    readonly list: () => Effect.Effect<Request[]>
+// ── Service implementation ──
+
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason: unknown) => void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+interface PendingEntry {
+  info: Request
+  deferred: Deferred<void>
+}
+
+interface State {
+  pending: Map<PermissionID, PendingEntry>
+  approved: Ruleset
+}
+
+const state = Instance.state(() => {
+  const row = Database.use((db) =>
+    db.select().from(PermissionTable).where(eq(PermissionTable.project_id, Instance.project.id)).get(),
+  )
+  return {
+    pending: new Map<PermissionID, PendingEntry>(),
+    approved: (row?.data ?? []) as Ruleset,
+  }
+})
+
+export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
+  const s = state()
+  const { ruleset, ...request } = input
+  let pending = false
+
+  for (const pattern of request.patterns) {
+    const rule = evaluate(request.permission, pattern, ruleset, s.approved)
+    log.info("evaluated", { permission: request.permission, pattern, action: rule })
+    if (rule.action === "deny") {
+      throw new DeniedError({
+        ruleset: ruleset.filter((rule) => Wildcard.match(request.permission, rule.permission)),
+      })
+    }
+    if (rule.action === "allow") continue
+    pending = true
+  }
+
+  if (!pending) return
+
+  const id = request.id ?? PermissionID.ascending()
+  const info: Request = { id, ...request }
+  log.info("asking", { id, permission: info.permission, patterns: info.patterns })
+
+  const deferred = createDeferred<void>()
+  s.pending.set(id, { info, deferred })
+  void Bus.publish(Event.Asked, info)
+
+  try {
+    return await deferred.promise
+  } finally {
+    s.pending.delete(id)
   }
 }
 
-export class PermissionService extends ServiceMap.Service<PermissionService, PermissionService.Api>()(
-  "@opencode/PermissionNext",
-) {
-  static readonly layer = Layer.effect(
-    PermissionService,
-    Effect.gen(function* () {
-      const instanceState = yield* InstanceState.make<State>(() =>
-        Effect.sync(() => {
-          const row = Database.use((db) =>
-            db.select().from(PermissionTable).where(eq(PermissionTable.project_id, Instance.project.id)).get(),
-          )
-          return {
-            pending: new Map<PermissionID, PendingEntry>(),
-            approved: row?.data ?? [],
-          }
-        }),
-      )
+export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
+  const s = state()
+  const existing = s.pending.get(input.requestID)
+  if (!existing) return
 
-      const ask = Effect.fn("PermissionService.ask")(function* (input: z.infer<typeof AskInput>) {
-        const state = yield* InstanceState.get(instanceState)
-        const { ruleset, ...request } = input
-        let pending = false
+  s.pending.delete(input.requestID)
+  void Bus.publish(Event.Replied, {
+    sessionID: existing.info.sessionID,
+    requestID: existing.info.id,
+    reply: input.reply,
+  })
 
-        for (const pattern of request.patterns) {
-          const rule = evaluate(request.permission, pattern, ruleset, state.approved)
-          log.info("evaluated", { permission: request.permission, pattern, action: rule })
-          if (rule.action === "deny") {
-            return yield* new DeniedError({
-              ruleset: ruleset.filter((rule) => Wildcard.match(request.permission, rule.permission)),
-            })
-          }
-          if (rule.action === "allow") continue
-          pending = true
-        }
+  if (input.reply === "reject") {
+    existing.deferred.reject(input.message ? new CorrectedError({ feedback: input.message }) : new RejectedError())
 
-        if (!pending) return
-
-        const id = request.id ?? PermissionID.ascending()
-        const info: Request = {
-          id,
-          ...request,
-        }
-        log.info("asking", { id, permission: info.permission, patterns: info.patterns })
-
-        const deferred = yield* Deferred.make<void, RejectedError | CorrectedError>()
-        state.pending.set(id, { info, deferred })
-        void Bus.publish(Event.Asked, info)
-        return yield* Effect.ensuring(
-          Deferred.await(deferred),
-          Effect.sync(() => {
-            state.pending.delete(id)
-          }),
-        )
+    for (const [id, item] of s.pending.entries()) {
+      if (item.info.sessionID !== existing.info.sessionID) continue
+      s.pending.delete(id)
+      void Bus.publish(Event.Replied, {
+        sessionID: item.info.sessionID,
+        requestID: item.info.id,
+        reply: "reject",
       })
+      item.deferred.reject(new RejectedError())
+    }
+    return
+  }
 
-      const reply = Effect.fn("PermissionService.reply")(function* (input: z.infer<typeof ReplyInput>) {
-        const state = yield* InstanceState.get(instanceState)
-        const existing = state.pending.get(input.requestID)
-        if (!existing) return
+  existing.deferred.resolve(undefined)
+  if (input.reply === "once") return
 
-        state.pending.delete(input.requestID)
-        void Bus.publish(Event.Replied, {
-          sessionID: existing.info.sessionID,
-          requestID: existing.info.id,
-          reply: input.reply,
-        })
+  for (const pattern of existing.info.always) {
+    s.approved.push({
+      permission: existing.info.permission,
+      pattern,
+      action: "allow",
+    })
+  }
 
-        if (input.reply === "reject") {
-          yield* Deferred.fail(
-            existing.deferred,
-            input.message ? new CorrectedError({ feedback: input.message }) : new RejectedError(),
-          )
+  for (const [id, item] of s.pending.entries()) {
+    if (item.info.sessionID !== existing.info.sessionID) continue
+    const ok = item.info.patterns.every(
+      (pattern) => evaluate(item.info.permission, pattern, s.approved).action === "allow",
+    )
+    if (!ok) continue
+    s.pending.delete(id)
+    void Bus.publish(Event.Replied, {
+      sessionID: item.info.sessionID,
+      requestID: item.info.id,
+      reply: "always",
+    })
+    item.deferred.resolve(undefined)
+  }
+}
 
-          for (const [id, item] of state.pending.entries()) {
-            if (item.info.sessionID !== existing.info.sessionID) continue
-            state.pending.delete(id)
-            void Bus.publish(Event.Replied, {
-              sessionID: item.info.sessionID,
-              requestID: item.info.id,
-              reply: "reject",
-            })
-            yield* Deferred.fail(item.deferred, new RejectedError())
-          }
-          return
-        }
-
-        yield* Deferred.succeed(existing.deferred, undefined)
-        if (input.reply === "once") return
-
-        for (const pattern of existing.info.always) {
-          state.approved.push({
-            permission: existing.info.permission,
-            pattern,
-            action: "allow",
-          })
-        }
-
-        for (const [id, item] of state.pending.entries()) {
-          if (item.info.sessionID !== existing.info.sessionID) continue
-          const ok = item.info.patterns.every(
-            (pattern) => evaluate(item.info.permission, pattern, state.approved).action === "allow",
-          )
-          if (!ok) continue
-          state.pending.delete(id)
-          void Bus.publish(Event.Replied, {
-            sessionID: item.info.sessionID,
-            requestID: item.info.id,
-            reply: "always",
-          })
-          yield* Deferred.succeed(item.deferred, undefined)
-        }
-
-        // TODO: we don't save the permission ruleset to disk yet until there's
-        // UI to manage it
-        // db().insert(PermissionTable).values({ projectID: Instance.project.id, data: s.approved })
-        //   .onConflictDoUpdate({ target: PermissionTable.projectID, set: { data: s.approved } }).run()
-      })
-
-      const list = Effect.fn("PermissionService.list")(function* () {
-        const state = yield* InstanceState.get(instanceState)
-        return Array.from(state.pending.values(), (item) => item.info)
-      })
-
-      return PermissionService.of({ ask, reply, list })
-    }),
-  )
+export async function list(): Promise<Request[]> {
+  const s = state()
+  return Array.from(s.pending.values(), (item) => item.info)
 }
 
 export function evaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {
