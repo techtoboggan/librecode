@@ -1,15 +1,22 @@
-import { Deferred, Effect, Layer, Schema, ServiceMap } from "effect"
+/**
+ * Question Service
+ *
+ * Manages interactive questions posed to the user during tool execution.
+ * Maintains a pending queue of unanswered questions with deferred resolution.
+ *
+ * Migrated from Effect-ts to plain async per ADR-001.
+ */
+
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { SessionID, MessageID } from "@/session/schema"
-import { InstanceState } from "@/util/instance-state"
 import { Log } from "@/util/log"
 import z from "zod"
 import { QuestionID } from "./schema"
 
 const log = Log.create({ service: "question" })
 
-// --- Zod schemas (re-exported by facade) ---
+// ── Schemas ──
 
 export const Option = z
   .object({
@@ -72,110 +79,94 @@ export const Event = {
   ),
 }
 
-export class RejectedError extends Schema.TaggedErrorClass<RejectedError>()("QuestionRejectedError", {}) {
-  override get message() {
-    return "The user dismissed this question"
+export class RejectedError extends Error {
+  override readonly name = "QuestionRejectedError"
+  constructor() {
+    super("The user dismissed this question")
   }
 }
 
-// --- Effect service ---
+// ── Service implementation ──
+
+interface Deferred<T> {
+  promise: Promise<T>
+  resolve: (value: T) => void
+  reject: (reason: unknown) => void
+}
+
+function createDeferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
 
 interface PendingEntry {
   info: Request
-  deferred: Deferred.Deferred<Answer[], RejectedError>
+  deferred: Deferred<Answer[]>
 }
 
-export namespace QuestionService {
-  export interface Service {
-    readonly ask: (input: {
-      sessionID: SessionID
-      questions: Info[]
-      tool?: { messageID: MessageID; callID: string }
-    }) => Effect.Effect<Answer[], RejectedError>
-    readonly reply: (input: { requestID: QuestionID; answers: Answer[] }) => Effect.Effect<void>
-    readonly reject: (requestID: QuestionID) => Effect.Effect<void>
-    readonly list: () => Effect.Effect<Request[]>
+const pending = new Map<QuestionID, PendingEntry>()
+
+export async function ask(input: {
+  sessionID: SessionID
+  questions: Info[]
+  tool?: { messageID: MessageID; callID: string }
+}): Promise<Answer[]> {
+  const id = QuestionID.ascending()
+  log.info("asking", { id, questions: input.questions.length })
+
+  const deferred = createDeferred<Answer[]>()
+  const info: Request = {
+    id,
+    sessionID: input.sessionID,
+    questions: input.questions,
+    tool: input.tool,
+  }
+  pending.set(id, { info, deferred })
+  Bus.publish(Event.Asked, info)
+
+  try {
+    return await deferred.promise
+  } finally {
+    pending.delete(id)
   }
 }
 
-export class QuestionService extends ServiceMap.Service<QuestionService, QuestionService.Service>()(
-  "@opencode/Question",
-) {
-  static readonly layer = Layer.effect(
-    QuestionService,
-    Effect.gen(function* () {
-      const instanceState = yield* InstanceState.make<Map<QuestionID, PendingEntry>>(() =>
-        Effect.succeed(new Map<QuestionID, PendingEntry>()),
-      )
+export async function reply(input: { requestID: QuestionID; answers: Answer[] }): Promise<void> {
+  const existing = pending.get(input.requestID)
+  if (!existing) {
+    log.warn("reply for unknown request", { requestID: input.requestID })
+    return
+  }
+  pending.delete(input.requestID)
+  log.info("replied", { requestID: input.requestID, answers: input.answers })
+  Bus.publish(Event.Replied, {
+    sessionID: existing.info.sessionID,
+    requestID: existing.info.id,
+    answers: input.answers,
+  })
+  existing.deferred.resolve(input.answers)
+}
 
-      const getPending = InstanceState.get(instanceState)
+export async function reject(requestID: QuestionID): Promise<void> {
+  const existing = pending.get(requestID)
+  if (!existing) {
+    log.warn("reject for unknown request", { requestID })
+    return
+  }
+  pending.delete(requestID)
+  log.info("rejected", { requestID })
+  Bus.publish(Event.Rejected, {
+    sessionID: existing.info.sessionID,
+    requestID: existing.info.id,
+  })
+  existing.deferred.reject(new RejectedError())
+}
 
-      const ask = Effect.fn("QuestionService.ask")(function* (input: {
-        sessionID: SessionID
-        questions: Info[]
-        tool?: { messageID: MessageID; callID: string }
-      }) {
-        const pending = yield* getPending
-        const id = QuestionID.ascending()
-        log.info("asking", { id, questions: input.questions.length })
-
-        const deferred = yield* Deferred.make<Answer[], RejectedError>()
-        const info: Request = {
-          id,
-          sessionID: input.sessionID,
-          questions: input.questions,
-          tool: input.tool,
-        }
-        pending.set(id, { info, deferred })
-        Bus.publish(Event.Asked, info)
-
-        return yield* Effect.ensuring(
-          Deferred.await(deferred),
-          Effect.sync(() => {
-            pending.delete(id)
-          }),
-        )
-      })
-
-      const reply = Effect.fn("QuestionService.reply")(function* (input: { requestID: QuestionID; answers: Answer[] }) {
-        const pending = yield* getPending
-        const existing = pending.get(input.requestID)
-        if (!existing) {
-          log.warn("reply for unknown request", { requestID: input.requestID })
-          return
-        }
-        pending.delete(input.requestID)
-        log.info("replied", { requestID: input.requestID, answers: input.answers })
-        Bus.publish(Event.Replied, {
-          sessionID: existing.info.sessionID,
-          requestID: existing.info.id,
-          answers: input.answers,
-        })
-        yield* Deferred.succeed(existing.deferred, input.answers)
-      })
-
-      const reject = Effect.fn("QuestionService.reject")(function* (requestID: QuestionID) {
-        const pending = yield* getPending
-        const existing = pending.get(requestID)
-        if (!existing) {
-          log.warn("reject for unknown request", { requestID })
-          return
-        }
-        pending.delete(requestID)
-        log.info("rejected", { requestID })
-        Bus.publish(Event.Rejected, {
-          sessionID: existing.info.sessionID,
-          requestID: existing.info.id,
-        })
-        yield* Deferred.fail(existing.deferred, new RejectedError())
-      })
-
-      const list = Effect.fn("QuestionService.list")(function* () {
-        const pending = yield* getPending
-        return Array.from(pending.values(), (x) => x.info)
-      })
-
-      return QuestionService.of({ ask, reply, reject, list })
-    }),
-  )
+export async function list(): Promise<Request[]> {
+  return Array.from(pending.values(), (x) => x.info)
 }
