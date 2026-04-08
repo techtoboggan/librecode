@@ -56,7 +56,7 @@
 | **3.1** Formalize agent loop | Extract implicit loop from prompt.ts into explicit state machine | ⬜ Depends on 2.1.1 |
 | **3.2** Instruction system overhaul | Priority ordering, source tracking, deduplication, context budgeting | ⬜ Depends on 3.1 |
 | **3.4** Session improvements | Branching, export/import, replay, better compaction | ⬜ Depends on 3.1 |
-| **3.5** MCP server management | Health checks, lifecycle, discovery, error messages | ⬜ No blockers |
+| **3.5** MCP server management | ✅ Health monitor (`mcp/health.ts`) with auto-reconnect + exponential backoff. Error diagnostics (`mcp/diagnostics.ts`) with categorized errors + actionable suggestions. 19 new tests. | DONE |
 
 ---
 
