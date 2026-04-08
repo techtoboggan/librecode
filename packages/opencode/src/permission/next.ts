@@ -7,6 +7,7 @@
 import { Config } from "@/config/config"
 import { fn } from "@/util/fn"
 import { Wildcard } from "@/util/wildcard"
+import { getToolCapabilities, getToolRisk, isReadOnly } from "@/tool/capability-registry"
 import os from "os"
 import * as S from "./service"
 import type {
@@ -88,4 +89,25 @@ export namespace PermissionNext {
     }
     return result
   }
+
+  /**
+   * Get capability-enriched info for a permission/tool.
+   * Used by the UI to display risk level and explain what a tool can do.
+   */
+  export function capabilityInfo(permission: string) {
+    const capabilities = getToolCapabilities(permission)
+    return {
+      risk: getToolRisk(permission),
+      readOnly: isReadOnly(permission),
+      capabilities: capabilities
+        ? {
+            reads: [...capabilities.reads],
+            writes: [...capabilities.writes],
+            sideEffects: capabilities.sideEffects,
+            executesCode: capabilities.executesCode ?? false,
+          }
+        : undefined,
+    }
+  }
+
 }

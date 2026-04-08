@@ -17,6 +17,7 @@ import { Log } from "@/util/log"
 import { Wildcard } from "@/util/wildcard"
 import z from "zod"
 import { PermissionID } from "./schema"
+import * as Audit from "./audit"
 
 const log = Log.create({ service: "permission" })
 
@@ -173,6 +174,12 @@ export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
     const rule = evaluate(request.permission, pattern, ruleset, s.approved)
     log.info("evaluated", { permission: request.permission, pattern, action: rule })
     if (rule.action === "deny") {
+      Audit.logDenied({
+        sessionID: request.sessionID,
+        permission: request.permission,
+        patterns: request.patterns,
+        reason: `Rule matched: ${rule.permission}/${rule.pattern} → deny`,
+      })
       throw new DeniedError({
         ruleset: ruleset.filter((rule) => Wildcard.match(request.permission, rule.permission)),
       })
@@ -181,11 +188,25 @@ export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
     pending = true
   }
 
-  if (!pending) return
+  if (!pending) {
+    Audit.logAutoApproved({
+      sessionID: request.sessionID,
+      permission: request.permission,
+      patterns: request.patterns,
+      reason: "All patterns matched allow rules",
+    })
+    return
+  }
 
   const id = request.id ?? PermissionID.ascending()
   const info: Request = { id, ...request }
   log.info("asking", { id, permission: info.permission, patterns: info.patterns })
+  Audit.logAsked({
+    sessionID: info.sessionID,
+    permission: info.permission,
+    patterns: info.patterns,
+    tool: info.tool,
+  })
 
   const deferred = createDeferred<void>()
   s.pending.set(id, { info, deferred })
@@ -207,6 +228,12 @@ export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
   void Bus.publish(Event.Replied, {
     sessionID: existing.info.sessionID,
     requestID: existing.info.id,
+    reply: input.reply,
+  })
+  Audit.logReplied({
+    sessionID: existing.info.sessionID,
+    permission: existing.info.permission,
+    patterns: existing.info.patterns,
     reply: input.reply,
   })
 

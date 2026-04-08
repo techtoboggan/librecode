@@ -48,15 +48,15 @@
 
 ---
 
-## Phase 3: Agentic SDLC pattern — NOT STARTED
+## Phase 3: Agentic SDLC pattern — IN PROGRESS
 
-| Item | Description | Depends on |
-|------|------------|-----------|
-| **3.1** Formalize agent loop | Extract implicit loop from prompt.ts into explicit state machine | 2.1.1 (namespace migration) |
-| **3.2** Instruction system overhaul | Priority ordering, source tracking, deduplication, context budgeting | 3.1 |
-| **3.3** Permission system hardening | Formal model, persistence, audit logging, tool capability integration | 2.4 (done) |
-| **3.4** Session improvements | Branching, export/import, replay, better compaction | 3.1 |
-| **3.5** MCP server management | Health checks, lifecycle, discovery, error messages | Nothing |
+| Item | Description | Status |
+|------|------------|--------|
+| **3.3** Permission hardening | ✅ Audit logging (`permission/audit.ts`), capability-enriched permission requests, `capabilityInfo()` API for UI, integrated at ask/reply/deny decision points | DONE |
+| **3.1** Formalize agent loop | Extract implicit loop from prompt.ts into explicit state machine | ⬜ Depends on 2.1.1 |
+| **3.2** Instruction system overhaul | Priority ordering, source tracking, deduplication, context budgeting | ⬜ Depends on 3.1 |
+| **3.4** Session improvements | Branching, export/import, replay, better compaction | ⬜ Depends on 3.1 |
+| **3.5** MCP server management | Health checks, lifecycle, discovery, error messages | ⬜ No blockers |
 
 ---
 
