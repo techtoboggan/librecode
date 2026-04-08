@@ -19,12 +19,12 @@ afterEach(async () => {
   await fs.rm(managedConfigDir, { force: true, recursive: true }).catch(() => {})
 })
 
-async function writeManagedSettings(settings: object, filename = "opencode.json") {
+async function writeManagedSettings(settings: object, filename = "librecode.json") {
   await fs.mkdir(managedConfigDir, { recursive: true })
   await Filesystem.write(path.join(managedConfigDir, filename), JSON.stringify(settings))
 }
 
-async function writeConfig(dir: string, config: object, name = "opencode.json") {
+async function writeConfig(dir: string, config: object, name = "librecode.json") {
   await Filesystem.write(path.join(dir, name), JSON.stringify(config))
 }
 
@@ -37,7 +37,7 @@ async function check(map: (dir: string) => string) {
   Config.global.reset()
   try {
     await writeConfig(globalTmp.path, {
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://librecode.app/config.json",
       snapshot: false,
     })
     await Instance.provide({
@@ -71,7 +71,7 @@ test("loads JSON config file", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         model: "test/model",
         username: "testuser",
       })
@@ -108,7 +108,7 @@ test("ignores legacy tui keys in opencode config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         model: "test/model",
         theme: "legacy",
         tui: { scroll_speed: 4 },
@@ -130,10 +130,10 @@ test("loads JSONC config file", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.jsonc"),
+        path.join(dir, "librecode.jsonc"),
         `{
         // This is a comment
-        "$schema": "https://opencode.ai/config.json",
+        "$schema": "https://librecode.app/config.json",
         "model": "test/model",
         "username": "testuser"
       }`,
@@ -156,14 +156,14 @@ test("merges multiple config files with correct precedence", async () => {
       await writeConfig(
         dir,
         {
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           model: "base",
           username: "base",
         },
-        "opencode.jsonc",
+        "librecode.jsonc",
       )
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         model: "override",
       })
     },
@@ -186,7 +186,7 @@ test("handles environment variable substitution", async () => {
     await using tmp = await tmpdir({
       init: async (dir) => {
         await writeConfig(dir, {
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           username: "{env:TEST_VAR}",
         })
       },
@@ -216,7 +216,7 @@ test("preserves env variables when adding $schema to config", async () => {
       init: async (dir) => {
         // Config without $schema - should trigger auto-add
         await Filesystem.write(
-          path.join(dir, "opencode.json"),
+          path.join(dir, "librecode.json"),
           JSON.stringify({
             username: "{env:PRESERVE_VAR}",
           }),
@@ -230,7 +230,7 @@ test("preserves env variables when adding $schema to config", async () => {
         expect(config.username).toBe("secret_value")
 
         // Read the file to verify the env variable was preserved
-        const content = await Filesystem.readText(path.join(tmp.path, "opencode.json"))
+        const content = await Filesystem.readText(path.join(tmp.path, "librecode.json"))
         expect(content).toContain("{env:PRESERVE_VAR}")
         expect(content).not.toContain("secret_value")
         expect(content).toContain("$schema")
@@ -296,7 +296,7 @@ test("handles file inclusion substitution", async () => {
     init: async (dir) => {
       await Filesystem.write(path.join(dir, "included.txt"), "test-user")
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         username: "{file:included.txt}",
       })
     },
@@ -315,7 +315,7 @@ test("handles file inclusion with replacement tokens", async () => {
     init: async (dir) => {
       await Filesystem.write(path.join(dir, "included.md"), "const out = await Bun.$`echo hi`")
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         username: "{file:included.md}",
       })
     },
@@ -333,7 +333,7 @@ test("validates config schema and throws on invalid fields", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         invalid_field: "should cause error",
       })
     },
@@ -350,7 +350,7 @@ test("validates config schema and throws on invalid fields", async () => {
 test("throws error for invalid JSON", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
-      await Filesystem.write(path.join(dir, "opencode.json"), "{ invalid json }")
+      await Filesystem.write(path.join(dir, "librecode.json"), "{ invalid json }")
     },
   })
   await Instance.provide({
@@ -365,7 +365,7 @@ test("handles agent configuration", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         agent: {
           test_agent: {
             model: "test/model",
@@ -395,7 +395,7 @@ test("treats agent variant as model-scoped setting (not provider option)", async
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         agent: {
           test_agent: {
             model: "openai/gpt-5.2",
@@ -426,7 +426,7 @@ test("handles command configuration", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         command: {
           test_command: {
             template: "test template",
@@ -454,9 +454,9 @@ test("migrates autoshare to share field", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           autoshare: true,
         }),
       )
@@ -476,9 +476,9 @@ test("migrates mode field to agent field", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mode: {
             test_mode: {
               model: "test/model",
@@ -825,8 +825,8 @@ test("resolves scoped npm plugins in config", async () => {
       await Filesystem.write(path.join(pluginDir, "index.js"), "export default {}\n")
 
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
-        JSON.stringify({ $schema: "https://opencode.ai/config.json", plugin: ["@scope/plugin"] }, null, 2),
+        path.join(dir, "librecode.json"),
+        JSON.stringify({ $schema: "https://librecode.app/config.json", plugin: ["@scope/plugin"] }, null, 2),
       )
     },
   })
@@ -837,7 +837,7 @@ test("resolves scoped npm plugins in config", async () => {
       const config = await Config.get()
       const pluginEntries = config.plugin ?? []
 
-      const baseUrl = pathToFileURL(path.join(tmp.path, "opencode.json")).href
+      const baseUrl = pathToFileURL(path.join(tmp.path, "librecode.json")).href
       const expected = pathToFileURL(path.join(tmp.path, "node_modules", "@scope", "plugin", "index.js")).href
 
       expect(pluginEntries.includes(expected)).toBe(true)
@@ -859,18 +859,18 @@ test("merges plugin arrays from global and local configs", async () => {
 
       // Global config with plugins
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           plugin: ["global-plugin-1", "global-plugin-2"],
         }),
       )
 
       // Local .librecode config with different plugins
       await Filesystem.write(
-        path.join(opencodeDir, "opencode.json"),
+        path.join(opencodeDir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           plugin: ["local-plugin-1"],
         }),
       )
@@ -935,17 +935,17 @@ test("merges instructions arrays from global and local configs", async () => {
       await fs.mkdir(opencodeDir, { recursive: true })
 
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           instructions: ["global-instructions.md", "shared-rules.md"],
         }),
       )
 
       await Filesystem.write(
-        path.join(opencodeDir, "opencode.json"),
+        path.join(opencodeDir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           instructions: ["local-instructions.md"],
         }),
       )
@@ -974,17 +974,17 @@ test("deduplicates duplicate instructions from global and local configs", async 
       await fs.mkdir(opencodeDir, { recursive: true })
 
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           instructions: ["duplicate.md", "global-only.md"],
         }),
       )
 
       await Filesystem.write(
-        path.join(opencodeDir, "opencode.json"),
+        path.join(opencodeDir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           instructions: ["duplicate.md", "local-only.md"],
         }),
       )
@@ -1018,18 +1018,18 @@ test("deduplicates duplicate plugins from global and local configs", async () =>
 
       // Global config with plugins
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           plugin: ["duplicate-plugin", "global-plugin-1"],
         }),
       )
 
       // Local .librecode config with some overlapping plugins
       await Filesystem.write(
-        path.join(opencodeDir, "opencode.json"),
+        path.join(opencodeDir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           plugin: ["duplicate-plugin", "local-plugin-1"],
         }),
       )
@@ -1066,9 +1066,9 @@ test("migrates legacy tools config to permissions - allow", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1097,9 +1097,9 @@ test("migrates legacy tools config to permissions - deny", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1128,9 +1128,9 @@ test("migrates legacy write tool to edit permission", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1160,7 +1160,7 @@ test("managed settings override user settings", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         model: "user/model",
         share: "auto",
         username: "testuser",
@@ -1169,7 +1169,7 @@ test("managed settings override user settings", async () => {
   })
 
   await writeManagedSettings({
-    $schema: "https://opencode.ai/config.json",
+    $schema: "https://librecode.app/config.json",
     model: "managed/model",
     share: "disabled",
   })
@@ -1189,7 +1189,7 @@ test("managed settings override project settings", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         autoupdate: true,
         disabled_providers: [],
       })
@@ -1197,7 +1197,7 @@ test("managed settings override project settings", async () => {
   })
 
   await writeManagedSettings({
-    $schema: "https://opencode.ai/config.json",
+    $schema: "https://librecode.app/config.json",
     autoupdate: false,
     disabled_providers: ["openai"],
   })
@@ -1216,7 +1216,7 @@ test("missing managed settings file is not an error", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await writeConfig(dir, {
-        $schema: "https://opencode.ai/config.json",
+        $schema: "https://librecode.app/config.json",
         model: "user/model",
       })
     },
@@ -1235,9 +1235,9 @@ test("migrates legacy edit tool to edit permission", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1264,9 +1264,9 @@ test("migrates legacy patch tool to edit permission", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1293,9 +1293,9 @@ test("migrates legacy multiedit tool to edit permission", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1322,9 +1322,9 @@ test("migrates mixed legacy tools config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               tools: {
@@ -1357,9 +1357,9 @@ test("merges legacy tools with existing permission config", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           agent: {
             test: {
               permission: {
@@ -1390,9 +1390,9 @@ test("permission config preserves key order", async () => {
   await using tmp = await tmpdir({
     init: async (dir) => {
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           permission: {
             "*": "deny",
             edit: "ask",
@@ -1438,9 +1438,9 @@ test("project config can override MCP server enabled status", async () => {
     init: async (dir) => {
       // Simulates a base config (like from remote .well-known) with disabled MCP
       await Filesystem.write(
-        path.join(dir, "opencode.jsonc"),
+        path.join(dir, "librecode.jsonc"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             jira: {
               type: "remote",
@@ -1457,9 +1457,9 @@ test("project config can override MCP server enabled status", async () => {
       )
       // Project config enables just jira
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             jira: {
               type: "remote",
@@ -1496,9 +1496,9 @@ test("MCP config deep merges preserving base config properties", async () => {
     init: async (dir) => {
       // Base config with full MCP definition
       await Filesystem.write(
-        path.join(dir, "opencode.jsonc"),
+        path.join(dir, "librecode.jsonc"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             myserver: {
               type: "remote",
@@ -1513,9 +1513,9 @@ test("MCP config deep merges preserving base config properties", async () => {
       )
       // Override just enables it, should preserve other properties
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             myserver: {
               type: "remote",
@@ -1548,9 +1548,9 @@ test("local .librecode config can override MCP from project config", async () =>
     init: async (dir) => {
       // Project config with disabled MCP
       await Filesystem.write(
-        path.join(dir, "opencode.json"),
+        path.join(dir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             docs: {
               type: "remote",
@@ -1564,9 +1564,9 @@ test("local .librecode config can override MCP from project config", async () =>
       const opencodeDir = path.join(dir, ".librecode")
       await fs.mkdir(opencodeDir, { recursive: true })
       await Filesystem.write(
-        path.join(opencodeDir, "opencode.json"),
+        path.join(opencodeDir, "librecode.json"),
         JSON.stringify({
-          $schema: "https://opencode.ai/config.json",
+          $schema: "https://librecode.app/config.json",
           mcp: {
             docs: {
               type: "remote",
@@ -1592,7 +1592,7 @@ test("project config overrides remote well-known config", async () => {
   let fetchedUrl: string | undefined
   const mockFetch = mock((url: string | URL | Request) => {
     const urlStr = url.toString()
-    if (urlStr.includes(".well-known/opencode")) {
+    if (urlStr.includes(".well-known/librecode")) {
       fetchedUrl = urlStr
       return Promise.resolve(
         new Response(
@@ -1632,9 +1632,9 @@ test("project config overrides remote well-known config", async () => {
       init: async (dir) => {
         // Project config enables jira (overriding remote default)
         await Filesystem.write(
-          path.join(dir, "opencode.json"),
+          path.join(dir, "librecode.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://librecode.app/config.json",
             mcp: {
               jira: {
                 type: "remote",
@@ -1651,7 +1651,7 @@ test("project config overrides remote well-known config", async () => {
       fn: async () => {
         const config = await Config.get()
         // Verify fetch was called for wellknown config
-        expect(fetchedUrl).toBe("https://example.com/.well-known/opencode")
+        expect(fetchedUrl).toBe("https://example.com/.well-known/librecode")
         // Project config (enabled: true) should override remote (enabled: false)
         expect(config.mcp?.jira?.enabled).toBe(true)
       },
@@ -1667,7 +1667,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
   let fetchedUrl: string | undefined
   const mockFetch = mock((url: string | URL | Request) => {
     const urlStr = url.toString()
-    if (urlStr.includes(".well-known/opencode")) {
+    if (urlStr.includes(".well-known/librecode")) {
       fetchedUrl = urlStr
       return Promise.resolve(
         new Response(
@@ -1706,9 +1706,9 @@ test("wellknown URL with trailing slash is normalized", async () => {
       git: true,
       init: async (dir) => {
         await Filesystem.write(
-          path.join(dir, "opencode.json"),
+          path.join(dir, "librecode.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://librecode.app/config.json",
           }),
         )
       },
@@ -1718,7 +1718,7 @@ test("wellknown URL with trailing slash is normalized", async () => {
       fn: async () => {
         await Config.get()
         // Trailing slash should be stripped — no double slash in the fetch URL
-        expect(fetchedUrl).toBe("https://example.com/.well-known/opencode")
+        expect(fetchedUrl).toBe("https://example.com/.well-known/librecode")
       },
     })
   } finally {
@@ -1790,9 +1790,9 @@ describe("deduplicatePlugins", () => {
         await fs.mkdir(pluginDir, { recursive: true })
 
         await Filesystem.write(
-          path.join(dir, "opencode.json"),
+          path.join(dir, "librecode.json"),
           JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://librecode.app/config.json",
             plugin: ["my-plugin@1.0.0"],
           }),
         )
@@ -1825,9 +1825,9 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         init: async (dir) => {
           // Create a project config that would normally be loaded
           await Filesystem.write(
-            path.join(dir, "opencode.json"),
+            path.join(dir, "librecode.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://librecode.app/config.json",
               model: "project/model",
               username: "project-user",
             }),
@@ -1920,9 +1920,9 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         init: async (dir) => {
           // Create a config with relative instruction path
           await Filesystem.write(
-            path.join(dir, "opencode.json"),
+            path.join(dir, "librecode.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://librecode.app/config.json",
               instructions: ["./CUSTOM.md"],
             }),
           )
@@ -1966,9 +1966,9 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         init: async (dir) => {
           // Create config in the custom config dir
           await Filesystem.write(
-            path.join(dir, "opencode.json"),
+            path.join(dir, "librecode.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://librecode.app/config.json",
               model: "configdir/model",
             }),
           )
@@ -1979,9 +1979,9 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         init: async (dir) => {
           // Create config in project (should be ignored)
           await Filesystem.write(
-            path.join(dir, "opencode.json"),
+            path.join(dir, "librecode.json"),
             JSON.stringify({
-              $schema: "https://opencode.ai/config.json",
+              $schema: "https://librecode.app/config.json",
               model: "project/model",
             }),
           )
@@ -2020,7 +2020,7 @@ describe("LIBRECODE_CONFIG_CONTENT token substitution", () => {
     const originalTestVar = process.env["TEST_CONFIG_VAR"]
     process.env["TEST_CONFIG_VAR"] = "test_api_key_12345"
     process.env["LIBRECODE_CONFIG_CONTENT"] = JSON.stringify({
-      $schema: "https://opencode.ai/config.json",
+      $schema: "https://librecode.app/config.json",
       username: "{env:TEST_CONFIG_VAR}",
     })
 
@@ -2055,7 +2055,7 @@ describe("LIBRECODE_CONFIG_CONTENT token substitution", () => {
         init: async (dir) => {
           await Filesystem.write(path.join(dir, "api_key.txt"), "secret_key_from_file")
           process.env["LIBRECODE_CONFIG_CONTENT"] = JSON.stringify({
-            $schema: "https://opencode.ai/config.json",
+            $schema: "https://librecode.app/config.json",
             username: "{file:./api_key.txt}",
           })
         },

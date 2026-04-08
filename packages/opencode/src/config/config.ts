@@ -79,7 +79,7 @@ export namespace Config {
     const auth = await Auth.all()
 
     // Config loading order (low -> high precedence): https://github.com/techtoboggan/librecode/docs/config#precedence-order
-    // 1) Remote .well-known/opencode (org defaults)
+    // 1) Remote .well-known/librecode (org defaults)
     // 2) Global config (~/.config/opencode/opencode.json{,c})
     // 3) Custom config (LIBRECODE_CONFIG)
     // 4) Project config (opencode.json{,c})
@@ -91,8 +91,8 @@ export namespace Config {
       if (value.type === "wellknown") {
         const url = key.replace(/\/+$/, "")
         process.env[value.key] = value.token
-        log.debug("fetching remote config", { url: `${url}/.well-known/opencode` })
-        const response = await fetch(`${url}/.well-known/opencode`)
+        log.debug("fetching remote config", { url: `${url}/.well-known/librecode` })
+        const response = await fetch(`${url}/.well-known/librecode`)
         if (!response.ok) {
           throw new Error(`failed to fetch remote config from ${url}: ${response.status}`)
         }
@@ -103,8 +103,8 @@ export namespace Config {
         result = mergeConfigConcatArrays(
           result,
           await load(JSON.stringify(remoteConfig), {
-            dir: path.dirname(`${url}/.well-known/opencode`),
-            source: `${url}/.well-known/opencode`,
+            dir: path.dirname(`${url}/.well-known/librecode`),
+            source: `${url}/.well-known/librecode`,
           }),
         )
         log.debug("loaded remote config from well-known", { url })
