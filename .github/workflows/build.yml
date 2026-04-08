@@ -17,27 +17,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux x64
+          # Linux glibc
           - target: linux-x64
             os: ubuntu-latest
-            build-args: "--target linux-x64"
           - target: linux-x64-baseline
             os: ubuntu-latest
-            build-args: "--target linux-x64-baseline"
-          - target: linux-x64-musl
-            os: ubuntu-latest
-            build-args: "--target linux-x64-musl"
-          # Linux arm64
           - target: linux-arm64
             os: ubuntu-latest
-            build-args: "--target linux-arm64"
+          # Linux musl
+          - target: linux-x64-musl
+            os: ubuntu-latest
           # macOS
           - target: darwin-x64
             os: macos-13
-            build-args: "--target darwin-x64"
           - target: darwin-arm64
             os: macos-14
-            build-args: "--target darwin-arm64"
 
     steps:
       - uses: actions/checkout@v4
@@ -46,7 +40,7 @@ jobs:
           bun-version: "1.3.10"
       - run: bun install --frozen-lockfile
       - name: Build
-        run: bun run script/build.ts --single ${{ matrix.build-args }}
+        run: bun run script/build.ts --target ${{ matrix.target }}
         working-directory: packages/opencode
       - uses: actions/upload-artifact@v4
         with:
