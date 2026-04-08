@@ -2,227 +2,110 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Establish a proper agentic SDLC pattern, fix packaging, strip vendor cruft.
+> Last updated: 2026-04-08 | 20 commits | Tests: 1295 pass, 7 fail (env-dependent)
 
 ---
 
-## Phase 0: Foundation (repo hygiene, CI, packaging) — DONE
+## Phase 0: Foundation — DONE ✅
 
-### 0.1 — GitHub Actions from scratch ✅
-Replaced 35+ upstream workflows with 6 focused ones:
-
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
-| `ci.yml` | push/PR to `main` | Typecheck, lint, 4 parallel test jobs (core, util, plugin, app) |
-| `build.yml` | push to `main` | Multi-platform CLI builds via `--target` flag |
-| `release.yml` | tag `v*` | Full release: build all targets, checksums, GitHub Release |
-| `desktop.yml` | tag `v*-desktop` | Tauri build for Linux/macOS/Windows |
-| `nix.yml` | push (nix paths) | `nix flake check`, eval packages |
-| `copr.yml` | release | Submit RPM to Fedora COPR |
-
-### 0.2 — Linux packaging ✅
-- **COPR**: RPM `.spec` template (`packaging/librecode.spec.in`)
-- **AUR**: PKGBUILD (`packaging/PKGBUILD`)
-- **Nix**: flake.nix cleaned up, derivations renamed
-- **AppImage/Flatpak**: TODO — evaluate for desktop app distribution
-
-### 0.3 — Rebrand ✅
-377 files changed: `@opencode-ai/*` → `@librecode/*`, binary/config/env vars/deep links/Tauri/Nix/Cargo all renamed.
+- [x] **0.1** GitHub Actions: 6 workflows replacing 35+ (ci, build, release, desktop, nix, copr)
+- [x] **0.2** Linux packaging: RPM spec for COPR, PKGBUILD for AUR, Nix flake cleaned
+- [x] **0.3** Rebrand: 377 files, @opencode-ai → @librecode, binary/config/env/Tauri/Nix/Cargo
 
 ---
 
-## Phase 1: Build system & monorepo cleanup — DONE
+## Phase 1: Build system & monorepo cleanup — DONE ✅
 
-### 1.1 — Audit workspace dependencies ✅
-Stripped: `@babel/core`, `@types/babel__core`, `@actions/artifact`, `@cloudflare/workers-types`, `@solidjs/start`, `electron` from trustedDependencies.
-
-### 1.2 — Build script decomposition ✅
-Split monolithic `build.ts` into:
-- `fetch-models.ts` — standalone, cacheable models.dev snapshot fetch
-- `load-migrations.ts` — reusable migration loader module
-- `release-upload.ts` — archive + GitHub Release upload
-- `build.ts` — orchestrator with new `--target`, `--skip-models` flags
-- `publish.ts` — rebranded NPM/Docker/AUR/Homebrew distribution
-
-### 1.3 — Evaluate Turbo vs alternatives
-- [ ] Consider if Turbo is still needed with only 8 packages
-- [ ] Bun workspaces alone may suffice — measure build time difference
-
-### 1.4 — Lock file hygiene ✅ (deferred)
-Lockfile regen deferred to first `bun install` — no bun runtime on dev machine.
-
-### 1.5 — Test infrastructure ✅
-- 11 new test files (~60 cases) for `util` and `plugin` packages
-- CI expanded to 4 parallel test jobs (was 1)
-- App unit tests now run in CI (were previously local-only)
+- [x] **1.1** Dead deps stripped (@babel/core, @actions/artifact, dead catalog entries)
+- [x] **1.2** Build script decomposed (fetch-models.ts, load-migrations.ts, --target flag, publish.ts rebranded)
+- [x] **1.4** Lock file regenerated clean (bun 1.3.11, 321 packages)
+- [x] **1.5** Test infrastructure: 11 new test files for util/plugin, CI expanded to 4 parallel jobs
+- [ ] **1.3** Evaluate Turbo vs Bun workspaces alone
 
 ---
 
-## Phase 2: Core architecture refactor — DESIGN DONE, implementation needs bun runtime
+## Phase 2: Core architecture refactor — IN PROGRESS
 
-### 2.1 — Tame the megafiles ⚠️ PARTIAL
+### Completed ✅
 
-Actual file sizes (the original plan had inflated counts):
+| Item | What was done |
+|------|---------------|
+| 2.1 Megafile splits | provider.ts 1,453→909 (loaders extracted), prompt.ts 1,970→1,855 (templates extracted) |
+| 2.2 Effect-ts ADR | Decision: migrate away. ADR-001 written. QuestionService migrated to plain async. |
+| 2.3 Provider plugin API | `ProviderPlugin` interface, `defineProvider()`, loaders extracted to 6 files |
+| 2.4 Tool capabilities | `ToolCapabilities`, `ToolDependencies`, `ToolProfiles` + all 23 tools annotated with capability registry |
+| 2.5 Storage cleanup | ADR-002 written. json-migration.ts removed (1,400 lines of dead code) |
+| Quality framework | CLAUDE.md, biome linter (complexity<12), quality baseline documented |
 
-| File | Original | Current | Status |
-|------|----------|---------|--------|
-| `src/provider/provider.ts` | 1,453 | 909 | ✅ Loaders extracted to `provider/loaders/` (6 files) |
-| `src/session/prompt.ts` | 1,970 | 1,855 | ✅ Templates extracted; deeper split blocked by namespace pattern |
-| `src/provider/transform.ts` | 1,012 | 1,012 | ⬜ Under 1K lines — acceptable size, leave as-is |
-| `src/session/message-v2.ts` | 988 | 988 | ⬜ Under 1K lines — acceptable size, leave as-is |
-| `src/session/index.ts` | 893 | 893 | ⬜ Under 1K lines — acceptable size, leave as-is |
+### Remaining work
 
-**Blocker: TypeScript namespace pattern.** All these files use `export namespace X { ... }` which:
-- Prevents splitting into multiple files (namespaces can't span files)
-- Requires updating 200+ import sites to convert to module exports
-- Is the single biggest architectural debt in the codebase
-
-### 2.1.1 — Namespace → module export migration ⬜ BLOCKED on bun runtime
-- [ ] Convert `Provider` namespace to regular exports
-- [ ] Convert `SessionPrompt` namespace to regular exports
-- [ ] Convert `Session` namespace to regular exports
-- [ ] Convert `MessageV2` namespace to regular exports
-- [ ] Update all import sites (estimate: 200+ files)
-- **Risk:** High — touches every consumer. Should be done as a dedicated PR with thorough testing.
-- **Prerequisite:** `bun install` + `bun test` must pass first
-
-### 2.2 — Effect-ts strategy ✅
-- [x] Audited: 23 of 332 files use Effect (7%). 6 core services, 5 facade wrappers, 98% of tests are plain async.
-- [x] Decision: **Migrate away** from Effect toward plain async/await with manual DI.
-- [x] ADR: `docs/adr/001-effect-ts-strategy.md`
-- [ ] Execute migration Phase A: Replace facades with plain classes (BLOCKED on bun)
-- [ ] Execute migration Phase B: Replace InstanceState with Promise-based cache (BLOCKED on bun)
-- [ ] Execute migration Phase C: Remove `effect` dependency (BLOCKED on bun)
-
-### 2.3 — Provider system refactor ✅ DESIGN DONE
-- [x] Extract each provider's custom loader into its own module (`provider/loaders/`)
-- [x] Models.dev snapshot is now a separate cacheable build step (`fetch-models.ts`)
-- [x] Formal provider plugin API defined (`provider/plugin-api.ts`)
-  - `ProviderPlugin` interface with typed `ProviderInfo`, `ProviderLoadResult`
-  - `defineProvider()` helper for external plugin authors
-  - Documented lifecycle: discovery → loading → SDK creation → model resolution
-- [ ] Migrate existing loaders to use new `ProviderPlugin` interface (BLOCKED on bun)
-- [ ] Standardize auth patterns across providers
-- [ ] Provider interface documentation for plugin authors
-
-### 2.4 — Tool system formalization ✅ DESIGN DONE
-- [x] Tool capability declarations (`tool/capabilities.ts`)
-  - `ToolCapabilities`: reads/writes resource categories, sideEffects, executesCode, risk level
-  - `ToolDependencies`: required binaries, env vars, tools, runtime capabilities
-  - `declareCapabilities()` with automatic risk derivation
-  - Pre-defined `ToolProfiles`: fileReader, fileWriter, shellExecutor, networkReader, pure
-- [ ] Annotate each existing tool with capabilities (BLOCKED on bun — need to test)
-- [ ] Standardize output format across all tools
-- [ ] Add tool execution telemetry/tracing
-- [ ] Integration with permission system (Phase 3.3)
-
-### 2.5 — Storage layer cleanup ✅ DESIGN DONE
-- [x] ADR: `docs/adr/002-storage-layer-cleanup.md`
-- [ ] Add `_schema_version` table as a new migration (BLOCKED on bun + drizzle-kit)
-- [ ] Remove `json-migration.ts` and startup check
-- [ ] Document new migration naming convention
+| Item | Effort | Risk | Blocked by |
+|------|--------|------|-----------|
+| **2.2** Migrate PermissionService from Effect | 2-3 hrs | Low | Nothing — QuestionService proved the pattern |
+| **2.2** Migrate AuthService from Effect | 2-3 hrs | Medium | PermissionService (dependency) |
+| **2.2** Migrate AccountService from Effect | 3-4 hrs | Medium | AuthService (dependency) |
+| **2.2** Remove `effect` package entirely | 30 min | Low | All 4 services migrated |
+| **2.1.1** Namespace→module migration | 4-6 hrs per namespace | High | Focused session, all tests passing |
+| **2.3** Migrate loaders to ProviderPlugin interface | 2 hrs | Low | Nothing |
+| **2.4** Tool output format standardization | 2-3 hrs | Medium | Nothing |
+| **2.4** Tool execution telemetry | 3-4 hrs | Medium | Nothing |
 
 ---
 
-## Phase 3: Agentic SDLC pattern
+## Phase 3: Agentic SDLC pattern — NOT STARTED
 
-### 3.1 — Define the agent loop formally ⬜
-Currently the session/processor is an implicit agent loop buried in prompt.ts. Make it explicit:
+| Item | Description | Depends on |
+|------|------------|-----------|
+| **3.1** Formalize agent loop | Extract implicit loop from prompt.ts into explicit state machine | 2.1.1 (namespace migration) |
+| **3.2** Instruction system overhaul | Priority ordering, source tracking, deduplication, context budgeting | 3.1 |
+| **3.3** Permission system hardening | Formal model, persistence, audit logging, tool capability integration | 2.4 (done) |
+| **3.4** Session improvements | Branching, export/import, replay, better compaction | 3.1 |
+| **3.5** MCP server management | Health checks, lifecycle, discovery, error messages | Nothing |
+
+---
+
+## Phase 4: Desktop & UI — NOT STARTED
+
+- [ ] **4.1** Desktop packaging: Linux .desktop file, Flatpak, auto-update channels
+- [ ] **4.2** UI component audit: unused components, bundle size, a11y
+- [ ] **4.3** E2E test stabilization: verify 40+ Playwright tests pass
+
+---
+
+## Phase 5: Documentation & contributor experience — PARTIAL
+
+- [x] **5.1** README with branding, badges, install instructions
+- [x] **5.3** CLAUDE.md development guide with coding standards, playbooks, quality gates
+- [x] **5.4** Brand system: tokens, BRAND.md, DESIGN-SPEC.md, both site scaffolds (Lucide icons)
+- [ ] **5.2** Architecture docs (agent loop, provider API, tool system, permission model)
+- [ ] **5.4** Generate actual logo/mascot assets, wire into sites
+
+---
+
+## What to do next
+
+The highest-value path forward:
 
 ```
-Agent Loop:
-  1. Receive user input or event
-  2. Compile context (system prompt + instructions + history + tool results)
-  3. Call LLM with available tools
-  4. Process response:
-     a. Text → stream to user
-     b. Tool call → validate permissions → execute → goto 2
-     c. Done → persist session state
-  5. Handle errors, retries, compaction
+NOW:  Continue Effect removal (PermissionService → AuthService → AccountService)
+      Each is 2-3 hrs, proven pattern from QuestionService, low risk.
+      ↓
+THEN: Phase 3.3 — Permission system hardening
+      Tool capabilities are ready (2.4 done). Connect them to permissions.
+      This is user-facing value: smarter permission prompts, audit logging.
+      ↓
+THEN: Phase 3.5 — MCP server management
+      No dependencies, high user value (health checks, better errors).
+      ↓
+THEN: Phase 3.1 — Formalize agent loop
+      This is the big architectural win but depends on namespace migration (2.1.1).
+      Consider doing 2.1.1 first if agent loop work is blocked.
+      ↓
+PARALLEL: Phase 4 + remaining Phase 5
 ```
 
-### 3.2 — Instruction system overhaul ⬜
-`prompt.ts` compiles instructions from multiple sources (CLAUDE.md-style files, project config, user prefs, tool descriptions). This needs:
-- [ ] Clear instruction priority/ordering
-- [ ] Instruction source tracking (which file contributed what)
-- [ ] Instruction deduplication
-- [ ] Max-context budget management with explicit truncation strategy
-
-### 3.3 — Permission system hardening ⬜
-- [ ] Formal permission model (what can an agent do without asking)
-- [ ] Permission persistence across sessions
-- [ ] Audit logging of all permission decisions
-- [ ] Integration with tool capability declarations from 2.4
-
-### 3.4 — Session management improvements ⬜
-- [ ] Session branching/forking (try different approaches without losing context)
-- [ ] Session export/import in a standard format
-- [ ] Session replay for debugging
-- [ ] Better compaction strategy (current one is basic)
-
-### 3.5 — MCP server management ⬜
-- [ ] Health checks and auto-reconnect
-- [ ] MCP server lifecycle management (start/stop/restart)
-- [ ] MCP server discovery (scan for available servers)
-- [ ] Better error messages when MCP servers fail
-
----
-
-## Phase 4: Desktop & UI
-
-### 4.1 — Desktop packaging ⬜
-- [ ] Fix Tauri build for Linux (proper .desktop file, icon installation, XDG compliance)
-- [ ] Flatpak manifest for sandboxed distribution
-- [ ] Auto-update channel configuration (stable/beta)
-
-### 4.2 — UI component audit ⬜
-`packages/ui` is 43MB — the largest package. Audit for:
-- [ ] Unused components (removed packages may have been the only consumers)
-- [ ] Bundle size optimization
-- [ ] Accessibility compliance
-
-### 4.3 — E2E test stabilization ⬜
-- [ ] Verify 40+ Playwright tests pass with stripped monorepo
-- [ ] Fix any that reference removed packages
-
----
-
-## Phase 5: Documentation & contributor experience
-
-### 5.1 — README ✅
-Replaced upstream README with branded version (logo, mascot, badges, install instructions).
-
-### 5.2 — Architecture docs ⬜
-- [ ] Document the agent loop, provider plugin API, tool system, permission model
-- [ ] Contributor onboarding guide
-
-### 5.3 — Development setup ⬜
-- [ ] Ensure `nix develop` just works
-- [ ] Document the non-Nix path (bun install, build, test)
-- [ ] Add a `CLAUDE.md` / `LIBRECODE.md` for AI-assisted development
-
-### 5.4 — Brand & websites ⚠️ PARTIAL
-- [x] Design tokens (`assets/brand/tokens.css`)
-- [x] Brand guide (`assets/brand/BRAND.md`)
-- [x] Design spec for asset generation (`assets/brand/DESIGN-SPEC.md`)
-- [x] librecode.app scaffold (download hub with Lucide icons)
-- [x] librecode.io scaffold (mission/vision site with Lucide icons)
-- [ ] Generate actual logo/mascot assets (see DESIGN-SPEC.md)
-- [ ] Wire final assets into sites, README, Tauri configs, favicons
-
----
-
-## Execution order
-
-```
-Phase 0 ✅ → Phase 1 ✅ → Phase 2 (in progress)
-                              ↓
-                         2.1.1 namespace migration (blocker for deeper 2.1)
-                              ↓
-                         2.2 Effect decision → 2.3 provider API → 2.4 tools → 2.5 storage
-                              ↓
-                         Phase 3 (agent loop, instructions, permissions)
-                              ↓
-                         Phase 4 + 5 in parallel
-```
-
-Each phase should be a milestone with its own tracking issue. Each sub-item is a PR.
+### Deferred items (tech debt, not blocking user value)
+- Namespace→module migration (2.1.1) — high effort, documented in CLAUDE.md playbook
+- Turbo evaluation (1.3) — low priority
+- AppImage/Flatpak (0.2) — nice-to-have
+- Tool telemetry (2.4) — nice-to-have
