@@ -1,5 +1,4 @@
 import { cmd } from "./cmd"
-import { Duration } from "effect"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { AccountService } from "@/account/service"
@@ -25,8 +24,8 @@ async function login(url: string) {
     return result
   }
 
-  const expiryMs = Duration.toMillis(loginResult.expiry)
-  const intervalMs = Duration.toMillis(loginResult.interval)
+  const expiryMs = loginResult.expiry
+  const intervalMs = loginResult.interval
 
   const timeout = new Promise<PollResult>((resolve) => setTimeout(() => resolve(new PollExpired()), expiryMs))
 

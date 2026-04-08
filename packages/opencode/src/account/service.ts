@@ -1,4 +1,3 @@
-import { Duration } from "effect"
 import { retry } from "@librecode/util/retry"
 import z from "zod"
 
@@ -223,8 +222,8 @@ export namespace AccountService {
       user: UserCode.make(parsed.user_code),
       url: `${server}${parsed.verification_uri_complete}`,
       server,
-      expiry: Duration.seconds(parsed.expires_in),
-      interval: Duration.seconds(parsed.interval),
+      expiry: parsed.expires_in * 1000,
+      interval: parsed.interval * 1000,
     })
   }
 

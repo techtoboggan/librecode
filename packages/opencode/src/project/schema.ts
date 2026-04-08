@@ -1,16 +1,10 @@
-import { Schema } from "effect"
 import z from "zod"
 
-import { withStatics } from "@/util/schema"
+import type { Brand } from "@/util/brand"
 
-const projectIdSchema = Schema.String.pipe(Schema.brand("ProjectID"))
-
-export type ProjectID = typeof projectIdSchema.Type
-
-export const ProjectID = projectIdSchema.pipe(
-  withStatics((schema: typeof projectIdSchema) => ({
-    global: schema.makeUnsafe("global"),
-    make: (id: string) => schema.makeUnsafe(id),
-    zod: z.string().pipe(z.custom<ProjectID>()),
-  })),
-)
+export type ProjectID = Brand<string, "ProjectID">
+export const ProjectID = {
+  global: "global" as ProjectID,
+  make: (id: string) => id as ProjectID,
+  zod: z.string() as unknown as z.ZodType<ProjectID>,
+}

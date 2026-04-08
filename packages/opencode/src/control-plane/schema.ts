@@ -1,17 +1,11 @@
-import { Schema } from "effect"
 import z from "zod"
 
-import { withStatics } from "@/util/schema"
+import type { Brand } from "@/util/brand"
 import { Identifier } from "@/id/id"
 
-const workspaceIdSchema = Schema.String.pipe(Schema.brand("WorkspaceID"))
-
-export type WorkspaceID = typeof workspaceIdSchema.Type
-
-export const WorkspaceID = workspaceIdSchema.pipe(
-  withStatics((schema: typeof workspaceIdSchema) => ({
-    make: (id: string) => schema.makeUnsafe(id),
-    ascending: (id?: string) => schema.makeUnsafe(Identifier.ascending("workspace", id)),
-    zod: Identifier.schema("workspace").pipe(z.custom<WorkspaceID>()),
-  })),
-)
+export type WorkspaceID = Brand<string, "WorkspaceID">
+export const WorkspaceID = {
+  make: (id: string) => id as WorkspaceID,
+  ascending: (id?: string) => Identifier.ascending("workspace", id) as WorkspaceID,
+  zod: Identifier.schema("workspace") as unknown as z.ZodType<WorkspaceID>,
+}
