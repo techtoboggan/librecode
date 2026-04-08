@@ -24,29 +24,27 @@
 
 ---
 
-## Phase 2: Core architecture refactor — IN PROGRESS
+## Phase 2: Core architecture refactor — DONE (deferred items tracked below)
 
 ### Completed ✅
 
 | Item | What was done |
 |------|---------------|
 | 2.1 Megafile splits | provider.ts 1,453→909 (loaders extracted), prompt.ts 1,970→1,855 (templates extracted) |
-| 2.2 Effect-ts ADR | Decision: migrate away. ADR-001 written. QuestionService + PermissionService migrated to plain async. |
+| 2.2 Effect-ts removal | **ADR-001 COMPLETE.** All 5 services migrated to plain async. Effect package removed. Zero imports remain. Branded types replaced with pure TS Brand<T,B>. |
 | 2.3 Provider plugin API | `ProviderPlugin` interface, `defineProvider()`, loaders extracted to 6 files |
 | 2.4 Tool capabilities | `ToolCapabilities`, `ToolDependencies`, `ToolProfiles` + all 23 tools annotated with capability registry |
 | 2.5 Storage cleanup | ADR-002 written. json-migration.ts removed (1,400 lines of dead code) |
 | Quality framework | CLAUDE.md, biome linter (complexity<12), quality baseline documented |
 
-### Remaining work
+### Deferred tech debt (not blocking Phase 3+)
 
-| Item | Effort | Risk | Blocked by |
-|------|--------|------|-----------|
-| **2.2** Migrate Auth+Account+ProviderAuth from Effect | 4-6 hrs | HIGH | Must migrate all 3 simultaneously — entangled via Effect layer composition + `Global` top-level await causes ESM init order breakage when partially migrated. Attempted Auth alone, got 150 test failures. |
-| **2.2** Remove `effect` package entirely | 30 min | Low | All services migrated |
-| **2.1.1** Namespace→module migration | 4-6 hrs per namespace | High | Focused session, all tests passing |
-| **2.3** Migrate loaders to ProviderPlugin interface | 2 hrs | Low | Nothing |
-| **2.4** Tool output format standardization | 2-3 hrs | Medium | Nothing |
-| **2.4** Tool execution telemetry | 3-4 hrs | Medium | Nothing |
+| Item | Effort | Playbook | Notes |
+|------|--------|----------|-------|
+| **2.1.1** Namespace→module migration | 4-6 hrs/namespace | CLAUDE.md Playbook 1 | 4 namespaces: MessageV2, Provider, Session, SessionPrompt. Lowest risk first. |
+| **2.3** Migrate loaders to ProviderPlugin interface | 2 hrs | — | Loaders work fine, this is API cleanup |
+| **2.4** Tool output format standardization | 2-3 hrs | — | Additive, no urgency |
+| **2.4** Tool execution telemetry | 3-4 hrs | — | Nice-to-have for observability |
 
 ---
 
