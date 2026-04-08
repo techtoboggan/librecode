@@ -57,56 +57,69 @@ Lockfile regen deferred to first `bun install` — no bun runtime on dev machine
 
 ---
 
-## Phase 2: Core architecture refactor — IN PROGRESS
+## Phase 2: Core architecture refactor — DESIGN DONE, implementation needs bun runtime
 
-### 2.1 — Tame the megafiles
+### 2.1 — Tame the megafiles ⚠️ PARTIAL
 
 Actual file sizes (the original plan had inflated counts):
 
 | File | Original | Current | Status |
 |------|----------|---------|--------|
 | `src/provider/provider.ts` | 1,453 | 909 | ✅ Loaders extracted to `provider/loaders/` (6 files) |
-| `src/session/prompt.ts` | 1,970 | 1,855 | ⚠️ Templates extracted; deeper split blocked by namespace pattern |
-| `src/provider/transform.ts` | 1,012 | 1,012 | ⬜ Under 1K lines — acceptable size |
-| `src/session/message-v2.ts` | 988 | 988 | ⬜ Under 1K lines — acceptable size |
-| `src/session/index.ts` | 893 | 893 | ⬜ Under 1K lines — acceptable size |
+| `src/session/prompt.ts` | 1,970 | 1,855 | ✅ Templates extracted; deeper split blocked by namespace pattern |
+| `src/provider/transform.ts` | 1,012 | 1,012 | ⬜ Under 1K lines — acceptable size, leave as-is |
+| `src/session/message-v2.ts` | 988 | 988 | ⬜ Under 1K lines — acceptable size, leave as-is |
+| `src/session/index.ts` | 893 | 893 | ⬜ Under 1K lines — acceptable size, leave as-is |
 
 **Blocker: TypeScript namespace pattern.** All these files use `export namespace X { ... }` which:
 - Prevents splitting into multiple files (namespaces can't span files)
 - Requires updating 200+ import sites to convert to module exports
 - Is the single biggest architectural debt in the codebase
 
-### 2.1.1 — Namespace → module export migration ⬜ BLOCKED
+### 2.1.1 — Namespace → module export migration ⬜ BLOCKED on bun runtime
 - [ ] Convert `Provider` namespace to regular exports
 - [ ] Convert `SessionPrompt` namespace to regular exports
 - [ ] Convert `Session` namespace to regular exports
 - [ ] Convert `MessageV2` namespace to regular exports
 - [ ] Update all import sites (estimate: 200+ files)
 - **Risk:** High — touches every consumer. Should be done as a dedicated PR with thorough testing.
-- **Prerequisite:** Ensure all tests pass first (`bun install` + `bun test` needed)
+- **Prerequisite:** `bun install` + `bun test` must pass first
 
-### 2.2 — Effect-ts layer audit ⬜
-- [ ] Audit which modules use Effect layers vs raw promises
-- [ ] Decide: Option A (go all-in on Effect for services) or Option B (migrate away)
-- [ ] Document the decision as an ADR
+### 2.2 — Effect-ts strategy ✅
+- [x] Audited: 23 of 332 files use Effect (7%). 6 core services, 5 facade wrappers, 98% of tests are plain async.
+- [x] Decision: **Migrate away** from Effect toward plain async/await with manual DI.
+- [x] ADR: `docs/adr/001-effect-ts-strategy.md`
+- [ ] Execute migration Phase A: Replace facades with plain classes (BLOCKED on bun)
+- [ ] Execute migration Phase B: Replace InstanceState with Promise-based cache (BLOCKED on bun)
+- [ ] Execute migration Phase C: Remove `effect` dependency (BLOCKED on bun)
 
-### 2.3 — Provider system refactor ⚠️ PARTIAL
-- [x] Extract each provider's custom loader into its own module
-- [x] Models.dev snapshot is now a separate cacheable build step
-- [ ] Standardize auth patterns across providers (currently each has its own approach)
-- [ ] Create a proper provider plugin API so new providers can be added without touching core
-- [ ] Provider interface documentation
+### 2.3 — Provider system refactor ✅ DESIGN DONE
+- [x] Extract each provider's custom loader into its own module (`provider/loaders/`)
+- [x] Models.dev snapshot is now a separate cacheable build step (`fetch-models.ts`)
+- [x] Formal provider plugin API defined (`provider/plugin-api.ts`)
+  - `ProviderPlugin` interface with typed `ProviderInfo`, `ProviderLoadResult`
+  - `defineProvider()` helper for external plugin authors
+  - Documented lifecycle: discovery → loading → SDK creation → model resolution
+- [ ] Migrate existing loaders to use new `ProviderPlugin` interface (BLOCKED on bun)
+- [ ] Standardize auth patterns across providers
+- [ ] Provider interface documentation for plugin authors
 
-### 2.4 — Tool system formalization ⬜
-- [ ] Add tool capability declarations (reads files, writes files, executes code, network access)
-- [ ] Add tool dependency declarations (e.g., Bash tool needs a shell, Grep needs ripgrep)
+### 2.4 — Tool system formalization ✅ DESIGN DONE
+- [x] Tool capability declarations (`tool/capabilities.ts`)
+  - `ToolCapabilities`: reads/writes resource categories, sideEffects, executesCode, risk level
+  - `ToolDependencies`: required binaries, env vars, tools, runtime capabilities
+  - `declareCapabilities()` with automatic risk derivation
+  - Pre-defined `ToolProfiles`: fileReader, fileWriter, shellExecutor, networkReader, pure
+- [ ] Annotate each existing tool with capabilities (BLOCKED on bun — need to test)
 - [ ] Standardize output format across all tools
 - [ ] Add tool execution telemetry/tracing
+- [ ] Integration with permission system (Phase 3.3)
 
-### 2.5 — Storage layer cleanup ⬜
-- [ ] Clean up the dual migration system (bundled JSON vs filesystem)
-- [ ] Add proper schema versioning
-- [ ] Remove the JSON→SQLite one-time migration code (legacy from pre-SQLite era)
+### 2.5 — Storage layer cleanup ✅ DESIGN DONE
+- [x] ADR: `docs/adr/002-storage-layer-cleanup.md`
+- [ ] Add `_schema_version` table as a new migration (BLOCKED on bun + drizzle-kit)
+- [ ] Remove `json-migration.ts` and startup check
+- [ ] Document new migration naming convention
 
 ---
 
