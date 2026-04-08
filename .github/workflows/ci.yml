@@ -22,8 +22,8 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
 
-  test:
-    name: Test
+  test-core:
+    name: Test (core CLI)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +33,42 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun test --timeout 30000
         working-directory: packages/opencode
+
+  test-util:
+    name: Test (util)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+      - run: bun install --frozen-lockfile
+      - run: bun test
+        working-directory: packages/util
+
+  test-plugin:
+    name: Test (plugin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+      - run: bun install --frozen-lockfile
+      - run: bun test
+        working-directory: packages/plugin
+
+  test-app:
+    name: Test (app unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+      - run: bun install --frozen-lockfile
+      - run: bun run test:unit
+        working-directory: packages/app
 
   lint:
     name: Lint

@@ -8,11 +8,7 @@
       "dependsOn": [],
       "outputs": ["dist/**"]
     },
-    "librecode#test": {
-      "dependsOn": ["^build"],
-      "outputs": []
-    },
-    "@librecode/app#test": {
+    "test": {
       "dependsOn": ["^build"],
       "outputs": []
     }
