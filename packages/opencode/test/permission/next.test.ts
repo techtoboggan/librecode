@@ -1,7 +1,6 @@
 import { test, expect } from "bun:test"
 import os from "os"
 import { Bus } from "../../src/bus"
-import { runtime } from "../../src/effect/runtime"
 import { PermissionNext } from "../../src/permission/next"
 import * as S from "../../src/permission/service"
 import { PermissionID } from "../../src/permission/schema"
@@ -1004,35 +1003,25 @@ test("ask - should deny even when an earlier pattern is ask", async () => {
   })
 })
 
-test("ask - abort should clear pending request", async () => {
+test("ask - reject should clear pending request", async () => {
   await using tmp = await tmpdir({ git: true })
   await Instance.provide({
     directory: tmp.path,
     fn: async () => {
-      const ctl = new AbortController()
-      const ask = runtime.runPromise(
-        S.PermissionService.use((svc) =>
-          svc.ask({
-            sessionID: SessionID.make("session_test"),
-            permission: "bash",
-            patterns: ["ls"],
-            metadata: {},
-            always: [],
-            ruleset: [{ permission: "bash", pattern: "*", action: "ask" }],
-          }),
-        ),
-        { signal: ctl.signal },
-      )
+      const ask = S.ask({
+        sessionID: SessionID.make("session_test"),
+        permission: "bash",
+        patterns: ["ls"],
+        metadata: {},
+        always: [],
+        ruleset: [{ permission: "bash", pattern: "*", action: "ask" }],
+      })
 
       await waitForPending(1)
-      ctl.abort()
+      await rejectAll()
       await ask.catch(() => {})
 
-      try {
-        expect(await PermissionNext.list()).toHaveLength(0)
-      } finally {
-        await rejectAll()
-      }
+      expect(await PermissionNext.list()).toHaveLength(0)
     },
   })
 })

@@ -1,224 +1,199 @@
-import { expect } from "bun:test"
-import { Duration, Effect, Layer, Option, Ref, Schema } from "effect"
-import { HttpClient, HttpClientResponse } from "effect/unstable/http"
+import { expect, test, beforeEach, mock } from "bun:test"
+import { Duration } from "effect"
 
 import { AccountRepo } from "../../src/account/repo"
 import { AccountService } from "../../src/account/service"
-import { AccessToken, AccountID, DeviceCode, Login, Org, OrgID, RefreshToken, UserCode } from "../../src/account/schema"
+import { AccessToken, AccountID, DeviceCode, Login, OrgID, RefreshToken, UserCode } from "../../src/account/schema"
 import { Database } from "../../src/storage/db"
-import { testEffect } from "../fixture/effect"
 
-const truncate = Layer.effectDiscard(
-  Effect.sync(() => {
-    const db = Database.Client()
-    db.run(/*sql*/ `DELETE FROM account_state`)
-    db.run(/*sql*/ `DELETE FROM account`)
-  }),
-)
+beforeEach(() => {
+  const db = Database.Client()
+  db.run(/*sql*/ `DELETE FROM account_state`)
+  db.run(/*sql*/ `DELETE FROM account`)
+})
 
-const it = testEffect(Layer.merge(AccountRepo.layer, truncate))
-
-const live = (client: HttpClient.HttpClient) =>
-  AccountService.layer.pipe(Layer.provide(Layer.succeed(HttpClient.HttpClient, client)))
-
-const json = (req: Parameters<typeof HttpClientResponse.fromWeb>[0], body: unknown, status = 200) =>
-  HttpClientResponse.fromWeb(
-    req,
-    new Response(JSON.stringify(body), {
-      status,
+function mockFetch(handler: (url: string, init?: RequestInit) => { body: unknown; status?: number }) {
+  const original = globalThis.fetch
+  const seen: string[] = []
+  const headers: Record<string, string | undefined>[] = []
+  const mocked = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+    seen.push(`${init?.method ?? "GET"} ${url}`)
+    headers.push({
+      auth: (init?.headers as Record<string, string>)?.["Authorization"],
+      org: (init?.headers as Record<string, string>)?.["x-org-id"],
+    })
+    const result = handler(url, init)
+    return new Response(JSON.stringify(result.body), {
+      status: result.status ?? 200,
       headers: { "content-type": "application/json" },
-    }),
-  )
+    })
+  })
+  globalThis.fetch = mocked as unknown as typeof fetch
+  return {
+    seen,
+    headers,
+    restore() {
+      globalThis.fetch = original
+    },
+  }
+}
 
-const encodeOrg = Schema.encodeSync(Org)
+test("orgsByAccount groups orgs per account", async () => {
+  AccountRepo.persistAccount({
+    id: AccountID.make("user-1"),
+    email: "one@example.com",
+    url: "https://one.example.com",
+    accessToken: AccessToken.make("at_1"),
+    refreshToken: RefreshToken.make("rt_1"),
+    expiry: Date.now() + 60_000,
+    orgID: null,
+  })
 
-const org = (id: string, name: string) => encodeOrg(new Org({ id: OrgID.make(id), name }))
+  AccountRepo.persistAccount({
+    id: AccountID.make("user-2"),
+    email: "two@example.com",
+    url: "https://two.example.com",
+    accessToken: AccessToken.make("at_2"),
+    refreshToken: RefreshToken.make("rt_2"),
+    expiry: Date.now() + 60_000,
+    orgID: null,
+  })
 
-it.effect(
-  "orgsByAccount groups orgs per account",
-  Effect.gen(function* () {
-    yield* AccountRepo.use((r) =>
-      r.persistAccount({
-        id: AccountID.make("user-1"),
-        email: "one@example.com",
-        url: "https://one.example.com",
-        accessToken: AccessToken.make("at_1"),
-        refreshToken: RefreshToken.make("rt_1"),
-        expiry: Date.now() + 60_000,
-        orgID: Option.none(),
-      }),
-    )
+  const f = mockFetch((url) => {
+    if (url === "https://one.example.com/api/orgs")
+      return { body: [{ id: "org-1", name: "One" }] }
+    if (url === "https://two.example.com/api/orgs")
+      return { body: [{ id: "org-2", name: "Two A" }, { id: "org-3", name: "Two B" }] }
+    return { body: [], status: 404 }
+  })
 
-    yield* AccountRepo.use((r) =>
-      r.persistAccount({
-        id: AccountID.make("user-2"),
-        email: "two@example.com",
-        url: "https://two.example.com",
-        accessToken: AccessToken.make("at_2"),
-        refreshToken: RefreshToken.make("rt_2"),
-        expiry: Date.now() + 60_000,
-        orgID: Option.none(),
-      }),
-    )
-
-    const seen = yield* Ref.make<string[]>([])
-    const client = HttpClient.make((req) =>
-      Effect.gen(function* () {
-        yield* Ref.update(seen, (xs) => [...xs, `${req.method} ${req.url}`])
-
-        if (req.url === "https://one.example.com/api/orgs") {
-          return json(req, [org("org-1", "One")])
-        }
-
-        if (req.url === "https://two.example.com/api/orgs") {
-          return json(req, [org("org-2", "Two A"), org("org-3", "Two B")])
-        }
-
-        return json(req, [], 404)
-      }),
-    )
-
-    const rows = yield* AccountService.use((s) => s.orgsByAccount()).pipe(Effect.provide(live(client)))
-
-    expect(rows.map((row) => [row.account.id, row.orgs.map((org) => org.id)]).map(([id, orgs]) => [id, orgs])).toEqual([
+  try {
+    const rows = await AccountService.orgsByAccount()
+    expect(
+      rows
+        .map((row) => [row.account.id, row.orgs.map((org) => org.id)])
+        .map(([id, orgs]) => [id, orgs]),
+    ).toEqual([
       [AccountID.make("user-1"), [OrgID.make("org-1")]],
       [AccountID.make("user-2"), [OrgID.make("org-2"), OrgID.make("org-3")]],
     ])
-    expect(yield* Ref.get(seen)).toEqual([
+    expect(f.seen).toEqual([
       "GET https://one.example.com/api/orgs",
       "GET https://two.example.com/api/orgs",
     ])
-  }),
-)
+  } finally {
+    f.restore()
+  }
+})
 
-it.effect(
-  "token refresh persists the new token",
-  Effect.gen(function* () {
-    const id = AccountID.make("user-1")
+test("token refresh persists the new token", async () => {
+  const id = AccountID.make("user-1")
 
-    yield* AccountRepo.use((r) =>
-      r.persistAccount({
-        id,
-        email: "user@example.com",
-        url: "https://one.example.com",
-        accessToken: AccessToken.make("at_old"),
-        refreshToken: RefreshToken.make("rt_old"),
-        expiry: Date.now() - 1_000,
-        orgID: Option.none(),
-      }),
-    )
+  AccountRepo.persistAccount({
+    id,
+    email: "user@example.com",
+    url: "https://one.example.com",
+    accessToken: AccessToken.make("at_old"),
+    refreshToken: RefreshToken.make("rt_old"),
+    expiry: Date.now() - 1_000,
+    orgID: null,
+  })
 
-    const client = HttpClient.make((req) =>
-      Effect.succeed(
-        req.url === "https://one.example.com/auth/device/token"
-          ? json(req, {
-              access_token: "at_new",
-              refresh_token: "rt_new",
-              expires_in: 60,
-            })
-          : json(req, {}, 404),
-      ),
-    )
+  const f = mockFetch((url) => {
+    if (url === "https://one.example.com/auth/device/token")
+      return { body: { access_token: "at_new", refresh_token: "rt_new", expires_in: 60 } }
+    return { body: {}, status: 404 }
+  })
 
-    const token = yield* AccountService.use((s) => s.token(id)).pipe(Effect.provide(live(client)))
+  try {
+    const token = await AccountService.token(id)
+    expect(token).toBeDefined()
+    expect(String(token)).toBe("at_new")
 
-    expect(Option.getOrThrow(token)).toBeDefined()
-    expect(String(Option.getOrThrow(token))).toBe("at_new")
+    const row = AccountRepo.getRow(id)
+    expect(row!.access_token).toBe(AccessToken.make("at_new"))
+    expect(row!.refresh_token).toBe(RefreshToken.make("rt_new"))
+    expect(row!.token_expiry).toBeGreaterThan(Date.now())
+  } finally {
+    f.restore()
+  }
+})
 
-    const row = yield* AccountRepo.use((r) => r.getRow(id))
-    const value = Option.getOrThrow(row)
-    expect(value.access_token).toBe(AccessToken.make("at_new"))
-    expect(value.refresh_token).toBe(RefreshToken.make("rt_new"))
-    expect(value.token_expiry).toBeGreaterThan(Date.now())
-  }),
-)
+test("config sends the selected org header", async () => {
+  const id = AccountID.make("user-1")
 
-it.effect(
-  "config sends the selected org header",
-  Effect.gen(function* () {
-    const id = AccountID.make("user-1")
+  AccountRepo.persistAccount({
+    id,
+    email: "user@example.com",
+    url: "https://one.example.com",
+    accessToken: AccessToken.make("at_1"),
+    refreshToken: RefreshToken.make("rt_1"),
+    expiry: Date.now() + 60_000,
+    orgID: null,
+  })
 
-    yield* AccountRepo.use((r) =>
-      r.persistAccount({
-        id,
-        email: "user@example.com",
-        url: "https://one.example.com",
-        accessToken: AccessToken.make("at_1"),
-        refreshToken: RefreshToken.make("rt_1"),
-        expiry: Date.now() + 60_000,
-        orgID: Option.none(),
-      }),
-    )
+  const f = mockFetch((url) => {
+    if (url === "https://one.example.com/api/config")
+      return { body: { config: { theme: "light", seats: 5 } } }
+    return { body: {}, status: 404 }
+  })
 
-    const seen = yield* Ref.make<{ auth?: string; org?: string }>({})
-    const client = HttpClient.make((req) =>
-      Effect.gen(function* () {
-        yield* Ref.set(seen, {
-          auth: req.headers.authorization,
-          org: req.headers["x-org-id"],
-        })
-
-        if (req.url === "https://one.example.com/api/config") {
-          return json(req, { config: { theme: "light", seats: 5 } })
-        }
-
-        return json(req, {}, 404)
-      }),
-    )
-
-    const cfg = yield* AccountService.use((s) => s.config(id, OrgID.make("org-9"))).pipe(Effect.provide(live(client)))
-
-    expect(Option.getOrThrow(cfg)).toEqual({ theme: "light", seats: 5 })
-    expect(yield* Ref.get(seen)).toEqual({
+  try {
+    const cfg = await AccountService.config(id, OrgID.make("org-9"))
+    expect(cfg).toEqual({ theme: "light", seats: 5 })
+    expect(f.headers[0]).toEqual({
       auth: "Bearer at_1",
       org: "org-9",
     })
-  }),
-)
+  } finally {
+    f.restore()
+  }
+})
 
-it.effect(
-  "poll stores the account and first org on success",
-  Effect.gen(function* () {
-    const login = new Login({
-      code: DeviceCode.make("device-code"),
-      user: UserCode.make("user-code"),
-      url: "https://one.example.com/verify",
-      server: "https://one.example.com",
-      expiry: Duration.seconds(600),
-      interval: Duration.seconds(5),
-    })
+test("poll stores the account and first org on success", async () => {
+  const login = new Login({
+    code: DeviceCode.make("device-code"),
+    user: UserCode.make("user-code"),
+    url: "https://one.example.com/verify",
+    server: "https://one.example.com",
+    expiry: Duration.seconds(600),
+    interval: Duration.seconds(5),
+  })
 
-    const client = HttpClient.make((req) =>
-      Effect.succeed(
-        req.url === "https://one.example.com/auth/device/token"
-          ? json(req, {
-              access_token: "at_1",
-              refresh_token: "rt_1",
-              token_type: "Bearer",
-              expires_in: 60,
-            })
-          : req.url === "https://one.example.com/api/user"
-            ? json(req, { id: "user-1", email: "user@example.com" })
-            : req.url === "https://one.example.com/api/orgs"
-              ? json(req, [org("org-1", "One")])
-              : json(req, {}, 404),
-      ),
-    )
+  const f = mockFetch((url) => {
+    if (url === "https://one.example.com/auth/device/token")
+      return {
+        body: {
+          access_token: "at_1",
+          refresh_token: "rt_1",
+          token_type: "Bearer",
+          expires_in: 60,
+        },
+      }
+    if (url === "https://one.example.com/api/user")
+      return { body: { id: "user-1", email: "user@example.com" } }
+    if (url === "https://one.example.com/api/orgs")
+      return { body: [{ id: "org-1", name: "One" }] }
+    return { body: {}, status: 404 }
+  })
 
-    const res = yield* AccountService.use((s) => s.poll(login)).pipe(Effect.provide(live(client)))
-
+  try {
+    const res = await AccountService.poll(login)
     expect(res._tag).toBe("PollSuccess")
     if (res._tag === "PollSuccess") {
       expect(res.email).toBe("user@example.com")
     }
 
-    const active = yield* AccountRepo.use((r) => r.active())
-    expect(Option.getOrThrow(active)).toEqual(
+    const active = AccountRepo.active()
+    expect(active).toEqual(
       expect.objectContaining({
         id: "user-1",
         email: "user@example.com",
         active_org_id: "org-1",
       }),
     )
-  }),
-)
+  } finally {
+    f.restore()
+  }
+})

@@ -1,101 +1,72 @@
 import path from "path"
-import { Effect, Layer, Record, Result, Schema, ServiceMap } from "effect"
+import z from "zod"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
 
 export const OAUTH_DUMMY_KEY = "opencode-oauth-dummy-key"
 
-export class Oauth extends Schema.Class<Oauth>("OAuth")({
-  type: Schema.Literal("oauth"),
-  refresh: Schema.String,
-  access: Schema.String,
-  expires: Schema.Number,
-  accountId: Schema.optional(Schema.String),
-  enterpriseUrl: Schema.optional(Schema.String),
-}) {}
+export const Oauth = z.object({
+  type: z.literal("oauth"),
+  refresh: z.string(),
+  access: z.string(),
+  expires: z.number(),
+  accountId: z.string().optional(),
+  enterpriseUrl: z.string().optional(),
+})
+export type Oauth = z.infer<typeof Oauth>
 
-export class Api extends Schema.Class<Api>("ApiAuth")({
-  type: Schema.Literal("api"),
-  key: Schema.String,
-}) {}
+export const Api = z.object({
+  type: z.literal("api"),
+  key: z.string(),
+})
+export type Api = z.infer<typeof Api>
 
-export class WellKnown extends Schema.Class<WellKnown>("WellKnownAuth")({
-  type: Schema.Literal("wellknown"),
-  key: Schema.String,
-  token: Schema.String,
-}) {}
+export const WellKnown = z.object({
+  type: z.literal("wellknown"),
+  key: z.string(),
+  token: z.string(),
+})
+export type WellKnown = z.infer<typeof WellKnown>
 
-export const Info = Schema.Union([Oauth, Api, WellKnown])
-export type Info = Schema.Schema.Type<typeof Info>
-
-export class AuthServiceError extends Schema.TaggedErrorClass<AuthServiceError>()("AuthServiceError", {
-  message: Schema.String,
-  cause: Schema.optional(Schema.Defect),
-}) {}
+export const Info = z.discriminatedUnion("type", [Oauth, Api, WellKnown])
+export type Info = z.infer<typeof Info>
 
 const file = path.join(Global.Path.data, "auth.json")
 
-const fail = (message: string) => (cause: unknown) => new AuthServiceError({ message, cause })
-
-export namespace AuthService {
-  export interface Service {
-    readonly get: (providerID: string) => Effect.Effect<Info | undefined, AuthServiceError>
-    readonly all: () => Effect.Effect<Record<string, Info>, AuthServiceError>
-    readonly set: (key: string, info: Info) => Effect.Effect<void, AuthServiceError>
-    readonly remove: (key: string) => Effect.Effect<void, AuthServiceError>
+export async function all(): Promise<Record<string, Info>> {
+  let data: Record<string, unknown>
+  try {
+    data = await Filesystem.readJson<Record<string, unknown>>(file)
+  } catch {
+    data = {}
   }
+  const result: Record<string, Info> = {}
+  for (const [key, value] of Object.entries(data)) {
+    const parsed = Info.safeParse(value)
+    if (parsed.success) {
+      result[key] = parsed.data
+    }
+  }
+  return result
 }
 
-export class AuthService extends ServiceMap.Service<AuthService, AuthService.Service>()("@opencode/Auth") {
-  static readonly layer = Layer.effect(
-    AuthService,
-    Effect.gen(function* () {
-      const decode = Schema.decodeUnknownOption(Info)
+export async function get(providerID: string): Promise<Info | undefined> {
+  const data = await all()
+  return data[providerID]
+}
 
-      const all = Effect.fn("AuthService.all")(() =>
-        Effect.tryPromise({
-          try: async () => {
-            const data = await Filesystem.readJson<Record<string, unknown>>(file).catch(() => ({}))
-            return Record.filterMap(data, (value) => Result.fromOption(decode(value), () => undefined))
-          },
-          catch: fail("Failed to read auth data"),
-        }),
-      )
+export async function set(key: string, info: Info): Promise<void> {
+  const norm = key.replace(/\/+$/, "")
+  const data = await all()
+  if (norm !== key) delete data[key]
+  delete data[norm + "/"]
+  await Filesystem.writeJson(file, { ...data, [norm]: info }, 0o600)
+}
 
-      const get = Effect.fn("AuthService.get")(function* (providerID: string) {
-        return (yield* all())[providerID]
-      })
-
-      const set = Effect.fn("AuthService.set")(function* (key: string, info: Info) {
-        const norm = key.replace(/\/+$/, "")
-        const data = yield* all()
-        if (norm !== key) delete data[key]
-        delete data[norm + "/"]
-        yield* Effect.tryPromise({
-          try: () => Filesystem.writeJson(file, { ...data, [norm]: info }, 0o600),
-          catch: fail("Failed to write auth data"),
-        })
-      })
-
-      const remove = Effect.fn("AuthService.remove")(function* (key: string) {
-        const norm = key.replace(/\/+$/, "")
-        const data = yield* all()
-        delete data[key]
-        delete data[norm]
-        yield* Effect.tryPromise({
-          try: () => Filesystem.writeJson(file, data, 0o600),
-          catch: fail("Failed to write auth data"),
-        })
-      })
-
-      return AuthService.of({
-        get,
-        all,
-        set,
-        remove,
-      })
-    }),
-  )
-
-  static readonly defaultLayer = AuthService.layer
+export async function remove(key: string): Promise<void> {
+  const norm = key.replace(/\/+$/, "")
+  const data = await all()
+  delete data[key]
+  delete data[norm]
+  await Filesystem.writeJson(file, data, 0o600)
 }
