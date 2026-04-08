@@ -31,7 +31,7 @@
 | Item | What was done |
 |------|---------------|
 | 2.1 Megafile splits | provider.ts 1,453→909 (loaders extracted), prompt.ts 1,970→1,855 (templates extracted) |
-| 2.2 Effect-ts ADR | Decision: migrate away. ADR-001 written. QuestionService migrated to plain async. |
+| 2.2 Effect-ts ADR | Decision: migrate away. ADR-001 written. QuestionService + PermissionService migrated to plain async. |
 | 2.3 Provider plugin API | `ProviderPlugin` interface, `defineProvider()`, loaders extracted to 6 files |
 | 2.4 Tool capabilities | `ToolCapabilities`, `ToolDependencies`, `ToolProfiles` + all 23 tools annotated with capability registry |
 | 2.5 Storage cleanup | ADR-002 written. json-migration.ts removed (1,400 lines of dead code) |
@@ -41,10 +41,8 @@
 
 | Item | Effort | Risk | Blocked by |
 |------|--------|------|-----------|
-| **2.2** Migrate PermissionService from Effect | 2-3 hrs | Low | Nothing — QuestionService proved the pattern |
-| **2.2** Migrate AuthService from Effect | 2-3 hrs | Medium | PermissionService (dependency) |
-| **2.2** Migrate AccountService from Effect | 3-4 hrs | Medium | AuthService (dependency) |
-| **2.2** Remove `effect` package entirely | 30 min | Low | All 4 services migrated |
+| **2.2** Migrate Auth+Account+ProviderAuth from Effect | 4-6 hrs | HIGH | Must migrate all 3 simultaneously — entangled via Effect layer composition + `Global` top-level await causes ESM init order breakage when partially migrated. Attempted Auth alone, got 150 test failures. |
+| **2.2** Remove `effect` package entirely | 30 min | Low | All services migrated |
 | **2.1.1** Namespace→module migration | 4-6 hrs per namespace | High | Focused session, all tests passing |
 | **2.3** Migrate loaders to ProviderPlugin interface | 2 hrs | Low | Nothing |
 | **2.4** Tool output format standardization | 2-3 hrs | Medium | Nothing |
