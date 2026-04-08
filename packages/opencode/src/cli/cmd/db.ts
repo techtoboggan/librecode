@@ -1,7 +1,5 @@
 import type { Argv } from "yargs"
-import { spawn } from "child_process"
 import { Database } from "../../storage/db"
-import { UI } from "../ui"
 import { cmd } from "./cmd"
 
 const QueryCommand = cmd({

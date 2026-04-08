@@ -10,7 +10,10 @@
     "dev:desktop": "bun --cwd packages/desktop tauri dev",
     "dev:web": "bun --cwd packages/app dev",
     "typecheck": "bun turbo typecheck",
-    "test": "bun turbo test"
+    "test": "bun turbo test",
+    "lint": "bunx biome lint .",
+    "lint:fix": "bunx biome lint . --fix",
+    "quality": "bunx biome lint . --max-diagnostics=5000 2>&1 | tail -5"
   },
   "workspaces": {
     "packages": [
@@ -61,6 +64,7 @@
     }
   },
   "devDependencies": {
+    "@biomejs/biome": "2.4.10",
     "@tsconfig/bun": "catalog:",
     "@types/mime-types": "3.0.1",
     "@typescript/native-preview": "catalog:",

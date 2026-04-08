@@ -71,7 +71,7 @@ jobs:
         working-directory: packages/app
 
   lint:
-    name: Lint
+    name: Lint & Quality
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,4 +79,7 @@ jobs:
         with:
           bun-version: "1.3.10"
       - run: bun install --frozen-lockfile
-      - run: bunx prettier --check .
+      - name: Prettier
+        run: bunx prettier --check .
+      - name: Biome (warnings only, errors fail)
+        run: bunx biome lint .
