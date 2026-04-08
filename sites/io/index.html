@@ -16,6 +16,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
   <style>
     /* ── Tokens ── */
     :root {
@@ -504,6 +507,9 @@
     .footer-links a {
       color: var(--text-muted);
       font-size: 0.85rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
     }
 
     .footer-links a:hover { color: var(--teal-400); }
@@ -533,7 +539,7 @@
   <nav>
     <div class="nav-inner">
       <a href="/" class="nav-brand">
-        <img src="/logo-mark.svg" alt="">
+        <i data-lucide="code-xml" style="width:22px;height:22px;color:var(--teal-400)"></i>
         LibreCode
       </a>
       <ul class="nav-links">
@@ -559,8 +565,8 @@
         packaging, transparency, and owning their tools.
       </p>
       <div class="hero-actions">
-        <a href="https://librecode.app" class="btn-primary">Get LibreCode</a>
-        <a href="https://github.com/techtoboggan/librecode" class="btn-secondary">View Source</a>
+        <a href="https://librecode.app" class="btn-primary"><i data-lucide="download" style="width:18px;height:18px"></i> Get LibreCode</a>
+        <a href="https://github.com/techtoboggan/librecode" class="btn-secondary"><i data-lucide="github" style="width:18px;height:18px"></i> View Source</a>
       </div>
 
       <div class="hero-terminal">
@@ -592,7 +598,7 @@
       </div>
       <div class="why-grid">
         <div class="why-card">
-          <div class="card-icon">&#x1F4E6;</div>
+          <div class="card-icon"><i data-lucide="package" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
           <h3>Real Packaging</h3>
           <p>
             COPR for Fedora/RHEL. AUR for Arch. Nix flake. Not a static <code>.deb</code>
@@ -600,7 +606,7 @@
           </p>
         </div>
         <div class="why-card">
-          <div class="card-icon">&#x1F9E0;</div>
+          <div class="card-icon"><i data-lucide="brain-circuit" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
           <h3>Agentic SDLC</h3>
           <p>
             A formalized agent loop with clear instruction compilation, permission boundaries,
@@ -608,7 +614,7 @@
           </p>
         </div>
         <div class="why-card">
-          <div class="card-icon">&#x1F310;</div>
+          <div class="card-icon"><i data-lucide="users" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
           <h3>Community First</h3>
           <p>
             No vendor lock-in. No cloud dependencies for core functionality.
@@ -643,7 +649,11 @@
           </p>
         </div>
         <div class="mission-mascot">
-          <img src="/tater.svg" alt="Tater - the LibreCode mascot">
+          <!-- Replace with actual mascot: <img src="/tater.png" alt="Tater"> -->
+          <div style="width:280px;height:320px;background:var(--bg-card);border:2px dashed rgba(13,148,136,0.3);border-radius:1rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;margin:0 auto">
+            <i data-lucide="bird" style="width:64px;height:64px;color:var(--teal-500)"></i>
+            <span style="font-size:0.8rem;color:var(--text-muted)">Tater goes here</span>
+          </div>
         </div>
       </div>
     </div>
@@ -699,34 +709,42 @@
       </div>
       <div class="arch-grid">
         <div class="arch-item">
+          <i data-lucide="square-terminal" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">opencode</div>
           <div class="arch-desc">Core CLI agent</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="monitor" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">desktop</div>
           <div class="arch-desc">Tauri desktop app</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="layout-dashboard" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">app</div>
           <div class="arch-desc">Solid.js UI shell</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="component" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">ui</div>
           <div class="arch-desc">Component library</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="braces" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">sdk</div>
           <div class="arch-desc">TypeScript SDK</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="plug" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">plugin</div>
           <div class="arch-desc">Plugin system</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="wrench" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">util</div>
           <div class="arch-desc">Shared utilities</div>
         </div>
         <div class="arch-item">
+          <i data-lucide="hammer" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
           <div class="arch-name">script</div>
           <div class="arch-desc">Build tooling</div>
         </div>
@@ -739,23 +757,25 @@
     <h2>Start building with <span style="background: var(--gradient-hero); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">LibreCode</span></h2>
     <p>Install it from your package manager. Read the source. Contribute. It's your tool.</p>
     <div class="hero-actions">
-      <a href="https://librecode.app" class="btn-primary">Download</a>
-      <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md" class="btn-secondary">View Roadmap</a>
+      <a href="https://librecode.app" class="btn-primary"><i data-lucide="download" style="width:18px;height:18px"></i> Download</a>
+      <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md" class="btn-secondary"><i data-lucide="map" style="width:18px;height:18px"></i> View Roadmap</a>
     </div>
   </section>
+
+  <script>lucide.createIcons();</script>
 
   <!-- Footer -->
   <footer>
     <div class="footer-inner">
       <div class="footer-brand">
-        <img src="/logo-mark.svg" alt="">
+        <i data-lucide="code-xml" style="width:18px;height:18px;color:var(--teal-500)"></i>
         LibreCode &mdash; Free Software. Modern Code.
       </div>
       <ul class="footer-links">
-        <li><a href="https://librecode.app">Downloads</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode">GitHub</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md">Roadmap</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE">MIT License</a></li>
+        <li><a href="https://librecode.app"><i data-lucide="download" style="width:14px;height:14px"></i> Downloads</a></li>
+        <li><a href="https://github.com/techtoboggan/librecode"><i data-lucide="github" style="width:14px;height:14px"></i> GitHub</a></li>
+        <li><a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md"><i data-lucide="map" style="width:14px;height:14px"></i> Roadmap</a></li>
+        <li><a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE"><i data-lucide="scale" style="width:14px;height:14px"></i> MIT License</a></li>
       </ul>
     </div>
   </footer>
