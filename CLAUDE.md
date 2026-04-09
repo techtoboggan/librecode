@@ -18,19 +18,21 @@ monorepo using Bun runtime, Effect-ts (being migrated away), Solid.js UI, Tauri 
 
 ## Local Development
 
+All development uses Nix for reproducible dependencies. No system package installs needed.
+
 ```bash
-# Set up isolated dev environment (all data in .dev/, not ~/.local/share)
-source scripts/dev-setup.sh
+# One-time: install Nix
+scripts/dev-setup.sh --deps
 
-# CLI dev
+# Enter dev shell + isolated data environment
+nix develop                              # CLI dev (bun, node, ripgrep)
+nix develop .#desktop                    # Desktop dev (+ Rust, GTK, WebKit)
+source scripts/dev-setup.sh              # Isolate dev data to .dev/
 bun install
-bun run dev                              # run CLI in dev mode
+bun run dev                              # CLI
+bun run dev:desktop                      # Desktop (Tauri)
 
-# Desktop dev (needs Rust + GTK + WebKit)
-nix develop .#desktop                    # provides all Tauri deps
-bun run dev:desktop                      # builds CLI sidecar + Tauri window
-
-# See docs/development.md for full guide including Fedora/Ubuntu deps
+# See docs/development.md for full guide
 ```
 
 ## Commands

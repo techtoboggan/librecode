@@ -9,9 +9,8 @@
 #   source scripts/dev-setup.sh          # Sets env vars for current shell
 #   scripts/dev-setup.sh --info          # Show current dev env paths
 #   scripts/dev-setup.sh --clean         # Remove dev data
-#   scripts/dev-setup.sh --deps          # Install system dependencies
-#   scripts/dev-setup.sh --deps cli      # Install CLI-only dependencies
-#   scripts/dev-setup.sh --deps desktop  # Install desktop (Tauri) dependencies
+#   scripts/dev-setup.sh --deps          # Install deps via Nix (recommended)
+#   scripts/dev-setup.sh --deps native   # Install deps via native pkg manager
 #
 
 # Detect if we're being sourced or executed
@@ -34,11 +33,76 @@ fi
 _LC_PROJECT_ROOT="$(cd "$_LC_SCRIPT_DIR/.." && pwd)"
 _LC_DEV_DIR="$_LC_PROJECT_ROOT/.dev"
 
-# ── Dependency installation ──
+# ── Nix-based dependency installation (recommended) ──
 
-_lc_install_deps_cli() {
-  echo "Installing CLI dependencies..."
+_lc_install_nix() {
+  # Check for working Nix (official installer, not distro package)
+  if command -v nix &>/dev/null; then
+    # Test if nix develop actually works (distro packages often break this)
+    if nix develop --help &>/dev/null 2>&1; then
+      echo "Nix is already installed and working."
+      return 0
+    else
+      echo "WARNING: Found nix but 'nix develop' doesn't work."
+      echo "This often happens with distro-packaged nix (e.g., Fedora nix-core)."
+      echo ""
+      echo "The official Nix installer is recommended instead."
+      echo "Remove the distro package first, then re-run this script."
+      echo ""
+      echo "  Fedora: sudo dnf remove nix-core nix-libs"
+      echo "  Ubuntu: sudo apt remove nix"
+      echo ""
+      return 1
+    fi
+  fi
 
+  echo "Installing Nix (official multi-user installer)..."
+  echo "This provides a single cross-platform dev environment for all dependencies."
+  echo ""
+
+  # Use Determinate Systems installer (better UX, uninstall support)
+  if command -v curl &>/dev/null; then
+    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+  else
+    echo "curl is required to install Nix. Install curl first."
+    return 1
+  fi
+
+  echo ""
+  echo "Nix installed. Restart your shell or run:"
+  echo "  . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
+}
+
+_lc_install_deps_nix() {
+  # Ensure Nix is installed
+  if ! command -v nix &>/dev/null; then
+    _lc_install_nix || return 1
+    # Source the nix profile
+    if [ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
+      . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+    fi
+  fi
+
+  echo ""
+  echo "Nix is ready. Use one of these dev shells:"
+  echo ""
+  echo "  nix develop              # CLI development (bun, node, ripgrep)"
+  echo "  nix develop .#desktop    # Desktop development (+ Rust, GTK, WebKit)"
+  echo ""
+  echo "Then inside the shell:"
+  echo "  source scripts/dev-setup.sh"
+  echo "  bun install"
+  echo "  bun run dev              # or bun run dev:desktop"
+}
+
+# ── Native package manager installation (fallback) ──
+
+_lc_install_deps_native() {
+  echo "Installing dependencies via native package manager..."
+  echo "(Prefer 'scripts/dev-setup.sh --deps' for Nix-based cross-platform setup)"
+  echo ""
+
+  # CLI deps
   if command -v dnf &>/dev/null; then
     echo "Detected Fedora/RHEL (dnf)"
     sudo dnf install -y ripgrep openssl-devel pkg-config git
@@ -55,11 +119,7 @@ _lc_install_deps_cli() {
     echo "Detected Alpine (apk)"
     sudo apk add ripgrep openssl-dev pkgconfig git
   else
-    echo ""
-    echo "Unsupported package manager. Install these manually:"
-    echo "  ripgrep, openssl (dev headers), pkg-config, git, bun"
-    echo ""
-    echo "Then re-run: source scripts/dev-setup.sh"
+    echo "Unsupported package manager. Install manually: ripgrep, openssl-dev, pkg-config, git"
     return 1
   fi
 
@@ -70,81 +130,33 @@ _lc_install_deps_cli() {
     export PATH="$HOME/.bun/bin:$PATH"
   fi
 
-  echo "CLI dependencies installed."
-}
-
-_lc_install_deps_desktop() {
-  _lc_install_deps_cli
-
   echo ""
-  echo "Installing desktop (Tauri) dependencies..."
+  echo "CLI dependencies installed."
+  echo ""
+  echo "For desktop (Tauri) development, also install:"
 
   if command -v dnf &>/dev/null; then
-    echo "Detected Fedora/RHEL (dnf)"
-    sudo dnf install -y \
-      gtk4-devel \
-      libsoup3-devel \
-      librsvg2-devel \
-      libappindicator-gtk3-devel \
-      gstreamer1-devel \
-      gstreamer1-plugins-base-devel \
-      dbus-devel
-    rpm -q webkit2gtk4.1-devel &>/dev/null || sudo dnf install -y webkit2gtk4.1-devel
+    echo "  sudo dnf install gtk4-devel webkit2gtk4.1-devel libsoup3-devel \\"
+    echo "    librsvg2-devel libappindicator-gtk3-devel gstreamer1-devel \\"
+    echo "    gstreamer1-plugins-base-devel dbus-devel"
   elif command -v apt &>/dev/null; then
-    echo "Detected Debian/Ubuntu (apt)"
-    sudo apt install -y \
-      libgtk-4-dev \
-      libwebkit2gtk-4.1-dev \
-      libsoup-3.0-dev \
-      librsvg2-dev \
-      libappindicator3-dev \
-      libssl-dev \
-      libgstreamer1.0-dev \
-      libgstreamer-plugins-base1.0-dev \
-      libdbus-1-dev
+    echo "  sudo apt install libgtk-4-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \\"
+    echo "    librsvg2-dev libappindicator3-dev libgstreamer1.0-dev \\"
+    echo "    libgstreamer-plugins-base1.0-dev libdbus-1-dev"
   elif command -v pacman &>/dev/null; then
-    echo "Detected Arch (pacman)"
-    sudo pacman -S --needed \
-      gtk4 webkit2gtk-4.1 libsoup3 librsvg libappindicator-gtk3 \
-      gstreamer gst-plugins-base gst-plugins-good dbus openssl
-  elif command -v zypper &>/dev/null; then
-    echo "Detected openSUSE (zypper)"
-    sudo zypper install -y \
-      gtk4-devel webkit2gtk4.1-devel libsoup3-devel \
-      librsvg-devel libappindicator3-devel \
-      gstreamer-devel gstreamer-plugins-base-devel \
-      dbus-1-devel libopenssl-devel
+    echo "  sudo pacman -S gtk4 webkit2gtk-4.1 libsoup3 librsvg \\"
+    echo "    libappindicator-gtk3 gstreamer gst-plugins-base dbus"
   else
-    echo ""
-    echo "Unsupported package manager. You need these development libraries:"
-    echo "  GTK 4, WebKit2GTK 4.1, libsoup 3, librsvg 2, libappindicator 3"
-    echo "  GStreamer 1.0 + base plugins, D-Bus, OpenSSL"
-    echo "  Plus: Rust toolchain, cargo-tauri"
-    echo ""
-    echo "See docs/development.md for details."
-    return 1
-  fi
-
-  # Rust
-  if ! command -v rustc &>/dev/null; then
-    echo "Installing Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
-  fi
-
-  # Tauri CLI
-  if ! command -v cargo-tauri &>/dev/null; then
-    echo "Installing cargo-tauri..."
-    cargo install tauri-cli --version "^2"
+    echo "  GTK4, WebKit2GTK 4.1, libsoup 3, librsvg 2, GStreamer, D-Bus"
   fi
 
   echo ""
-  echo "Desktop dependencies installed."
-  echo "  rustc:       $(rustc --version 2>/dev/null || echo 'not found')"
-  echo "  cargo-tauri: $(cargo tauri --version 2>/dev/null || echo 'not found')"
+  echo "Plus Rust and Tauri CLI:"
+  echo '  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh'
+  echo '  cargo install tauri-cli --version "^2"'
 }
 
-# ── Command handling (when executed directly, not sourced) ──
+# ── Command handling ──
 
 case "${1:-}" in
   --clean)
@@ -168,10 +180,10 @@ case "${1:-}" in
     return 0 2>/dev/null || true
     ;;
   --deps)
-    case "${2:-desktop}" in
-      cli)     _lc_install_deps_cli ;;
-      desktop) _lc_install_deps_desktop ;;
-      *)       echo "Usage: $0 --deps [cli|desktop]"; exit 1 ;;
+    case "${2:-nix}" in
+      nix)    _lc_install_deps_nix ;;
+      native) _lc_install_deps_native ;;
+      *)      echo "Usage: $0 --deps [nix|native]"; exit 1 ;;
     esac
     if [[ "$_LC_SOURCED" -eq 0 ]]; then exit 0; fi
     return 0 2>/dev/null || true
@@ -217,8 +229,7 @@ echo "  bun run dev:desktop            # Desktop (Tauri)"
 echo "  bun run dev:web                # Web UI only"
 echo "  bun test                       # Run tests"
 echo ""
-echo "First time? Run: scripts/dev-setup.sh --deps desktop"
-echo "Clean up:        scripts/dev-setup.sh --clean"
+echo "Clean up: scripts/dev-setup.sh --clean"
 
 # Clean up internal variables
 unset _LC_SOURCED _LC_SCRIPT_DIR _LC_PROJECT_ROOT _LC_DEV_DIR

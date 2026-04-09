@@ -57,9 +57,15 @@ yay -S librecode
 ```bash
 git clone https://github.com/techtoboggan/librecode.git
 cd librecode
+
+# Install Nix if you don't have it (one-time)
+scripts/dev-setup.sh --deps
+
+# Enter dev shell + isolated environment
+nix develop                   # CLI dev (or nix develop .#desktop for Tauri)
+source scripts/dev-setup.sh   # Isolates data to .dev/
 bun install
-source scripts/dev-setup.sh   # Isolated dev environment (.dev/)
-bun run dev                   # CLI
+bun run dev
 ```
 
 ### Desktop app
@@ -67,33 +73,29 @@ bun run dev                   # CLI
 Download from [librecode.app](https://librecode.app) or build locally:
 
 ```bash
-nix develop .#desktop         # Provides Rust + GTK + WebKit
+nix develop .#desktop         # Provides Rust + GTK + WebKit + everything
 source scripts/dev-setup.sh
+bun install
 bun run dev:desktop
 ```
 
 ## Development
 
+All development uses [Nix](https://nixos.org/) for reproducible dependencies.
+No `sudo apt install`, no version managers, no "works on my machine."
+
 ```bash
-# Set up isolated dev environment (data in .dev/, not ~/.local/share)
-source scripts/dev-setup.sh
-
-# CLI development
-nix develop           # Or just use bun directly
-bun run dev
-
-# Desktop development (needs Rust + GTK)
-nix develop .#desktop
-bun run dev:desktop
-
-# Other commands
-bun run typecheck     # Type checking
-bun run test          # Tests
-bun run lint          # Biome linter
+nix develop              # CLI dev shell
+nix develop .#desktop    # Desktop dev shell (+ Rust, GTK, WebKit)
+source scripts/dev-setup.sh   # Isolate dev data to .dev/
+bun run dev              # Run CLI
+bun run dev:desktop      # Run desktop app
+bun run typecheck        # Type checking
+bun run test             # Tests
+bun run lint             # Biome linter
 ```
 
-See [docs/development.md](docs/development.md) for the full guide including
-Fedora/Ubuntu deps, config setup, and troubleshooting.
+See [docs/development.md](docs/development.md) for the full guide.
 
 ## Architecture
 
