@@ -14,15 +14,29 @@
 #   scripts/dev-setup.sh --deps desktop  # Install desktop (Tauri) dependencies
 #
 
-set -euo pipefail
+# Detect if we're being sourced or executed
+_LC_SOURCED=0
+if [[ "${BASH_SOURCE[0]}" != "${0}" ]]; then
+  _LC_SOURCED=1
+fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-DEV_DIR="$PROJECT_ROOT/.dev"
+# Only use strict mode when executed directly (not sourced)
+if [[ "$_LC_SOURCED" -eq 0 ]]; then
+  set -euo pipefail
+fi
+
+# Resolve paths
+if [[ "$_LC_SOURCED" -eq 1 ]]; then
+  _LC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+  _LC_SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+fi
+_LC_PROJECT_ROOT="$(cd "$_LC_SCRIPT_DIR/.." && pwd)"
+_LC_DEV_DIR="$_LC_PROJECT_ROOT/.dev"
 
 # ── Dependency installation ──
 
-install_deps_cli() {
+_lc_install_deps_cli() {
   echo "Installing CLI dependencies..."
 
   if command -v dnf &>/dev/null; then
@@ -59,8 +73,8 @@ install_deps_cli() {
   echo "CLI dependencies installed."
 }
 
-install_deps_desktop() {
-  install_deps_cli
+_lc_install_deps_desktop() {
+  _lc_install_deps_cli
 
   echo ""
   echo "Installing desktop (Tauri) dependencies..."
@@ -75,7 +89,6 @@ install_deps_desktop() {
       gstreamer1-devel \
       gstreamer1-plugins-base-devel \
       dbus-devel
-    # webkit2gtk4.1-devel is usually already installed on F44+
     rpm -q webkit2gtk4.1-devel &>/dev/null || sudo dnf install -y webkit2gtk4.1-devel
   elif command -v apt &>/dev/null; then
     echo "Detected Debian/Ubuntu (apt)"
@@ -131,14 +144,15 @@ install_deps_desktop() {
   echo "  cargo-tauri: $(cargo tauri --version 2>/dev/null || echo 'not found')"
 }
 
-# ── Command handling ──
+# ── Command handling (when executed directly, not sourced) ──
 
 case "${1:-}" in
   --clean)
-    echo "Removing dev environment at $DEV_DIR"
-    rm -rf "$DEV_DIR"
+    echo "Removing dev environment at $_LC_DEV_DIR"
+    rm -rf "$_LC_DEV_DIR"
     echo "Done."
-    exit 0
+    if [[ "$_LC_SOURCED" -eq 0 ]]; then exit 0; fi
+    return 0 2>/dev/null || true
     ;;
   --info)
     echo "Dev environment:"
@@ -150,28 +164,30 @@ case "${1:-}" in
     echo "  Database: ${XDG_DATA_HOME:-~/.local/share}/librecode/librecode.db"
     echo "  Config:   ${XDG_CONFIG_HOME:-~/.config}/librecode/librecode.json"
     echo "  Logs:     ${XDG_DATA_HOME:-~/.local/share}/librecode/log/"
-    exit 0
+    if [[ "$_LC_SOURCED" -eq 0 ]]; then exit 0; fi
+    return 0 2>/dev/null || true
     ;;
   --deps)
     case "${2:-desktop}" in
-      cli)     install_deps_cli ;;
-      desktop) install_deps_desktop ;;
+      cli)     _lc_install_deps_cli ;;
+      desktop) _lc_install_deps_desktop ;;
       *)       echo "Usage: $0 --deps [cli|desktop]"; exit 1 ;;
     esac
-    exit 0
+    if [[ "$_LC_SOURCED" -eq 0 ]]; then exit 0; fi
+    return 0 2>/dev/null || true
     ;;
 esac
 
 # ── Environment setup (when sourced) ──
 
 # Create isolated directories
-mkdir -p "$DEV_DIR/data" "$DEV_DIR/config" "$DEV_DIR/cache" "$DEV_DIR/state"
+mkdir -p "$_LC_DEV_DIR/data" "$_LC_DEV_DIR/config" "$_LC_DEV_DIR/cache" "$_LC_DEV_DIR/state"
 
 # Override XDG paths to isolate from real user data
-export XDG_DATA_HOME="$DEV_DIR/data"
-export XDG_CONFIG_HOME="$DEV_DIR/config"
-export XDG_CACHE_HOME="$DEV_DIR/cache"
-export XDG_STATE_HOME="$DEV_DIR/state"
+export XDG_DATA_HOME="$_LC_DEV_DIR/data"
+export XDG_CONFIG_HOME="$_LC_DEV_DIR/config"
+export XDG_CACHE_HOME="$_LC_DEV_DIR/cache"
+export XDG_STATE_HOME="$_LC_DEV_DIR/state"
 
 # Disable features that don't make sense in dev
 export LIBRECODE_DISABLE_AUTOUPDATE=true
@@ -190,10 +206,10 @@ fi
 
 echo "LibreCode dev environment ready"
 echo ""
-echo "  Data:   $DEV_DIR/data/librecode/"
-echo "  Config: $DEV_DIR/config/librecode/"
-echo "  Cache:  $DEV_DIR/cache/librecode/"
-echo "  DB:     $DEV_DIR/data/librecode/librecode.db"
+echo "  Data:   $_LC_DEV_DIR/data/librecode/"
+echo "  Config: $_LC_DEV_DIR/config/librecode/"
+echo "  Cache:  $_LC_DEV_DIR/cache/librecode/"
+echo "  DB:     $_LC_DEV_DIR/data/librecode/librecode.db"
 echo ""
 echo "Commands:"
 echo "  bun run dev                    # CLI"
@@ -203,3 +219,6 @@ echo "  bun test                       # Run tests"
 echo ""
 echo "First time? Run: scripts/dev-setup.sh --deps desktop"
 echo "Clean up:        scripts/dev-setup.sh --clean"
+
+# Clean up internal variables
+unset _LC_SOURCED _LC_SCRIPT_DIR _LC_PROJECT_ROOT _LC_DEV_DIR
