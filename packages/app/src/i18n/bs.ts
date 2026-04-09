@@ -100,7 +100,6 @@ export const dict = {
   "dialog.provider.tag.recommended": "Preporučeno",
   "dialog.provider.librecode.note": "Kurirani modeli uključujući Claude, GPT, Gemini i druge",
   "dialog.provider.librecode.tagline": "Pouzdani optimizovani modeli",
-  "dialog.provider.librecodeGo.tagline": "Povoljna pretplata za sve",
   "dialog.provider.anthropic.note": "Direktan pristup Claude modelima, uključujući Pro i Max",
   "dialog.provider.copilot.note": "AI modeli za pomoć pri kodiranju putem GitHub Copilot",
   "dialog.provider.openai.note": "GPT modeli za brze, sposobne opšte AI zadatke",
@@ -115,7 +114,7 @@ export const dict = {
   "dialog.model.manage.description": "Prilagodi koji se modeli prikazuju u izborniku modela.",
   "dialog.model.manage.provider.toggle": "Uključi/isključi sve {{provider}} modele",
 
-  "dialog.model.unpaid.freeModels.title": "Besplatni modeli koje obezbjeđuje LibreCode",
+  "dialog.model.unpaid.freeModels.title": "Connect a provider to see available models",
   "dialog.model.unpaid.addMore.title": "Dodaj još modela od popularnih provajdera",
 
   "dialog.provider.viewAll": "Prikaži više provajdera",
@@ -132,13 +131,7 @@ export const dict = {
   "provider.connect.apiKey.label": "{{provider}} API ključ",
   "provider.connect.apiKey.placeholder": "API ključ",
   "provider.connect.apiKey.required": "API ključ je obavezan",
-  "provider.connect.librecodeZen.line1":
-    "LibreCode Zen ti daje pristup kuriranom skupu pouzdanih, optimizovanih modela za coding agente.",
-  "provider.connect.librecodeZen.line2":
     "Sa jednim API ključem dobijaš pristup modelima kao što su Claude, GPT, Gemini, GLM i drugi.",
-  "provider.connect.librecodeZen.visit.prefix": "Posjeti ",
-  "provider.connect.librecodeZen.visit.link": "librecode.io/zen",
-  "provider.connect.librecodeZen.visit.suffix": " da preuzmeš svoj API ključ.",
   "provider.connect.oauth.code.visit.prefix": "Posjeti ",
   "provider.connect.oauth.code.visit.link": "ovaj link",
   "provider.connect.oauth.code.visit.suffix":
@@ -604,7 +597,7 @@ export const dict = {
   "sidebar.workspaces.enable": "Omogući radne prostore",
   "sidebar.workspaces.disable": "Onemogući radne prostore",
   "sidebar.gettingStarted.title": "Početak",
-  "sidebar.gettingStarted.line1": "LibreCode uključuje besplatne modele, tako da možeš odmah početi.",
+  "sidebar.gettingStarted.line1": "Connect a provider like Anthropic, OpenAI, or LiteLLM to get started.",
   "sidebar.gettingStarted.line2": "Poveži bilo kojeg provajdera da koristiš modele, npr. Claude, GPT, Gemini itd.",
   "sidebar.project.recentSessions": "Nedavne sesije",
   "sidebar.project.viewAllSessions": "Prikaži sve sesije",

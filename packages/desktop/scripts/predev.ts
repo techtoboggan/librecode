@@ -24,13 +24,23 @@ if (process.platform === "linux") {
   const fs = await import("fs/promises")
 
   const home = os.default.homedir()
-  const iconDir = path.default.join(home, ".local/share/icons/hicolor/128x128/apps")
   const desktopDir = path.default.join(home, ".local/share/applications")
-  const iconSrc = path.default.resolve("src-tauri/icons/dev/128x128.png")
-  const appId = "com.librecode.desktop.dev"
+  // Wayland uses the Cargo package name as app_id, not the Tauri identifier
+  const appId = "librecode-desktop"
 
-  await fs.default.mkdir(iconDir, { recursive: true })
-  await fs.default.copyFile(iconSrc, path.default.join(iconDir, `${appId}.png`))
+  // Install icons at multiple sizes so the DE can pick the right one
+  for (const [size, file] of [
+    ["32x32", "32x32.png"],
+    ["64x64", "64x64.png"],
+    ["128x128", "128x128.png"],
+    ["256x256", "128x128@2x.png"],
+    ["512x512", "icon.png"],
+  ] as const) {
+    const dir = path.default.join(home, `.local/share/icons/hicolor/${size}/apps`)
+    await fs.default.mkdir(dir, { recursive: true })
+    const src = path.default.resolve(`src-tauri/icons/dev/${file}`)
+    await fs.default.copyFile(src, path.default.join(dir, `${appId}.png`)).catch(() => {})
+  }
 
   // Update the desktop file with icon
   const desktopFile = path.default.join(desktopDir, "librecode-desktop-handler.desktop")

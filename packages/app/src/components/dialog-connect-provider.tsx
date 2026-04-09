@@ -269,19 +269,6 @@ export function DialogConnectProvider(props: { provider: string }) {
     return (
       <div class="flex flex-col gap-6">
         <Switch>
-          <Match when={provider().id === "librecode"}>
-            <div class="flex flex-col gap-4">
-              <div class="text-14-regular text-text-base">{language.t("provider.connect.librecodeZen.line1")}</div>
-              <div class="text-14-regular text-text-base">{language.t("provider.connect.librecodeZen.line2")}</div>
-              <div class="text-14-regular text-text-base">
-                {language.t("provider.connect.librecodeZen.visit.prefix")}
-                <Link href="https://github.com/techtoboggan/librecode/zen" tabIndex={-1}>
-                  {language.t("provider.connect.librecodeZen.visit.link")}
-                </Link>
-                {language.t("provider.connect.librecodeZen.visit.suffix")}
-              </div>
-            </div>
-          </Match>
           <Match when={true}>
             <div class="text-14-regular text-text-base">
               {language.t("provider.connect.apiKey.description", { provider: provider().name })}
