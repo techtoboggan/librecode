@@ -8,13 +8,17 @@
 ## Quick Start
 
 ```bash
-# 1. Install dependencies
+# 1. Install system dependencies (auto-detects distro: Fedora, Ubuntu, Arch, openSUSE, Alpine)
+scripts/dev-setup.sh --deps          # Desktop (Tauri) deps — includes CLI deps
+scripts/dev-setup.sh --deps cli      # CLI-only deps (lighter)
+
+# 2. Install JS dependencies
 bun install
 
-# 2. Set up isolated dev environment
+# 3. Set up isolated dev environment (data in .dev/, not ~/.local/share)
 source scripts/dev-setup.sh
 
-# 3. Run (pick one)
+# 4. Run (pick one)
 bun run dev              # CLI only
 bun run dev:desktop      # Desktop app (Tauri)
 bun run dev:web          # Web UI only
@@ -67,43 +71,31 @@ Runs TypeScript directly via Bun — no compilation step. Hot-reload on save.
 
 Requires Rust toolchain + GTK/WebKit system libraries.
 
-**Option A: Nix (recommended — handles all deps)**
 ```bash
-nix develop .#desktop    # Enters shell with Rust + GTK + WebKit
+# Install all deps (auto-detects: Fedora, Ubuntu, Arch, openSUSE, Alpine)
+scripts/dev-setup.sh --deps desktop
+
+# Set up isolated dev environment
 source scripts/dev-setup.sh
-bun install
-bun run dev:desktop      # Builds CLI sidecar + starts Tauri
-```
 
-**Option B: Manual deps (Fedora)**
-```bash
-sudo dnf install gtk4-devel webkit2gtk4.1-devel libsoup3-devel \
-  librsvg2-devel libappindicator-gtk3-devel openssl-devel \
-  gstreamer1-devel gstreamer1-plugins-base-devel
-
-# Rust (if not installed)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install tauri-cli@2
-
-source scripts/dev-setup.sh
+# Install JS deps and run
 bun install
 bun run dev:desktop
 ```
 
-**Option C: Manual deps (Ubuntu/Debian)**
+The `--deps desktop` command installs:
+- System libraries: GTK4, WebKit2GTK 4.1, libsoup3, librsvg2, libappindicator, GStreamer, D-Bus, OpenSSL
+- Rust toolchain (via rustup, if not installed)
+- cargo-tauri CLI (via cargo install, if not installed)
+- CLI deps: ripgrep, bun, pkg-config, git
+
+**Nix alternative** (if you have a working Nix install):
 ```bash
-sudo apt install libgtk-4-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \
-  librsvg2-dev libappindicator3-dev libssl-dev \
-  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
-
-# Rust + Tauri CLI
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install tauri-cli@2
-
-source scripts/dev-setup.sh
-bun install
-bun run dev:desktop
+nix develop .#desktop    # Provides everything in one shell
 ```
+
+**Manual installation** (if your distro isn't auto-detected):
+See the required libraries in `scripts/dev-setup.sh` or `nix/desktop.nix`.
 
 The desktop dev flow:
 1. `predev.ts` builds the CLI binary as a sidecar
