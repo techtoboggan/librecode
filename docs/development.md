@@ -1,36 +1,18 @@
 # Local Development Guide
 
-> Run LibreCode locally without installing anything system-wide.
-> All deps via Nix. All dev data isolated to `.dev/` in the project root.
-
----
-
-## Prerequisites
-
-**Nix** — the only prerequisite. Everything else comes from the Nix dev shell.
-
-```bash
-# Install Nix (one-time, works on any Linux distro + macOS)
-scripts/dev-setup.sh --deps
-```
-
-This installs the [Determinate Systems Nix installer](https://github.com/DeterminateSystems/nix-installer)
-which provides `nix develop` with proper `/nix/store` support. It works on
-Fedora, Ubuntu, Arch, NixOS, macOS — any system.
-
-> **Note:** Distro-packaged nix (e.g., Fedora `nix-core`) uses a broken chroot
-> store that doesn't support `nix develop`. Use the official installer instead.
+> Run LibreCode locally without installing anything globally.
+> All dev data isolated to `.dev/` in the project root.
 
 ---
 
 ## Quick Start
 
 ```bash
-# 1. Enter dev shell (provides bun, node, ripgrep, and everything else)
-nix develop              # CLI development
-nix develop .#desktop    # Desktop development (+ Rust, GTK, WebKit)
+# 1. Install system dependencies (auto-detects distro)
+scripts/dev-setup.sh --deps          # Desktop deps (includes CLI deps)
+scripts/dev-setup.sh --deps cli      # CLI-only deps (lighter)
 
-# 2. Set up isolated dev environment (data in .dev/, not ~/.local/share)
+# 2. Set up isolated dev environment
 source scripts/dev-setup.sh
 
 # 3. Install JS dependencies
@@ -42,38 +24,24 @@ bun run dev:desktop      # Desktop (Tauri)
 bun run dev:web          # Web UI only
 ```
 
-That's it. No `sudo dnf install`, no `apt-get`, no Rust installer, no version
-managers. Nix provides everything reproducibly.
+Supported distros: Fedora, Ubuntu/Debian, Arch, openSUSE, Alpine.
 
 ---
 
-## What the Nix Shells Provide
+## What `--deps` Installs
 
-### `nix develop` (CLI development)
+### CLI deps (`--deps cli`)
+- bun (JS runtime)
+- ripgrep (file search)
+- pkg-config, openssl-dev, git
 
-- Bun 1.3.x
-- Node.js 20
-- ripgrep
-- pkg-config
-- OpenSSL
-- Git
-
-### `nix develop .#desktop` (Desktop development)
-
-Everything from the CLI shell, plus:
-
-- Rust toolchain (rustc, cargo)
+### Desktop deps (`--deps` or `--deps desktop`)
+Everything from CLI, plus:
+- Rust toolchain (via rustup)
 - cargo-tauri CLI
-- GTK 4
-- WebKit2GTK 4.1
-- libsoup 3
-- librsvg 2
-- libappindicator
-- GStreamer (+ base/good/bad plugins)
-- D-Bus
-- glib-networking
-
-No system packages needed — Nix provides all libraries isolated in `/nix/store`.
+- GTK 3 + 4, WebKit2GTK 4.1, libsoup 3
+- librsvg 2, libappindicator 3
+- GStreamer + base plugins, D-Bus
 
 ---
 
@@ -98,11 +66,10 @@ No system packages needed — Nix provides all libraries isolated in `/nix/store
 ## Day-to-Day Workflow
 
 ```bash
-# Terminal 1: Enter shell + setup (once per terminal session)
-nix develop .#desktop
+# Start of each session
 source scripts/dev-setup.sh
 
-# Then iterate:
+# Iterate
 bun run dev:desktop        # Run desktop app
 # Ctrl+C, make changes, run again
 
@@ -120,13 +87,12 @@ bun run lint
 
 ### Dev config file
 
-After running `source scripts/dev-setup.sh`, create:
+After `source scripts/dev-setup.sh`:
 
 ```bash
 mkdir -p .dev/config/librecode
 cat > .dev/config/librecode/librecode.jsonc << 'EOF'
 {
-  // Dev-specific config
   "provider": {
     "anthropic": {
       "models": {
@@ -140,8 +106,6 @@ EOF
 
 ### Provider API keys
 
-Set in your shell (NOT in config files):
-
 ```bash
 export ANTHROPIC_API_KEY="sk-ant-..."
 export OPENAI_API_KEY="sk-..."
@@ -152,65 +116,47 @@ export OPENAI_API_KEY="sk-..."
 ## Testing
 
 ```bash
-# From packages/librecode (the core package)
+cd packages/librecode
 bun test --timeout 30000          # All tests
 bun test test/session/             # Test a directory
 bun test --coverage               # With coverage report
 
-# Other packages
-cd packages/util && bun test
-cd packages/plugin && bun test
-cd packages/app && bun run test:unit
-
-# E2E tests (needs Playwright)
-cd packages/app && bun run test:e2e
+cd packages/util && bun test       # Util tests
+cd packages/plugin && bun test     # Plugin tests
+cd packages/app && bun run test:unit  # App unit tests
+cd packages/app && bun run test:e2e   # E2E tests (Playwright)
 ```
+
+---
+
+## Nix (Optional)
+
+Nix flake is provided for packaging and CI, but is **not required** for development. The `--deps` script handles everything.
+
+If you want to use Nix:
+```bash
+nix develop              # CLI shell
+nix develop .#desktop    # Desktop shell (may have glibc issues on newer distros)
+```
+
+> **Note:** Nix dev shells may not work on bleeding-edge distros (Fedora 44+)
+> due to glibc version mismatches in the Nix-provided linker.
 
 ---
 
 ## Troubleshooting
 
-### "nix develop" doesn't work
-
-If you get chroot store errors, you have the distro-packaged nix. Remove it and
-use the official installer:
-
-```bash
-# Fedora
-sudo dnf remove nix-core nix-libs
-# Then
-scripts/dev-setup.sh --deps
-```
-
-### "source scripts/dev-setup.sh" closes my terminal
-
-This was fixed — make sure you have the latest version (the script detects
-`source` vs direct execution and disables strict mode when sourced).
-
 ### "No models available"
-
-Dev mode disables model fetching. Set a provider API key or point to a
-local snapshot: `LIBRECODE_MODELS_PATH=test/tool/fixtures/models-api.json`
+Set `LIBRECODE_DISABLE_MODELS_FETCH=true` and configure a provider API key.
 
 ### "Database locked"
-
-Only one CLI instance can write at a time. Kill backgrounds:
-`pkill -f "bun.*librecode"`
+Kill background instances: `pkill -f "bun.*librecode"`
 
 ### "ENOENT: rg not found"
+Install ripgrep: `sudo dnf install ripgrep` / `sudo apt install ripgrep`
 
-You're not in the Nix dev shell. Run `nix develop` first.
+### EGL/Wayland crash
+Force X11: `OC_FORCE_X11=1 bun run dev:desktop`
 
----
-
-## Native Deps (without Nix)
-
-If you really can't use Nix, there's a native fallback:
-
-```bash
-scripts/dev-setup.sh --deps native
-```
-
-This auto-detects your package manager (dnf, apt, pacman, zypper, apk) and
-prints the install commands. But you'll need to manage Rust, bun, and system
-library versions yourself. Nix is strongly preferred.
+### "source scripts/dev-setup.sh" does nothing
+Make sure you're using `source` (not `./scripts/dev-setup.sh` which runs in a subshell).

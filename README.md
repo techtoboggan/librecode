@@ -58,12 +58,11 @@ yay -S librecode
 git clone https://github.com/techtoboggan/librecode.git
 cd librecode
 
-# Install Nix if you don't have it (one-time)
+# Install dependencies (auto-detects your distro)
 scripts/dev-setup.sh --deps
 
-# Enter dev shell + isolated environment
-nix develop                   # CLI dev (or nix develop .#desktop for Tauri)
-source scripts/dev-setup.sh   # Isolates data to .dev/
+# Set up isolated dev environment
+source scripts/dev-setup.sh
 bun install
 bun run dev
 ```
@@ -73,7 +72,7 @@ bun run dev
 Download from [librecode.app](https://librecode.app) or build locally:
 
 ```bash
-nix develop .#desktop         # Provides Rust + GTK + WebKit + everything
+scripts/dev-setup.sh --deps    # Installs Rust + GTK + WebKit + everything
 source scripts/dev-setup.sh
 bun install
 bun run dev:desktop
@@ -81,18 +80,13 @@ bun run dev:desktop
 
 ## Development
 
-All development uses [Nix](https://nixos.org/) for reproducible dependencies.
-No `sudo apt install`, no version managers, no "works on my machine."
-
 ```bash
-nix develop              # CLI dev shell
-nix develop .#desktop    # Desktop dev shell (+ Rust, GTK, WebKit)
-source scripts/dev-setup.sh   # Isolate dev data to .dev/
-bun run dev              # Run CLI
-bun run dev:desktop      # Run desktop app
-bun run typecheck        # Type checking
-bun run test             # Tests
-bun run lint             # Biome linter
+source scripts/dev-setup.sh    # Isolated dev data in .dev/
+bun run dev                    # CLI
+bun run dev:desktop            # Desktop (Tauri)
+bun run typecheck              # Type checking
+bun run test                   # Tests
+bun run lint                   # Biome linter
 ```
 
 See [docs/development.md](docs/development.md) for the full guide.

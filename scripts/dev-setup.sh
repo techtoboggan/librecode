@@ -9,8 +9,9 @@
 #   source scripts/dev-setup.sh          # Sets env vars for current shell
 #   scripts/dev-setup.sh --info          # Show current dev env paths
 #   scripts/dev-setup.sh --clean         # Remove dev data
-#   scripts/dev-setup.sh --deps          # Install deps via Nix (recommended)
-#   scripts/dev-setup.sh --deps native   # Install deps via native pkg manager
+#   scripts/dev-setup.sh --deps          # Install system dependencies
+#   scripts/dev-setup.sh --deps cli      # Install CLI-only dependencies
+#   scripts/dev-setup.sh --deps desktop  # Install desktop (Tauri) dependencies
 #
 
 # Detect if we're being sourced or executed
@@ -33,119 +34,12 @@ fi
 _LC_PROJECT_ROOT="$(cd "$_LC_SCRIPT_DIR/.." && pwd)"
 _LC_DEV_DIR="$_LC_PROJECT_ROOT/.dev"
 
-# ── Nix-based dependency installation (recommended) ──
+# ── Dependency installation ──
 
-_lc_has_official_nix() {
-  # Official Nix installs to /nix/store with a daemon
-  [ -d "/nix/store" ] && [ -f "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh" ]
-}
-
-_lc_has_distro_nix() {
-  # Distro-packaged nix (Fedora nix-core, etc.) uses chroot store
-  [ -f "/usr/bin/nix" ] && [ -d "$HOME/.local/share/nix/root" ] && ! _lc_has_official_nix
-}
-
-_lc_remove_distro_nix() {
-  echo "Detected distro-packaged Nix (uses chroot store, breaks 'nix develop')."
-  echo "Removing it to make way for the official installer..."
+_lc_install_deps_cli() {
+  echo "Installing CLI dependencies..."
   echo ""
 
-  if command -v dnf &>/dev/null; then
-    sudo dnf remove -y nix-core nix-libs 2>/dev/null || true
-  elif command -v apt &>/dev/null; then
-    sudo apt remove -y nix nix-bin 2>/dev/null || true
-  elif command -v pacman &>/dev/null; then
-    sudo pacman -R --noconfirm nix 2>/dev/null || true
-  elif command -v zypper &>/dev/null; then
-    sudo zypper remove -y nix 2>/dev/null || true
-  fi
-
-  # Clean up chroot store
-  rm -rf "$HOME/.local/share/nix" 2>/dev/null || true
-
-  # Remove from hash table so bash finds the new one
-  hash -r 2>/dev/null || true
-
-  echo "Distro nix removed."
-}
-
-_lc_install_nix() {
-  # Already have a working official Nix?
-  if _lc_has_official_nix; then
-    echo "Nix is already installed (official installer)."
-    # Source the profile in case it's not in this shell
-    . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
-    return 0
-  fi
-
-  # Have a broken distro-packaged nix? Remove it first.
-  if _lc_has_distro_nix; then
-    _lc_remove_distro_nix
-  elif command -v nix &>/dev/null; then
-    # Some other nix exists — check if it works
-    if nix store info &>/dev/null 2>&1 && [ -d "/nix/store" ]; then
-      echo "Nix is already installed and working."
-      return 0
-    else
-      echo "Found nix but it doesn't appear to work correctly."
-      echo "Proceeding with official installer (will take precedence via PATH)."
-    fi
-  fi
-
-  echo ""
-  echo "Installing Nix (Determinate Systems installer)..."
-  echo "This provides reproducible, cross-platform dev environments."
-  echo ""
-
-  if ! command -v curl &>/dev/null; then
-    echo "curl is required. Install curl first, then re-run."
-    return 1
-  fi
-
-  curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-
-  # Source the profile so nix is available in this shell
-  if [ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
-    . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-  fi
-
-  echo ""
-  echo "Nix installed successfully."
-  echo "If 'nix' isn't found, restart your shell."
-}
-
-_lc_install_deps_nix() {
-  # Always run the install function — it handles detection, removal, and install
-  _lc_install_nix || return 1
-
-  # Verify nix develop actually works now
-  if ! nix develop --help &>/dev/null 2>&1; then
-    echo ""
-    echo "ERROR: nix is installed but 'nix develop' still doesn't work."
-    echo "Try restarting your shell and running this again."
-    return 1
-  fi
-
-  echo ""
-  echo "Nix is ready. Use one of these dev shells:"
-  echo ""
-  echo "  nix develop              # CLI development (bun, node, ripgrep)"
-  echo "  nix develop .#desktop    # Desktop development (+ Rust, GTK, WebKit)"
-  echo ""
-  echo "Then inside the shell:"
-  echo "  source scripts/dev-setup.sh"
-  echo "  bun install"
-  echo "  bun run dev              # or bun run dev:desktop"
-}
-
-# ── Native package manager installation (fallback) ──
-
-_lc_install_deps_native() {
-  echo "Installing dependencies via native package manager..."
-  echo "(Prefer 'scripts/dev-setup.sh --deps' for Nix-based cross-platform setup)"
-  echo ""
-
-  # CLI deps
   if command -v dnf &>/dev/null; then
     echo "Detected Fedora/RHEL (dnf)"
     sudo dnf install -y ripgrep openssl-devel pkg-config git
@@ -162,12 +56,14 @@ _lc_install_deps_native() {
     echo "Detected Alpine (apk)"
     sudo apk add ripgrep openssl-dev pkgconfig git
   else
-    echo "Unsupported package manager. Install manually: ripgrep, openssl-dev, pkg-config, git"
+    echo "Unsupported package manager. Install manually:"
+    echo "  ripgrep, openssl (dev headers), pkg-config, git"
     return 1
   fi
 
   # Bun
   if ! command -v bun &>/dev/null; then
+    echo ""
     echo "Installing bun..."
     curl -fsSL https://bun.sh/install | bash
     export PATH="$HOME/.bun/bin:$PATH"
@@ -175,28 +71,78 @@ _lc_install_deps_native() {
 
   echo ""
   echo "CLI dependencies installed."
+}
+
+_lc_install_deps_desktop() {
+  _lc_install_deps_cli
+
   echo ""
-  echo "For desktop (Tauri) development, also install:"
+  echo "Installing desktop (Tauri) dependencies..."
+  echo ""
 
   if command -v dnf &>/dev/null; then
-    echo "  sudo dnf install gtk4-devel webkit2gtk4.1-devel libsoup3-devel \\"
-    echo "    librsvg2-devel libappindicator-gtk3-devel gstreamer1-devel \\"
-    echo "    gstreamer1-plugins-base-devel dbus-devel"
+    echo "Detected Fedora/RHEL (dnf)"
+    sudo dnf install -y \
+      gtk4-devel gtk3-devel \
+      webkit2gtk4.1-devel \
+      libsoup3-devel \
+      librsvg2-devel \
+      libappindicator-gtk3-devel \
+      gstreamer1-devel \
+      gstreamer1-plugins-base-devel \
+      dbus-devel
   elif command -v apt &>/dev/null; then
-    echo "  sudo apt install libgtk-4-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev \\"
-    echo "    librsvg2-dev libappindicator3-dev libgstreamer1.0-dev \\"
-    echo "    libgstreamer-plugins-base1.0-dev libdbus-1-dev"
+    echo "Detected Debian/Ubuntu (apt)"
+    sudo apt install -y \
+      libgtk-4-dev libgtk-3-dev \
+      libwebkit2gtk-4.1-dev \
+      libsoup-3.0-dev \
+      librsvg2-dev \
+      libappindicator3-dev \
+      libssl-dev \
+      libgstreamer1.0-dev \
+      libgstreamer-plugins-base1.0-dev \
+      libdbus-1-dev
   elif command -v pacman &>/dev/null; then
-    echo "  sudo pacman -S gtk4 webkit2gtk-4.1 libsoup3 librsvg \\"
-    echo "    libappindicator-gtk3 gstreamer gst-plugins-base dbus"
+    echo "Detected Arch (pacman)"
+    sudo pacman -S --needed \
+      gtk4 gtk3 webkit2gtk-4.1 libsoup3 librsvg libappindicator-gtk3 \
+      gstreamer gst-plugins-base gst-plugins-good dbus openssl
+  elif command -v zypper &>/dev/null; then
+    echo "Detected openSUSE (zypper)"
+    sudo zypper install -y \
+      gtk4-devel gtk3-devel webkit2gtk4.1-devel libsoup3-devel \
+      librsvg-devel libappindicator3-devel \
+      gstreamer-devel gstreamer-plugins-base-devel \
+      dbus-1-devel libopenssl-devel
   else
-    echo "  GTK4, WebKit2GTK 4.1, libsoup 3, librsvg 2, GStreamer, D-Bus"
+    echo "Unsupported package manager. You need:"
+    echo "  GTK 3+4, WebKit2GTK 4.1, libsoup 3, librsvg 2"
+    echo "  libappindicator 3, GStreamer + base plugins, D-Bus, OpenSSL"
+    echo "  Plus: Rust toolchain, cargo-tauri"
+    return 1
+  fi
+
+  # Rust
+  if ! command -v rustc &>/dev/null; then
+    echo ""
+    echo "Installing Rust..."
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+  fi
+
+  # Tauri CLI
+  if ! command -v cargo-tauri &>/dev/null; then
+    echo ""
+    echo "Installing cargo-tauri..."
+    cargo install tauri-cli --version "^2"
   fi
 
   echo ""
-  echo "Plus Rust and Tauri CLI:"
-  echo '  curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh'
-  echo '  cargo install tauri-cli --version "^2"'
+  echo "Desktop dependencies installed."
+  echo "  bun:         $(bun --version 2>/dev/null || echo 'not found')"
+  echo "  rustc:       $(rustc --version 2>/dev/null || echo 'not found')"
+  echo "  cargo-tauri: $(cargo tauri --version 2>/dev/null || echo 'not found')"
 }
 
 # ── Command handling ──
@@ -223,10 +169,10 @@ case "${1:-}" in
     return 0 2>/dev/null || true
     ;;
   --deps)
-    case "${2:-nix}" in
-      nix)    _lc_install_deps_nix ;;
-      native) _lc_install_deps_native ;;
-      *)      echo "Usage: $0 --deps [nix|native]"; exit 1 ;;
+    case "${2:-desktop}" in
+      cli)     _lc_install_deps_cli ;;
+      desktop) _lc_install_deps_desktop ;;
+      *)       echo "Usage: $0 --deps [cli|desktop]"; exit 1 ;;
     esac
     if [[ "$_LC_SOURCED" -eq 0 ]]; then exit 0; fi
     return 0 2>/dev/null || true
@@ -272,7 +218,8 @@ echo "  bun run dev:desktop            # Desktop (Tauri)"
 echo "  bun run dev:web                # Web UI only"
 echo "  bun test                       # Run tests"
 echo ""
-echo "Clean up: scripts/dev-setup.sh --clean"
+echo "First time? Run: scripts/dev-setup.sh --deps"
+echo "Clean up:        scripts/dev-setup.sh --clean"
 
 # Clean up internal variables
 unset _LC_SOURCED _LC_SCRIPT_DIR _LC_PROJECT_ROOT _LC_DEV_DIR

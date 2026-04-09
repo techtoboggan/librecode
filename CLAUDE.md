@@ -18,10 +18,8 @@ monorepo using Bun runtime, Effect-ts (being migrated away), Solid.js UI, Tauri 
 
 ## Local Development
 
-All development uses Nix for reproducible dependencies. No system package installs needed.
-
 ```bash
-# One-time: install Nix
+# One-time: install system dependencies (auto-detects distro)
 scripts/dev-setup.sh --deps
 
 # Enter dev shell + isolated data environment
