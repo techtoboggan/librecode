@@ -37,14 +37,43 @@
 | 2.5 Storage cleanup | ADR-002 written. json-migration.ts removed (1,400 lines of dead code) |
 | Quality framework | CLAUDE.md, biome linter (complexity<12), quality baseline documented |
 
-### Deferred tech debt (not blocking Phase 3+)
+### Remaining Phase 2 work (completing before Phase 3.1)
 
-| Item | Effort | Playbook | Notes |
-|------|--------|----------|-------|
-| **2.1.1** Namespace→module migration | 4-6 hrs/namespace | CLAUDE.md Playbook 1 | 4 namespaces: MessageV2, Provider, Session, SessionPrompt. Lowest risk first. |
-| **2.3** Migrate loaders to ProviderPlugin interface | 2 hrs | — | Loaders work fine, this is API cleanup |
-| **2.4** Tool output format standardization | 2-3 hrs | — | Additive, no urgency |
-| **2.4** Tool execution telemetry | 3-4 hrs | — | Nice-to-have for observability |
+**2.1.1 — Namespace → module export migration**
+
+Per CLAUDE.md Playbook 1. Uses barrel pattern (`export const X = { ... } as const`) to keep `X.method()` call syntax so consumers don't change. One namespace per commit.
+
+| Namespace | File | Consumers | Risk | Order |
+|-----------|------|-----------|------|-------|
+| `MessageV2` | session/message-v2.ts (988 lines) | 31 files | Medium — mostly types, some const/type name collisions | 1st |
+| `Provider` | provider/provider.ts (909 lines) | 26 files | Medium — already partially decomposed | 2nd |
+| `Session` | session/index.ts (893 lines) | ~20 files | Medium | 3rd |
+| `SessionPrompt` | session/prompt.ts (1,855 lines) | ~15 files | High — largest file, most complex | 4th |
+
+**Approach**: For each namespace:
+1. Keep `export namespace X {}` wrapper but add `// @deprecated` comment
+2. Add a barrel `export const X = { ... } as const` below the namespace
+3. Add type companion namespace for `z.infer` types
+4. Verify all consumers work with barrel pattern
+5. In a follow-up PR, remove the namespace wrapper and dedent
+
+This two-step approach (barrel first, then remove namespace) is safer than doing both at once.
+
+**2.3 — Migrate loaders to ProviderPlugin interface**
+- Update each loader in `provider/loaders/` to return `ProviderLoadResult` type
+- Update `provider/loaders/index.ts` registry to use `ProviderPlugin` interface
+- ~2 hrs, low risk, purely type cleanup
+
+**2.4 — Tool output format standardization**
+- Define a `ToolOutput` schema (title, output, metadata, attachments)
+- Ensure all 23 tools return consistent format
+- Add `ToolOutput.truncate()` helper
+- ~2-3 hrs, additive
+
+**2.4 — Tool execution telemetry**
+- Add timing, input/output size, tool ID to each execution
+- Emit via Bus events for observability
+- ~3-4 hrs, additive
 
 ---
 
@@ -78,30 +107,25 @@
 
 ---
 
-## What to do next
-
-The highest-value path forward:
+## Execution plan
 
 ```
-NOW:  Continue Effect removal (PermissionService → AuthService → AccountService)
-      Each is 2-3 hrs, proven pattern from QuestionService, low risk.
+NOW:  Phase 2.1.1 — Namespace migration (MessageV2 → Provider → Session → SessionPrompt)
       ↓
-THEN: Phase 3.3 — Permission system hardening
-      Tool capabilities are ready (2.4 done). Connect them to permissions.
-      This is user-facing value: smarter permission prompts, audit logging.
+THEN: Phase 2.3 — Migrate loaders to ProviderPlugin interface
       ↓
-THEN: Phase 3.5 — MCP server management
-      No dependencies, high user value (health checks, better errors).
+THEN: Phase 2.4 — Tool output standardization + telemetry
       ↓
-THEN: Phase 3.1 — Formalize agent loop
-      This is the big architectural win but depends on namespace migration (2.1.1).
-      Consider doing 2.1.1 first if agent loop work is blocked.
+THEN: Phase 3.1 — Formalize agent loop (unblocked by namespace migration)
       ↓
-PARALLEL: Phase 4 + remaining Phase 5
+THEN: Phase 3.2 — Instruction system overhaul
+      ↓
+THEN: Phase 3.4 — Session improvements
+      ↓
+THEN: Phase 4 + remaining Phase 5 in parallel
 ```
 
-### Deferred items (tech debt, not blocking user value)
-- Namespace→module migration (2.1.1) — high effort, documented in CLAUDE.md playbook
-- Turbo evaluation (1.3) — low priority
-- AppImage/Flatpak (0.2) — nice-to-have
-- Tool telemetry (2.4) — nice-to-have
+### Low-priority items (do whenever)
+- Turbo evaluation (1.3)
+- AppImage/Flatpak (0.2)
+- Logo/mascot asset generation (5.4)
