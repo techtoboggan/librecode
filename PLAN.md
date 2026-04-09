@@ -80,7 +80,7 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 |------|------------|--------|
 | **3.3** Permission hardening | ✅ Audit logging (`permission/audit.ts`), capability-enriched permission requests, `capabilityInfo()` API for UI, integrated at ask/reply/deny decision points | DONE |
 | **3.1** Formalize agent loop | ✅ ADR-003 written. `session/agent-loop.ts`: AgentState types, ExitReason, AgentLoopTracker, transition events, VALID_TRANSITIONS table. 13 new tests. | DONE |
-| **3.2** Instruction system overhaul | Priority ordering, source tracking, deduplication, context budgeting | ⬜ Depends on 3.1 |
+| **3.2** Instruction system overhaul | ✅ `session/instruction-compiler.ts`: 6 priority tiers, source tracking, content+source deduplication, per-tier and total token budgets, `formatCompiled()` debug output. 16 new tests. | DONE |
 | **3.4** Session improvements | Branching, export/import, replay, better compaction | ⬜ Depends on 3.1 |
 | **3.5** MCP server management | ✅ Health monitor (`mcp/health.ts`) with auto-reconnect + exponential backoff. Error diagnostics (`mcp/diagnostics.ts`) with categorized errors + actionable suggestions. 19 new tests. | DONE |
 
