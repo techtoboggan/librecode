@@ -454,27 +454,21 @@ async fn initialize(app: AppHandle) {
     let sqlite_done = needs_migration.then(|| {
         tracing::info!(
             path = %librecode_db_path().expect("failed to get db path").display(),
-            "Sqlite file not found, waiting for it to be generated"
+            "Sqlite file not found, waiting for it to be created by sidecar"
         );
 
-        let (done_tx, done_rx) = oneshot::channel::<()>();
-        let done_tx = Arc::new(Mutex::new(Some(done_tx)));
-
-        let init_tx = init_tx.clone();
-        let id = SqliteMigrationProgress::listen(&app, move |e| {
-            let _ = init_tx.send(InitStep::SqliteWaiting);
-
-            if matches!(e.payload, SqliteMigrationProgress::Done)
-                && let Some(done_tx) = done_tx.lock().unwrap().take()
-            {
-                let _ = done_tx.send(());
+        // Poll for the database file to appear (created by the sidecar on first run).
+        // The old JSON→SQLite migration code was removed (ADR-002) so we just wait
+        // for the sidecar to create the DB file directly.
+        tokio::spawn(async {
+            loop {
+                if sqlite_file_exists() {
+                    tracing::info!("SQLite database file created");
+                    break;
+                }
+                sleep(Duration::from_millis(100)).await;
             }
-        });
-
-        let app = app.clone();
-        tokio::spawn(done_rx.map(async move |_| {
-            app.unlisten(id);
-        }))
+        })
     });
 
     // The loading task waits for SQLite migration (if needed) then for the sidecar health check.
