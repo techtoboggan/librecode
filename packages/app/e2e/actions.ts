@@ -40,7 +40,7 @@ export async function terminalConnects(page: Page, input?: { term?: Locator }) {
   const term = input?.term ?? page.locator(terminalSelector).first()
   const id = await terminalID(term)
   return page.evaluate((id) => {
-    return (window as E2EWindow).__opencode_e2e?.terminal?.terminals?.[id]?.connects ?? 0
+    return (window as E2EWindow).__librecode_e2e?.terminal?.terminals?.[id]?.connects ?? 0
   }, id)
 }
 
@@ -48,7 +48,7 @@ export async function disconnectTerminal(page: Page, input?: { term?: Locator })
   const term = input?.term ?? page.locator(terminalSelector).first()
   const id = await terminalID(term)
   await page.evaluate((id) => {
-    ;(window as E2EWindow).__opencode_e2e?.terminal?.controls?.[id]?.disconnect?.()
+    ;(window as E2EWindow).__librecode_e2e?.terminal?.controls?.[id]?.disconnect?.()
   }, id)
 }
 
@@ -56,7 +56,7 @@ async function terminalReady(page: Page, term?: Locator) {
   const next = term ?? page.locator(terminalSelector).first()
   const id = await terminalID(next)
   return page.evaluate((id) => {
-    const state = (window as E2EWindow).__opencode_e2e?.terminal?.terminals?.[id]
+    const state = (window as E2EWindow).__librecode_e2e?.terminal?.terminals?.[id]
     return !!state?.connected && (state.settled ?? 0) > 0
   }, id)
 }
@@ -66,7 +66,7 @@ async function terminalHas(page: Page, input: { term?: Locator; token: string })
   const id = await terminalID(next)
   return page.evaluate(
     (input) => {
-      const state = (window as E2EWindow).__opencode_e2e?.terminal?.terminals?.[input.id]
+      const state = (window as E2EWindow).__librecode_e2e?.terminal?.terminals?.[input.id]
       return state?.rendered.includes(input.token) ?? false
     },
     { id, token: input.token },
@@ -242,7 +242,7 @@ export async function seedProjects(page: Page, input: { directory: string; extra
 }
 
 export async function createTestProject() {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-e2e-project-"))
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "librecode-e2e-project-"))
 
   await fs.writeFile(path.join(root, "README.md"), "# e2e\n")
 

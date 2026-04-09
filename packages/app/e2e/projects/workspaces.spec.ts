@@ -108,7 +108,7 @@ test("can create a workspace", async ({ page, withProject }) => {
 test("non-git projects keep workspace mode disabled", async ({ page, withProject }) => {
   await page.setViewportSize({ width: 1400, height: 800 })
 
-  const nonGit = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-e2e-project-nongit-"))
+  const nonGit = await fs.mkdtemp(path.join(os.tmpdir(), "librecode-e2e-project-nongit-"))
   const nonGitSlug = dirSlug(nonGit)
 
   await fs.writeFile(path.join(nonGit, "README.md"), "# e2e nongit\n")
@@ -120,7 +120,7 @@ test("non-git projects keep workspace mode disabled", async ({ page, withProject
       await expect.poll(() => slugFromUrl(page.url()), { timeout: 30_000 }).not.toBe("")
 
       const activeDir = base64Decode(slugFromUrl(page.url()))
-      expect(path.basename(activeDir)).toContain("opencode-e2e-project-nongit-")
+      expect(path.basename(activeDir)).toContain("librecode-e2e-project-nongit-")
 
       await openSidebar(page)
       await expect(page.getByRole("button", { name: "New workspace" })).toHaveCount(0)

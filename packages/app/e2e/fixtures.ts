@@ -93,8 +93,8 @@ async function seedStorage(page: Page, input: { directory: string; extra?: strin
   await seedProjects(page, input)
   await page.addInitScript(() => {
     const win = window as E2EWindow
-    win.__opencode_e2e = {
-      ...win.__opencode_e2e,
+    win.__librecode_e2e = {
+      ...win.__librecode_e2e,
       model: {
         enabled: true,
       },

@@ -82,8 +82,8 @@ async function expectPermissionOpen(page: any) {
 async function todoDock(page: any, sessionID: string) {
   await page.addInitScript(() => {
     const win = window as ComposerWindow
-    win.__opencode_e2e = {
-      ...win.__opencode_e2e,
+    win.__librecode_e2e = {
+      ...win.__librecode_e2e,
       composer: {
         enabled: true,
         sessions: {},
@@ -95,7 +95,7 @@ async function todoDock(page: any, sessionID: string) {
     await page.evaluate(
       (input) => {
         const win = window as ComposerWindow
-        const composer = win.__opencode_e2e?.composer
+        const composer = win.__librecode_e2e?.composer
         if (!composer?.enabled) throw new Error("Composer e2e driver is not enabled")
         composer.sessions ??= {}
         const prev = composer.sessions[input.sessionID] ?? {}
@@ -120,7 +120,7 @@ async function todoDock(page: any, sessionID: string) {
   const read = () =>
     page.evaluate((sessionID) => {
       const win = window as ComposerWindow
-      return win.__opencode_e2e?.composer?.sessions?.[sessionID]?.probe ?? null
+      return win.__librecode_e2e?.composer?.sessions?.[sessionID]?.probe ?? null
     }, sessionID) as Promise<ComposerProbeState | null>
 
   const api = {
@@ -313,7 +313,7 @@ test("blocked permission flow supports allow once", async ({ page, sdk, gotoSess
         id: "per_e2e_once",
         sessionID: session.id,
         permission: "bash",
-        patterns: ["/tmp/opencode-e2e-perm-once"],
+        patterns: ["/tmp/librecode-e2e-perm-once"],
         metadata: { description: "Need permission for command" },
       },
       undefined,
@@ -340,7 +340,7 @@ test("blocked permission flow supports reject", async ({ page, sdk, gotoSession 
         id: "per_e2e_reject",
         sessionID: session.id,
         permission: "bash",
-        patterns: ["/tmp/opencode-e2e-perm-reject"],
+        patterns: ["/tmp/librecode-e2e-perm-reject"],
       },
       undefined,
       async (state) => {
@@ -366,7 +366,7 @@ test("blocked permission flow supports allow always", async ({ page, sdk, gotoSe
         id: "per_e2e_always",
         sessionID: session.id,
         permission: "bash",
-        patterns: ["/tmp/opencode-e2e-perm-always"],
+        patterns: ["/tmp/librecode-e2e-perm-always"],
         metadata: { description: "Need permission for command" },
       },
       undefined,
@@ -453,7 +453,7 @@ test("child session permission request blocks parent dock and supports allow onc
           id: "per_e2e_child",
           sessionID: child.id,
           permission: "bash",
-          patterns: ["/tmp/opencode-e2e-perm-child"],
+          patterns: ["/tmp/librecode-e2e-perm-child"],
           metadata: { description: "Need child permission" },
         },
         { child },

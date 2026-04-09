@@ -35,13 +35,13 @@ const dirKey = (state: Probe | null) => state?.dir ?? ""
 async function probe(page: Page): Promise<Probe | null> {
   return page.evaluate(() => {
     const win = window as Window & {
-      __opencode_e2e?: {
+      __librecode_e2e?: {
         model?: {
           current?: Probe
         }
       }
     }
-    return win.__opencode_e2e?.model?.current ?? null
+    return win.__librecode_e2e?.model?.current ?? null
   })
 }
 

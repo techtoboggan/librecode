@@ -29,7 +29,7 @@ export type ModelProbeState = {
 }
 
 export type ModelWindow = Window & {
-  __opencode_e2e?: {
+  __librecode_e2e?: {
     model?: {
       enabled?: boolean
       current?: ModelProbeState
@@ -47,12 +47,12 @@ const clone = (state?: State) => {
 
 export const modelEnabled = () => {
   if (typeof window === "undefined") return false
-  return (window as ModelWindow).__opencode_e2e?.model?.enabled === true
+  return (window as ModelWindow).__librecode_e2e?.model?.enabled === true
 }
 
 const root = () => {
   if (!modelEnabled()) return
-  return (window as ModelWindow).__opencode_e2e?.model
+  return (window as ModelWindow).__librecode_e2e?.model
 }
 
 export const modelProbe = {

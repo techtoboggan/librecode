@@ -1,0 +1,52 @@
+app-id: com.librecode.desktop
+runtime: org.gnome.Platform
+runtime-version: "46"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node20
+
+command: librecode-desktop
+
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=fallback-x11
+  - --socket=wayland
+  - --device=dri
+  - --filesystem=home
+  - --filesystem=/tmp
+  - --talk-name=org.freedesktop.Notifications
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node20/bin
+  env:
+    CARGO_HOME: /run/build/librecode-desktop/cargo
+    RUSTUP_HOME: /run/build/librecode-desktop/rustup
+
+modules:
+  - name: librecode-desktop
+    buildsystem: simple
+    build-commands:
+      # Build the CLI sidecar
+      - cd packages/opencode && bun run build --single --skip-install
+
+      # Build the Tauri desktop app
+      - cd packages/desktop/src-tauri && cargo tauri build --config tauri.prod.conf.json --no-sign
+
+      # Install binary
+      - install -Dm755 packages/desktop/src-tauri/target/release/LibreCode $FLATPAK_DEST/bin/librecode-desktop
+
+      # Install desktop file
+      - install -Dm644 packages/desktop/src-tauri/release/appstream.metainfo.xml
+        $FLATPAK_DEST/share/metainfo/com.librecode.desktop.metainfo.xml
+
+      # Install icons (prod set)
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/128x128.png
+        $FLATPAK_DEST/share/icons/hicolor/128x128/apps/com.librecode.desktop.png
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/32x32.png
+        $FLATPAK_DEST/share/icons/hicolor/32x32/apps/com.librecode.desktop.png
+
+    sources:
+      - type: dir
+        path: ../
