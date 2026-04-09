@@ -581,7 +581,7 @@ fn librecode_db_path() -> Result<PathBuf, &'static str> {
         }
     };
 
-    Ok(data_home.join("librecode").join("opencode.db"))
+    Ok(data_home.join("librecode").join("librecode.db"))
 }
 
 // Creates a `once` listener for the specified event and returns a future that resolves
