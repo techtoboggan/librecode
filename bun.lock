@@ -163,7 +163,6 @@
         "decimal.js": "10.5.0",
         "diff": "catalog:",
         "drizzle-orm": "1.0.0-beta.16-ea816b6",
-        "effect": "catalog:",
         "fuzzysort": "3.1.0",
         "glob": "13.0.5",
         "google-auth-library": "10.5.0",
@@ -193,7 +192,6 @@
         "zod-to-json-schema": "3.24.5",
       },
       "devDependencies": {
-        "@effect/language-service": "0.79.0",
         "@librecode/script": "workspace:*",
         "@octokit/webhooks-types": "7.6.1",
         "@parcel/watcher-darwin-arm64": "2.5.1",
@@ -346,7 +344,6 @@
     "dompurify": "3.3.1",
     "drizzle-kit": "1.0.0-beta.16-ea816b6",
     "drizzle-orm": "1.0.0-beta.16-ea816b6",
-    "effect": "4.0.0-beta.31",
     "fuzzysort": "3.1.0",
     "hono": "4.10.7",
     "hono-openapi": "1.1.2",
@@ -611,8 +608,6 @@
     "@dimforge/rapier2d-simd-compat": ["@dimforge/rapier2d-simd-compat@0.17.3", "", {}, "sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg=="],
 
     "@drizzle-team/brocli": ["@drizzle-team/brocli@0.11.0", "", {}, "sha512-hD3pekGiPg0WPCCGAZmusBBJsDqGUR66Y452YgQsZOnkdQ7ViEPKuyP4huUGEZQefp8g34RRodXYmJ2TbCH+tg=="],
-
-    "@effect/language-service": ["@effect/language-service@0.79.0", "", { "bin": { "effect-language-service": "cli.js" } }, "sha512-DEmIOsg1GjjP6s9HXH1oJrW+gDmzkhVv9WOZl6to5eNyyCrjz1S2PDqQ7aYrW/HuifhfwI5Bik1pK4pj7Z+lrg=="],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
 
