@@ -444,39 +444,11 @@ async fn initialize(app: AppHandle) {
 
     let loading_window_complete = event_once_fut::<LoadingWindowComplete>(&app);
 
-    // SQLite migration handling:
-    // We only do this if the sqlite db doesn't exist, and we're expecting the sidecar to create it.
-    // A separate loading window is shown for long migrations.
-    let needs_migration = !sqlite_file_exists();
-    let sqlite_done = needs_migration.then(|| {
-        tracing::info!(
-            path = %librecode_db_path().expect("failed to get db path").display(),
-            "Sqlite file not found, waiting for it to be created by sidecar"
-        );
-
-        // Poll for the database file to appear (created by the sidecar on first run).
-        // The old JSON→SQLite migration code was removed (ADR-002) so we just wait
-        // for the sidecar to create the DB file directly.
-        tokio::spawn(async {
-            loop {
-                if sqlite_file_exists() {
-                    tracing::info!("SQLite database file created");
-                    break;
-                }
-                sleep(Duration::from_millis(100)).await;
-            }
-        })
-    });
-
-    // The loading task waits for SQLite migration (if needed) then for the sidecar health check.
-    // This is only used to drive the loading window progress - the main window is shown immediately.
+    // Wait for sidecar to become healthy.
+    // The sidecar creates the database on startup — we just need to wait for
+    // the health check to confirm it's running.
     let loading_task = tokio::spawn({
         async move {
-            if let Some(sqlite_done_rx) = sqlite_done {
-                let _ = sqlite_done_rx.await;
-            }
-
-            // Wait for sidecar to become healthy (for loading window progress)
             let res = timeout(Duration::from_secs(30), health_check.0).await;
             match res {
                 Ok(Ok(Ok(()))) => tracing::info!("Sidecar health check OK"),
@@ -492,14 +464,13 @@ async fn initialize(app: AppHandle) {
     .shared();
 
     // Show loading window for SQLite migrations if they take >1s
-    let loading_window = if needs_migration
-        && timeout(Duration::from_secs(1), loading_task.clone())
-            .await
-            .is_err()
+    // Show loading window if health check takes more than 2 seconds
+    let loading_window = if timeout(Duration::from_secs(2), loading_task.clone())
+        .await
+        .is_err()
     {
-        tracing::debug!("Loading task timed out, showing loading window");
+        tracing::debug!("Health check taking long, showing loading window");
         let loading_window = LoadingWindow::create(&app).expect("Failed to create loading window");
-        sleep(Duration::from_secs(1)).await;
         Some(loading_window)
     } else {
         None
@@ -551,28 +522,6 @@ fn get_sidecar_port() -> u32 {
                 .expect("Failed to get local address")
                 .port()
         }) as u32
-}
-
-fn sqlite_file_exists() -> bool {
-    let Ok(path) = librecode_db_path() else {
-        return true;
-    };
-
-    path.exists()
-}
-
-fn librecode_db_path() -> Result<PathBuf, &'static str> {
-    let xdg_data_home = env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty());
-
-    let data_home = match xdg_data_home {
-        Some(v) => PathBuf::from(v),
-        None => {
-            let home = dirs::home_dir().ok_or("cannot determine home directory")?;
-            home.join(".local").join("share")
-        }
-    };
-
-    Ok(data_home.join("librecode").join("librecode.db"))
 }
 
 // Creates a `once` listener for the specified event and returns a future that resolves
