@@ -21,7 +21,6 @@
     "./*": "./src/*.ts"
   },
   "devDependencies": {
-
     "@octokit/webhooks-types": "7.6.1",
     "@librecode/script": "workspace:*",
     "@parcel/watcher-darwin-arm64": "2.5.1",
@@ -77,14 +76,14 @@
     "@gitlab/opencode-gitlab-auth": "1.3.3",
     "@hono/standard-validator": "0.1.5",
     "@hono/zod-validator": "catalog:",
-    "@modelcontextprotocol/sdk": "1.25.2",
-    "@octokit/graphql": "9.0.2",
-    "@octokit/rest": "catalog:",
-    "@openauthjs/openauth": "catalog:",
     "@librecode/plugin": "workspace:*",
     "@librecode/script": "workspace:*",
     "@librecode/sdk": "workspace:*",
     "@librecode/util": "workspace:*",
+    "@modelcontextprotocol/sdk": "1.25.2",
+    "@octokit/graphql": "9.0.2",
+    "@octokit/rest": "catalog:",
+    "@openauthjs/openauth": "catalog:",
     "@openrouter/ai-sdk-provider": "1.5.4",
     "@opentui/core": "0.1.87",
     "@opentui/solid": "0.1.87",
@@ -103,7 +102,6 @@
     "decimal.js": "10.5.0",
     "diff": "catalog:",
     "drizzle-orm": "1.0.0-beta.16-ea816b6",
-
     "fuzzysort": "3.1.0",
     "glob": "13.0.5",
     "google-auth-library": "10.5.0",
