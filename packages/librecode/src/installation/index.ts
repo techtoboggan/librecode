@@ -168,13 +168,13 @@ export namespace Installation {
         result = await upgradeCurl(target)
         break
       case "npm":
-        result = await Process.run(["npm", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
+        result = await Process.run(["npm", "install", "-g", `librecode@${target}`], { nothrow: true })
         break
       case "pnpm":
-        result = await Process.run(["pnpm", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
+        result = await Process.run(["pnpm", "install", "-g", `librecode@${target}`], { nothrow: true })
         break
       case "bun":
-        result = await Process.run(["bun", "install", "-g", `opencode-ai@${target}`], { nothrow: true })
+        result = await Process.run(["bun", "install", "-g", `librecode@${target}`], { nothrow: true })
         break
       case "brew": {
         const formula = await getBrewFormula()
@@ -262,7 +262,7 @@ export namespace Installation {
         return reg.endsWith("/") ? reg.slice(0, -1) : reg
       })
       const channel = CHANNEL
-      return fetch(`${registry}/opencode-ai/${channel}`)
+      return fetch(`${registry}/librecode/${channel}`)
         .then((res) => {
           if (!res.ok) throw new Error(res.statusText)
           return res.json()

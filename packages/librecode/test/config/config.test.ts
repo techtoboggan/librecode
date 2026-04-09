@@ -1735,7 +1735,7 @@ describe("getPluginName", () => {
   })
 
   test("extracts name from npm package with version", () => {
-    expect(Config.getPluginName("oh-my-opencode@2.4.3")).toBe("oh-my-opencode")
+    expect(Config.getPluginName("oh-my-librecode@2.4.3")).toBe("oh-my-librecode")
     expect(Config.getPluginName("some-plugin@1.0.0")).toBe("some-plugin")
     expect(Config.getPluginName("plugin@latest")).toBe("plugin")
   })
@@ -1765,12 +1765,12 @@ describe("deduplicatePlugins", () => {
   })
 
   test("prefers local file over npm package with same name", () => {
-    const plugins = ["oh-my-opencode@2.4.3", "file:///project/.librecode/plugin/oh-my-opencode.js"]
+    const plugins = ["oh-my-librecode@2.4.3", "file:///project/.librecode/plugin/oh-my-librecode.js"]
 
     const result = Config.deduplicatePlugins(plugins)
 
     expect(result.length).toBe(1)
-    expect(result[0]).toBe("file:///project/.librecode/plugin/oh-my-opencode.js")
+    expect(result[0]).toBe("file:///project/.librecode/plugin/oh-my-librecode.js")
   })
 
   test("preserves order of remaining plugins", () => {
