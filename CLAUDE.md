@@ -12,14 +12,36 @@ monorepo using Bun runtime, Effect-ts (being migrated away), Solid.js UI, Tauri 
 **Key files:**
 - `PLAN.md` — master roadmap with phase tracking
 - `docs/adr/` — architecture decision records
+- `docs/architecture.md` — system architecture reference
+- `docs/development.md` — full local dev guide
 - `assets/brand/DESIGN-SPEC.md` — brand asset generation guide
+
+## Local Development
+
+```bash
+# Set up isolated dev environment (all data in .dev/, not ~/.local/share)
+source scripts/dev-setup.sh
+
+# CLI dev
+bun install
+bun run dev                              # run CLI in dev mode
+
+# Desktop dev (needs Rust + GTK + WebKit)
+nix develop .#desktop                    # provides all Tauri deps
+bun run dev:desktop                      # builds CLI sidecar + Tauri window
+
+# See docs/development.md for full guide including Fedora/Ubuntu deps
+```
 
 ## Commands
 
 ```bash
 bun install                              # install deps
 bun run dev                              # run CLI in dev mode
+bun run dev:desktop                      # run desktop app (Tauri)
+bun run dev:web                          # run web UI only
 bun run typecheck                        # typecheck all packages
+bun run lint                             # biome linter (complexity, namespaces, any)
 bun test                                 # run all tests (from packages/opencode)
 bun test --timeout 30000                 # with timeout for slow tests
 bun test --coverage                      # with line coverage

@@ -58,31 +58,42 @@ yay -S librecode
 git clone https://github.com/techtoboggan/librecode.git
 cd librecode
 bun install
-cd packages/opencode
-bun run dev
+source scripts/dev-setup.sh   # Isolated dev environment (.dev/)
+bun run dev                   # CLI
 ```
 
 ### Desktop app
 
-Download from [librecode.app](https://librecode.app) or build with:
+Download from [librecode.app](https://librecode.app) or build locally:
 
 ```bash
+nix develop .#desktop         # Provides Rust + GTK + WebKit
+source scripts/dev-setup.sh
 bun run dev:desktop
 ```
 
 ## Development
 
 ```bash
-# Nix dev shell (batteries included)
-nix develop
+# Set up isolated dev environment (data in .dev/, not ~/.local/share)
+source scripts/dev-setup.sh
 
-# Or manually with bun
-bun install
-bun run dev           # CLI
-bun run dev:desktop   # Desktop (Tauri)
+# CLI development
+nix develop           # Or just use bun directly
+bun run dev
+
+# Desktop development (needs Rust + GTK)
+nix develop .#desktop
+bun run dev:desktop
+
+# Other commands
 bun run typecheck     # Type checking
 bun run test          # Tests
+bun run lint          # Biome linter
 ```
+
+See [docs/development.md](docs/development.md) for the full guide including
+Fedora/Ubuntu deps, config setup, and troubleshooting.
 
 ## Architecture
 
@@ -110,7 +121,10 @@ librecode/
 
 ## Contributing
 
-See [PLAN.md](PLAN.md) for the current roadmap and refactoring priorities.
+- [docs/development.md](docs/development.md) — Local dev setup (isolated environment, Nix shells, deps)
+- [docs/architecture.md](docs/architecture.md) — System architecture (agent loop, providers, tools, permissions)
+- [PLAN.md](PLAN.md) — Roadmap and refactoring priorities
+- [CLAUDE.md](CLAUDE.md) — Coding standards and migration playbooks
 
 ## License
 
