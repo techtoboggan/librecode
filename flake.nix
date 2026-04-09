@@ -65,21 +65,26 @@
           ];
 
           # Set LD_LIBRARY_PATH so the Tauri dev binary can find Nix-provided libs
-          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
-            gtk3
-            gtk4
-            glib
-            dbus
-            openssl
-            librsvg
-            libsoup_3
-            webkitgtk_4_1
-            glib-networking
-          ] ++ pkgs.lib.optionals stdenv.isLinux [
-            libappindicator
-            gst_all_1.gstreamer
-            gst_all_1.gst-plugins-base
-          ]);
+          # Include /usr/lib64 for system GPU drivers (needed by WebKitGTK on Wayland)
+          LD_LIBRARY_PATH = builtins.concatStringsSep ":" [
+            (pkgs.lib.makeLibraryPath (with pkgs; [
+              gtk3
+              gtk4
+              glib
+              dbus
+              openssl
+              librsvg
+              libsoup_3
+              webkitgtk_4_1
+              glib-networking
+            ] ++ pkgs.lib.optionals stdenv.isLinux [
+              libappindicator
+              gst_all_1.gstreamer
+              gst_all_1.gst-plugins-base
+            ]))
+            "/usr/lib64"  # System GPU/EGL drivers
+            "/usr/lib"
+          ];
         };
       });
 

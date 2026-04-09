@@ -12,11 +12,11 @@ export const commands = {
 	setDefaultServerUrl: (url: string | null) => __TAURI_INVOKE<null>("set_default_server_url", { url }),
 	getWslConfig: () => __TAURI_INVOKE<WslConfig>("get_wsl_config"),
 	setWslConfig: (config: WslConfig) => __TAURI_INVOKE<null>("set_wsl_config", { config }),
-	getDisplayBackend: () => __TAURI_INVOKE<{ phase: "server_waiting" } | { phase: "sqlite_waiting" } | { phase: "done" } | null>("get_display_backend"),
+	getDisplayBackend: () => __TAURI_INVOKE<{ phase: "server_waiting" } | { phase: "done" } | null>("get_display_backend"),
 	setDisplayBackend: (backend: InitStep) => __TAURI_INVOKE<null>("set_display_backend", { backend }),
 	parseMarkdownCommand: (markdown: string) => __TAURI_INVOKE<string>("parse_markdown_command", { markdown }),
 	checkAppExists: (appName: string) => __TAURI_INVOKE<boolean>("check_app_exists", { appName }),
-	wslPath: (path: string, mode: { phase: "server_waiting" } | { phase: "sqlite_waiting" } | { phase: "done" } | null) => __TAURI_INVOKE<string>("wsl_path", { path, mode }),
+	wslPath: (path: string, mode: { phase: "server_waiting" } | { phase: "done" } | null) => __TAURI_INVOKE<string>("wsl_path", { path, mode }),
 	resolveAppPath: (appName: string) => __TAURI_INVOKE<string | null>("resolve_app_path", { appName }),
 	openPath: (path: string, appName: string | null) => __TAURI_INVOKE<null>("open_path", { path, appName }),
 };
@@ -24,13 +24,10 @@ export const commands = {
 /** Events */
 export const events = {
 	loadingWindowComplete: makeEvent<InitStep>("loading-window-complete"),
-	sqliteMigrationProgress: makeEvent<SqliteMigrationProgress>("sqlite-migration-progress"),
 };
 
 /* Types */
-export type InitStep = { phase: "server_waiting" } | { phase: "sqlite_waiting" } | { phase: "done" };
-
-export type SqliteMigrationProgress = { type: "InProgress"; value: number } | { type: "Done" };
+export type InitStep = { phase: "server_waiting" } | { phase: "done" };
 
 export type WslConfig = {
 		enabled: boolean,
