@@ -141,7 +141,7 @@ export const dict = {
   "provider.connect.librecodeZen.line2":
     "Tek bir API anahtarıyla Claude, GPT, Gemini, GLM ve daha fazlası gibi modellere erişebilirsiniz.",
   "provider.connect.librecodeZen.visit.prefix": "",
-  "provider.connect.librecodeZen.visit.link": "opencode.ai/zen",
+  "provider.connect.librecodeZen.visit.link": "librecode.io/zen",
   "provider.connect.librecodeZen.visit.suffix": " adresini ziyaret ederek API anahtarınızı alın.",
   "provider.connect.oauth.code.visit.prefix":
     "Hesabınızı bağlamak ve LibreCode'da {{provider}} modellerini kullanmak için ",

@@ -161,7 +161,7 @@ export const dict = {
   "provider.connect.librecodeZen.line1": "LibreCode Zen 为你提供一组精选的可靠优化模型，用于代码智能体。",
   "provider.connect.librecodeZen.line2": "只需一个 API 密钥，你就能使用 Claude、GPT、Gemini、GLM 等模型。",
   "provider.connect.librecodeZen.visit.prefix": "访问 ",
-  "provider.connect.librecodeZen.visit.link": "opencode.ai/zen",
+  "provider.connect.librecodeZen.visit.link": "librecode.io/zen",
   "provider.connect.librecodeZen.visit.suffix": " 获取你的 API 密钥。",
   "provider.connect.oauth.code.visit.prefix": "访问 ",
   "provider.connect.oauth.code.visit.link": "此链接",

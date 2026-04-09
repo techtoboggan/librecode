@@ -125,7 +125,7 @@ export const dict = {
   "provider.connect.librecodeZen.line2":
     "باستخدام مفتاح API واحد، ستحصل على إمكانية الوصول إلى نماذج مثل Claude و GPT و Gemini و GLM والمزيد.",
   "provider.connect.librecodeZen.visit.prefix": "قم بزيارة ",
-  "provider.connect.librecodeZen.visit.link": "opencode.ai/zen",
+  "provider.connect.librecodeZen.visit.link": "librecode.io/zen",
   "provider.connect.librecodeZen.visit.suffix": " للحصول على مفتاح API الخاص بك.",
   "provider.connect.oauth.code.visit.prefix": "قم بزيارة ",
   "provider.connect.oauth.code.visit.link": "هذا الرابط",

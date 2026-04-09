@@ -71,7 +71,7 @@ const serverEnv = {
   LIBRECODE_E2E_PROJECT_DIR: repoDir,
   LIBRECODE_E2E_SESSION_TITLE: "E2E Session",
   LIBRECODE_E2E_MESSAGE: "Seeded for UI e2e",
-  LIBRECODE_E2E_MODEL: "opencode/gpt-5-nano",
+  LIBRECODE_E2E_MODEL: "librecode/gpt-5-nano",
   LIBRECODE_CLIENT: "app",
   LIBRECODE_STRICT_CONFIG_DEPS: "true",
 } satisfies Record<string, string>
@@ -159,7 +159,7 @@ try {
     const servermod = await import("../../opencode/src/server/server")
     inst = await import("../../opencode/src/project/instance")
     server = servermod.Server.listen({ port: serverPort, hostname: "127.0.0.1" })
-    console.log(`opencode server listening on http://127.0.0.1:${serverPort}`)
+    console.log(`librecode server listening on http://127.0.0.1:${serverPort}`)
 
     await waitForHealth(`http://127.0.0.1:${serverPort}/global/health`)
     runner = Bun.spawn(["bun", "test:e2e", ...extraArgs], {

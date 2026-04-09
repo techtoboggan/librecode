@@ -29,7 +29,7 @@ class MemoryStorage implements Storage {
   setItem(key: string, value: string) {
     this.calls.set += 1
     this.events.push(`set:${key}`)
-    if (key.startsWith("opencode.quota")) throw new DOMException("quota", "QuotaExceededError")
+    if (key.startsWith("librecode.quota")) throw new DOMException("quota", "QuotaExceededError")
     if (key.startsWith("librecode.throw")) throw new Error("storage set failed")
     this.values.set(key, value)
   }
@@ -69,10 +69,10 @@ beforeEach(() => {
 
 describe("persist localStorage resilience", () => {
   test("does not cache values as persisted when quota write and eviction fail", () => {
-    const storageApi = persistTesting.localStorageWithPrefix("opencode.quota.scope")
+    const storageApi = persistTesting.localStorageWithPrefix("librecode.quota.scope")
     storageApi.setItem("value", '{"value":1}')
 
-    expect(storage.getItem("opencode.quota.scope:value")).toBeNull()
+    expect(storage.getItem("librecode.quota.scope:value")).toBeNull()
     expect(storageApi.getItem("value")).toBeNull()
   })
 
@@ -85,9 +85,9 @@ describe("persist localStorage resilience", () => {
     expect(storage.calls.set).toBe(before)
     expect(bad.getItem("value")).toBeNull()
 
-    const healthy = persistTesting.localStorageWithPrefix("opencode.safe.scope")
+    const healthy = persistTesting.localStorageWithPrefix("librecode.safe.scope")
     healthy.setItem("value", '{"value":3}')
-    expect(storage.getItem("opencode.safe.scope:value")).toBe('{"value":3}')
+    expect(storage.getItem("librecode.safe.scope:value")).toBe('{"value":3}')
   })
 
   test("failing fallback scope does not poison direct storage scope", () => {
@@ -108,7 +108,7 @@ describe("persist localStorage resilience", () => {
   test("workspace storage sanitizes Windows filename characters", () => {
     const result = persistTesting.workspaceStorage("C:\\Users\\foo")
 
-    expect(result).toStartWith("opencode.workspace.")
+    expect(result).toStartWith("librecode.workspace.")
     expect(result.endsWith(".dat")).toBeTrue()
     expect(/[:\\/]/.test(result)).toBeFalse()
   })

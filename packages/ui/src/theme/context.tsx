@@ -9,7 +9,7 @@ export type ColorScheme = "light" | "dark" | "system"
 
 const STORAGE_KEYS = {
   THEME_ID: "librecode-theme-id",
-  COLOR_SCHEME: "opencode-color-scheme",
+  COLOR_SCHEME: "librecode-color-scheme",
   THEME_CSS_LIGHT: "librecode-theme-css-light",
   THEME_CSS_DARK: "librecode-theme-css-dark",
 } as const

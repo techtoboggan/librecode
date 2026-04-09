@@ -23,14 +23,14 @@ export function createOpencodeClient(config?: Config & { directory?: string; exp
     const encodedDirectory = isNonASCII ? encodeURIComponent(config.directory) : config.directory
     config.headers = {
       ...config.headers,
-      "x-opencode-directory": encodedDirectory,
+      "x-librecode-directory": encodedDirectory,
     }
   }
 
   if (config?.experimental_workspaceID) {
     config.headers = {
       ...config.headers,
-      "x-opencode-workspace": config.experimental_workspaceID,
+      "x-librecode-workspace": config.experimental_workspaceID,
     }
   }
 

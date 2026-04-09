@@ -1,6 +1,6 @@
 import type { Todo } from "@librecode/sdk/v2"
 
-export const composerEvent = "opencode:e2e:composer"
+export const composerEvent = "librecode:e2e:composer"
 
 export type ComposerDriverState = {
   live?: boolean
