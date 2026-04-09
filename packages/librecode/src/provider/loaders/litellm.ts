@@ -56,13 +56,42 @@ export const litellm: CustomLoader = async (provider) => {
 
     log.info("LiteLLM autodiscovered", { baseURL, modelCount: models.length, models: models.map(m => m.id) })
 
-    // Inject discovered models into the provider
+    // Inject discovered models into the provider with all required fields
     for (const model of models) {
       if (!provider.models[model.id]) {
         provider.models[model.id] = {
           id: model.id,
           name: model.id,
-          cost: { input: 0, output: 0 },
+          providerID: "litellm",
+          family: "",
+          api: {
+            id: model.id,
+            url: baseURL,
+            npm: "@ai-sdk/openai-compatible",
+          },
+          status: "active",
+          headers: {},
+          options: {},
+          cost: {
+            input: 0,
+            output: 0,
+            cache: { read: 0, write: 0 },
+          },
+          limit: {
+            context: 128000,
+            output: 4096,
+          },
+          capabilities: {
+            temperature: true,
+            reasoning: false,
+            attachment: false,
+            toolcall: true,
+            input: { text: true, audio: false, image: false, video: false, pdf: false },
+            output: { text: true, audio: false, image: false, video: false, pdf: false },
+            interleaved: false,
+          },
+          release_date: "",
+          variants: {},
         } as any
       }
     }

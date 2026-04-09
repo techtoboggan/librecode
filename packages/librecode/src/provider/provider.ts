@@ -295,6 +295,20 @@ const state = Instance.state(async () => {
   const modelsDev = await ModelsDev.get()
   const database = mapValues(modelsDev, fromModelsDevProvider)
 
+  // Add LiteLLM as a built-in provider (not from models.dev)
+  // This ensures the custom loader in litellm.ts gets called for autodiscovery,
+  // and the provider shows in the UI provider list.
+  if (!modelsDev["litellm"]) {
+    modelsDev["litellm"] = {
+      id: "litellm",
+      name: "LiteLLM",
+      api: "http://localhost:4000/v1",
+      npm: "@ai-sdk/openai-compatible",
+      env: ["LITELLM_API_KEY"],
+      models: {},
+    }
+  }
+
   const disabled = new Set(config.disabled_providers ?? [])
   const enabled = config.enabled_providers ? new Set(config.enabled_providers) : null
 

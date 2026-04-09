@@ -41,6 +41,20 @@ export const ProviderRoutes = lazy(() =>
         const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
 
         const allProviders = await ModelsDev.get()
+
+        // Ensure LiteLLM always appears in the provider list so users can
+        // find and configure it, even before autodiscovery runs.
+        if (!allProviders["litellm"]) {
+          allProviders["litellm"] = {
+            id: "litellm",
+            name: "LiteLLM",
+            api: "http://localhost:4000/v1",
+            npm: "@ai-sdk/openai-compatible",
+            env: ["LITELLM_API_KEY"],
+            models: {},
+          }
+        }
+
         const filteredProviders: Record<string, (typeof allProviders)[string]> = {}
         for (const [key, value] of Object.entries(allProviders)) {
           if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
@@ -55,7 +69,7 @@ export const ProviderRoutes = lazy(() =>
         )
         return c.json({
           all: Object.values(providers),
-          default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0].id),
+          default: mapValues(providers, (item) => Provider.sort(Object.values(item.models))[0]?.id),
           connected: Object.keys(connected),
         })
       },
