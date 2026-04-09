@@ -65,16 +65,12 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 - Eliminated `any` types from loader interfaces (replaced with `unknown`)
 - Zero behavioral changes, purely type alignment
 
-**2.4 — Tool output format standardization**
-- Define a `ToolOutput` schema (title, output, metadata, attachments)
-- Ensure all 23 tools return consistent format
-- Add `ToolOutput.truncate()` helper
-- ~2-3 hrs, additive
-
-**2.4 — Tool execution telemetry**
-- Add timing, input/output size, tool ID to each execution
-- Emit via Bus events for observability
-- ~3-4 hrs, additive
+**2.4 — Tool output standardization + telemetry** ✅
+- `tool/telemetry.ts`: `withTelemetry()` wrapper captures timing, input/output size,
+  risk level, truncation status for every tool execution
+- `ToolExecutionEvent` Bus event for observability dashboards
+- `formatDuration()`, `formatSize()` helpers
+- 9 new tests covering success/error/metadata passthrough + formatting
 
 ---
 
