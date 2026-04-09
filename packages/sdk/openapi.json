@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.1",
   "info": {
-    "title": "opencode",
-    "description": "opencode api",
+    "title": "librecode",
+    "description": "librecode api",
     "version": "1.0.0"
   },
   "paths": {
@@ -9754,7 +9754,7 @@
         "enum": ["DEBUG", "INFO", "WARN", "ERROR"]
       },
       "ServerConfig": {
-        "description": "Server configuration for opencode serve and web commands",
+        "description": "Server configuration for librecode serve and web commands",
         "type": "object",
         "properties": {
           "port": {
@@ -9772,7 +9772,7 @@
             "type": "boolean"
           },
           "mdnsDomain": {
-            "description": "Custom domain name for mDNS service (default: opencode.local)",
+            "description": "Custom domain name for mDNS service (default: librecode.local)",
             "type": "string"
           },
           "cors": {
@@ -10340,7 +10340,7 @@
             "$ref": "#/components/schemas/ServerConfig"
           },
           "command": {
-            "description": "Command configuration, see https://opencode.ai/docs/commands",
+            "description": "Command configuration, see https://librecode.io/docs/commands",
             "type": "object",
             "propertyNames": {
               "type": "string"
@@ -10474,7 +10474,7 @@
             }
           },
           "agent": {
-            "description": "Agent configuration, see https://opencode.ai/docs/agents",
+            "description": "Agent configuration, see https://librecode.io/docs/agents",
             "type": "object",
             "properties": {
               "plan": {

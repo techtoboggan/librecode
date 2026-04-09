@@ -1015,7 +1015,7 @@ export type GlobalEvent = {
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR"
 
 /**
- * Server configuration for opencode serve and web commands
+ * Server configuration for librecode serve and web commands
  */
 export type ServerConfig = {
   /**
@@ -1031,7 +1031,7 @@ export type ServerConfig = {
    */
   mdns?: boolean
   /**
-   * Custom domain name for mDNS service (default: opencode.local)
+   * Custom domain name for mDNS service (default: librecode.local)
    */
   mdnsDomain?: string
   /**

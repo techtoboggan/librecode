@@ -21,11 +21,11 @@
   openssl,
   webkitgtk_4_1,
   gst_all_1,
-  opencode,
+  librecode,
 }:
 rustPlatform.buildRustPackage (finalAttrs: {
   pname = "librecode-desktop";
-  inherit (opencode)
+  inherit (librecode)
     version
     src
     node_modules
@@ -72,7 +72,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
     patchShebangs packages/desktop/node_modules
 
     mkdir -p packages/desktop/src-tauri/sidecars
-    cp ${opencode}/bin/librecode packages/desktop/src-tauri/sidecars/librecode-cli-${stdenv.hostPlatform.rust.rustcTarget}
+    cp ${librecode}/bin/librecode packages/desktop/src-tauri/sidecars/librecode-cli-${stdenv.hostPlatform.rust.rustcTarget}
   '';
 
   # see publish-tauri job in .github/workflows/publish.yml
@@ -92,6 +92,6 @@ rustPlatform.buildRustPackage (finalAttrs: {
     homepage = "https://github.com/techtoboggan/librecode";
     license = lib.licenses.mit;
     mainProgram = "librecode-desktop";
-    inherit (opencode.meta) platforms;
+    inherit (librecode.meta) platforms;
   };
 })

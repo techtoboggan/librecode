@@ -44,11 +44,11 @@ bun run dev:desktop                      # run desktop app (Tauri)
 bun run dev:web                          # run web UI only
 bun run typecheck                        # typecheck all packages
 bun run lint                             # biome linter (complexity, namespaces, any)
-bun test                                 # run all tests (from packages/opencode)
+bun test                                 # run all tests (from packages/librecode)
 bun test --timeout 30000                 # with timeout for slow tests
 bun test --coverage                      # with line coverage
 cd packages/util && bun test             # test a single package
-cd packages/opencode && bun test test/config/  # test a directory
+cd packages/librecode && bun test test/config/  # test a directory
 ```
 
 ## Coding Standards
@@ -72,7 +72,7 @@ cd packages/opencode && bun test test/config/  # test a directory
 ### TypeScript
 
 - **Strict mode** — no `any` in new code. Use `unknown` + type narrowing.
-- **Path aliases**: `@/` maps to `packages/opencode/src/` — use it for internal imports.
+- **Path aliases**: `@/` maps to `packages/librecode/src/` — use it for internal imports.
 - **No `export namespace`** in new code. Use regular module exports. Existing namespaces
   are being migrated (see Migration Playbook 1).
 
@@ -81,7 +81,7 @@ cd packages/opencode && bun test test/config/  # test a directory
 - **Test runner**: `bun test` (built-in, not vitest/jest)
 - **File pattern**: `*.test.ts` colocated with source or in `test/` directory
 - **Coverage baseline** (as of 2026-04-08):
-  - packages/opencode: 72% lines, 62% functions
+  - packages/librecode: 72% lines, 62% functions
   - packages/util: 99% lines, 97% functions
 - **Coverage targets** (for new and modified code):
   - New files: minimum 80% line coverage
@@ -281,7 +281,7 @@ Before any PR is merged:
 
 ```
 packages/
-  opencode/     Core CLI agent (TypeScript, Bun, Effect-ts → migrating away)
+  librecode/    Core CLI agent (TypeScript, Bun, Effect-ts → migrating away)
     src/
       agent/      Agent definitions and registry
       cli/        CLI commands (yargs)

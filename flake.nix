@@ -90,11 +90,11 @@
             node_modules = final.callPackage ./nix/node_modules.nix {
               inherit rev;
             };
-            librecode = final.callPackage ./nix/opencode.nix {
+            librecode = final.callPackage ./nix/librecode.nix {
               inherit node_modules;
             };
             desktop = final.callPackage ./nix/desktop.nix {
-              opencode = librecode;
+              librecode = librecode;
             };
           in
           {
@@ -109,11 +109,11 @@
           node_modules = pkgs.callPackage ./nix/node_modules.nix {
             inherit rev;
           };
-          librecode = pkgs.callPackage ./nix/opencode.nix {
+          librecode = pkgs.callPackage ./nix/librecode.nix {
             inherit node_modules;
           };
           desktop = pkgs.callPackage ./nix/desktop.nix {
-            opencode = librecode;
+            librecode = librecode;
           };
         in
         {

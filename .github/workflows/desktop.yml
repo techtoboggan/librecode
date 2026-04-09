@@ -35,7 +35,7 @@ jobs:
       # Build the CLI sidecar first
       - name: Build CLI
         run: bun run script/build.ts --single
-        working-directory: packages/opencode
+        working-directory: packages/librecode
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

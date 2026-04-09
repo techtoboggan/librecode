@@ -7,13 +7,13 @@ on:
       - "flake.nix"
       - "flake.lock"
       - "nix/**"
-      - "packages/opencode/**"
+      - "packages/librecode/**"
   pull_request:
     paths:
       - "flake.nix"
       - "flake.lock"
       - "nix/**"
-      - "packages/opencode/**"
+      - "packages/librecode/**"
 
 jobs:
   check:

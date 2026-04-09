@@ -107,7 +107,7 @@ bun run dev:desktop        # Run desktop app
 # Ctrl+C, make changes, run again
 
 # Run tests
-cd packages/opencode
+cd packages/librecode
 bun test --timeout 30000
 
 # Run linter
@@ -152,7 +152,7 @@ export OPENAI_API_KEY="sk-..."
 ## Testing
 
 ```bash
-# From packages/opencode (the core package)
+# From packages/librecode (the core package)
 bun test --timeout 30000          # All tests
 bun test test/session/             # Test a directory
 bun test --coverage               # With coverage report

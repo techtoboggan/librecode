@@ -44,7 +44,7 @@ async function waitForHealth(url: string) {
 
 const appDir = process.cwd()
 const repoDir = path.resolve(appDir, "../..")
-const opencodeDir = path.join(repoDir, "packages", "opencode")
+const librecodeDir = path.join(repoDir, "packages", "librecode")
 
 const extraArgs = (() => {
   const args = process.argv.slice(2)
@@ -133,7 +133,7 @@ let code = 1
 
 try {
   seed = Bun.spawn(["bun", "script/seed-e2e.ts"], {
-    cwd: opencodeDir,
+    cwd: librecodeDir,
     env: serverEnv,
     stdout: "inherit",
     stderr: "inherit",
@@ -148,16 +148,16 @@ try {
     process.env.OPENCODE = "1"
     process.env.LIBRECODE_PID = String(process.pid)
 
-    const log = await import("../../opencode/src/util/log")
-    const install = await import("../../opencode/src/installation")
+    const log = await import("../../librecode/src/util/log")
+    const install = await import("../../librecode/src/installation")
     await log.Log.init({
       print: true,
       dev: install.Installation.isLocal(),
       level: "WARN",
     })
 
-    const servermod = await import("../../opencode/src/server/server")
-    inst = await import("../../opencode/src/project/instance")
+    const servermod = await import("../../librecode/src/server/server")
+    inst = await import("../../librecode/src/project/instance")
     server = servermod.Server.listen({ port: serverPort, hostname: "127.0.0.1" })
     console.log(`librecode server listening on http://127.0.0.1:${serverPort}`)
 

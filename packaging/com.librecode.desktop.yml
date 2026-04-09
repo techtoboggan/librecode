@@ -29,7 +29,7 @@ modules:
     buildsystem: simple
     build-commands:
       # Build the CLI sidecar
-      - cd packages/opencode && bun run build --single --skip-install
+      - cd packages/librecode && bun run build --single --skip-install
 
       # Build the Tauri desktop app
       - cd packages/desktop/src-tauri && cargo tauri build --config tauri.prod.conf.json --no-sign

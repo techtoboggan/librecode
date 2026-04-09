@@ -48,11 +48,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Build
         run: bun run script/build.ts --target ${{ matrix.target }}
-        working-directory: packages/opencode
+        working-directory: packages/librecode
       - name: Package
         shell: bash
         run: |
-          cd packages/opencode/dist
+          cd packages/librecode/dist
           for dir in librecode-*/; do
             if [[ "$dir" == *"linux"* ]]; then
               tar -czf "${dir%/}.tar.gz" -C "$dir/bin" .
@@ -64,8 +64,8 @@ jobs:
         with:
           name: librecode-${{ matrix.target }}
           path: |
-            packages/opencode/dist/*.tar.gz
-            packages/opencode/dist/*.zip
+            packages/librecode/dist/*.tar.gz
+            packages/librecode/dist/*.zip
 
   release:
     name: Create Release

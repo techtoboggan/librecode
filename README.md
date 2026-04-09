@@ -102,7 +102,7 @@ See [docs/development.md](docs/development.md) for the full guide.
 ```
 librecode/
   packages/
-    opencode/     Core CLI agent (TypeScript, Effect-ts, Bun)
+    librecode/    Core CLI agent (TypeScript, Effect-ts, Bun)
     desktop/      Tauri desktop app (Rust + Solid.js)
     app/          Shared UI application
     ui/           Component library
@@ -117,7 +117,7 @@ librecode/
     PKGBUILD          AUR package
     librecode.spec.in RPM spec for COPR
   nix/
-    opencode.nix  Nix derivation
+    librecode.nix Nix derivation
     desktop.nix   Desktop derivation
 ```
 

@@ -7,9 +7,9 @@
   },
   "files": {
     "includes": [
-      "packages/opencode/src/**/*.ts",
-      "packages/opencode/src/**/*.tsx",
-      "packages/opencode/test/**/*.ts",
+      "packages/librecode/src/**/*.ts",
+      "packages/librecode/src/**/*.tsx",
+      "packages/librecode/test/**/*.ts",
       "packages/util/src/**/*.ts",
       "packages/util/test/**/*.ts",
       "packages/plugin/src/**/*.ts",

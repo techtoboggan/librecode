@@ -9,7 +9,7 @@
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ CLI (packages/opencode)                                  │
+│ CLI (packages/librecode)                                  │
 │                                                          │
 │   User Input ──► Agent Loop ──► LLM Provider             │
 │                    │    ▲                                 │
@@ -324,7 +324,7 @@ Migrations in `migration/` directories (YYYYMMDDHHMMSS format).
 
 ```
 packages/
-  opencode/     Core CLI agent
+  librecode/    Core CLI agent
     src/
       agent/      Agent definitions and registry
       cli/        CLI commands (yargs)

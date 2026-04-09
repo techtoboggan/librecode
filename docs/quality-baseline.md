@@ -7,7 +7,7 @@
 
 | Package | Lines | Functions | Tests | Source Files | Pass Rate |
 |---------|-------|-----------|-------|-------------|-----------|
-| opencode | 72.4% | 61.9% | 1,284 | 333 | 99.5% (7 env failures) |
+| librecode | 72.4% | 61.9% | 1,284 | 333 | 99.5% (7 env failures) |
 | util | 98.5% | 97.1% | 73 | 12 | 100% |
 | plugin | — | — | 3 | 4 | 100% |
 | app | — | — | 99 (e2e) | 175 | — |
@@ -49,7 +49,7 @@ bun run lint
 bun run quality
 
 # Coverage
-cd packages/opencode && bun test --timeout 30000 --coverage
+cd packages/librecode && bun test --timeout 30000 --coverage
 
 # Complexity only
 bunx biome lint . --max-diagnostics=5000 2>&1 | grep noExcessiveCognitiveComplexity | wc -l
