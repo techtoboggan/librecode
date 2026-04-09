@@ -88,9 +88,10 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 
 ## Phase 4: Desktop & UI — DONE
 
-- [x] **4.1** Desktop packaging: ✅ AppStream metainfo.xml rewritten for LibreCode (com.librecode.desktop), Flatpak manifest (`packaging/com.librecode.desktop.yml`), deb metainfo path fixed
-- [x] **4.2** UI component audit: ✅ 43MB = 34MB bundled Nerd Fonts (59 woff2 files, intentional for offline use) + 2.4MB components. Only 2 truly unused components (file-ssr, typewriter). 11 others have internal dependencies. Clean.
-- [x] **4.3** E2E test stabilization: ✅ Renamed remaining `opencode-e2e` and `__opencode_e2e` test identifiers to `librecode-e2e` / `__librecode_e2e` across E2E specs and app testing utilities
+- [x] **4.1** Desktop packaging: AppStream metainfo, Flatpak manifest, deb path fix
+- [x] **4.2** UI audit: 34MB fonts (intentional), 2 unused components, clean
+- [x] **4.3** E2E test stabilization: all test identifiers rebranded
+- [x] **4.4** Desktop dev verified: `bun run dev:desktop` builds + launches on Fedora 44. Fixed: install script, desktop script rebrand (153 refs across 66 files), Nix shell GTK3 + LD_LIBRARY_PATH
 
 ---
 
