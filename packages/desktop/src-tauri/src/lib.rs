@@ -388,8 +388,7 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             open_path
         ])
         .events(tauri_specta::collect_events![
-            LoadingWindowComplete,
-            SqliteMigrationProgress
+            LoadingWindowComplete
         ])
         .error_handling(tauri_specta::ErrorHandlingMode::Throw)
 }
