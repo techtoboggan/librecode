@@ -99,7 +99,7 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 - [x] **5.1** README with branding, badges, install instructions
 - [x] **5.3** CLAUDE.md development guide with coding standards, playbooks, quality gates
 - [x] **5.4** Brand system: tokens, BRAND.md, DESIGN-SPEC.md, both site scaffolds (Lucide icons)
-- [ ] **5.2** Architecture docs (agent loop, provider API, tool system, permission model)
+- [x] **5.2** Architecture docs: `docs/architecture.md` — system overview, agent loop states, provider lifecycle, tool capabilities, permission evaluation, instruction tiers, MCP management, session export/branching, storage schema, package structure
 - [ ] **5.4** Generate actual logo/mascot assets, wire into sites
 
 ---
