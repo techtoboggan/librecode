@@ -11,7 +11,7 @@
  * - simple:       Header-only configuration (anthropic, openrouter, vercel, etc.)
  * - openai-compat: OpenAI API-compatible providers (openai, copilot, azure)
  * - cloud:        Cloud platform providers (bedrock, vertex, cloudflare, sap)
- * - platform:     Platform-specific providers (gitlab, librecode built-in)
+ * - platform:     Platform-specific providers (gitlab)
  */
 
 import type { CustomLoader } from "./types"
@@ -19,6 +19,7 @@ import * as simple from "./simple"
 import * as openaiCompat from "./openai-compat"
 import * as cloud from "./cloud"
 import * as platform from "./platform"
+import * as litellmLoader from "./litellm"
 
 export type { CustomLoader, CustomModelLoader, CustomVarsLoader, ProviderInfo, ProviderLoadResult } from "./types"
 
@@ -47,6 +48,8 @@ export const CUSTOM_LOADERS: Record<string, CustomLoader> = {
   "cloudflare-ai-gateway": cloud.cloudflareAiGateway,
 
   // Platform-specific
-  librecode: platform.librecode,
   gitlab: platform.gitlab,
+
+  // Self-hosted proxies
+  litellm: litellmLoader.litellm,
 }

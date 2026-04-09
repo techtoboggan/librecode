@@ -804,9 +804,6 @@ export async function getSmallModel(providerID: ProviderID) {
       "gemini-2.5-flash",
       "gpt-5-nano",
     ]
-    if (providerID.startsWith("librecode")) {
-      priority = ["gpt-5-nano"]
-    }
     if (providerID.startsWith("github-copilot")) {
       // prioritize free models for github copilot
       priority = ["gpt-5-mini", "claude-haiku-4.5", ...priority]
@@ -845,7 +842,7 @@ export async function getSmallModel(providerID: ProviderID) {
   return undefined
 }
 
-const priority = ["gpt-5", "claude-sonnet-4", "big-pickle", "gemini-3-pro"]
+const priority = ["gpt-5", "claude-sonnet-4", "gemini-3-pro"]
 export function sort<T extends { id: string }>(models: T[]) {
   return sortBy(
     models,

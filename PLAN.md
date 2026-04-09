@@ -106,20 +106,15 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 
 ---
 
-## Execution plan
+## Phase 6: Provider System — DONE
 
-```
-NOW:  Phase 2.1.1 — Namespace migration (MessageV2 → Provider → Session → SessionPrompt)
-      ↓
-THEN: Phase 2.3 — Migrate loaders to ProviderPlugin interface
-      ↓
-THEN: Phase 2.4 — Tool output standardization + telemetry
-      ↓
-THEN: Phase 3.1 — Formalize agent loop (unblocked by namespace migration)
-      ↓
-THEN: Phase 3.2 — Instruction system overhaul
-      ↓
-THEN: Phase 3.4 — Session improvements
+- [x] **6.1** Removed hosted "librecode" provider: Zen/Go subscriptions, free models, public API key fallback, "big-pickle" model, all UI references (~73 refs across 14 files)
+- [x] **6.2** Added LiteLLM as first-class provider: autodiscovery on localhost:4000, `/v1/models` fetch, env var support (`LITELLM_BASE_URL`, `LITELLM_API_KEY`), config support
+- [x] **6.3** Updated getting-started UI: "Connect a provider to get started" replaces free model messaging
+
+---
+
+## Execution plan
       ↓
 THEN: Phase 4 + remaining Phase 5 in parallel
 ```

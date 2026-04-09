@@ -1561,20 +1561,6 @@ export namespace ACP {
 
     if (specified && !providers.length) return specified
 
-    const librecodeProvider = providers.find((p) => p.id === "librecode")
-    if (librecodeProvider) {
-      if (librecodeProvider.models["big-pickle"]) {
-        return { providerID: ProviderID.librecode, modelID: ModelID.make("big-pickle") }
-      }
-      const [best] = Provider.sort(Object.values(librecodeProvider.models))
-      if (best) {
-        return {
-          providerID: ProviderID.make(best.providerID),
-          modelID: ModelID.make(best.id),
-        }
-      }
-    }
-
     const models = providers.flatMap((p) => Object.values(p.models))
     const [best] = Provider.sort(models)
     if (best) {
@@ -1586,7 +1572,7 @@ export namespace ACP {
 
     if (specified) return specified
 
-    return { providerID: ProviderID.librecode, modelID: ModelID.make("big-pickle") }
+    throw new Error("no providers found — connect a provider to get started")
   }
 
   function parseUri(

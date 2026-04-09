@@ -419,10 +419,6 @@ export const ProvidersLoginCommand = cmd({
           )
         }
 
-        if (provider === "librecode") {
-          prompts.log.info("Create an api key at https://github.com/techtoboggan/librecode/auth")
-        }
-
         if (provider === "vercel") {
           prompts.log.info("You can create an api key at https://vercel.link/ai-gateway-token")
         }

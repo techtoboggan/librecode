@@ -61,13 +61,7 @@ export const ModelsCommand = cmd({
           return
         }
 
-        const providerIDs = Object.keys(providers).sort((a, b) => {
-          const aIsOpencode = a.startsWith("librecode")
-          const bIsOpencode = b.startsWith("librecode")
-          if (aIsOpencode && !bIsOpencode) return -1
-          if (!aIsOpencode && bIsOpencode) return 1
-          return a.localeCompare(b)
-        })
+        const providerIDs = Object.keys(providers).sort((a, b) => a.localeCompare(b))
 
         for (const providerID of providerIDs) {
           printModels(ProviderID.make(providerID), args.verbose)

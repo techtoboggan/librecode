@@ -7,7 +7,6 @@ export const ProviderID = {
   make: (id: string) => id as ProviderID,
   zod: z.string() as unknown as z.ZodType<ProviderID>,
   // Well-known providers
-  librecode: "librecode" as ProviderID,
   anthropic: "anthropic" as ProviderID,
   openai: "openai" as ProviderID,
   google: "google" as ProviderID,

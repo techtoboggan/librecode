@@ -206,18 +206,11 @@ export namespace LLM {
       maxOutputTokens,
       abortSignal: input.abort,
       headers: {
-        ...(input.model.providerID.startsWith("librecode")
+        ...(input.model.providerID !== "anthropic"
           ? {
-              "x-librecode-project": Instance.project.id,
-              "x-librecode-session": input.sessionID,
-              "x-librecode-request": input.user.id,
-              "x-librecode-client": Flag.LIBRECODE_CLIENT,
+              "User-Agent": `librecode/${Installation.VERSION}`,
             }
-          : input.model.providerID !== "anthropic"
-            ? {
-                "User-Agent": `librecode/${Installation.VERSION}`,
-              }
-            : undefined),
+          : undefined),
         ...input.model.headers,
         ...headers,
       },

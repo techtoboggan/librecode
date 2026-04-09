@@ -10,9 +10,7 @@ import * as fuzzysort from "fuzzysort"
 
 export function useConnected() {
   const sync = useSync()
-  return createMemo(() =>
-    sync.data.provider.some((x) => x.id !== "librecode" || Object.values(x.models).some((y) => y.cost?.input !== 0)),
-  )
+  return createMemo(() => sync.data.provider.length > 0)
 }
 
 export function DialogModel(props: { providerID?: string }) {
@@ -47,8 +45,8 @@ export function DialogModel(props: { providerID?: string }) {
             title: model.name ?? item.modelID,
             description: provider.name,
             category,
-            disabled: provider.id === "librecode" && model.id.includes("-nano"),
-            footer: model.cost?.input === 0 && provider.id === "librecode" ? "Free" : undefined,
+            disabled: false,
+            footer: undefined,
             onSelect: () => {
               dialog.clear()
               local.model.set({ providerID: provider.id, modelID: model.id }, { recent: true })
@@ -68,10 +66,7 @@ export function DialogModel(props: { providerID?: string }) {
 
     const providerOptions = pipe(
       sync.data.provider,
-      sortBy(
-        (provider) => provider.id !== "librecode",
-        (provider) => provider.name,
-      ),
+      sortBy((provider) => provider.name),
       flatMap((provider) =>
         pipe(
           provider.models,
@@ -100,10 +95,7 @@ export function DialogModel(props: { providerID?: string }) {
               return false
             return true
           }),
-          sortBy(
-            (x) => x.footer !== "Free",
-            (x) => x.title,
-          ),
+          sortBy((x) => x.title),
         ),
       ),
     )
