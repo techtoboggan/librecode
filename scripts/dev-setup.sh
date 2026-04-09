@@ -115,13 +115,15 @@ _lc_install_nix() {
 }
 
 _lc_install_deps_nix() {
-  # Ensure Nix is installed
-  if ! command -v nix &>/dev/null; then
-    _lc_install_nix || return 1
-    # Source the nix profile
-    if [ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
-      . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
-    fi
+  # Always run the install function — it handles detection, removal, and install
+  _lc_install_nix || return 1
+
+  # Verify nix develop actually works now
+  if ! nix develop --help &>/dev/null 2>&1; then
+    echo ""
+    echo "ERROR: nix is installed but 'nix develop' still doesn't work."
+    echo "Try restarting your shell and running this again."
+    return 1
   fi
 
   echo ""
