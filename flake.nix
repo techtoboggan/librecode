@@ -65,7 +65,7 @@
           ];
 
           # Set LD_LIBRARY_PATH so the Tauri dev binary can find Nix-provided libs
-          LD_LIBRARY_PATH = lib.makeLibraryPath (with pkgs; [
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath (with pkgs; [
             gtk3
             gtk4
             glib
@@ -75,7 +75,7 @@
             libsoup_3
             webkitgtk_4_1
             glib-networking
-          ] ++ lib.optionals stdenv.isLinux [
+          ] ++ pkgs.lib.optionals stdenv.isLinux [
             libappindicator
             gst_all_1.gstreamer
             gst_all_1.gst-plugins-base

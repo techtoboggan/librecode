@@ -22,16 +22,15 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tauri::{AppHandle, Listener, Manager, RunEvent, State, ipc::Channel};
+use tauri::{AppHandle, Manager, RunEvent, State, ipc::Channel};
 #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_specta::Event;
 use tokio::{
     sync::{oneshot, watch},
     time::{sleep, timeout},
 };
 
-use crate::cli::{sqlite_migration::SqliteMigrationProgress, sync_cli};
+use crate::cli::sync_cli;
 use crate::constants::*;
 use crate::windows::{LoadingWindow, MainWindow};
 
@@ -46,7 +45,6 @@ struct ServerReadyData {
 #[serde(tag = "phase", rename_all = "snake_case")]
 enum InitStep {
     ServerWaiting,
-    SqliteWaiting,
     Done,
 }
 
@@ -256,7 +254,7 @@ fn set_display_backend(_app: AppHandle, _backend: LinuxDisplayBackend) -> Result
 }
 
 #[cfg(target_os = "linux")]
-fn check_linux_app(app_name: &str) -> bool {
+fn check_linux_app(_app_name: &str) -> bool {
     return true;
 }
 
