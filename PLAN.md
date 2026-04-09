@@ -47,7 +47,7 @@ Per CLAUDE.md Playbook 1. Uses barrel pattern (`export const X = { ... } as cons
 |-----------|------|-----------|------|-------|
 | `MessageV2` | session/message-v2.ts (988 lines) | 31 files | ✅ DONE — barrel + type companion, 0 consumer changes | 1st |
 | `Provider` | provider/provider.ts (909 lines) | 26 files | ✅ DONE — barrel + type companion, 0 consumer changes | 2nd |
-| `Session` | session/index.ts (893 lines) | ~20 files | Medium | 3rd |
+| `Session` | session/index.ts (893 lines) | ~20 files | ✅ DONE — barrel + type companion, 0 consumer changes | 3rd |
 | `SessionPrompt` | session/prompt.ts (1,855 lines) | ~15 files | High — largest file, most complex | 4th |
 
 **Approach**: For each namespace:
