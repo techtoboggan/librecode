@@ -122,7 +122,7 @@ install_deps_desktop() {
   # Tauri CLI
   if ! command -v cargo-tauri &>/dev/null; then
     echo "Installing cargo-tauri..."
-    cargo install tauri-cli@2
+    cargo install tauri-cli --version "^2"
   fi
 
   echo ""
