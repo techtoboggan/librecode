@@ -1,6 +1,6 @@
 # Maintainer: techtoboggan <tristan@techtoboggan.com>
 pkgname=librecode
-pkgver=1.2.27
+pkgver=0.0.1
 pkgrel=1
 pkgdesc='AI-powered development tool'
 arch=('x86_64' 'aarch64')

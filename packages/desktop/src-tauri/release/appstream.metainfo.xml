@@ -50,11 +50,11 @@
   <url type="donation">https://github.com/sponsors/techtoboggan</url>
 
   <releases>
-    <release version="1.2.27" date="2026-04-07">
+    <release version="0.0.1" date="2026-04-09">
       <description>
-        <p>Initial LibreCode release, forked from opencode v1.2.27.</p>
+        <p>First LibreCode release.</p>
       </description>
-      <url type="details">https://github.com/techtoboggan/librecode/releases/tag/v1.2.27</url>
+      <url type="details">https://github.com/techtoboggan/librecode/releases/tag/v0.0.1</url>
     </release>
   </releases>
 </component>
