@@ -79,15 +79,7 @@ export interface ProviderInfo {
   options?: Record<string, unknown>
 
   /** Available models for this provider */
-  models: Record<
-    string,
-    {
-      id: string
-      name: string
-      cost: { input: number; output: number }
-      [key: string]: unknown
-    }
-  >
+  models: Record<string, { id: string; name: string; cost: { input: number; output: number }; [key: string]: unknown }>
 }
 
 /**

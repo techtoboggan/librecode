@@ -59,10 +59,11 @@ Per CLAUDE.md Playbook 1. Uses barrel pattern (`export const X = { ... } as cons
 
 This two-step approach (barrel first, then remove namespace) is safer than doing both at once.
 
-**2.3 — Migrate loaders to ProviderPlugin interface**
-- Update each loader in `provider/loaders/` to return `ProviderLoadResult` type
-- Update `provider/loaders/index.ts` registry to use `ProviderPlugin` interface
-- ~2 hrs, low risk, purely type cleanup
+**2.3 — Migrate loaders to ProviderPlugin interface** ✅
+- `loaders/types.ts` now imports from `plugin-api.ts` — single source of truth
+- `CustomLoader` is now `(provider: ProviderInfo) => Promise<ProviderLoadResult>`
+- Eliminated `any` types from loader interfaces (replaced with `unknown`)
+- Zero behavioral changes, purely type alignment
 
 **2.4 — Tool output format standardization**
 - Define a `ToolOutput` schema (title, output, metadata, attachments)

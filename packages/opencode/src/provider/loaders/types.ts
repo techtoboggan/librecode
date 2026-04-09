@@ -1,27 +1,23 @@
 /**
- * Type definitions for the custom provider loader system.
+ * Provider loader types — aligned with ProviderPlugin interface (plugin-api.ts).
  *
- * Each provider can register a CustomLoader that returns:
- * - autoload: whether to auto-register when credentials are detected
- * - getModel: custom SDK method selector (responses vs chat vs languageModel)
- * - vars: custom variable resolver for URL templates
- * - options: provider-specific SDK options
+ * CustomLoader is the internal implementation type used by built-in loaders.
+ * It mirrors ProviderLoadResult from the public plugin API.
  */
 
-export type CustomModelLoader = (sdk: any, modelID: string, options?: Record<string, any>) => Promise<any>
+import type { ProviderInfo, ProviderLoadResult } from "../plugin-api"
 
-export type CustomVarsLoader = (options: Record<string, any>) => Record<string, string>
+/**
+ * A custom provider loader function.
+ * Takes provider info from the models database and returns load configuration.
+ *
+ * This is the internal equivalent of ProviderPlugin.load() — same shape,
+ * same contract, just used for built-in loaders that don't go through
+ * the plugin system.
+ */
+export type CustomLoader = (provider: ProviderInfo) => Promise<ProviderLoadResult>
 
-export interface CustomLoaderResult {
-  autoload: boolean
-  getModel?: CustomModelLoader
-  vars?: CustomVarsLoader
-  options?: Record<string, any>
-}
-
-export type CustomLoader = (provider: {
-  id: string
-  env: string[]
-  options?: Record<string, any>
-  models: Record<string, any>
-}) => Promise<CustomLoaderResult>
+// Re-export for convenience
+export type { ProviderInfo, ProviderLoadResult }
+export type CustomModelLoader = ProviderLoadResult["getModel"]
+export type CustomVarsLoader = ProviderLoadResult["vars"]

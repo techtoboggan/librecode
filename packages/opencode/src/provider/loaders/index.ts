@@ -20,7 +20,7 @@ import * as openaiCompat from "./openai-compat"
 import * as cloud from "./cloud"
 import * as platform from "./platform"
 
-export type { CustomLoader, CustomModelLoader, CustomVarsLoader, CustomLoaderResult } from "./types"
+export type { CustomLoader, CustomModelLoader, CustomVarsLoader, ProviderInfo, ProviderLoadResult } from "./types"
 
 export const CUSTOM_LOADERS: Record<string, CustomLoader> = {
   // Simple header-only
