@@ -19,6 +19,7 @@
     in
     {
       devShells = forEachSystem (pkgs: {
+        # Minimal shell for CLI-only development
         default = pkgs.mkShell {
           packages = with pkgs; [
             bun
@@ -26,6 +27,40 @@
             pkg-config
             openssl
             git
+            ripgrep
+          ];
+        };
+
+        # Full shell including Tauri desktop dependencies
+        desktop = pkgs.mkShell {
+          packages = with pkgs; [
+            # Core
+            bun
+            nodejs_20
+            pkg-config
+            openssl
+            git
+            ripgrep
+
+            # Rust toolchain for Tauri
+            rustc
+            cargo
+            cargo-tauri
+
+            # Tauri Linux dependencies
+            dbus
+            glib
+            gtk4
+            libsoup_3
+            librsvg
+            glib-networking
+            webkitgtk_4_1
+          ] ++ lib.optionals stdenv.isLinux [
+            libappindicator
+            gst_all_1.gstreamer
+            gst_all_1.gst-plugins-base
+            gst_all_1.gst-plugins-good
+            gst_all_1.gst-plugins-bad
           ];
         };
       });

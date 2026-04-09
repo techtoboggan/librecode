@@ -94,13 +94,14 @@ This two-step approach (barrel first, then remove namespace) is safer than doing
 
 ---
 
-## Phase 5: Documentation & contributor experience — PARTIAL
+## Phase 5: Documentation & contributor experience — DONE (logo assets pending)
 
 - [x] **5.1** README with branding, badges, install instructions
-- [x] **5.3** CLAUDE.md development guide with coding standards, playbooks, quality gates
-- [x] **5.4** Brand system: tokens, BRAND.md, DESIGN-SPEC.md, both site scaffolds (Lucide icons)
-- [x] **5.2** Architecture docs: `docs/architecture.md` — system overview, agent loop states, provider lifecycle, tool capabilities, permission evaluation, instruction tiers, MCP management, session export/branching, storage schema, package structure
-- [ ] **5.4** Generate actual logo/mascot assets, wire into sites
+- [x] **5.2** Architecture docs (`docs/architecture.md`)
+- [x] **5.3** CLAUDE.md with coding standards, migration playbooks, quality gates
+- [x] **5.4** Brand system: tokens, BRAND.md, DESIGN-SPEC.md, both site scaffolds
+- [x] **5.5** Local dev setup: `scripts/dev-setup.sh` (isolated .dev/ dir), `docs/development.md` (3 dev modes, Nix desktop shell, Fedora/Ubuntu dep guides, troubleshooting), `nix develop .#desktop` with full Tauri deps
+- [ ] **5.4b** Generate actual logo/mascot assets (DESIGN-SPEC.md has prompts ready)
 
 ---
 
