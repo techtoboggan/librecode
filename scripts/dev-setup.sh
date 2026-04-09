@@ -35,42 +35,83 @@ _LC_DEV_DIR="$_LC_PROJECT_ROOT/.dev"
 
 # ── Nix-based dependency installation (recommended) ──
 
+_lc_has_official_nix() {
+  # Official Nix installs to /nix/store with a daemon
+  [ -d "/nix/store" ] && [ -f "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh" ]
+}
+
+_lc_has_distro_nix() {
+  # Distro-packaged nix (Fedora nix-core, etc.) uses chroot store
+  [ -f "/usr/bin/nix" ] && [ -d "$HOME/.local/share/nix/root" ] && ! _lc_has_official_nix
+}
+
+_lc_remove_distro_nix() {
+  echo "Detected distro-packaged Nix (uses chroot store, breaks 'nix develop')."
+  echo "Removing it to make way for the official installer..."
+  echo ""
+
+  if command -v dnf &>/dev/null; then
+    sudo dnf remove -y nix-core nix-libs 2>/dev/null || true
+  elif command -v apt &>/dev/null; then
+    sudo apt remove -y nix nix-bin 2>/dev/null || true
+  elif command -v pacman &>/dev/null; then
+    sudo pacman -R --noconfirm nix 2>/dev/null || true
+  elif command -v zypper &>/dev/null; then
+    sudo zypper remove -y nix 2>/dev/null || true
+  fi
+
+  # Clean up chroot store
+  rm -rf "$HOME/.local/share/nix" 2>/dev/null || true
+
+  # Remove from hash table so bash finds the new one
+  hash -r 2>/dev/null || true
+
+  echo "Distro nix removed."
+}
+
 _lc_install_nix() {
-  # Check for working Nix (official installer, not distro package)
-  if command -v nix &>/dev/null; then
-    # Test if nix develop actually works (distro packages often break this)
-    if nix develop --help &>/dev/null 2>&1; then
+  # Already have a working official Nix?
+  if _lc_has_official_nix; then
+    echo "Nix is already installed (official installer)."
+    # Source the profile in case it's not in this shell
+    . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh 2>/dev/null || true
+    return 0
+  fi
+
+  # Have a broken distro-packaged nix? Remove it first.
+  if _lc_has_distro_nix; then
+    _lc_remove_distro_nix
+  elif command -v nix &>/dev/null; then
+    # Some other nix exists — check if it works
+    if nix store info &>/dev/null 2>&1 && [ -d "/nix/store" ]; then
       echo "Nix is already installed and working."
       return 0
     else
-      echo "WARNING: Found nix but 'nix develop' doesn't work."
-      echo "This often happens with distro-packaged nix (e.g., Fedora nix-core)."
-      echo ""
-      echo "The official Nix installer is recommended instead."
-      echo "Remove the distro package first, then re-run this script."
-      echo ""
-      echo "  Fedora: sudo dnf remove nix-core nix-libs"
-      echo "  Ubuntu: sudo apt remove nix"
-      echo ""
-      return 1
+      echo "Found nix but it doesn't appear to work correctly."
+      echo "Proceeding with official installer (will take precedence via PATH)."
     fi
   fi
 
-  echo "Installing Nix (official multi-user installer)..."
-  echo "This provides a single cross-platform dev environment for all dependencies."
+  echo ""
+  echo "Installing Nix (Determinate Systems installer)..."
+  echo "This provides reproducible, cross-platform dev environments."
   echo ""
 
-  # Use Determinate Systems installer (better UX, uninstall support)
-  if command -v curl &>/dev/null; then
-    curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
-  else
-    echo "curl is required to install Nix. Install curl first."
+  if ! command -v curl &>/dev/null; then
+    echo "curl is required. Install curl first, then re-run."
     return 1
   fi
 
+  curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install
+
+  # Source the profile so nix is available in this shell
+  if [ -f /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh ]; then
+    . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+  fi
+
   echo ""
-  echo "Nix installed. Restart your shell or run:"
-  echo "  . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
+  echo "Nix installed successfully."
+  echo "If 'nix' isn't found, restart your shell."
 }
 
 _lc_install_deps_nix() {
