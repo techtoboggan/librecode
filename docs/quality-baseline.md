@@ -1,65 +1,109 @@
 # Code Quality Baseline
 
-> Snapshot taken 2026-04-08. Used to track improvement over time.
-> Run `bun run quality` to get current numbers.
+> Snapshot: 2026-04-10 | 94 commits | Biome 2.4.10
+> Previous: 2026-04-08 (229 complexity violations, 1,244 warnings, 7 test failures)
 
-## Test Coverage
+---
 
-| Package | Lines | Functions | Tests | Source Files | Pass Rate |
-|---------|-------|-----------|-------|-------------|-----------|
-| librecode | 72.4% | 61.9% | 1,284 | 333 | 99.5% (7 env failures) |
-| util | 98.5% | 97.1% | 73 | 12 | 100% |
-| plugin | — | — | 3 | 4 | 100% |
-| app | — | — | 99 (e2e) | 175 | — |
+## Test Health
 
-**Targets for new/modified code:**
-- New files: 80% line coverage minimum
-- Modified files: coverage must not decrease
-- Utility/pure functions: 95%+ target
+| Metric | Current | Previous | Delta |
+|--------|---------|----------|-------|
+| Passing | 1,358 | 1,284 | +74 |
+| Failing | **0** | 7 | **-7** |
+| Skipped | 9 | 0 | +9 |
+| Test files | 111 | ~100 | +11 |
+| expect() calls | 2,926 | — | — |
 
-## Lint Violations (biome)
+---
 
-| Rule | Count | Severity | Target |
-|------|-------|----------|--------|
-| `noExcessiveCognitiveComplexity` (>12) | 229 | warn | Reduce to 0 over time |
-| `noNamespace` | 108 | warn | 0 after namespace migration |
-| `noExplicitAny` | 366 | warn | Reduce by 50% |
-| `noUnusedImports` | ~100 | warn | 0 |
-| `noUnusedVariables` | ~50 | warn | 0 |
-| Total errors | 143 | error | 0 |
-| Total warnings | 1,244 | warn | < 500 |
+## Lint Violations
 
-## Complexity Hotspots
+| Rule | Current | Previous | Delta |
+|------|--------:|--------:|---------:|
+| `noExcessiveCognitiveComplexity` | **20** | 229 | **-209** |
+| `noNamespace` | **5** | 108 | **-103** |
+| `noExplicitAny` | **3** | 366 | **-363** |
+| `noUnusedImports` | **0** | ~100 | **-100** |
+| `noUnusedVariables` | **1** | ~50 | **-49** |
+| Other | 11 | ~400 | — |
+| **Total** | **~40** | **~1,244** | **-97%** |
 
-The 229 complexity violations are concentrated in:
-- `src/session/prompt.ts` — the main agent loop
-- `src/provider/provider.ts` — provider state initialization
-- `src/provider/transform.ts` — LLM API transforms
-- `src/session/message-v2.ts` — message parsing/serialization
-- `src/config/config.ts` — config loading with many fallbacks
-- `src/cli/cmd/` — CLI command handlers
+---
 
-## How to Check
+## Cognitive Complexity (max: 12)
+
+20 functions exceed the limit. **All are in CLI commands and TUI components — the core engine has 1 violation** (bun/index.ts at 13).
+
+### Critical (score >= 25)
+
+| Score | File | Category |
+|------:|------|----------|
+| 82 | `cli/cmd/providers.ts:19` | CLI interactive command |
+| 44 | `cli/cmd/pr.ts:19` | CLI PR command |
+| 43 | `cli/cmd/stats.ts:169` | CLI stats |
+| 40 | `cli/cmd/agent.ts:61` | CLI agent command |
+| 39 | `cli/cmd/providers.ts:272` | CLI provider OAuth |
+| 27 | `cli/cmd/import.ts:87` | CLI session import |
+| 27 | `cli/cmd/stats.ts:95` | CLI stats format |
+| 27 | `cli/cmd/tui/component/dialog-provider.tsx:40` | TUI dialog |
+
+### Moderate (score 13-24)
+
+| Score | File | Category |
+|------:|------|----------|
+| 18 | `cli/cmd/stats.ts:309` | CLI |
+| 16 | `cli/cmd/export.ts:20` | CLI |
+| 16 | `cli/cmd/tui/component/dialog-status.tsx:19` | TUI |
+| 15 | `cli/cmd/providers.ts:208` | CLI |
+| 15 | `cli/cmd/tui/component/dialog-model.tsx:76` | TUI |
+| 13 | `bun/index.ts:53` | Core (only core violation) |
+| 13 | 5 more CLI/TUI files | CLI/TUI |
+
+### By Area
+
+| Area | Violations | Worst | Notes |
+|------|-----------|------:|-------|
+| CLI commands | 12 | 82 | Interactive prompts/menus |
+| TUI components | 7 | 27 | Ink UI components |
+| Core engine | 1 | 13 | bun package installer |
+
+---
+
+## Oversized Files (>1000 lines)
+
+| Lines | File | Category | Action |
+|------:|------|----------|--------|
+| 2,281 | `cli/cmd/tui/routes/session/index.tsx` | TUI | Split view sections |
+| 2,097 | `lsp/server.ts` | Core | Protocol impl, hard to split |
+| 1,869 | `session/prompt.ts` | Core | Already split once |
+| 1,732 | `provider/sdk/copilot/responses/...` | Vendor | Leaves with provider extraction |
+| 1,729 | `acp/agent.ts` | Core | Split by concern |
+| 1,647 | `cli/cmd/github.ts` | CLI | Split subcommands |
+| 1,459 | `config/config.ts` | Core | Split schema vs loader |
+| 1,171 | `cli/cmd/tui/component/prompt/index.tsx` | TUI | Split by section |
+| 1,152 | `cli/cmd/tui/context/theme.tsx` | TUI | Data file, low priority |
+| 1,062 | `session/message-v2.ts` | Core | Type defs, low priority |
+| 1,023 | `server/routes/session.ts` | Core | Split route handlers |
+| 1,004 | `provider/transform.ts` | Core | Split by transform type |
+
+---
+
+## Run These Checks
 
 ```bash
-# Full lint
-bun run lint
+# Complexity violations
+bunx biome lint --only=complexity/noExcessiveCognitiveComplexity
 
-# Quick summary
-bun run quality
+# All lint issues
+bunx biome lint
 
-# Coverage
-cd packages/librecode && bun test --timeout 30000 --coverage
+# Full test suite
+cd packages/librecode && bun test --timeout 30000
 
-# Complexity only
-bunx biome lint . --max-diagnostics=5000 2>&1 | grep noExcessiveCognitiveComplexity | wc -l
+# Type checking
+bun run typecheck
+
+# File sizes over 1000 lines
+find packages/librecode/src -name '*.ts' -o -name '*.tsx' | xargs wc -l | sort -rn | awk '$1 > 1000'
 ```
-
-## Tracking Improvement
-
-When completing migration work (namespace removal, Effect removal, tool annotations),
-update this file with new baselines. The goal is monotonic improvement:
-- Each PR should reduce violations or hold steady
-- Never introduce new complexity > 12 violations
-- Never introduce new `export namespace` usage
-- Never introduce new `any` types without justification
