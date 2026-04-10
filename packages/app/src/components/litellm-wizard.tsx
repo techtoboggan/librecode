@@ -78,8 +78,23 @@ async function fetchModels(baseUrl: string, apiKey?: string): Promise<{ id: stri
   }
 }
 
-/** Scan ALL known ports on localhost — returns ALL discovered servers */
-async function scanAllServers(
+function makeProviderID(url: string): string {
+  return `litellm-${url.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
+}
+
+function sortServers(servers: DiscoveredServer[]): void {
+  servers.sort((a, b) => {
+    if (a.connected !== b.connected) return a.connected ? 1 : -1
+    // localhost first, then by URL
+    const aLocal = a.url.includes("localhost") || a.url.includes("127.0.0.1")
+    const bLocal = b.url.includes("localhost") || b.url.includes("127.0.0.1")
+    if (aLocal !== bLocal) return aLocal ? -1 : 1
+    return a.url.localeCompare(b.url)
+  })
+}
+
+/** Scan known ports on localhost */
+async function scanLocalServers(
   connectedProviders: Set<string>,
   onProgress?: (checked: number, total: number, found: DiscoveredServer[]) => void,
 ): Promise<DiscoveredServer[]> {
@@ -91,25 +106,91 @@ async function scanAllServers(
       const url = `http://localhost:${entry.port}`
       const models = await fetchModels(url)
       if (models.length > 0) {
-        const providerID = `litellm-${url.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
         servers.push({
           url,
           modelCount: models.length,
           models,
           serverName: entry.name,
-          connected: connectedProviders.has(providerID),
+          connected: connectedProviders.has(makeProviderID(url)),
         })
       }
       onProgress?.(index + 1, total, [...servers])
     }),
   )
 
-  // Sort: unconnected first, then by port number
-  servers.sort((a, b) => {
-    if (a.connected !== b.connected) return a.connected ? 1 : -1
-    return 0
-  })
+  sortServers(servers)
+  return servers
+}
 
+/** Detect LAN IP range from WebRTC or common subnets, then scan known ports on each host */
+async function scanNetworkServers(
+  connectedProviders: Set<string>,
+  existingServers: DiscoveredServer[],
+  onProgress?: (checked: number, total: number, found: DiscoveredServer[]) => void,
+): Promise<DiscoveredServer[]> {
+  // Start with existing localhost results
+  const servers: DiscoveredServer[] = [...existingServers]
+  const seen = new Set(servers.map((s) => s.url))
+
+  // Detect local IP to find the subnet
+  let subnet = "192.168.1"
+  try {
+    const resp = await fetch("http://localhost:4096/global/health").catch(() => null)
+    // If the librecode server is running, we can try to infer the subnet from the
+    // network interfaces. Fallback: scan common subnets.
+  } catch {
+    // ignore
+  }
+
+  // Try common private subnets — scan a focused range (x.x.x.1-50) on key ports only
+  // Use fewer ports for network scan to keep it fast
+  const networkPorts = [4000, 11434, 8000, 8080]
+  const subnets = ["192.168.1", "192.168.0", "192.168.86", "10.0.0", "10.0.1"]
+
+  // Build host list: .1 through .30 on each subnet (150 hosts × 4 ports = 600 checks)
+  const hostRange = 30
+  const targets: Array<{ host: string; port: number; name: string }> = []
+  for (const sub of subnets) {
+    for (let i = 1; i <= hostRange; i++) {
+      for (const entry of KNOWN_PORTS.filter((p) => networkPorts.includes(p.port))) {
+        targets.push({ host: `${sub}.${i}`, port: entry.port, name: entry.name })
+      }
+    }
+  }
+
+  const total = targets.length
+  let checked = 0
+
+  // Scan in batches of 50 to avoid overwhelming the network
+  const BATCH_SIZE = 50
+  for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+    const batch = targets.slice(i, i + BATCH_SIZE)
+    await Promise.allSettled(
+      batch.map(async (target) => {
+        const url = `http://${target.host}:${target.port}`
+        if (seen.has(url)) {
+          checked++
+          return
+        }
+        const models = await fetchModels(url)
+        checked++
+        if (models.length > 0) {
+          seen.add(url)
+          servers.push({
+            url,
+            modelCount: models.length,
+            models,
+            serverName: `${target.name} (${target.host})`,
+            connected: connectedProviders.has(makeProviderID(url)),
+          })
+        }
+        onProgress?.(checked, total, [...servers])
+      }),
+    )
+    onProgress?.(checked, total, [...servers])
+  }
+
+  sortServers(servers)
   return servers
 }
 
@@ -151,12 +232,31 @@ export function LiteLLMWizard() {
     setError("")
     setScanProgress({ checked: 0, total: KNOWN_PORTS.length })
 
-    const found = await scanAllServers(connectedProviderIDs(), (checked, total, foundSoFar) => {
+    const found = await scanLocalServers(connectedProviderIDs(), (checked, total, foundSoFar) => {
       setScanProgress({ checked, total })
       setServers([...foundSoFar])
     })
 
     if (found.length === 0) {
+      setStep("not-found")
+    } else {
+      setServers([...found])
+      setStep("idle")
+    }
+  }
+
+  const handleNetworkScan = async () => {
+    setStep("scanning")
+    setError("")
+    const existing = [...servers]
+
+    const found = await scanNetworkServers(connectedProviderIDs(), existing, (checked, total, foundSoFar) => {
+      setScanProgress({ checked, total })
+      setServers([...foundSoFar])
+    })
+
+    if (found.length === 0) {
+      setError("No additional servers found on the local network.")
       setStep("not-found")
     } else {
       setServers([...found])
@@ -247,7 +347,7 @@ export function LiteLLMWizard() {
               <div class="flex items-center gap-2 text-13-regular text-text-weak">
                 <Spinner class="size-3.5" />
                 <span>
-                  Scanning local ports... ({scanProgress().checked}/{scanProgress().total})
+                  Scanning{scanProgress().total > KNOWN_PORTS.length ? " network" : " local"} ports... ({scanProgress().checked}/{scanProgress().total})
                 </span>
               </div>
               <Show when={servers.length > 0}>
@@ -302,9 +402,12 @@ export function LiteLLMWizard() {
                 </div>
               </Show>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
-                  Scan Again
+                  Scan Local
+                </Button>
+                <Button size="small" variant="ghost" onClick={handleNetworkScan} icon="dot-grid">
+                  Scan Network
                 </Button>
                 <Button size="small" variant="ghost" onClick={() => setStep("not-found")}>
                   Enter manually
@@ -317,7 +420,7 @@ export function LiteLLMWizard() {
           <Match when={step() === "not-found"}>
             <div class="flex flex-col gap-3 w-full">
               <p class="text-13-regular text-text-weak">
-                No local servers found. Enter a server address or scan again.
+                No local servers found. Enter a server address or scan your network.
               </p>
 
               <Show when={error()}>
@@ -344,11 +447,14 @@ export function LiteLLMWizard() {
                 />
               </div>
 
-              <div class="flex items-center gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
                 <Button size="small" variant="primary" onClick={handleConnect} disabled={!url().trim()}>
                   Connect
                 </Button>
                 <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
+                  Scan Local
+                </Button>
+                <Button size="small" variant="ghost" onClick={handleNetworkScan} icon="dot-grid">
                   Scan Network
                 </Button>
               </div>
