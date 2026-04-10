@@ -19,12 +19,6 @@ export const DialogSelectProvider: Component = () => {
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
   const customLabel = () => language.t("settings.providers.tag.custom")
-  const note = (id: string) => {
-    if (id === "anthropic") return language.t("dialog.provider.anthropic.note")
-    if (id === "openai") return language.t("dialog.provider.openai.note")
-    if (id.startsWith("github-copilot")) return language.t("dialog.provider.copilot.note")
-    if (id === "librecode-go") return language.t("dialog.provider.librecodeGo.tagline")
-  }
 
   return (
     <Dialog title={language.t("command.provider.connect")} transition>
@@ -65,18 +59,8 @@ export const DialogSelectProvider: Component = () => {
           <div class="px-1.25 w-full flex items-center gap-x-3">
             <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
             <span>{i.name}</span>
-            <Show when={i.id === "librecode"}>
-              <div class="text-14-regular text-text-weak">{language.t("dialog.provider.librecode.tagline")}</div>
-            </Show>
             <Show when={i.id === CUSTOM_ID}>
               <Tag>{language.t("settings.providers.tag.custom")}</Tag>
-            </Show>
-            <Show when={i.id === "librecode"}>
-              <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-            </Show>
-            <Show when={note(i.id)}>{(value) => <div class="text-14-regular text-text-weak">{value()}</div>}</Show>
-            <Show when={i.id === "librecode-go"}>
-              <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
             </Show>
           </div>
         )}

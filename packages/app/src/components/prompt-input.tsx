@@ -1464,7 +1464,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                           size="normal"
                           class="min-w-0 max-w-[320px] text-13-regular text-text-base group"
                           style={control()}
-                          onClick={() => dialog.show(() => <DialogSelectModelUnpaid model={local.model} />)}
+                          onClick={() => dialog.show(() => <DialogSelectModelUnpaid />)}
                         >
                           <Show when={local.model.current()?.provider?.id}>
                             <ProviderIcon

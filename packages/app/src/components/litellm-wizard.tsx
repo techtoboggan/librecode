@@ -112,14 +112,23 @@ export function LiteLLMWizard() {
   }
 
   const autoCheck = async () => {
-    setStep("checking")
-    const discovered = await fetchModels(LITELLM_DEFAULT_URL)
-    if (discovered.length > 0) {
-      setUrl(LITELLM_DEFAULT_URL)
-      setModels(discovered.map((m) => ({ ...m, selected: true })))
-      setStep("models")
-    } else {
+    // Always do a full scan on startup — find ALL local servers
+    setStep("scanning")
+    setError("")
+    setScanProgress({ checked: 0, total: COMMON_PORTS.length })
+
+    const found = await scanAllServers((checked, total, foundSoFar) => {
+      setScanProgress({ checked, total })
+      setServers([...foundSoFar])
+    })
+
+    if (found.length === 0) {
       setStep("not-found")
+    } else if (found.length === 1) {
+      showServerModels(found[0])
+    } else {
+      setServers([...found])
+      setStep("servers")
     }
   }
 
@@ -154,10 +163,8 @@ export function LiteLLMWizard() {
       setError("No OpenAI-compatible servers found on common local ports.")
       setStep("not-found")
     } else if (found.length === 1) {
-      // Single server — go straight to models
       showServerModels(found[0])
     } else {
-      // Multiple servers — show server list
       setServers([...found])
       setStep("servers")
     }
@@ -217,16 +224,16 @@ export function LiteLLMWizard() {
     <div class="w-full rounded-sm border border-border-weak-base bg-surface-raised-base">
       <div class="w-full flex flex-col items-start px-4 pt-4 pb-4">
         <div class="flex items-center gap-2 mb-3">
-          <Icon name="lightning" class="text-icon-strong-base size-4" />
+          <Icon name="dot-grid" class="text-icon-strong-base size-4" />
           <span class="text-14-medium text-text-base">LiteLLM Auto-Discovery</span>
         </div>
 
         <Switch>
-          {/* Auto-checking localhost */}
+          {/* Auto-scanning for local servers */}
           <Match when={step() === "checking"}>
             <div class="flex items-center gap-2 text-13-regular text-text-weak">
               <Spinner class="size-3.5" />
-              <span>Checking for LiteLLM on localhost:4000...</span>
+              <span>Scanning for local model servers...</span>
             </div>
           </Match>
 
@@ -291,7 +298,7 @@ export function LiteLLMWizard() {
                 <Button size="small" variant="primary" onClick={handleConnect} disabled={!url().trim()}>
                   Connect
                 </Button>
-                <Button size="small" variant="ghost" onClick={handleScan} icon="search">
+                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
                   Scan Network
                 </Button>
               </div>
@@ -325,7 +332,7 @@ export function LiteLLMWizard() {
               </div>
 
               <div class="flex items-center gap-2">
-                <Button size="small" variant="ghost" onClick={handleScan} icon="search">
+                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
                   Scan Again
                 </Button>
                 <Button
@@ -387,19 +394,19 @@ export function LiteLLMWizard() {
                     Back to servers
                   </Button>
                 </Show>
-                {/* Change server if single server or manual connect */}
+                {/* Rescan for servers */}
                 <Show when={servers.length <= 1}>
                   <Button
                     size="small"
                     variant="ghost"
                     onClick={() => {
                       batch(() => {
-                        setStep("not-found")
                         setModels([])
                       })
+                      handleScan()
                     }}
                   >
-                    Change server
+                    Scan for servers
                   </Button>
                 </Show>
               </div>

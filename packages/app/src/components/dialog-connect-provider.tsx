@@ -265,7 +265,7 @@ export function DialogConnectProvider(props: { provider: string }) {
 
         // Check required fields
         for (const prompt of prompts()!) {
-          if (prompt.required && !inputs[prompt.key]?.trim()) {
+          if ((prompt as { required?: boolean }).required && !inputs[prompt.key]?.trim()) {
             setFormStore("error", `${prompt.message} is required`)
             return
           }
@@ -357,7 +357,7 @@ export function DialogConnectProvider(props: { provider: string }) {
                       autofocus={index() === 0}
                       type="text"
                       label={prompt.message}
-                      placeholder={prompt.placeholder ?? ""}
+                      placeholder={(prompt as { placeholder?: string }).placeholder ?? ""}
                       value={formStore.values[prompt.key] ?? ""}
                       onChange={(v) => setValue(prompt.key, v)}
                     />

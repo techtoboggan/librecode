@@ -4,14 +4,9 @@ import { useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 
 export const popularProviders = [
-  "librecode",
-  "librecode-go",
-  "anthropic",
-  "github-copilot",
-  "openai",
-  "google",
-  "openrouter",
-  "vercel",
+  "litellm",
+  "amazon-bedrock",
+  "azure",
 ]
 const popularProviderSet = new Set(popularProviders)
 

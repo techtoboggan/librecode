@@ -1,32 +1,19 @@
 import { Button } from "@librecode/ui/button"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { Dialog } from "@librecode/ui/dialog"
-import { List, type ListRef } from "@librecode/ui/list"
+import { List } from "@librecode/ui/list"
 import { ProviderIcon } from "@librecode/ui/provider-icon"
-import { Tag } from "@librecode/ui/tag"
-import { Tooltip } from "@librecode/ui/tooltip"
-import { type Component, Show } from "solid-js"
-import { useLocal } from "@/context/local"
+import { type Component } from "solid-js"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { DialogSelectProvider } from "./dialog-select-provider"
 import { LiteLLMWizard } from "./litellm-wizard"
-import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 
-type ModelState = ReturnType<typeof useLocal>["model"]
-
-export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props) => {
-  const model = props.model ?? useLocal().model
+export const DialogSelectModelUnpaid: Component = () => {
   const dialog = useDialog()
   const providers = useProviders()
   const language = useLanguage()
-
-  let listRef: ListRef | undefined
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") return
-    listRef?.onKeyDown(e)
-  }
 
   return (
     <Dialog
@@ -35,48 +22,6 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
     >
       <div class="px-2.5 pb-1.5">
         <LiteLLMWizard />
-      </div>
-      <div class="flex flex-col gap-3 px-2.5" onKeyDown={handleKeyDown}>
-        <div class="text-14-medium text-text-base px-2.5">{language.t("dialog.model.unpaid.freeModels.title")}</div>
-        <List
-          class="[&_[data-slot=list-scroll]]:overflow-visible"
-          ref={(ref) => (listRef = ref)}
-          items={model.list}
-          current={model.current()}
-          key={(x) => `${x.provider.id}:${x.id}`}
-          itemWrapper={(item, node) => (
-            <Tooltip
-              class="w-full"
-              placement="right-start"
-              gutter={12}
-              value={
-                <ModelTooltip
-                  model={item}
-                  latest={item.latest}
-                  free={item.provider.id === "librecode" && (!item.cost || item.cost.input === 0)}
-                />
-              }
-            >
-              {node}
-            </Tooltip>
-          )}
-          onSelect={(x) => {
-            model.set(x ? { modelID: x.id, providerID: x.provider.id } : undefined, {
-              recent: true,
-            })
-            dialog.close()
-          }}
-        >
-          {(i) => (
-            <div class="w-full flex items-center gap-x-2.5">
-              <span>{i.name}</span>
-              <Tag>{language.t("model.tag.free")}</Tag>
-              <Show when={i.latest}>
-                <Tag>{language.t("model.tag.latest")}</Tag>
-              </Show>
-            </div>
-          )}
-        </List>
       </div>
       <div class="px-1.5 pb-1.5">
         <div class="w-full rounded-sm border border-border-weak-base bg-surface-raised-base">
@@ -102,23 +47,6 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
                   <div class="w-full flex items-center gap-x-3">
                     <ProviderIcon data-slot="list-item-extra-icon" id={i.id} />
                     <span>{i.name}</span>
-                    <Show when={i.id === "librecode"}>
-                      <div class="text-14-regular text-text-weak">{language.t("dialog.provider.librecode.tagline")}</div>
-                    </Show>
-                    <Show when={i.id === "librecode"}>
-                      <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                    </Show>
-                    <Show when={i.id === "librecode-go"}>
-                      <>
-                        <div class="text-14-regular text-text-weak">
-                          {language.t("dialog.provider.librecodeGo.tagline")}
-                        </div>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </>
-                    </Show>
-                    <Show when={i.id === "anthropic"}>
-                      <div class="text-14-regular text-text-weak">{language.t("dialog.provider.anthropic.note")}</div>
-                    </Show>
                   </div>
                 )}
               </List>
