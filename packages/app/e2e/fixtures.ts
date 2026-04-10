@@ -106,7 +106,7 @@ async function seedStorage(page: Page, input: { directory: string; extra?: strin
     localStorage.setItem(
       "librecode.global.dat:model",
       JSON.stringify({
-        recent: [{ providerID: "librecode", modelID: "big-pickle" }],
+        recent: [{ providerID: "litellm", modelID: "test-model" }],
         user: [],
         variant: {},
       }),

@@ -2222,11 +2222,11 @@ export default function Layout(props: ParentProps) {
                 </div>
               </div>
               <div data-component="getting-started-actions">
-                <Button size="large" icon="plus-small" onClick={connectProvider}>
-                  {language.t("command.provider.connect")}
+                <Button size="large" icon="arrow-right" onClick={() => window.open("https://ollama.com", "_blank")}>
+                  Install Ollama
                 </Button>
-                <Button size="large" variant="ghost" onClick={() => setStore("gettingStartedDismissed", true)}>
-                  {language.t("toast.update.action.notYet")}
+                <Button size="large" variant="ghost" icon="plus-small" onClick={connectProvider}>
+                  {language.t("command.provider.connect")}
                 </Button>
               </div>
             </div>

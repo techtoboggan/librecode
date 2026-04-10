@@ -145,7 +145,7 @@ try {
   } else {
     Object.assign(process.env, serverEnv)
     process.env.AGENT = "1"
-    process.env.OPENCODE = "1"
+    process.env.LIBRECODE = "1"
     process.env.LIBRECODE_PID = String(process.pid)
 
     const log = await import("../../librecode/src/util/log")

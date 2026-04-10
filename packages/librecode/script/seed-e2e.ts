@@ -1,10 +1,10 @@
 const dir = process.env.LIBRECODE_E2E_PROJECT_DIR ?? process.cwd()
 const title = process.env.LIBRECODE_E2E_SESSION_TITLE ?? "E2E Session"
 const text = process.env.LIBRECODE_E2E_MESSAGE ?? "Seeded for UI e2e"
-const model = process.env.LIBRECODE_E2E_MODEL ?? "librecode/gpt-5-nano"
+const model = process.env.LIBRECODE_E2E_MODEL ?? "litellm/test-model"
 const parts = model.split("/")
-const providerID = parts[0] ?? "librecode"
-const modelID = parts[1] ?? "gpt-5-nano"
+const providerID = parts[0] ?? "litellm"
+const modelID = parts[1] ?? "test-model"
 const now = Date.now()
 
 const seed = async () => {

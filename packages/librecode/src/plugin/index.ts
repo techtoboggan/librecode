@@ -12,6 +12,7 @@ import { Session } from "../session"
 import { NamedError } from "@librecode/util/error"
 import { CopilotAuthPlugin } from "./copilot"
 import { LiteLLMAuthPlugin } from "./litellm"
+import { OllamaAuthPlugin } from "./ollama"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -19,7 +20,7 @@ export namespace Plugin {
   const BUILTIN = ["librecode-anthropic-auth@0.0.13"]
 
   // Built-in plugins that are directly imported (not installed from npm)
-  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin]
+  const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
 
   const state = Instance.state(async () => {
     const client = createOpencodeClient({

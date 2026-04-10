@@ -98,8 +98,6 @@ export const dict = {
   "dialog.provider.group.popular": "Popular",
   "dialog.provider.group.other": "Other",
   "dialog.provider.tag.recommended": "Recommended",
-  "dialog.provider.librecode.note": "Curated models including Claude, GPT, Gemini and more",
-  "dialog.provider.librecode.tagline": "Reliable optimized models",
   "dialog.provider.anthropic.note": "Direct access to Claude models, including Pro and Max",
   "dialog.provider.copilot.note": "AI models for coding assistance via GitHub Copilot",
   "dialog.provider.openai.note": "GPT models for fast, capable general AI tasks",
@@ -114,8 +112,7 @@ export const dict = {
   "dialog.model.manage.description": "Customize which models appear in the model selector.",
   "dialog.model.manage.provider.toggle": "Toggle all {{provider}} models",
 
-  "dialog.model.unpaid.freeModels.title": "Connect a provider to see available models",
-  "dialog.model.unpaid.addMore.title": "Add more models from popular providers",
+  "dialog.model.unpaid.addMore.title": "Connect a provider",
 
   "dialog.provider.viewAll": "Show more providers",
 
@@ -660,9 +657,9 @@ export const dict = {
   "sidebar.help": "Help",
   "sidebar.workspaces.enable": "Enable workspaces",
   "sidebar.workspaces.disable": "Disable workspaces",
-  "sidebar.gettingStarted.title": "Getting started",
-  "sidebar.gettingStarted.line1": "Connect a provider like Anthropic, OpenAI, or LiteLLM to get started.",
-  "sidebar.gettingStarted.line2": "Connect any provider to use models, inc. Claude, GPT, Gemini etc.",
+  "sidebar.gettingStarted.title": "Get started with local models",
+  "sidebar.gettingStarted.line1": "Install Ollama or start a LiteLLM server to run models locally on your machine.",
+  "sidebar.gettingStarted.line2": "Or connect a cloud provider if you prefer.",
   "sidebar.project.recentSessions": "Recent sessions",
   "sidebar.project.viewAllSessions": "View all sessions",
   "sidebar.project.clearNotifications": "Clear notifications",
