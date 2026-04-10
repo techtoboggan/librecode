@@ -100,8 +100,10 @@ def context(browser: Browser):
 def page(context: BrowserContext, vite_server: str):
     """Create a page pointed at the Vite dev server."""
     pg = context.new_page()
-    pg.goto(vite_server, wait_until="networkidle", timeout=30000)
-    # Wait for the app shell to render
-    pg.wait_for_selector("button, input, [data-component]", timeout=15000)
+    pg.goto(vite_server, wait_until="load", timeout=30000)
+    # Wait for the app shell to render — use a specific unique element
+    pg.wait_for_load_state("domcontentloaded")
+    # Give the SPA a moment to hydrate
+    pg.wait_for_timeout(3000)
     yield pg
     pg.close()

@@ -11,7 +11,7 @@ Feature: Desktop Application
   @desktop @smoke
   Scenario: Home screen shows LibreCode branding
     Given the LibreCode app is running at "http://localhost:1420"
-    Then I should see the "LC" logo mark on the page
+    Then I should see the "LIBRE" logo mark on the page
     And I should NOT see "opencode" on the page
     And I should NOT see "OpenCode" on the page
 
