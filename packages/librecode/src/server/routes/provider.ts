@@ -263,6 +263,7 @@ export const ProviderRoutes = lazy(() =>
       ),
       async (c) => {
         const { network } = c.req.valid("json")
+        console.log(`[scan] POST /provider/scan called (network=${network})`)
 
         const KNOWN_PORTS = [
           { port: 4000, name: "LiteLLM" },
@@ -278,36 +279,84 @@ export const ProviderRoutes = lazy(() =>
 
         type Server = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
 
+        /** TCP port check — fast way to see if anything is listening */
+        async function isPortOpen(host: string, port: number): Promise<boolean> {
+          return new Promise((resolve) => {
+            const timer = setTimeout(() => resolve(false), 1500)
+            try {
+              // Use Bun's TCP connect for port checking
+              Bun.connect({
+                hostname: host,
+                port,
+                socket: {
+                  open(socket) {
+                    clearTimeout(timer)
+                    socket.end()
+                    resolve(true)
+                  },
+                  data() {},
+                  error() {
+                    clearTimeout(timer)
+                    resolve(false)
+                  },
+                  close() {},
+                },
+              }).catch(() => {
+                clearTimeout(timer)
+                resolve(false)
+              })
+            } catch {
+              clearTimeout(timer)
+              resolve(false)
+            }
+          })
+        }
+
         async function probeEndpoint(url: string): Promise<Array<{ id: string; name: string }>> {
           const controller = new AbortController()
           const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
           try {
             const res = await fetch(url, { signal: controller.signal })
             clearTimeout(timeout)
-            if (!res.ok) return []
+            if (!res.ok) {
+              console.log(`[scan] ${url} -> ${res.status}`)
+              return []
+            }
             const data = await res.json()
             // OpenAI format: { data: [{ id }] }
             if (data?.data && Array.isArray(data.data)) {
-              return data.data
+              const models = data.data
                 .filter((m: any) => m.id)
                 .map((m: any) => ({ id: m.id, name: m.id }))
+              console.log(`[scan] ${url} -> ${models.length} models (openai format)`)
+              return models
             }
             // Ollama native format: { models: [{ name, model }] }
             if (data?.models && Array.isArray(data.models)) {
-              return data.models
+              const models = data.models
                 .filter((m: any) => m.name || m.model)
                 .map((m: any) => ({ id: m.name ?? m.model, name: m.name ?? m.model }))
+              console.log(`[scan] ${url} -> ${models.length} models (ollama format)`)
+              return models
             }
+            console.log(`[scan] ${url} -> 200 but unrecognized format`)
             return []
-          } catch {
+          } catch (e: any) {
+            console.log(`[scan] ${url} -> error: ${e?.code ?? e?.message ?? e}`)
             return []
           }
         }
 
-        async function probe(baseUrl: string, name: string): Promise<Server | null> {
-          // Try OpenAI-compatible endpoint first
+        async function probe(host: string, port: number, name: string): Promise<Server | null> {
+          // Step 1: TCP port check (fast fail)
+          const open = await isPortOpen(host, port)
+          if (!open) return null
+          console.log(`[scan] ${host}:${port} -> TCP open, probing HTTP...`)
+
+          const baseUrl = `http://${host}:${port}`
+          // Step 2: Try OpenAI-compatible endpoint
           let models = await probeEndpoint(`${baseUrl}/v1/models`)
-          // Fallback to Ollama native endpoint
+          // Step 3: Fallback to Ollama native endpoint
           if (models.length === 0) {
             models = await probeEndpoint(`${baseUrl}/api/tags`)
           }
@@ -318,20 +367,24 @@ export const ProviderRoutes = lazy(() =>
         const servers: Server[] = []
         const seen = new Set<string>()
 
+        console.log("[scan] Starting local scan...")
+
         // Always scan localhost
         await Promise.allSettled(
           KNOWN_PORTS.map(async (entry) => {
-            const url = `http://localhost:${entry.port}`
-            const server = await probe(url, entry.name)
-            if (server && !seen.has(url)) {
-              seen.add(url)
+            const server = await probe("localhost", entry.port, entry.name)
+            if (server && !seen.has(server.url)) {
+              seen.add(server.url)
               servers.push(server)
             }
           }),
         )
 
+        console.log(`[scan] Local scan done. Found ${servers.length} servers.`)
+
         // Optionally scan LAN
         if (network) {
+          console.log("[scan] Starting network scan...")
           const networkPorts = [4000, 11434, 8000, 8080]
           const subnets = ["192.168.1", "192.168.0", "192.168.86", "10.0.0", "10.0.1"]
           const hostRange = 30
@@ -346,20 +399,22 @@ export const ProviderRoutes = lazy(() =>
             }
           }
 
+          console.log(`[scan] Scanning ${targets.length} network targets...`)
           for (let i = 0; i < targets.length; i += BATCH) {
             const batch = targets.slice(i, i + BATCH)
             await Promise.allSettled(
               batch.map(async (t) => {
                 const url = `http://${t.host}:${t.port}`
                 if (seen.has(url)) return
-                const server = await probe(url, `${t.name} (${t.host})`)
+                const server = await probe(t.host, t.port, `${t.name} (${t.host})`)
                 if (server) {
-                  seen.add(url)
+                  seen.add(server.url)
                   servers.push(server)
                 }
               }),
             )
           }
+          console.log(`[scan] Network scan done. Total servers: ${servers.length}`)
         }
 
         return c.json(servers)
