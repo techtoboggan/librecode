@@ -228,5 +228,123 @@ export const ProviderRoutes = lazy(() =>
         })
         return c.json(true)
       },
+    )
+    .post(
+      "/scan",
+      describeRoute({
+        summary: "Scan for local model servers",
+        description: "Scan localhost and optionally the local network for OpenAI-compatible model servers.",
+        operationId: "provider.scan",
+        responses: {
+          200: {
+            description: "Discovered servers",
+            content: {
+              "application/json": {
+                schema: resolver(
+                  z.array(
+                    z.object({
+                      url: z.string(),
+                      serverName: z.string(),
+                      modelCount: z.number(),
+                      models: z.array(z.object({ id: z.string(), name: z.string() })),
+                    }),
+                  ),
+                ),
+              },
+            },
+          },
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          network: z.boolean().optional().meta({ description: "Also scan LAN hosts" }),
+        }),
+      ),
+      async (c) => {
+        const { network } = c.req.valid("json")
+
+        const KNOWN_PORTS = [
+          { port: 4000, name: "LiteLLM" },
+          { port: 11434, name: "Ollama" },
+          { port: 8000, name: "vLLM" },
+          { port: 8080, name: "llama.cpp" },
+          { port: 3000, name: "LocalAI" },
+          { port: 5000, name: "Model Server" },
+          { port: 8001, name: "Model Server" },
+          { port: 9000, name: "Model Server" },
+        ]
+        const TIMEOUT_MS = 3000
+
+        type Server = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
+
+        async function probe(baseUrl: string, name: string): Promise<Server | null> {
+          const controller = new AbortController()
+          const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
+          try {
+            const res = await fetch(`${baseUrl}/v1/models`, {
+              headers: { "Content-Type": "application/json" },
+              signal: controller.signal,
+            })
+            clearTimeout(timeout)
+            if (!res.ok) return null
+            const data = (await res.json()) as { data?: Array<{ id: string }> }
+            const models = (data.data ?? []).map((m) => ({ id: m.id, name: m.id }))
+            if (models.length === 0) return null
+            return { url: baseUrl, serverName: name, modelCount: models.length, models }
+          } catch {
+            return null
+          }
+        }
+
+        const servers: Server[] = []
+        const seen = new Set<string>()
+
+        // Always scan localhost
+        await Promise.allSettled(
+          KNOWN_PORTS.map(async (entry) => {
+            const url = `http://localhost:${entry.port}`
+            const server = await probe(url, entry.name)
+            if (server && !seen.has(url)) {
+              seen.add(url)
+              servers.push(server)
+            }
+          }),
+        )
+
+        // Optionally scan LAN
+        if (network) {
+          const networkPorts = [4000, 11434, 8000, 8080]
+          const subnets = ["192.168.1", "192.168.0", "192.168.86", "10.0.0", "10.0.1"]
+          const hostRange = 30
+          const BATCH = 50
+
+          const targets: Array<{ host: string; port: number; name: string }> = []
+          for (const sub of subnets) {
+            for (let i = 1; i <= hostRange; i++) {
+              for (const entry of KNOWN_PORTS.filter((p) => networkPorts.includes(p.port))) {
+                targets.push({ host: `${sub}.${i}`, port: entry.port, name: entry.name })
+              }
+            }
+          }
+
+          for (let i = 0; i < targets.length; i += BATCH) {
+            const batch = targets.slice(i, i + BATCH)
+            await Promise.allSettled(
+              batch.map(async (t) => {
+                const url = `http://${t.host}:${t.port}`
+                if (seen.has(url)) return
+                const server = await probe(url, `${t.name} (${t.host})`)
+                if (server) {
+                  seen.add(url)
+                  servers.push(server)
+                }
+              }),
+            )
+          }
+        }
+
+        return c.json(servers)
+      },
     ),
 )

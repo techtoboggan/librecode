@@ -6,7 +6,9 @@ import { TextField } from "@librecode/ui/text-field"
 import { showToast } from "@librecode/ui/toast"
 import { batch, createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
+import { useServer } from "@/context/server"
 
 type DiscoveredModel = {
   id: string
@@ -30,8 +32,6 @@ type WizardStep =
   | "models" // Show models from selected server
   | "added" // Models added successfully
   | "error"
-
-const CHECK_TIMEOUT_MS = 3000
 
 /** Well-known ports and what typically runs on them */
 const KNOWN_PORTS: Array<{ port: number; name: string }> = [
@@ -57,7 +57,10 @@ function guessServerName(url: string): string {
   }
 }
 
-async function fetchModels(baseUrl: string, apiKey?: string): Promise<{ id: string; name: string }[]> {
+const CHECK_TIMEOUT_MS = 3000
+
+/** Fetch models from a server URL (used for manual connect only) */
+async function fetchModels(baseUrl: string, apiKey?: string): Promise<Array<{ id: string; name: string }>> {
   const url = baseUrl.replace(/\/+$/, "")
   const headers: Record<string, string> = { "Content-Type": "application/json" }
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
@@ -82,120 +85,10 @@ function makeProviderID(url: string): string {
   return `litellm-${url.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
 }
 
-function sortServers(servers: DiscoveredServer[]): void {
-  servers.sort((a, b) => {
-    if (a.connected !== b.connected) return a.connected ? 1 : -1
-    // localhost first, then by URL
-    const aLocal = a.url.includes("localhost") || a.url.includes("127.0.0.1")
-    const bLocal = b.url.includes("localhost") || b.url.includes("127.0.0.1")
-    if (aLocal !== bLocal) return aLocal ? -1 : 1
-    return a.url.localeCompare(b.url)
-  })
-}
-
-/** Scan known ports on localhost */
-async function scanLocalServers(
-  connectedProviders: Set<string>,
-  onProgress?: (checked: number, total: number, found: DiscoveredServer[]) => void,
-): Promise<DiscoveredServer[]> {
-  const servers: DiscoveredServer[] = []
-  const total = KNOWN_PORTS.length
-
-  await Promise.allSettled(
-    KNOWN_PORTS.map(async (entry, index) => {
-      const url = `http://localhost:${entry.port}`
-      const models = await fetchModels(url)
-      if (models.length > 0) {
-        servers.push({
-          url,
-          modelCount: models.length,
-          models,
-          serverName: entry.name,
-          connected: connectedProviders.has(makeProviderID(url)),
-        })
-      }
-      onProgress?.(index + 1, total, [...servers])
-    }),
-  )
-
-  sortServers(servers)
-  return servers
-}
-
-/** Detect LAN IP range from WebRTC or common subnets, then scan known ports on each host */
-async function scanNetworkServers(
-  connectedProviders: Set<string>,
-  existingServers: DiscoveredServer[],
-  onProgress?: (checked: number, total: number, found: DiscoveredServer[]) => void,
-): Promise<DiscoveredServer[]> {
-  // Start with existing localhost results
-  const servers: DiscoveredServer[] = [...existingServers]
-  const seen = new Set(servers.map((s) => s.url))
-
-  // Detect local IP to find the subnet
-  let subnet = "192.168.1"
-  try {
-    const resp = await fetch("http://localhost:4096/global/health").catch(() => null)
-    // If the librecode server is running, we can try to infer the subnet from the
-    // network interfaces. Fallback: scan common subnets.
-  } catch {
-    // ignore
-  }
-
-  // Try common private subnets — scan a focused range (x.x.x.1-50) on key ports only
-  // Use fewer ports for network scan to keep it fast
-  const networkPorts = [4000, 11434, 8000, 8080]
-  const subnets = ["192.168.1", "192.168.0", "192.168.86", "10.0.0", "10.0.1"]
-
-  // Build host list: .1 through .30 on each subnet (150 hosts × 4 ports = 600 checks)
-  const hostRange = 30
-  const targets: Array<{ host: string; port: number; name: string }> = []
-  for (const sub of subnets) {
-    for (let i = 1; i <= hostRange; i++) {
-      for (const entry of KNOWN_PORTS.filter((p) => networkPorts.includes(p.port))) {
-        targets.push({ host: `${sub}.${i}`, port: entry.port, name: entry.name })
-      }
-    }
-  }
-
-  const total = targets.length
-  let checked = 0
-
-  // Scan in batches of 50 to avoid overwhelming the network
-  const BATCH_SIZE = 50
-  for (let i = 0; i < targets.length; i += BATCH_SIZE) {
-    const batch = targets.slice(i, i + BATCH_SIZE)
-    await Promise.allSettled(
-      batch.map(async (target) => {
-        const url = `http://${target.host}:${target.port}`
-        if (seen.has(url)) {
-          checked++
-          return
-        }
-        const models = await fetchModels(url)
-        checked++
-        if (models.length > 0) {
-          seen.add(url)
-          servers.push({
-            url,
-            modelCount: models.length,
-            models,
-            serverName: `${target.name} (${target.host})`,
-            connected: connectedProviders.has(makeProviderID(url)),
-          })
-        }
-        onProgress?.(checked, total, [...servers])
-      }),
-    )
-    onProgress?.(checked, total, [...servers])
-  }
-
-  sortServers(servers)
-  return servers
-}
-
 export function LiteLLMWizard() {
   const globalSync = useGlobalSync()
+  const globalSDK = useGlobalSDK()
+  const server = useServer()
 
   const [step, setStep] = createSignal<WizardStep>("idle")
   const [url, setUrl] = createSignal("http://localhost:4000")
@@ -209,6 +102,34 @@ export function LiteLLMWizard() {
   const selectedCount = () => models.filter((m) => m.selected).length
 
   const connectedProviderIDs = createMemo(() => new Set(globalSync.data.provider.connected ?? []))
+
+  /** Call the backend scan endpoint — avoids CORS issues with LAN hosts */
+  async function callScanEndpoint(network: boolean): Promise<Array<DiscoveredServer>> {
+    const httpBase = server.current?.http
+    const baseUrl = httpBase?.url ?? globalSDK.url
+    const authHeaders: Record<string, string> = { "Content-Type": "application/json" }
+    if (httpBase?.password) {
+      authHeaders["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
+    }
+
+    const res = await fetch(`${baseUrl}/provider/scan`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ network }),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as Array<{
+      url: string
+      serverName: string
+      modelCount: number
+      models: Array<{ id: string; name: string }>
+    }>
+    const connected = connectedProviderIDs()
+    return data.map((s) => ({
+      ...s,
+      connected: connected.has(makeProviderID(s.url)),
+    }))
+  }
 
   const setModelSelected = (index: number, selected: boolean) => {
     setModels(index, "selected", selected)
@@ -230,37 +151,39 @@ export function LiteLLMWizard() {
   const handleScan = async () => {
     setStep("scanning")
     setError("")
-    setScanProgress({ checked: 0, total: KNOWN_PORTS.length })
+    setScanProgress({ checked: 0, total: 0 })
 
-    const found = await scanLocalServers(connectedProviderIDs(), (checked, total, foundSoFar) => {
-      setScanProgress({ checked, total })
-      setServers([...foundSoFar])
-    })
-
-    if (found.length === 0) {
+    try {
+      const found = await callScanEndpoint(false)
+      if (found.length === 0) {
+        setStep("not-found")
+      } else {
+        setServers([...found])
+        setStep("idle")
+      }
+    } catch {
+      setError("Scan failed — is the LibreCode server running?")
       setStep("not-found")
-    } else {
-      setServers([...found])
-      setStep("idle")
     }
   }
 
   const handleNetworkScan = async () => {
     setStep("scanning")
     setError("")
-    const existing = [...servers]
+    setScanProgress({ checked: 0, total: 0 })
 
-    const found = await scanNetworkServers(connectedProviderIDs(), existing, (checked, total, foundSoFar) => {
-      setScanProgress({ checked, total })
-      setServers([...foundSoFar])
-    })
-
-    if (found.length === 0) {
-      setError("No additional servers found on the local network.")
+    try {
+      const found = await callScanEndpoint(true)
+      if (found.length === 0) {
+        setError("No servers found on the local network.")
+        setStep("not-found")
+      } else {
+        setServers([...found])
+        setStep("idle")
+      }
+    } catch {
+      setError("Network scan failed — is the LibreCode server running?")
       setStep("not-found")
-    } else {
-      setServers([...found])
-      setStep("idle")
     }
   }
 
@@ -343,18 +266,9 @@ export function LiteLLMWizard() {
         <Switch>
           {/* Scanning ports */}
           <Match when={step() === "scanning"}>
-            <div class="flex flex-col gap-2 w-full">
-              <div class="flex items-center gap-2 text-13-regular text-text-weak">
-                <Spinner class="size-3.5" />
-                <span>
-                  Scanning{scanProgress().total > KNOWN_PORTS.length ? " network" : " local"} ports... ({scanProgress().checked}/{scanProgress().total})
-                </span>
-              </div>
-              <Show when={servers.length > 0}>
-                <div class="text-13-regular text-text-base">
-                  Found {servers.length} server{servers.length === 1 ? "" : "s"} so far...
-                </div>
-              </Show>
+            <div class="flex items-center gap-2 text-13-regular text-text-weak">
+              <Spinner class="size-3.5" />
+              <span>Scanning for model servers...</span>
             </div>
           </Match>
 
