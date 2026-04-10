@@ -2,54 +2,105 @@
   <img src="assets/brand/logo-dark.svg" alt="LibreCode" width="400">
 </p>
 
-<h3 align="center">Free Software. Modern Code.</h3>
+<h3 align="center">Run AI coding agents locally.</h3>
 
 <p align="center">
-  AI-powered development tool for the terminal, desktop, and beyond.
+  Local-first agentic coding assistant for the terminal and desktop.<br>
+  No account required. No cloud dependency. Your models, your machine.
 </p>
 
 <p align="center">
   <a href="https://github.com/techtoboggan/librecode/actions/workflows/ci.yml"><img src="https://github.com/techtoboggan/librecode/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/techtoboggan/librecode/releases"><img src="https://img.shields.io/github/v/release/techtoboggan/librecode?color=0D9488&label=release" alt="Release"></a>
+  <a href="https://www.npmjs.com/package/@librecode/plugin"><img src="https://img.shields.io/npm/v/@librecode/plugin?color=0D9488&label=plugin" alt="npm"></a>
   <a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-0D9488" alt="MIT License"></a>
 </p>
 
 <p align="center">
   <a href="https://librecode.app">Downloads</a> &bull;
   <a href="https://librecode.io">Website</a> &bull;
+  <a href="https://github.com/techtoboggan/librecode/blob/main/docs/providers.md">Provider Guide</a> &bull;
   <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md">Roadmap</a>
 </p>
 
 ---
 
-<p align="center">
-  <img src="assets/mascot/tater.svg" alt="Tater - LibreCode mascot" width="180">
-</p>
+## Quick Start
+
+```bash
+# 1. Install Ollama (or any local model server)
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull llama3.2
+
+# 2. Install LibreCode
+# Fedora/RHEL
+sudo dnf copr enable techtoboggan/librecode && sudo dnf install librecode
+# Arch
+yay -S librecode
+# Nix
+nix run github:techtoboggan/librecode
+
+# 3. Start coding
+librecode
+```
+
+LibreCode auto-discovers Ollama, LiteLLM, vLLM, and other local model servers. No API keys needed for local models.
 
 ## What is LibreCode?
 
-LibreCode is an agentic coding assistant that lives in your terminal. It connects to LLM providers (Anthropic, OpenAI, Google, local models, and more), understands your codebase, and helps you build software faster.
+LibreCode is an agentic coding assistant that understands your codebase and helps you build software faster. It runs in your terminal or as a desktop app.
 
-**Why does this fork exist?**
+**Local-first by design:**
 
-- **Proper Linux packaging** &mdash; COPR, AUR, Nix flake. Not just static `.deb`/`.rpm` downloads.
-- **Formalized agentic SDLC** &mdash; a clean, well-structured agent loop instead of spaghetti.
-- **Community-first** &mdash; rebuilt CI/CD, stripped vendor lock-in, open development.
+- **Auto-discovers local servers** &mdash; Ollama, LiteLLM, vLLM, llama.cpp on known ports
+- **No account required** &mdash; works entirely offline with local models
+- **Cloud when you want it** &mdash; connect Anthropic, OpenAI, or any provider via plugins
+- **Community provider ecosystem** &mdash; install only the providers you need via npm
+
+**Why this fork?**
+
+LibreCode is a fork of [opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27), rebuilt with:
+
+- **Local-first architecture** &mdash; local model servers are primary, cloud is optional
+- **Proper Linux packaging** &mdash; COPR, AUR, Nix flake
+- **Modular provider system** &mdash; core ships lean, community maintains cloud providers
+- **Clean codebase** &mdash; Effect-ts removed, namespaces migrated, 1358 tests passing
+
+## Providers
+
+LibreCode ships with built-in support for local model servers and enterprise providers:
+
+| Provider | Type | Default Port |
+|----------|------|-------------|
+| **Ollama** | Local | 11434 |
+| **LiteLLM** | Local proxy | 4000 |
+| **Amazon Bedrock** | Enterprise | &mdash; |
+| **Azure OpenAI** | Enterprise | &mdash; |
+
+Cloud providers (Anthropic, OpenAI, Google, etc.) are available as community plugins:
+
+```json
+{
+  "plugin": ["@librecode/provider-anthropic@latest"]
+}
+```
+
+See the [Provider Guide](docs/providers.md) for adding new providers.
 
 ## Install
 
-### Quick install
+### Package managers
 
 ```bash
-# Nix (recommended)
-nix run github:techtoboggan/librecode
-
 # Fedora/RHEL (COPR)
 sudo dnf copr enable techtoboggan/librecode
 sudo dnf install librecode
 
 # Arch (AUR)
 yay -S librecode
+
+# Nix
+nix run github:techtoboggan/librecode
 ```
 
 ### From source
@@ -57,12 +108,8 @@ yay -S librecode
 ```bash
 git clone https://github.com/techtoboggan/librecode.git
 cd librecode
-
-# Install dependencies (auto-detects your distro)
-scripts/dev-setup.sh --deps
-
-# Set up isolated dev environment
-source scripts/dev-setup.sh
+scripts/dev-setup.sh --deps    # Auto-detects your distro
+source scripts/dev-setup.sh    # Isolated dev environment
 bun install
 bun run dev
 ```
@@ -72,7 +119,7 @@ bun run dev
 Download from [librecode.app](https://librecode.app) or build locally:
 
 ```bash
-scripts/dev-setup.sh --deps    # Installs Rust + GTK + WebKit + everything
+scripts/dev-setup.sh --deps    # Installs Rust + GTK + WebKit
 source scripts/dev-setup.sh
 bun install
 bun run dev:desktop
@@ -85,7 +132,7 @@ source scripts/dev-setup.sh    # Isolated dev data in .dev/
 bun run dev                    # CLI
 bun run dev:desktop            # Desktop (Tauri)
 bun run typecheck              # Type checking
-bun run test                   # Tests
+bun test --timeout 30000       # Tests (1358 passing)
 bun run lint                   # Biome linter
 ```
 
@@ -93,34 +140,27 @@ See [docs/development.md](docs/development.md) for the full guide.
 
 ## Architecture
 
+TypeScript monorepo using Bun runtime, Solid.js UI, Tauri desktop.
+
 ```
-librecode/
-  packages/
-    librecode/    Core CLI agent (TypeScript, Effect-ts, Bun)
-    desktop/      Tauri desktop app (Rust + Solid.js)
-    app/          Shared UI application
-    ui/           Component library
-    sdk/          TypeScript SDK
-    util/         Shared utilities
-    plugin/       Plugin system
-    script/       Build tooling
-  sites/
-    app/          librecode.app - download hub
-    io/           librecode.io - project website
-  packaging/
-    PKGBUILD          AUR package
-    librecode.spec.in RPM spec for COPR
-  nix/
-    librecode.nix Nix derivation
-    desktop.nix   Desktop derivation
+packages/
+  librecode/    Core CLI agent
+  desktop/      Tauri desktop app (Rust + Solid.js)
+  app/          Shared UI application
+  ui/           Component library
+  sdk/          TypeScript SDK (@librecode/sdk on npm)
+  plugin/       Plugin system (@librecode/plugin on npm)
+  util/         Shared utilities
+  script/       Build tooling
 ```
 
 ## Contributing
 
-- [docs/development.md](docs/development.md) — Local dev setup (isolated environment, Nix shells, deps)
-- [docs/architecture.md](docs/architecture.md) — System architecture (agent loop, providers, tools, permissions)
-- [PLAN.md](PLAN.md) — Roadmap and refactoring priorities
-- [CLAUDE.md](CLAUDE.md) — Coding standards and migration playbooks
+- [docs/development.md](docs/development.md) &mdash; Local dev setup
+- [docs/architecture.md](docs/architecture.md) &mdash; System architecture
+- [docs/providers.md](docs/providers.md) &mdash; Adding new providers
+- [PLAN.md](PLAN.md) &mdash; Roadmap
+- [CLAUDE.md](CLAUDE.md) &mdash; Coding standards
 
 ## License
 
@@ -129,5 +169,5 @@ librecode/
 ---
 
 <p align="center">
-  <sub>Built with care by <a href="https://github.com/techtoboggan">techtoboggan</a> and Tater the winged monkey.</sub>
+  <sub>Built by <a href="https://github.com/techtoboggan">techtoboggan</a>. Local models first.</sub>
 </p>
