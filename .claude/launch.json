@@ -2,6 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "librecode-web",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["--cwd", "packages/app", "dev"],
+      "port": 3000
+    },
+    {
       "name": "librecode-io",
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "3100", "--directory", "sites/io"],

@@ -11,21 +11,11 @@ import { useGlobalSync } from "@/context/global-sync"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { DialogSelectProvider } from "./dialog-select-provider"
 import { DialogCustomProvider } from "./dialog-custom-provider"
+import { LiteLLMWizard } from "./litellm-wizard"
 import { SettingsList } from "./settings-list"
 
 type ProviderSource = "env" | "api" | "config" | "custom"
 type ProviderItem = ReturnType<ReturnType<typeof useProviders>["connected"]>[number]
-
-const PROVIDER_NOTES = [
-  { match: (id: string) => id === "librecode", key: "dialog.provider.librecode.note" },
-  { match: (id: string) => id === "librecode-go", key: "dialog.provider.librecodeGo.tagline" },
-  { match: (id: string) => id === "anthropic", key: "dialog.provider.anthropic.note" },
-  { match: (id: string) => id.startsWith("github-copilot"), key: "dialog.provider.copilot.note" },
-  { match: (id: string) => id === "openai", key: "dialog.provider.openai.note" },
-  { match: (id: string) => id === "google", key: "dialog.provider.google.note" },
-  { match: (id: string) => id === "openrouter", key: "dialog.provider.openrouter.note" },
-  { match: (id: string) => id === "vercel", key: "dialog.provider.vercel.note" },
-] as const
 
 export const SettingsProviders: Component = () => {
   const dialog = useDialog()
@@ -34,11 +24,7 @@ export const SettingsProviders: Component = () => {
   const globalSync = useGlobalSync()
   const providers = useProviders()
 
-  const connected = createMemo(() => {
-    return providers
-      .connected()
-      .filter((p) => p.id !== "librecode" || Object.values(p.models).find((m) => m.cost?.input))
-  })
+  const connected = createMemo(() => providers.connected())
 
   const popular = createMemo(() => {
     const connectedIDs = new Set(connected().map((p) => p.id))
@@ -70,8 +56,6 @@ export const SettingsProviders: Component = () => {
   }
 
   const canDisconnect = (item: ProviderItem) => source(item) !== "env"
-
-  const note = (id: string) => PROVIDER_NOTES.find((item) => item.match(id))?.key
 
   const isConfigCustom = (providerID: string) => {
     const provider = globalSync.data.config.provider?.[providerID]
@@ -135,6 +119,8 @@ export const SettingsProviders: Component = () => {
       </div>
 
       <div class="flex flex-col gap-8 max-w-[720px]">
+        <LiteLLMWizard />
+
         <div class="flex flex-col gap-1" data-component="connected-providers-section">
           <h3 class="text-14-medium text-text-strong pb-2">{language.t("settings.providers.section.connected")}</h3>
           <SettingsList>
@@ -179,20 +165,9 @@ export const SettingsProviders: Component = () => {
             <For each={popular()}>
               {(item) => (
                 <div class="flex flex-wrap items-center justify-between gap-4 min-h-16 py-3 border-b border-border-weak-base last:border-none">
-                  <div class="flex flex-col min-w-0">
-                    <div class="flex items-center gap-x-3">
-                      <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
-                      <span class="text-14-medium text-text-strong">{item.name}</span>
-                      <Show when={item.id === "librecode"}>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </Show>
-                      <Show when={item.id === "librecode-go"}>
-                        <Tag>{language.t("dialog.provider.tag.recommended")}</Tag>
-                      </Show>
-                    </div>
-                    <Show when={note(item.id)}>
-                      {(key) => <span class="text-12-regular text-text-weak pl-8">{language.t(key())}</span>}
-                    </Show>
+                  <div class="flex items-center gap-x-3 min-w-0">
+                    <ProviderIcon id={item.id} class="size-5 shrink-0 icon-strong-base" />
+                    <span class="text-14-medium text-text-strong">{item.name}</span>
                   </div>
                   <Button
                     size="large"
