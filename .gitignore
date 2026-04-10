@@ -23,6 +23,12 @@ target
 .scripts
 .direnv/
 
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/report.html
+
 # Local dev files
 .dev/
 opencode-dev

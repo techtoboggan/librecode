@@ -7,7 +7,7 @@
 ## Project Overview
 
 LibreCode is a fork of opencode v1.2.27 — an AI-powered terminal coding agent. TypeScript
-monorepo using Bun runtime, Effect-ts (being migrated away), Solid.js UI, Tauri desktop.
+monorepo using Bun runtime, Solid.js UI, Tauri desktop. Effect-ts has been fully removed.
 
 **Key files:**
 - `PLAN.md` — master roadmap with phase tracking
@@ -96,16 +96,15 @@ cd packages/librecode && bun test test/config/  # test a directory
 
 ## Architecture Constraints
 
-### Effect-ts (ADR-001: migrating away)
-- **Do NOT add new Effect usage.** All new services must use plain async/await.
-- **Do NOT import from `effect` in new files.**
-- Existing Effect services (Account, Auth, Permission, Question) will be migrated
-  to plain classes per ADR-001. See Migration Playbook 2.
+### Effect-ts (ADR-001: COMPLETED)
+- Effect-ts has been **fully removed** from the codebase.
+- All services use plain async/await. The `effect` package is not a dependency.
+- Branded types use `util/brand.ts` (pure TypeScript, no Effect Schema).
 
-### Namespace Pattern (migrating away)
+### Namespace Pattern (COMPLETED)
+- All 4 namespaces (MessageV2, Provider, Session, SessionPrompt) have been
+  converted to barrel exports with type companion namespaces.
 - **Do NOT use `export namespace` in new code.** Use regular module exports.
-- Existing namespaces (Provider, SessionPrompt, Session, MessageV2) will be converted.
-  See Migration Playbook 1.
 
 ### Provider System
 - New providers MUST implement the `ProviderPlugin` interface (`src/provider/plugin-api.ts`).
@@ -263,6 +262,70 @@ cd packages/librecode && bun test test/config/  # test a directory
 5. **Add a test** that verifies every registered tool has capabilities declared.
 
 **Can be done in a single PR** since it's additive (no behavior changes).
+
+## Development Methodology
+
+### TDD/BDD Approach (MANDATORY)
+
+All UI-visible changes MUST follow this process:
+
+1. **Write a failing test FIRST** that defines the expected behavior
+2. **Run the test** — confirm it fails (proves the test is valid)
+3. **Fix the code** to make the test pass
+4. **Run the test again** — confirm it passes
+5. **Never claim something works without automated test validation**
+
+### BDD Test Framework (Python pytest-bdd)
+
+Behavior specs are in `tests/features/*.feature` (Gherkin format).
+Step implementations in `tests/steps/*.py` using Playwright for Python.
+
+```bash
+# Install deps (one-time)
+pip install -r tests/requirements.txt
+playwright install chromium
+
+# Run all BDD tests (requires app running on localhost:1420)
+pytest tests/ -v
+
+# Run smoke tests only
+pytest tests/ -m smoke
+
+# Run by domain
+pytest tests/ -m provider
+pytest tests/ -m desktop
+pytest tests/ -m models
+```
+
+### Playwright E2E BDD Helpers (TypeScript)
+
+BDD-style helpers in `packages/app/e2e/bdd/`:
+- `given.ts` — Setup helpers (app state, provider config)
+- `when.ts` — User action helpers (click, search, navigate)
+- `then.ts` — Assertion helpers (see text, not see text, dialog visible)
+
+### Test Layers
+
+| Layer | Framework | Location | Validates |
+|-------|-----------|----------|-----------|
+| Unit | bun test | `packages/librecode/test/` | Logic, pure functions |
+| Integration | bun test | `packages/librecode/test/` | Service interactions |
+| E2E (TS) | Playwright | `packages/app/e2e/` | UI flows |
+| BDD (Python) | pytest-bdd | `tests/` | User behavior specs |
+
+### When to Write Tests
+
+- **New feature**: BDD feature file + implementation tests
+- **Bug fix**: Failing test that reproduces the bug, then fix
+- **UI change**: Playwright E2E test verifying visual correctness
+- **Refactor**: Run existing tests before and after, add any missing coverage
+
+### Validation Rules
+
+- **NEVER say "it works" without running automated tests**
+- **NEVER commit UI changes without E2E test coverage**
+- **ALWAYS run `bun test` before committing**
+- **ALWAYS update PLAN.md after completing work items**
 
 ## Quality Gates
 
