@@ -10,6 +10,7 @@ import { useLocal } from "@/context/local"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { DialogSelectProvider } from "./dialog-select-provider"
+import { LiteLLMWizard } from "./litellm-wizard"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 
@@ -32,6 +33,9 @@ export const DialogSelectModelUnpaid: Component<{ model?: ModelState }> = (props
       title={language.t("dialog.model.select.title")}
       class="overflow-y-auto [&_[data-slot=dialog-body]]:overflow-visible [&_[data-slot=dialog-body]]:flex-none"
     >
+      <div class="px-2.5 pb-1.5">
+        <LiteLLMWizard />
+      </div>
       <div class="flex flex-col gap-3 px-2.5" onKeyDown={handleKeyDown}>
         <div class="text-14-medium text-text-base px-2.5">{language.t("dialog.model.unpaid.freeModels.title")}</div>
         <List

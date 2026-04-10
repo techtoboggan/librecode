@@ -155,7 +155,15 @@ impl LoadingWindow {
 /// Set the window icon from the embedded PNG so it appears in taskbars
 /// (especially on Wayland where the .desktop file icon is not always used).
 fn set_window_icon(window: &WebviewWindow) {
-    // Embed the 128x128 PNG at compile time
+    // On Linux, set the GTK default icon name so the compositor can find our icon
+    // from the XDG icon theme. This works on both X11 and Wayland.
+    #[cfg(target_os = "linux")]
+    {
+        gtk::Window::set_default_icon_name("librecode-desktop");
+    }
+
+    // Also set the window icon directly from the embedded PNG.
+    // This is the primary mechanism on Windows/macOS and a fallback on X11.
     let icon_bytes = include_bytes!("../icons/dev/128x128.png");
     match tauri::image::Image::from_bytes(icon_bytes) {
         Ok(icon) => {

@@ -42,18 +42,39 @@ if (process.platform === "linux") {
     await fs.default.copyFile(src, path.default.join(dir, `${appId}.png`)).catch(() => {})
   }
 
-  // Update the desktop file with icon
-  const desktopFile = path.default.join(desktopDir, "librecode-desktop-handler.desktop")
+  // Update the URL-handler desktop file with icon
+  const handlerDesktopFile = path.default.join(desktopDir, "librecode-desktop-handler.desktop")
   try {
-    let content = await fs.default.readFile(desktopFile, "utf-8")
+    let content = await fs.default.readFile(handlerDesktopFile, "utf-8")
     if (!content.includes("Icon=")) {
       content = content.replace("[Desktop Entry]", `[Desktop Entry]\nIcon=${appId}`)
-      await fs.default.writeFile(desktopFile, content)
+      await fs.default.writeFile(handlerDesktopFile, content)
     }
   } catch {
     // Desktop file may not exist yet on first run
   }
 
+  // Create a visible desktop file matching the Wayland app_id so compositors
+  // can find our icon. Wayland compositors look up the app_id (which equals the
+  // Cargo package name "librecode-desktop") against .desktop file basenames.
+  const appDesktopFile = path.default.join(desktopDir, `${appId}.desktop`)
+  const binaryPath = path.default.resolve("src-tauri/target/debug/librecode-desktop")
+  const appDesktopContent = [
+    "[Desktop Entry]",
+    "Type=Application",
+    "Name=LibreCode Dev",
+    `Icon=${appId}`,
+    `Exec=${binaryPath} %u`,
+    "Terminal=false",
+    "Categories=Development;",
+    `StartupWMClass=${appId}`,
+    "",
+  ].join("\n")
+  await fs.default.mkdir(desktopDir, { recursive: true })
+  await fs.default.writeFile(appDesktopFile, appDesktopContent)
+
   // Update icon cache
   await $`gtk-update-icon-cache -f -t ${path.default.join(home, ".local/share/icons/hicolor")}`.quiet().nothrow()
+  // Update desktop database so compositors pick up the new file
+  await $`update-desktop-database ${desktopDir}`.quiet().nothrow()
 }
