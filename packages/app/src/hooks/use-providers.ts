@@ -5,6 +5,7 @@ import { createMemo } from "solid-js"
 
 export const popularProviders = [
   "litellm",
+  "ollama",
   "amazon-bedrock",
   "azure",
 ]
@@ -28,12 +29,6 @@ export function useProviders() {
     connected: () => {
       const connected = new Set(providers().connected)
       return providers().all.filter((p) => connected.has(p.id))
-    },
-    paid: () => {
-      const connected = new Set(providers().connected)
-      return providers().all.filter(
-        (p) => connected.has(p.id) && (p.id !== "librecode" || Object.values(p.models).some((m) => m.cost?.input)),
-      )
     },
   }
 }

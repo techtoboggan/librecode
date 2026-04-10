@@ -42,8 +42,8 @@ export const ProviderRoutes = lazy(() =>
 
         const allProviders = await ModelsDev.get()
 
-        // Ensure LiteLLM always appears in the provider list so users can
-        // find and configure it, even before autodiscovery runs.
+        // Ensure local-first providers always appear in the provider list
+        // so users can find and configure them, even before autodiscovery runs.
         if (!allProviders["litellm"]) {
           allProviders["litellm"] = {
             id: "litellm",
@@ -51,6 +51,16 @@ export const ProviderRoutes = lazy(() =>
             api: "http://localhost:4000/v1",
             npm: "@ai-sdk/openai-compatible",
             env: ["LITELLM_API_KEY"],
+            models: {},
+          }
+        }
+        if (!allProviders["ollama"]) {
+          allProviders["ollama"] = {
+            id: "ollama",
+            name: "Ollama",
+            api: "http://localhost:11434/v1",
+            npm: "@ai-sdk/openai-compatible",
+            env: [],
             models: {},
           }
         }

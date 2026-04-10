@@ -1449,7 +1449,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 </div>
                 <div data-component="prompt-model-control">
                   <Show
-                    when={providers.paid().length > 0}
+                    when={providers.connected().length > 0}
                     fallback={
                       <TooltipKeybind
                         placement="top"

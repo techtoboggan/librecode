@@ -4,7 +4,7 @@ import { Icon } from "@librecode/ui/icon"
 import { Spinner } from "@librecode/ui/spinner"
 import { TextField } from "@librecode/ui/text-field"
 import { showToast } from "@librecode/ui/toast"
-import { batch, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
+import { batch, createMemo, createSignal, For, Match, onMount, Show, Switch } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useGlobalSync } from "@/context/global-sync"
 
@@ -18,21 +18,44 @@ type DiscoveredServer = {
   url: string
   modelCount: number
   models: { id: string; name: string }[]
+  serverName: string
+  connected: boolean
 }
 
 type WizardStep =
-  | "checking" // Auto-checking localhost:4000
+  | "idle" // Default: show discovered servers list
+  | "scanning" // Network scan in progress
   | "not-found" // Nothing found, show connect form
   | "connecting" // User clicked Connect
-  | "scanning" // Network scan in progress
-  | "servers" // Multiple servers found, show server list
   | "models" // Show models from selected server
   | "added" // Models added successfully
   | "error"
 
-const LITELLM_DEFAULT_URL = "http://localhost:4000"
 const CHECK_TIMEOUT_MS = 3000
-const COMMON_PORTS = [4000, 8000, 8080, 11434, 3000, 5000, 8001, 9000]
+
+/** Well-known ports and what typically runs on them */
+const KNOWN_PORTS: Array<{ port: number; name: string }> = [
+  { port: 4000, name: "LiteLLM" },
+  { port: 11434, name: "Ollama" },
+  { port: 8000, name: "vLLM" },
+  { port: 8080, name: "llama.cpp" },
+  { port: 3000, name: "LocalAI" },
+  { port: 5000, name: "Model Server" },
+  { port: 8001, name: "Model Server" },
+  { port: 9000, name: "Model Server" },
+]
+
+/** Guess a human-friendly server name from its port */
+function guessServerName(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const port = parseInt(parsed.port, 10)
+    const known = KNOWN_PORTS.find((p) => p.port === port)
+    return known?.name ?? `Server (:${port})`
+  } catch {
+    return "Server"
+  }
+}
 
 async function fetchModels(baseUrl: string, apiKey?: string): Promise<{ id: string; name: string }[]> {
   const url = baseUrl.replace(/\/+$/, "")
@@ -55,25 +78,37 @@ async function fetchModels(baseUrl: string, apiKey?: string): Promise<{ id: stri
   }
 }
 
-/** Scan ALL common ports on localhost — returns ALL discovered servers, not just the first */
+/** Scan ALL known ports on localhost — returns ALL discovered servers */
 async function scanAllServers(
+  connectedProviders: Set<string>,
   onProgress?: (checked: number, total: number, found: DiscoveredServer[]) => void,
 ): Promise<DiscoveredServer[]> {
   const servers: DiscoveredServer[] = []
-  const total = COMMON_PORTS.length
+  const total = KNOWN_PORTS.length
 
-  // Scan all ports in parallel for speed
-  const results = await Promise.allSettled(
-    COMMON_PORTS.map(async (port, index) => {
-      const url = `http://localhost:${port}`
+  await Promise.allSettled(
+    KNOWN_PORTS.map(async (entry, index) => {
+      const url = `http://localhost:${entry.port}`
       const models = await fetchModels(url)
       if (models.length > 0) {
-        const server: DiscoveredServer = { url, modelCount: models.length, models }
-        servers.push(server)
+        const providerID = `litellm-${url.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
+        servers.push({
+          url,
+          modelCount: models.length,
+          models,
+          serverName: entry.name,
+          connected: connectedProviders.has(providerID),
+        })
       }
       onProgress?.(index + 1, total, [...servers])
     }),
   )
+
+  // Sort: unconnected first, then by port number
+  servers.sort((a, b) => {
+    if (a.connected !== b.connected) return a.connected ? 1 : -1
+    return 0
+  })
 
   return servers
 }
@@ -81,17 +116,18 @@ async function scanAllServers(
 export function LiteLLMWizard() {
   const globalSync = useGlobalSync()
 
-  const [step, setStep] = createSignal<WizardStep>("checking")
-  const [url, setUrl] = createSignal(LITELLM_DEFAULT_URL)
+  const [step, setStep] = createSignal<WizardStep>("idle")
+  const [url, setUrl] = createSignal("http://localhost:4000")
   const [apiKey, setApiKey] = createSignal("")
   const [error, setError] = createSignal("")
   const [scanProgress, setScanProgress] = createSignal({ checked: 0, total: 0 })
   const [servers, setServers] = createStore<DiscoveredServer[]>([])
-  const [selectedServer, setSelectedServer] = createSignal<DiscoveredServer | null>(null)
   const [models, setModels] = createStore<DiscoveredModel[]>([])
   const [saving, setSaving] = createSignal(false)
 
   const selectedCount = () => models.filter((m) => m.selected).length
+
+  const connectedProviderIDs = createMemo(() => new Set(globalSync.data.provider.connected ?? []))
 
   const setModelSelected = (index: number, selected: boolean) => {
     setModels(index, "selected", selected)
@@ -105,30 +141,26 @@ export function LiteLLMWizard() {
   }
 
   const showServerModels = (server: DiscoveredServer) => {
-    setSelectedServer(server)
     setUrl(server.url)
     setModels(server.models.map((m) => ({ id: m.id, name: m.name, selected: true })))
     setStep("models")
   }
 
-  const autoCheck = async () => {
-    // Always do a full scan on startup — find ALL local servers
+  const handleScan = async () => {
     setStep("scanning")
     setError("")
-    setScanProgress({ checked: 0, total: COMMON_PORTS.length })
+    setScanProgress({ checked: 0, total: KNOWN_PORTS.length })
 
-    const found = await scanAllServers((checked, total, foundSoFar) => {
+    const found = await scanAllServers(connectedProviderIDs(), (checked, total, foundSoFar) => {
       setScanProgress({ checked, total })
       setServers([...foundSoFar])
     })
 
     if (found.length === 0) {
       setStep("not-found")
-    } else if (found.length === 1) {
-      showServerModels(found[0])
     } else {
       setServers([...found])
-      setStep("servers")
+      setStep("idle")
     }
   }
 
@@ -149,27 +181,6 @@ export function LiteLLMWizard() {
     }
   }
 
-  const handleScan = async () => {
-    setStep("scanning")
-    setError("")
-    setScanProgress({ checked: 0, total: COMMON_PORTS.length })
-
-    const found = await scanAllServers((checked, total, foundSoFar) => {
-      setScanProgress({ checked, total })
-      setServers([...foundSoFar])
-    })
-
-    if (found.length === 0) {
-      setError("No OpenAI-compatible servers found on common local ports.")
-      setStep("not-found")
-    } else if (found.length === 1) {
-      showServerModels(found[0])
-    } else {
-      setServers([...found])
-      setStep("servers")
-    }
-  }
-
   const handleAddModels = async () => {
     const selected = models.filter((m) => m.selected)
     if (selected.length === 0) return
@@ -179,6 +190,7 @@ export function LiteLLMWizard() {
     const baseUrl = url().trim().replace(/\/+$/, "")
     const key = apiKey().trim() || undefined
     const providerID = `litellm-${baseUrl.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
+    const serverName = guessServerName(baseUrl)
     const modelConfig = Object.fromEntries(selected.map((m) => [m.id, { name: m.name }]))
 
     const disabledProviders = globalSync.data.config.disabled_providers ?? []
@@ -189,7 +201,7 @@ export function LiteLLMWizard() {
         provider: {
           [providerID]: {
             npm: "@ai-sdk/openai-compatible",
-            name: `LiteLLM (${baseUrl})`,
+            name: `${serverName} (${baseUrl})`,
             options: {
               baseURL: `${baseUrl}/v1`,
               ...(key ? { headers: { Authorization: `Bearer ${key}` } } : {}),
@@ -204,7 +216,7 @@ export function LiteLLMWizard() {
       showToast({
         variant: "success",
         icon: "circle-check",
-        title: `Added ${selected.length} model${selected.length === 1 ? "" : "s"} from LiteLLM`,
+        title: `Added ${selected.length} model${selected.length === 1 ? "" : "s"} from ${serverName}`,
         description: `Connected to ${baseUrl}`,
       })
     } catch (err) {
@@ -217,7 +229,7 @@ export function LiteLLMWizard() {
   }
 
   onMount(() => {
-    autoCheck()
+    handleScan()
   })
 
   return (
@@ -225,15 +237,24 @@ export function LiteLLMWizard() {
       <div class="w-full flex flex-col items-start px-4 pt-4 pb-4">
         <div class="flex items-center gap-2 mb-3">
           <Icon name="dot-grid" class="text-icon-strong-base size-4" />
-          <span class="text-14-medium text-text-base">LiteLLM Auto-Discovery</span>
+          <span class="text-14-medium text-text-base">Local Server Discovery</span>
         </div>
 
         <Switch>
-          {/* Auto-scanning for local servers */}
-          <Match when={step() === "checking"}>
-            <div class="flex items-center gap-2 text-13-regular text-text-weak">
-              <Spinner class="size-3.5" />
-              <span>Scanning for local model servers...</span>
+          {/* Scanning ports */}
+          <Match when={step() === "scanning"}>
+            <div class="flex flex-col gap-2 w-full">
+              <div class="flex items-center gap-2 text-13-regular text-text-weak">
+                <Spinner class="size-3.5" />
+                <span>
+                  Scanning local ports... ({scanProgress().checked}/{scanProgress().total})
+                </span>
+              </div>
+              <Show when={servers.length > 0}>
+                <div class="text-13-regular text-text-base">
+                  Found {servers.length} server{servers.length === 1 ? "" : "s"} so far...
+                </div>
+              </Show>
             </div>
           </Match>
 
@@ -245,21 +266,50 @@ export function LiteLLMWizard() {
             </div>
           </Match>
 
-          {/* Scanning network */}
-          <Match when={step() === "scanning"}>
-            <div class="flex flex-col gap-2 w-full">
-              <div class="flex items-center gap-2 text-13-regular text-text-weak">
-                <Spinner class="size-3.5" />
-                <span>
-                  Scanning ports... ({scanProgress().checked}/{scanProgress().total})
-                </span>
-              </div>
-              {/* Show servers as they're found during scan */}
-              <Show when={servers.length > 0}>
-                <div class="text-13-regular text-text-base">
-                  Found {servers.length} server{servers.length === 1 ? "" : "s"} so far...
+          {/* Default: show discovered servers */}
+          <Match when={step() === "idle"}>
+            <div class="flex flex-col gap-3 w-full">
+              <Show
+                when={servers.length > 0}
+                fallback={
+                  <p class="text-13-regular text-text-weak">No local model servers detected.</p>
+                }
+              >
+                <div class="flex flex-col gap-0.5 max-h-48 overflow-y-auto rounded-sm border border-border-weak-base bg-surface-base">
+                  <For each={servers}>
+                    {(server) => (
+                      <button
+                        class="flex items-center justify-between w-full px-3 py-2.5 hover:bg-surface-raised-base cursor-pointer transition-colors text-left"
+                        onClick={() => !server.connected && showServerModels(server)}
+                        disabled={server.connected}
+                      >
+                        <div class="flex flex-col gap-0.5">
+                          <div class="flex items-center gap-2">
+                            <span class="text-13-medium text-text-base">{server.serverName}</span>
+                            <span class="text-12-regular text-text-weak font-mono">{server.url}</span>
+                          </div>
+                          <span class="text-12-regular text-text-weak">
+                            {server.modelCount} model{server.modelCount === 1 ? "" : "s"}
+                            {server.connected ? " — already connected" : " available"}
+                          </span>
+                        </div>
+                        <Show when={server.connected} fallback={<Icon name="chevron-right" class="text-icon-weak-base size-4" />}>
+                          <Icon name="check" class="text-icon-positive-base size-4" />
+                        </Show>
+                      </button>
+                    )}
+                  </For>
                 </div>
               </Show>
+
+              <div class="flex items-center gap-2">
+                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
+                  Scan Again
+                </Button>
+                <Button size="small" variant="ghost" onClick={() => setStep("not-found")}>
+                  Enter manually
+                </Button>
+              </div>
             </div>
           </Match>
 
@@ -267,7 +317,7 @@ export function LiteLLMWizard() {
           <Match when={step() === "not-found"}>
             <div class="flex flex-col gap-3 w-full">
               <p class="text-13-regular text-text-weak">
-                No LiteLLM server found. Enter an address or scan your network.
+                No local servers found. Enter a server address or scan again.
               </p>
 
               <Show when={error()}>
@@ -300,47 +350,6 @@ export function LiteLLMWizard() {
                 </Button>
                 <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
                   Scan Network
-                </Button>
-              </div>
-            </div>
-          </Match>
-
-          {/* Multiple servers found — server list view */}
-          <Match when={step() === "servers"}>
-            <div class="flex flex-col gap-3 w-full">
-              <p class="text-13-regular text-text-base">
-                Found {servers.length} server{servers.length === 1 ? "" : "s"} on your network:
-              </p>
-
-              <div class="flex flex-col gap-0.5 max-h-48 overflow-y-auto rounded-sm border border-border-weak-base bg-surface-base">
-                <For each={servers}>
-                  {(server) => (
-                    <button
-                      class="flex items-center justify-between w-full px-3 py-2.5 hover:bg-surface-raised-base cursor-pointer transition-colors text-left"
-                      onClick={() => showServerModels(server)}
-                    >
-                      <div class="flex flex-col gap-0.5">
-                        <span class="text-13-medium text-text-base font-mono">{server.url}</span>
-                        <span class="text-12-regular text-text-weak">
-                          {server.modelCount} model{server.modelCount === 1 ? "" : "s"} available
-                        </span>
-                      </div>
-                      <Icon name="chevron-right" class="text-icon-weak-base size-4" />
-                    </button>
-                  )}
-                </For>
-              </div>
-
-              <div class="flex items-center gap-2">
-                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
-                  Scan Again
-                </Button>
-                <Button
-                  size="small"
-                  variant="ghost"
-                  onClick={() => setStep("not-found")}
-                >
-                  Enter manually
                 </Button>
               </div>
             </div>
@@ -388,21 +397,17 @@ export function LiteLLMWizard() {
                     </span>
                   </Show>
                 </Button>
-                {/* Back to server list if we came from multi-server scan */}
-                <Show when={servers.length > 1}>
-                  <Button size="small" variant="ghost" onClick={() => setStep("servers")} icon="chevron-left">
+                <Show when={servers.length > 0}>
+                  <Button size="small" variant="ghost" onClick={() => setStep("idle")} icon="chevron-left">
                     Back to servers
                   </Button>
                 </Show>
-                {/* Rescan for servers */}
-                <Show when={servers.length <= 1}>
+                <Show when={servers.length === 0}>
                   <Button
                     size="small"
                     variant="ghost"
                     onClick={() => {
-                      batch(() => {
-                        setModels([])
-                      })
+                      batch(() => { setModels([]) })
                       handleScan()
                     }}
                   >
@@ -415,9 +420,16 @@ export function LiteLLMWizard() {
 
           {/* Models added successfully */}
           <Match when={step() === "added"}>
-            <div class="flex items-center gap-2 text-13-regular text-text-base">
-              <Icon name="circle-check" class="text-icon-positive-base size-3.5" />
-              <span>Models added from LiteLLM. Select one below to start using it.</span>
+            <div class="flex flex-col gap-3">
+              <div class="flex items-center gap-2 text-13-regular text-text-base">
+                <Icon name="circle-check" class="text-icon-positive-base size-3.5" />
+                <span>Models added. Select one below to start using it.</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
+                  Scan for more servers
+                </Button>
+              </div>
             </div>
           </Match>
 
@@ -428,7 +440,7 @@ export function LiteLLMWizard() {
                 <Icon name="circle-ban-sign" class="text-icon-critical-base size-3.5" />
                 <span>{error()}</span>
               </div>
-              <Button size="small" variant="ghost" onClick={autoCheck}>
+              <Button size="small" variant="ghost" onClick={handleScan}>
                 Try again
               </Button>
             </div>
