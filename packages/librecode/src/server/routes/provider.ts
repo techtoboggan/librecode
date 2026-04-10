@@ -278,23 +278,41 @@ export const ProviderRoutes = lazy(() =>
 
         type Server = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
 
-        async function probe(baseUrl: string, name: string): Promise<Server | null> {
+        async function probeEndpoint(url: string): Promise<Array<{ id: string; name: string }>> {
           const controller = new AbortController()
           const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
           try {
-            const res = await fetch(`${baseUrl}/v1/models`, {
-              headers: { "Content-Type": "application/json" },
-              signal: controller.signal,
-            })
+            const res = await fetch(url, { signal: controller.signal })
             clearTimeout(timeout)
-            if (!res.ok) return null
-            const data = (await res.json()) as { data?: Array<{ id: string }> }
-            const models = (data.data ?? []).map((m) => ({ id: m.id, name: m.id }))
-            if (models.length === 0) return null
-            return { url: baseUrl, serverName: name, modelCount: models.length, models }
+            if (!res.ok) return []
+            const data = await res.json()
+            // OpenAI format: { data: [{ id }] }
+            if (data?.data && Array.isArray(data.data)) {
+              return data.data
+                .filter((m: any) => m.id)
+                .map((m: any) => ({ id: m.id, name: m.id }))
+            }
+            // Ollama native format: { models: [{ name, model }] }
+            if (data?.models && Array.isArray(data.models)) {
+              return data.models
+                .filter((m: any) => m.name || m.model)
+                .map((m: any) => ({ id: m.name ?? m.model, name: m.name ?? m.model }))
+            }
+            return []
           } catch {
-            return null
+            return []
           }
+        }
+
+        async function probe(baseUrl: string, name: string): Promise<Server | null> {
+          // Try OpenAI-compatible endpoint first
+          let models = await probeEndpoint(`${baseUrl}/v1/models`)
+          // Fallback to Ollama native endpoint
+          if (models.length === 0) {
+            models = await probeEndpoint(`${baseUrl}/api/tags`)
+          }
+          if (models.length === 0) return null
+          return { url: baseUrl, serverName: name, modelCount: models.length, models }
         }
 
         const servers: Server[] = []

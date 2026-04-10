@@ -62,23 +62,37 @@ const CHECK_TIMEOUT_MS = 3000
 /** Fetch models from a server URL (used for manual connect only) */
 async function fetchModels(baseUrl: string, apiKey?: string): Promise<Array<{ id: string; name: string }>> {
   const url = baseUrl.replace(/\/+$/, "")
-  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  const headers: Record<string, string> = {}
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
-
-  try {
-    const response = await fetch(`${url}/v1/models`, { headers, signal: controller.signal })
-    if (!response.ok) return []
-    const data = await response.json()
-    if (!data?.data || !Array.isArray(data.data)) return []
-    return data.data.map((m: { id: string }) => ({ id: m.id, name: m.id }))
-  } catch {
-    return []
-  } finally {
-    clearTimeout(timeout)
+  async function tryEndpoint(endpoint: string): Promise<Array<{ id: string; name: string }>> {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), CHECK_TIMEOUT_MS)
+    try {
+      const response = await fetch(endpoint, { headers, signal: controller.signal })
+      clearTimeout(timeout)
+      if (!response.ok) return []
+      const data = await response.json()
+      // OpenAI format
+      if (data?.data && Array.isArray(data.data)) {
+        return data.data.filter((m: any) => m.id).map((m: any) => ({ id: m.id, name: m.id }))
+      }
+      // Ollama native format
+      if (data?.models && Array.isArray(data.models)) {
+        return data.models.filter((m: any) => m.name).map((m: any) => ({ id: m.name, name: m.name }))
+      }
+      return []
+    } catch {
+      return []
+    }
   }
+
+  // Try OpenAI-compatible first, then Ollama native
+  let models = await tryEndpoint(`${url}/v1/models`)
+  if (models.length === 0) {
+    models = await tryEndpoint(`${url}/api/tags`)
+  }
+  return models
 }
 
 function makeProviderID(url: string): string {
@@ -117,7 +131,11 @@ export function LiteLLMWizard() {
       headers: authHeaders,
       body: JSON.stringify({ network }),
     })
-    if (!res.ok) return []
+    if (!res.ok) {
+      const text = await res.text().catch(() => "")
+      console.error("[scan] Server returned", res.status, text)
+      return []
+    }
     const data = (await res.json()) as Array<{
       url: string
       serverName: string
