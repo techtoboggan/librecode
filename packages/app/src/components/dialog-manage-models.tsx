@@ -9,6 +9,7 @@ import { popularProviders } from "@/hooks/use-providers"
 import { useLanguage } from "@/context/language"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { DialogSelectProvider } from "./dialog-select-provider"
+import { LiteLLMWizard } from "./litellm-wizard"
 
 export const DialogManageModels: Component = () => {
   const local = useLocal()
@@ -38,6 +39,9 @@ export const DialogManageModels: Component = () => {
         </Button>
       }
     >
+      <div class="px-2.5 pb-3">
+        <LiteLLMWizard />
+      </div>
       <List
         search={{ placeholder: language.t("dialog.model.search.placeholder"), autofocus: true }}
         emptyMessage={language.t("dialog.model.empty")}

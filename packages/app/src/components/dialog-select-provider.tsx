@@ -8,6 +8,7 @@ import { ProviderIcon } from "@librecode/ui/provider-icon"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { useLanguage } from "@/context/language"
 import { DialogCustomProvider } from "./dialog-custom-provider"
+import { LiteLLMWizard } from "./litellm-wizard"
 
 const CUSTOM_ID = "_custom"
 
@@ -22,6 +23,9 @@ export const DialogSelectProvider: Component = () => {
 
   return (
     <Dialog title={language.t("command.provider.connect")} transition>
+      <div class="px-2.5 pb-3">
+        <LiteLLMWizard />
+      </div>
       <List
         search={{ placeholder: language.t("dialog.provider.search.placeholder"), autofocus: true }}
         emptyMessage={language.t("dialog.provider.empty")}
