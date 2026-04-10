@@ -1,125 +1,111 @@
-# LibreCode Refactor Plan
+# LibreCode Roadmap
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
-> Goal: Establish a proper agentic SDLC pattern, fix packaging, strip vendor cruft.
-> Last updated: 2026-04-08 | 20 commits | Tests: 1295 pass, 7 fail (env-dependent)
+> Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
+> Last updated: 2026-04-10 | 91 commits | Tests: 1358 pass, 1 fail (env-dependent cowsay)
 
 ---
 
-## Phase 0: Foundation — DONE ✅
+## Completed Work
 
-- [x] **0.1** GitHub Actions: 6 workflows replacing 35+ (ci, build, release, desktop, nix, copr)
-- [x] **0.2** Linux packaging: RPM spec for COPR, PKGBUILD for AUR, Nix flake cleaned
-- [x] **0.3** Rebrand: 377 files, @opencode-ai → @librecode, binary/config/env/Tauri/Nix/Cargo
+### Phase 0: Foundation ✅
+- GitHub Actions: 6 workflows (ci, build, release, desktop, nix, copr)
+- Linux packaging: RPM/COPR, PKGBUILD/AUR, Nix flake
+- Full rebrand: 377+ files, @opencode-ai → @librecode
 
----
+### Phase 1: Build System ✅
+- Dead deps stripped, build scripts decomposed
+- Lock file clean (bun 1.3.11), test infrastructure (11 new test files)
 
-## Phase 1: Build system & monorepo cleanup — DONE ✅
+### Phase 2: Core Architecture ✅
+- Effect-ts fully removed (ADR-001). All 5 services → plain async.
+- 4 namespace → barrel export migrations (MessageV2, Provider, Session, SessionPrompt)
+- Provider plugin API (`ProviderPlugin` interface, `defineProvider()`, 6 loader files)
+- Tool capabilities system (23 tools annotated, `ToolProfiles`, telemetry)
+- Storage cleanup (ADR-002, 1,400 lines of dead JSON migration removed)
 
-- [x] **1.1** Dead deps stripped (@babel/core, @actions/artifact, dead catalog entries)
-- [x] **1.2** Build script decomposed (fetch-models.ts, load-migrations.ts, --target flag, publish.ts rebranded)
-- [x] **1.4** Lock file regenerated clean (bun 1.3.11, 321 packages)
-- [x] **1.5** Test infrastructure: 11 new test files for util/plugin, CI expanded to 4 parallel jobs
-- [ ] **1.3** Evaluate Turbo vs Bun workspaces alone
+### Phase 3: Agentic SDLC ✅
+- Agent loop formalized (ADR-003, state machine, 13 tests)
+- Instruction compiler (6 priority tiers, source tracking, token budgets, 16 tests)
+- Permission hardening (audit logging, capability-enriched requests)
+- Session export/branch (versioned JSON, fork with ID remapping)
+- MCP health monitor (auto-reconnect, exponential backoff, error diagnostics, 19 tests)
 
----
+### Phase 4: Desktop & UI ✅
+- Desktop packaging (AppStream, Flatpak manifest)
+- Wayland taskbar icon fixed
+- E2E test identifiers rebranded
+- Desktop dev verified on Fedora 44
 
-## Phase 2: Core architecture refactor — DONE (deferred items tracked below)
+### Phase 5: Documentation ✅
+- CLAUDE.md with coding standards, migration playbooks, quality gates
+- Architecture docs, development guide, quality baseline
+- ADR-001 through ADR-004
+- Brand system (tokens, DESIGN-SPEC.md, site scaffolds)
 
-### Completed ✅
+### Phase 6: Provider System ✅
+- Removed hosted "librecode" provider (Zen/Go subscriptions, free models, public key)
+- Provider auth prompts extension (ADR-004): URL + API key + connection validation
+- LiteLLM as first-class provider with auth plugin
+- Ollama as first-class provider
+- Local Server Discovery wizard: TCP port check, multi-endpoint probe (/v1/models + /api/tags), always visible in all dialogs, targeted remote host probing
+- Local-first UI overhaul: popularProviders = [litellm, ollama, bedrock, azure], cloud providers deprioritized, "paid" concept removed
 
-| Item | What was done |
-|------|---------------|
-| 2.1 Megafile splits | provider.ts 1,453→909 (loaders extracted), prompt.ts 1,970→1,855 (templates extracted) |
-| 2.2 Effect-ts removal | **ADR-001 COMPLETE.** All 5 services migrated to plain async. Effect package removed. Zero imports remain. Branded types replaced with pure TS Brand<T,B>. |
-| 2.3 Provider plugin API | `ProviderPlugin` interface, `defineProvider()`, loaders extracted to 6 files |
-| 2.4 Tool capabilities | `ToolCapabilities`, `ToolDependencies`, `ToolProfiles` + all 23 tools annotated with capability registry |
-| 2.5 Storage cleanup | ADR-002 written. json-migration.ts removed (1,400 lines of dead code) |
-| Quality framework | CLAUDE.md, biome linter (complexity<12), quality baseline documented |
-
-### Remaining Phase 2 work (completing before Phase 3.1)
-
-**2.1.1 — Namespace → module export migration**
-
-Per CLAUDE.md Playbook 1. Uses barrel pattern (`export const X = { ... } as const`) to keep `X.method()` call syntax so consumers don't change. One namespace per commit.
-
-| Namespace | File | Consumers | Risk | Order |
-|-----------|------|-----------|------|-------|
-| `MessageV2` | session/message-v2.ts (988 lines) | 31 files | ✅ DONE — barrel + type companion, 0 consumer changes | 1st |
-| `Provider` | provider/provider.ts (909 lines) | 26 files | ✅ DONE — barrel + type companion, 0 consumer changes | 2nd |
-| `Session` | session/index.ts (893 lines) | ~20 files | ✅ DONE — barrel + type companion, 0 consumer changes | 3rd |
-| `SessionPrompt` | session/prompt.ts (1,855 lines) | ~15 files | ✅ DONE — barrel, no type companion needed, 0 consumer changes | 4th |
-
-**Approach**: For each namespace:
-1. Keep `export namespace X {}` wrapper but add `// @deprecated` comment
-2. Add a barrel `export const X = { ... } as const` below the namespace
-3. Add type companion namespace for `z.infer` types
-4. Verify all consumers work with barrel pattern
-5. In a follow-up PR, remove the namespace wrapper and dedent
-
-This two-step approach (barrel first, then remove namespace) is safer than doing both at once.
-
-**2.3 — Migrate loaders to ProviderPlugin interface** ✅
-- `loaders/types.ts` now imports from `plugin-api.ts` — single source of truth
-- `CustomLoader` is now `(provider: ProviderInfo) => Promise<ProviderLoadResult>`
-- Eliminated `any` types from loader interfaces (replaced with `unknown`)
-- Zero behavioral changes, purely type alignment
-
-**2.4 — Tool output standardization + telemetry** ✅
-- `tool/telemetry.ts`: `withTelemetry()` wrapper captures timing, input/output size,
-  risk level, truncation status for every tool execution
-- `ToolExecutionEvent` Bus event for observability dashboards
-- `formatDuration()`, `formatSize()` helpers
-- 9 new tests covering success/error/metadata passthrough + formatting
+### Phase 7: npm & Community Ecosystem ✅
+- `@librecode/sdk@0.1.0` published to npm
+- `@librecode/plugin@0.1.0` published to npm
+- npm org `@librecode` created (techtoboggan)
+- `~/Projects/librecode-3rdparty-providers` monorepo scaffolded (provider-anthropic, provider-openai, provider-openrouter, provider-bundle)
+- GitHub Actions npm-publish.yml with OIDC provenance (both repos)
+- `docs/providers.md` — comprehensive guide for adding new providers
+- `.claude/skills/add-provider` — Claude Code skill for adding providers
 
 ---
 
-## Phase 3: Agentic SDLC pattern — IN PROGRESS
+## What's Left for MVP
 
-| Item | Description | Status |
-|------|------------|--------|
-| **3.3** Permission hardening | ✅ Audit logging (`permission/audit.ts`), capability-enriched permission requests, `capabilityInfo()` API for UI, integrated at ask/reply/deny decision points | DONE |
-| **3.1** Formalize agent loop | ✅ ADR-003 written. `session/agent-loop.ts`: AgentState types, ExitReason, AgentLoopTracker, transition events, VALID_TRANSITIONS table. 13 new tests. | DONE |
-| **3.2** Instruction system overhaul | ✅ `session/instruction-compiler.ts`: 6 priority tiers, source tracking, content+source deduplication, per-tier and total token budgets, `formatCompiled()` debug output. 16 new tests. | DONE |
-| **3.4** Session improvements | ✅ Export: versioned JSON format with `exportSession()`/`exportSessionJSON()`. Branch: `fork()` with message copying + ID remapping, `branches()` listing, `ancestry()` tree walking. 5 new tests. | DONE |
-| **3.5** MCP server management | ✅ Health monitor (`mcp/health.ts`) with auto-reconnect + exponential backoff. Error diagnostics (`mcp/diagnostics.ts`) with categorized errors + actionable suggestions. 19 new tests. | DONE |
+### Must Have (blocks v0.1.0 release)
 
----
+| Item | Description | Effort |
+|------|-------------|--------|
+| **Remove stale "librecode" provider refs** | `use-providers.ts` still references `librecode`/`librecode-go` in various places. Provider list route injects them. Clean sweep. | Small |
+| **Fix the 1 failing test** | `cowsay` external dependency test — either mock it or skip it properly | Small |
+| **First-run experience** | When no providers connected AND no local servers found, the onboarding should guide clearly: "Install Ollama" or "Connect to LiteLLM" with links | Medium |
+| **Model selector "No results"** | Reported but unverified — may be fixed by recent provider work. Needs manual validation. | Small |
+| **Stale i18n strings** | Various `dialog.provider.librecode.*`, `dialog.provider.librecodeGo.*`, Zen references still in i18n files | Small |
+| **README update** | Current README references old architecture. Needs: local-first positioning, provider ecosystem, install guide for Ollama/LiteLLM users | Medium |
 
-## Phase 4: Desktop & UI — DONE
+### Should Have (v0.1.x fast-follows)
 
-- [x] **4.1** Desktop packaging: AppStream metainfo, Flatpak manifest, deb path fix
-- [x] **4.2** UI audit: 34MB fonts (intentional), 2 unused components, clean
-- [x] **4.3** E2E test stabilization: all test identifiers rebranded
-- [x] **4.4** Desktop dev verified: `bun run dev:desktop` builds + launches on Fedora 44. Fixed: install script, desktop script rebrand (153 refs across 66 files), Nix shell GTK3 + LD_LIBRARY_PATH
+| Item | Description | Effort |
+|------|-------------|--------|
+| **Provider extraction Phase 3-4** | Move cloud providers (Anthropic, OpenAI, Copilot, etc.) to `librecode-3rdparty-providers`. Add to BUILTIN array as npm packages. | Large |
+| **Trusted publishers CI** | Configure npm OIDC trusted publishers for automated releases | Small |
+| **OllamaAuthPlugin** | Proper auth plugin for Ollama (like LiteLLM) with prompts for URL | Medium |
+| **Provider icon for Ollama** | Need an Ollama icon in the provider-icon sprite | Small |
+| **Delete litellm-wizard.tsx** | Once the standard provider auth flow handles everything, the wizard can be replaced by the prompts system | Medium |
 
----
+### Nice to Have (v0.2+)
 
-## Phase 5: Documentation & contributor experience — DONE (logo assets pending)
-
-- [x] **5.1** README with branding, badges, install instructions
-- [x] **5.2** Architecture docs (`docs/architecture.md`)
-- [x] **5.3** CLAUDE.md with coding standards, migration playbooks, quality gates
-- [x] **5.4** Brand system: tokens, BRAND.md, DESIGN-SPEC.md, both site scaffolds
-- [x] **5.5** Local dev setup: `scripts/dev-setup.sh` (isolated .dev/ dir), `docs/development.md` (3 dev modes, Nix desktop shell, Fedora/Ubuntu dep guides, troubleshooting), `nix develop .#desktop` with full Tauri deps
-- [ ] **5.4b** Generate actual logo/mascot assets (DESIGN-SPEC.md has prompts ready)
-
----
-
-## Phase 6: Provider System — DONE
-
-- [x] **6.1** Removed hosted "librecode" provider: Zen/Go subscriptions, free models, public API key fallback, "big-pickle" model, all UI references (~73 refs across 14 files)
-- [x] **6.2** Added LiteLLM as first-class provider: autodiscovery on localhost:4000, `/v1/models` fetch, env var support (`LITELLM_BASE_URL`, `LITELLM_API_KEY`), config support
-- [x] **6.3** Updated getting-started UI: "Connect a provider to get started" replaces free model messaging
+| Item | Description | Effort |
+|------|-------------|--------|
+| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small |
+| **Turbo evaluation** | 1.3 from Phase 1 — Turbo vs Bun workspaces alone | Small |
+| **AppImage/Flatpak** | Additional Linux packaging formats | Medium |
+| **Provider capability detection** | During discovery, probe what models support (vision, tools, streaming) | Large |
+| **Structured credential storage** | Separate URL from API key in auth storage (currently encoded as `url\|key`) | Medium |
 
 ---
 
-## Execution plan
-      ↓
-THEN: Phase 4 + remaining Phase 5 in parallel
-```
+## Project Stats
 
-### Low-priority items (do whenever)
-- Turbo evaluation (1.3)
-- AppImage/Flatpak (0.2)
-- Logo/mascot asset generation (5.4)
+| Metric | Value |
+|--------|-------|
+| Total commits | 91 |
+| Tests passing | 1,358 |
+| Test files | 111 |
+| ADRs | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) |
+| npm packages | 2 published (@librecode/sdk, @librecode/plugin) |
+| Provider packages | 3 scaffolded + 1 bundle (in sister repo) |
+| Core providers | LiteLLM, Ollama, Amazon Bedrock, Azure |
+| Community providers | Anthropic, OpenAI, OpenRouter (in progress) |
