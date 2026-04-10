@@ -9,13 +9,14 @@ import { ProviderIcon } from "@librecode/ui/provider-icon"
 import { Spinner } from "@librecode/ui/spinner"
 import { TextField } from "@librecode/ui/text-field"
 import { showToast } from "@librecode/ui/toast"
-import { createMemo, Match, onCleanup, onMount, Switch } from "solid-js"
+import { createMemo, For, Match, onCleanup, onMount, Show, Switch } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Link } from "@/components/link"
 import { useLanguage } from "@/context/language"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { usePlatform } from "@/context/platform"
+import { useServer } from "@/context/server"
 import { DialogSelectModel } from "./dialog-select-model"
 import { DialogSelectProvider } from "./dialog-select-provider"
 
@@ -26,6 +27,7 @@ export function DialogConnectProvider(props: { provider: string }) {
   const platform = usePlatform()
   const language = useLanguage()
 
+  const server = useServer()
   const alive = { value: true }
   const timer = { current: undefined as ReturnType<typeof setTimeout> | undefined }
 
@@ -96,8 +98,10 @@ export function DialogConnectProvider(props: { provider: string }) {
 
   const method = createMemo(() => (store.methodIndex !== undefined ? methods().at(store.methodIndex!) : undefined))
 
-  const methodLabel = (value?: { type?: string; label?: string }) => {
+  const methodLabel = (value?: { type?: string; label?: string; prompts?: unknown[] }) => {
     if (!value) return ""
+    // Use custom label if provided (e.g. "Connect to LiteLLM Server")
+    if (value.label) return value.label
     if (value.type === "api") return language.t("provider.connect.method.apiKey")
     return value.label ?? ""
   }
@@ -238,57 +242,143 @@ export function DialogConnectProvider(props: { provider: string }) {
   }
 
   function ApiAuthView() {
+    const prompts = createMemo(() => method()?.prompts)
+    const hasPrompts = createMemo(() => (prompts()?.length ?? 0) > 0)
+
     const [formStore, setFormStore] = createStore({
-      value: "",
+      values: {} as Record<string, string>,
       error: undefined as string | undefined,
+      submitting: false,
     })
+
+    const setValue = (key: string, value: string) => {
+      setFormStore("values", key, value)
+    }
 
     async function handleSubmit(e: SubmitEvent) {
       e.preventDefault()
-
-      const form = e.currentTarget as HTMLFormElement
-      const formData = new FormData(form)
-      const apiKey = formData.get("apiKey") as string
-
-      if (!apiKey?.trim()) {
-        setFormStore("error", language.t("provider.connect.apiKey.required"))
-        return
-      }
-
       setFormStore("error", undefined)
-      await globalSDK.client.auth.set({
-        providerID: props.provider,
-        auth: {
-          type: "api",
-          key: apiKey,
-        },
-      })
-      await complete()
+
+      if (hasPrompts()) {
+        // Prompts-based flow: collect all inputs and call the api authorize route
+        const inputs = { ...formStore.values }
+
+        // Check required fields
+        for (const prompt of prompts()!) {
+          if (prompt.required && !inputs[prompt.key]?.trim()) {
+            setFormStore("error", `${prompt.message} is required`)
+            return
+          }
+        }
+
+        setFormStore("submitting", true)
+        try {
+          const httpBase = server.current?.http
+          const baseUrl = httpBase?.url ?? globalSDK.url
+          const authHeaders: Record<string, string> = {}
+          if (httpBase?.password) {
+            authHeaders["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
+          }
+          const res = await fetch(`${baseUrl}/provider/${encodeURIComponent(props.provider)}/api/authorize`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ key: inputs["apiKey"] ?? "", inputs }),
+          })
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}))
+            const msg = (body as { message?: string })?.message ?? "Connection failed"
+            setFormStore("error", msg)
+            return
+          }
+          await complete()
+        } catch (err) {
+          setFormStore("error", formatError(err, language.t("common.requestFailed")))
+        } finally {
+          setFormStore("submitting", false)
+        }
+      } else {
+        // Simple API key flow (default for most providers)
+        const form = e.currentTarget as HTMLFormElement
+        const formData = new FormData(form)
+        const apiKey = formData.get("apiKey") as string
+
+        if (!apiKey?.trim()) {
+          setFormStore("error", language.t("provider.connect.apiKey.required"))
+          return
+        }
+
+        setFormStore("submitting", true)
+        try {
+          await globalSDK.client.auth.set({
+            providerID: props.provider,
+            auth: {
+              type: "api",
+              key: apiKey,
+            },
+          })
+          await complete()
+        } catch (err) {
+          setFormStore("error", formatError(err, language.t("common.requestFailed")))
+        } finally {
+          setFormStore("submitting", false)
+        }
+      }
     }
 
     return (
       <div class="flex flex-col gap-6">
-        <Switch>
-          <Match when={true}>
-            <div class="text-14-regular text-text-base">
-              {language.t("provider.connect.apiKey.description", { provider: provider().name })}
-            </div>
-          </Match>
-        </Switch>
+        <Show when={!hasPrompts()}>
+          <div class="text-14-regular text-text-base">
+            {language.t("provider.connect.apiKey.description", { provider: provider().name })}
+          </div>
+        </Show>
         <form onSubmit={handleSubmit} class="flex flex-col items-start gap-4">
-          <TextField
-            autofocus
-            type="text"
-            label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
-            placeholder={language.t("provider.connect.apiKey.placeholder")}
-            name="apiKey"
-            value={formStore.value}
-            onChange={(v) => setFormStore("value", v)}
-            validationState={formStore.error ? "invalid" : undefined}
-            error={formStore.error}
-          />
-          <Button class="w-auto" type="submit" size="large" variant="primary">
-            {language.t("common.submit")}
+          <Show
+            when={hasPrompts()}
+            fallback={
+              <TextField
+                autofocus
+                type="text"
+                label={language.t("provider.connect.apiKey.label", { provider: provider().name })}
+                placeholder={language.t("provider.connect.apiKey.placeholder")}
+                name="apiKey"
+                value={formStore.values["apiKey"] ?? ""}
+                onChange={(v) => setValue("apiKey", v)}
+                validationState={formStore.error ? "invalid" : undefined}
+                error={formStore.error}
+              />
+            }
+          >
+            <div class="flex flex-col gap-3 w-full">
+              <For each={prompts()}>
+                {(prompt, index) => (
+                  <Show when={prompt.type === "text"}>
+                    <TextField
+                      autofocus={index() === 0}
+                      type="text"
+                      label={prompt.message}
+                      placeholder={prompt.placeholder ?? ""}
+                      value={formStore.values[prompt.key] ?? ""}
+                      onChange={(v) => setValue(prompt.key, v)}
+                    />
+                  </Show>
+                )}
+              </For>
+            </div>
+            <Show when={formStore.error}>
+              <div class="flex items-center gap-2 text-13-regular text-text-critical">
+                <Icon name="circle-ban-sign" class="text-icon-critical-base size-3.5" />
+                <span>{formStore.error}</span>
+              </div>
+            </Show>
+          </Show>
+          <Button class="w-auto" type="submit" size="large" variant="primary" disabled={formStore.submitting}>
+            <Show when={formStore.submitting} fallback={language.t("common.submit")}>
+              <span class="flex items-center gap-1.5">
+                <Spinner class="size-3" />
+                <span>{language.t("provider.connect.status.inProgress")}</span>
+              </span>
+            </Show>
           </Button>
         </form>
       </div>

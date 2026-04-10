@@ -54,106 +54,6 @@ export type EventServerInstanceDisposed = {
   }
 }
 
-export type PermissionRequest = {
-  id: string
-  sessionID: string
-  permission: string
-  patterns: Array<string>
-  metadata: {
-    [key: string]: unknown
-  }
-  always: Array<string>
-  tool?: {
-    messageID: string
-    callID: string
-  }
-}
-
-export type EventPermissionAsked = {
-  type: "permission.asked"
-  properties: PermissionRequest
-}
-
-export type EventPermissionReplied = {
-  type: "permission.replied"
-  properties: {
-    sessionID: string
-    requestID: string
-    reply: "once" | "always" | "reject"
-  }
-}
-
-export type QuestionOption = {
-  /**
-   * Display text (1-5 words, concise)
-   */
-  label: string
-  /**
-   * Explanation of choice
-   */
-  description: string
-}
-
-export type QuestionInfo = {
-  /**
-   * Complete question
-   */
-  question: string
-  /**
-   * Very short label (max 30 chars)
-   */
-  header: string
-  /**
-   * Available choices
-   */
-  options: Array<QuestionOption>
-  /**
-   * Allow selecting multiple choices
-   */
-  multiple?: boolean
-  /**
-   * Allow typing a custom answer (default: true)
-   */
-  custom?: boolean
-}
-
-export type QuestionRequest = {
-  id: string
-  sessionID: string
-  /**
-   * Questions to ask
-   */
-  questions: Array<QuestionInfo>
-  tool?: {
-    messageID: string
-    callID: string
-  }
-}
-
-export type EventQuestionAsked = {
-  type: "question.asked"
-  properties: QuestionRequest
-}
-
-export type QuestionAnswer = Array<string>
-
-export type EventQuestionReplied = {
-  type: "question.replied"
-  properties: {
-    sessionID: string
-    requestID: string
-    answers: Array<QuestionAnswer>
-  }
-}
-
-export type EventQuestionRejected = {
-  type: "question.rejected"
-  properties: {
-    sessionID: string
-    requestID: string
-  }
-}
-
 export type EventServerConnected = {
   type: "server.connected"
   properties: {
@@ -649,6 +549,60 @@ export type EventMessagePartRemoved = {
   }
 }
 
+export type EventPermissionAudit = {
+  type: "permission.audit"
+  properties: {
+    timestamp: number
+    sessionID: string
+    type: "asked" | "auto_approved" | "replied" | "denied"
+    permission: string
+    patterns: Array<string>
+    tool?: {
+      messageID: string
+      callID: string
+    }
+    agent?: string
+    risk: "low" | "medium" | "high"
+    capabilities?: {
+      reads: Array<string>
+      writes: Array<string>
+      sideEffects: boolean
+      executesCode?: boolean
+    }
+    reply?: "once" | "always" | "reject"
+    reason?: string
+  }
+}
+
+export type PermissionRequest = {
+  id: string
+  sessionID: string
+  permission: string
+  patterns: Array<string>
+  metadata: {
+    [key: string]: unknown
+  }
+  always: Array<string>
+  tool?: {
+    messageID: string
+    callID: string
+  }
+}
+
+export type EventPermissionAsked = {
+  type: "permission.asked"
+  properties: PermissionRequest
+}
+
+export type EventPermissionReplied = {
+  type: "permission.replied"
+  properties: {
+    sessionID: string
+    requestID: string
+    reply: "once" | "always" | "reject"
+  }
+}
+
 export type SessionStatus =
   | {
       type: "idle"
@@ -675,6 +629,77 @@ export type EventSessionIdle = {
   type: "session.idle"
   properties: {
     sessionID: string
+  }
+}
+
+export type QuestionOption = {
+  /**
+   * Display text (1-5 words, concise)
+   */
+  label: string
+  /**
+   * Explanation of choice
+   */
+  description: string
+}
+
+export type QuestionInfo = {
+  /**
+   * Complete question
+   */
+  question: string
+  /**
+   * Very short label (max 30 chars)
+   */
+  header: string
+  /**
+   * Available choices
+   */
+  options: Array<QuestionOption>
+  /**
+   * Allow selecting multiple choices
+   */
+  multiple?: boolean
+  /**
+   * Allow typing a custom answer (default: true)
+   */
+  custom?: boolean
+}
+
+export type QuestionRequest = {
+  id: string
+  sessionID: string
+  /**
+   * Questions to ask
+   */
+  questions: Array<QuestionInfo>
+  tool?: {
+    messageID: string
+    callID: string
+  }
+}
+
+export type EventQuestionAsked = {
+  type: "question.asked"
+  properties: QuestionRequest
+}
+
+export type QuestionAnswer = Array<string>
+
+export type EventQuestionReplied = {
+  type: "question.replied"
+  properties: {
+    sessionID: string
+    requestID: string
+    answers: Array<QuestionAnswer>
+  }
+}
+
+export type EventQuestionRejected = {
+  type: "question.rejected"
+  properties: {
+    sessionID: string
+    requestID: string
   }
 }
 
@@ -962,11 +987,6 @@ export type Event =
   | EventInstallationUpdateAvailable
   | EventProjectUpdated
   | EventServerInstanceDisposed
-  | EventPermissionAsked
-  | EventPermissionReplied
-  | EventQuestionAsked
-  | EventQuestionReplied
-  | EventQuestionRejected
   | EventServerConnected
   | EventGlobalDisposed
   | EventLspClientDiagnostics
@@ -977,8 +997,14 @@ export type Event =
   | EventMessagePartUpdated
   | EventMessagePartDelta
   | EventMessagePartRemoved
+  | EventPermissionAudit
+  | EventPermissionAsked
+  | EventPermissionReplied
   | EventSessionStatus
   | EventSessionIdle
+  | EventQuestionAsked
+  | EventQuestionReplied
+  | EventQuestionRejected
   | EventSessionCompacted
   | EventFileWatcherUpdated
   | EventTodoUpdated
@@ -1073,7 +1099,7 @@ export type PermissionConfig =
   | PermissionActionConfig
 
 export type AgentConfig = {
-  model?: string
+  model?: Model
   /**
    * Default model variant for this agent (applies only when using the agent's configured model).
    */
@@ -1115,6 +1141,7 @@ export type AgentConfig = {
   permission?: PermissionConfig
   [key: string]:
     | unknown
+    | Model
     | string
     | number
     | {
@@ -1315,14 +1342,14 @@ export type Config = {
   logLevel?: LogLevel
   server?: ServerConfig
   /**
-   * Command configuration, see https://librecode.io/docs/commands
+   * Command configuration, see https://github.com/techtoboggan/librecode/docs/commands
    */
   command?: {
     [key: string]: {
       template: string
       description?: string
       agent?: string
-      model?: string
+      model?: Model
       subtask?: boolean
     }
   }
@@ -1364,14 +1391,8 @@ export type Config = {
    * When set, ONLY these providers will be enabled. All other providers will be ignored
    */
   enabled_providers?: Array<string>
-  /**
-   * Model to use in the format of provider/model, eg anthropic/claude-2
-   */
-  model?: string
-  /**
-   * Small model to use for tasks like title generation in the format of provider/model
-   */
-  small_model?: string
+  model?: Model
+  small_model?: Model
   /**
    * Default agent to use when none is specified. Must be a primary agent. Falls back to 'build' if not set or if the specified agent is invalid.
    */
@@ -1389,7 +1410,7 @@ export type Config = {
     [key: string]: AgentConfig | undefined
   }
   /**
-   * Agent configuration, see https://librecode.io/docs/agents
+   * Agent configuration, see https://github.com/techtoboggan/librecode/docs/agents
    */
   agent?: {
     plan?: AgentConfig
@@ -1763,9 +1784,28 @@ export type SubtaskPartInput = {
   command?: string
 }
 
+export type ProviderAuthMethodPrompt =
+  | {
+      type: "text"
+      key: string
+      message: string
+      placeholder?: string
+    }
+  | {
+      type: "select"
+      key: string
+      message: string
+      options: Array<{
+        label: string
+        value: string
+        hint?: string
+      }>
+    }
+
 export type ProviderAuthMethod = {
   type: "oauth" | "api"
   label: string
+  prompts?: Array<ProviderAuthMethodPrompt>
 }
 
 export type ProviderAuthAuthorization = {
@@ -4011,6 +4051,50 @@ export type ProviderOauthAuthorizeResponses = {
 }
 
 export type ProviderOauthAuthorizeResponse = ProviderOauthAuthorizeResponses[keyof ProviderOauthAuthorizeResponses]
+
+export type ProviderApiAuthorizeData = {
+  body?: {
+    /**
+     * API key
+     */
+    key: string
+    /**
+     * Additional prompt inputs
+     */
+    inputs?: {
+      [key: string]: string
+    }
+  }
+  path: {
+    /**
+     * Provider ID
+     */
+    providerID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/{providerID}/api/authorize"
+}
+
+export type ProviderApiAuthorizeErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+}
+
+export type ProviderApiAuthorizeError = ProviderApiAuthorizeErrors[keyof ProviderApiAuthorizeErrors]
+
+export type ProviderApiAuthorizeResponses = {
+  /**
+   * API key authorization processed successfully
+   */
+  200: boolean
+}
+
+export type ProviderApiAuthorizeResponse = ProviderApiAuthorizeResponses[keyof ProviderApiAuthorizeResponses]
 
 export type ProviderOauthCallbackData = {
   body?: {

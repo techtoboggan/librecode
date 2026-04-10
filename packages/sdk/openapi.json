@@ -11523,6 +11523,34 @@
         },
         "required": ["type", "prompt", "description", "agent"]
       },
+      "ProviderAuthMethodPrompt": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "anyOf": [
+              { "type": "string", "const": "text" },
+              { "type": "string", "const": "select" }
+            ]
+          },
+          "key": { "type": "string" },
+          "message": { "type": "string" },
+          "placeholder": { "type": "string" },
+          "required": { "type": "boolean" },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "label": { "type": "string" },
+                "value": { "type": "string" },
+                "hint": { "type": "string" }
+              },
+              "required": ["label", "value"]
+            }
+          }
+        },
+        "required": ["type", "key", "message"]
+      },
       "ProviderAuthMethod": {
         "type": "object",
         "properties": {
@@ -11540,6 +11568,12 @@
           },
           "label": {
             "type": "string"
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderAuthMethodPrompt"
+            }
           }
         },
         "required": ["type", "label"]

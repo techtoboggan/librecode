@@ -36,6 +36,7 @@ export namespace ProviderAuth {
     z.object({
       providerID: ProviderID.zod,
       key: z.string(),
+      inputs: z.record(z.string(), z.string()).optional(),
     }),
     async (input) => S.ProviderAuthService.api(input),
   )

@@ -136,6 +136,48 @@ export const ProviderRoutes = lazy(() =>
       },
     )
     .post(
+      "/:providerID/api/authorize",
+      describeRoute({
+        summary: "API key authorize",
+        description: "Submit API key and additional inputs for a provider that requires custom authorization.",
+        operationId: "provider.api.authorize",
+        responses: {
+          200: {
+            description: "API key authorization processed successfully",
+            content: {
+              "application/json": {
+                schema: resolver(z.boolean()),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator(
+        "param",
+        z.object({
+          providerID: ProviderID.zod.meta({ description: "Provider ID" }),
+        }),
+      ),
+      validator(
+        "json",
+        z.object({
+          key: z.string().meta({ description: "API key" }),
+          inputs: z.record(z.string(), z.string()).optional().meta({ description: "Additional prompt inputs" }),
+        }),
+      ),
+      async (c) => {
+        const providerID = c.req.valid("param").providerID
+        const { key, inputs } = c.req.valid("json")
+        await ProviderAuth.api({
+          providerID,
+          key,
+          inputs,
+        })
+        return c.json(true)
+      },
+    )
+    .post(
       "/:providerID/oauth/callback",
       describeRoute({
         summary: "OAuth callback",

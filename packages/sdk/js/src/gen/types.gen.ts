@@ -1525,9 +1525,23 @@ export type Provider = {
   }
 }
 
+export type ProviderAuthMethodPrompt = {
+  type: "text" | "select"
+  key: string
+  message: string
+  placeholder?: string
+  required?: boolean
+  options?: Array<{
+    label: string
+    value: string
+    hint?: string
+  }>
+}
+
 export type ProviderAuthMethod = {
   type: "oauth" | "api"
   label: string
+  prompts?: Array<ProviderAuthMethodPrompt>
 }
 
 export type ProviderAuthAuthorization = {

@@ -7,10 +7,35 @@ import * as Auth from "@/auth/service"
 import { ProviderID } from "./schema"
 import z from "zod"
 
+export const MethodPrompt = z
+  .discriminatedUnion("type", [
+    z.object({
+      type: z.literal("text"),
+      key: z.string(),
+      message: z.string(),
+      placeholder: z.string().optional(),
+    }),
+    z.object({
+      type: z.literal("select"),
+      key: z.string(),
+      message: z.string(),
+      options: z.array(
+        z.object({
+          label: z.string(),
+          value: z.string(),
+          hint: z.string().optional(),
+        }),
+      ),
+    }),
+  ])
+  .meta({ ref: "ProviderAuthMethodPrompt" })
+export type MethodPrompt = z.infer<typeof MethodPrompt>
+
 export const Method = z
   .object({
     type: z.union([z.literal("oauth"), z.literal("api")]),
     label: z.string(),
+    prompts: z.array(MethodPrompt).optional(),
   })
   .meta({
     ref: "ProviderAuthMethod",
@@ -70,7 +95,18 @@ export namespace ProviderAuthService {
     const s = await state()
     const result: Record<string, Method[]> = {}
     for (const [key, value] of Object.entries(s.methods)) {
-      result[key] = value.methods.map((m): Method => ({ type: m.type as "oauth" | "api", label: m.label }))
+      result[key] = value.methods.map((m): Method => ({
+        type: m.type as "oauth" | "api",
+        label: m.label,
+        ...(m.prompts?.length
+          ? {
+              prompts: m.prompts.map((p) => {
+                if (p.type === "text") return { type: "text" as const, key: p.key, message: p.message, placeholder: p.placeholder }
+                return { type: "select" as const, key: p.key, message: p.message, options: p.options }
+              }),
+            }
+          : {}),
+      }))
     }
     return result
   }
@@ -124,7 +160,34 @@ export namespace ProviderAuthService {
     }
   }
 
-  export async function api(input: { providerID: ProviderID; key: string }): Promise<void> {
+  export async function api(input: {
+    providerID: ProviderID
+    key: string
+    inputs?: Record<string, string>
+  }): Promise<void> {
+    // If inputs are provided, look for a custom authorize function on the plugin
+    if (input.inputs) {
+      const s = await state()
+      const hook = s.methods[input.providerID]
+      if (hook) {
+        const methodIndex = hook.methods.findIndex((m) => m.type === "api")
+        if (methodIndex >= 0) {
+          const method = hook.methods[methodIndex] as Extract<(typeof hook.methods)[number], { type: "api" }>
+          if (method.authorize) {
+            const result = await method.authorize(input.inputs)
+            if (result.type === "failed") {
+              throw new Error("Authorization failed")
+            }
+            await Auth.set(result.provider ?? input.providerID, {
+              type: "api",
+              key: result.key,
+            })
+            return
+          }
+        }
+      }
+    }
+
     await Auth.set(input.providerID, {
       type: "api",
       key: input.key,

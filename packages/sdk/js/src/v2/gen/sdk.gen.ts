@@ -81,6 +81,8 @@ import type {
   ProjectListResponses,
   ProjectUpdateErrors,
   ProjectUpdateResponses,
+  ProviderApiAuthorizeErrors,
+  ProviderApiAuthorizeResponses,
   ProviderAuthResponses,
   ProviderListResponses,
   ProviderOauthAuthorizeErrors,
@@ -2574,6 +2576,55 @@ export class Oauth extends HeyApiClient {
   }
 }
 
+export class Api extends HeyApiClient {
+  /**
+   * API key authorize
+   *
+   * Submit API key and additional inputs for a provider that requires custom authorization.
+   */
+  public authorize<ThrowOnError extends boolean = false>(
+    parameters: {
+      providerID: string
+      directory?: string
+      workspace?: string
+      key?: string
+      inputs?: {
+        [key: string]: string
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "providerID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "key" },
+            { in: "body", key: "inputs" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ProviderApiAuthorizeResponses,
+      ProviderApiAuthorizeErrors,
+      ThrowOnError
+    >({
+      url: "/provider/{providerID}/api/authorize",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
 export class Provider extends HeyApiClient {
   /**
    * List providers
@@ -2638,6 +2689,11 @@ export class Provider extends HeyApiClient {
   private _oauth?: Oauth
   get oauth(): Oauth {
     return (this._oauth ??= new Oauth({ client: this.client }))
+  }
+
+  private _api?: Api
+  get api(): Api {
+    return (this._api ??= new Api({ client: this.client }))
   }
 }
 
