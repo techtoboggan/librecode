@@ -1,0 +1,109 @@
+name: Publish npm packages
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish-sdk:
+    name: Publish @librecode/sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install latest npm
+        run: npm install -g npm@latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build SDK
+        working-directory: packages/sdk/js
+        run: bun run build
+
+      - name: Prepare package.json for publish
+        working-directory: packages/sdk/js
+        run: |
+          node -e "
+          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          for (const [key, value] of Object.entries(pkg.exports)) {
+            if (typeof value === 'string') {
+              const file = value.replace('./src/', './dist/').replace('.ts', '');
+              pkg.exports[key] = { import: file + '.js', types: file + '.d.ts' };
+            }
+          }
+          const tag = process.env.GITHUB_REF_NAME || '';
+          const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
+          pkg.version = version;
+          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          console.log('Publishing @librecode/sdk@' + version);
+          "
+
+      - name: Publish
+        working-directory: packages/sdk/js
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ""
+
+  publish-plugin:
+    name: Publish @librecode/plugin
+    needs: publish-sdk
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.10"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install latest npm
+        run: npm install -g npm@latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build plugin
+        working-directory: packages/plugin
+        run: bunx tsc
+
+      - name: Prepare package.json for publish
+        working-directory: packages/plugin
+        run: |
+          node -e "
+          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          for (const [key, value] of Object.entries(pkg.exports)) {
+            if (typeof value === 'string') {
+              const file = value.replace('./src/', './dist/').replace('.ts', '');
+              pkg.exports[key] = { import: file + '.js', types: file + '.d.ts' };
+            }
+          }
+          const tag = process.env.GITHUB_REF_NAME || '';
+          const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
+          pkg.version = version;
+          pkg.dependencies['@librecode/sdk'] = '^' + version;
+          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          console.log('Publishing @librecode/plugin@' + version);
+          "
+
+      - name: Publish
+        working-directory: packages/plugin
+        run: npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ""

@@ -122,6 +122,54 @@ interface ProviderPlugin {
 4. **Model resolution**: `getModel(sdk, modelID)` → `LanguageModelV2`
 5. **Caching**: SDK instances cached by `hash(providerID, npm, options)`
 
+### Auth System (`plugin/` + `provider/auth-service.ts`)
+
+> ADR-004 · Guide: [docs/providers.md](/docs/providers.md)
+
+Auth plugins register via `Hooks.auth` and define how users connect to a provider.
+
+```
+Plugin AuthHook ──► ProviderAuthService.methods() ──► GET /provider/auth
+                          │                                  │
+                          │                          DialogConnectProvider
+                          │                                  │
+                          ▼                          renders prompts
+                    authorize() ◄──────────────── POST /provider/:id/api/authorize
+                          │
+                          ▼
+                    Auth.set() ──► loader() ──► models registered
+```
+
+**Method types:**
+
+| Type | UI Rendered | Use Case |
+|------|------------|----------|
+| `"api"` (no prompts) | Single API key field | Cloud APIs |
+| `"api"` (with prompts) | Custom fields (URL, key, etc.) | Local servers |
+| `"oauth"` | Browser/device code flow | GitHub, OpenAI |
+
+**Prompts** (added in ADR-004) allow providers to define custom input fields:
+
+```typescript
+methods: [{
+  type: "api",
+  label: "Connect to Server",
+  prompts: [
+    { type: "text", key: "url", message: "Server URL", placeholder: "http://localhost:4000" },
+    { type: "text", key: "apiKey", message: "API Key (optional)" },
+  ],
+  authorize(inputs) { /* validate connection */ },
+}]
+```
+
+**Auth plugin implementations:**
+
+| Plugin | File | Auth Flow |
+|--------|------|-----------|
+| Codex | `plugin/codex.ts` | OAuth PKCE + device code + API key |
+| Copilot | `plugin/copilot.ts` | GitHub device code (+ Enterprise) |
+| LiteLLM | `plugin/litellm.ts` | URL + key prompts, connection validation, model discovery |
+
 ---
 
 ## Tool System
