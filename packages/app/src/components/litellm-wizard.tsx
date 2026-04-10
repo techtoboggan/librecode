@@ -117,8 +117,8 @@ export function LiteLLMWizard() {
 
   const connectedProviderIDs = createMemo(() => new Set(globalSync.data.provider.connected ?? []))
 
-  /** Call the backend scan endpoint — avoids CORS issues with LAN hosts */
-  async function callScanEndpoint(network: boolean): Promise<Array<DiscoveredServer>> {
+  /** Call the backend scan endpoint */
+  async function callScanEndpoint(remoteHost?: string): Promise<Array<DiscoveredServer>> {
     const httpBase = server.current?.http
     const baseUrl = httpBase?.url ?? globalSDK.url
     const authHeaders: Record<string, string> = { "Content-Type": "application/json" }
@@ -126,10 +126,13 @@ export function LiteLLMWizard() {
       authHeaders["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
     }
 
+    const body: Record<string, unknown> = {}
+    if (remoteHost) body.host = remoteHost
+
     const res = await fetch(`${baseUrl}/provider/scan`, {
       method: "POST",
       headers: authHeaders,
-      body: JSON.stringify({ network }),
+      body: JSON.stringify(body),
     })
     if (!res.ok) {
       const text = await res.text().catch(() => "")
@@ -166,15 +169,19 @@ export function LiteLLMWizard() {
     setStep("models")
   }
 
-  const handleScan = async () => {
+  const [remoteHost, setRemoteHost] = createSignal("")
+
+  const handleScan = async (host?: string) => {
     setStep("scanning")
     setError("")
-    setScanProgress({ checked: 0, total: 0 })
 
     try {
-      const found = await callScanEndpoint(false)
-      if (found.length === 0) {
+      const found = await callScanEndpoint(host)
+      if (found.length === 0 && !host) {
         setStep("not-found")
+      } else if (found.length === 0 && host) {
+        setError(`No model servers found on ${host}`)
+        setStep("idle")
       } else {
         setServers([...found])
         setStep("idle")
@@ -185,24 +192,11 @@ export function LiteLLMWizard() {
     }
   }
 
-  const handleNetworkScan = async () => {
-    setStep("scanning")
-    setError("")
-    setScanProgress({ checked: 0, total: 0 })
-
-    try {
-      const found = await callScanEndpoint(true)
-      if (found.length === 0) {
-        setError("No servers found on the local network.")
-        setStep("not-found")
-      } else {
-        setServers([...found])
-        setStep("idle")
-      }
-    } catch {
-      setError("Network scan failed — is the LibreCode server running?")
-      setStep("not-found")
-    }
+  const handleAddRemoteHost = async () => {
+    const host = remoteHost().trim()
+    if (!host) return
+    await handleScan(host)
+    setRemoteHost("")
   }
 
   const handleConnect = async () => {
@@ -335,14 +329,24 @@ export function LiteLLMWizard() {
               </Show>
 
               <div class="flex items-center gap-2 flex-wrap">
-                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
-                  Scan Local
-                </Button>
-                <Button size="small" variant="ghost" onClick={handleNetworkScan} icon="dot-grid">
-                  Scan Network
+                <Button size="small" variant="ghost" onClick={() => handleScan()} icon="dot-grid">
+                  Rescan
                 </Button>
                 <Button size="small" variant="ghost" onClick={() => setStep("not-found")}>
                   Enter manually
+                </Button>
+              </div>
+              <div class="flex items-center gap-2 w-full">
+                <TextField
+                  label="Add remote server"
+                  hideLabel
+                  placeholder="hostname or IP (e.g. 192.168.1.50)"
+                  value={remoteHost()}
+                  onChange={setRemoteHost}
+                  class="flex-1"
+                />
+                <Button size="small" variant="secondary" onClick={handleAddRemoteHost} disabled={!remoteHost().trim()}>
+                  Add Server
                 </Button>
               </div>
             </div>
@@ -383,11 +387,8 @@ export function LiteLLMWizard() {
                 <Button size="small" variant="primary" onClick={handleConnect} disabled={!url().trim()}>
                   Connect
                 </Button>
-                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
+                <Button size="small" variant="ghost" onClick={() => handleScan()} icon="dot-grid">
                   Scan Local
-                </Button>
-                <Button size="small" variant="ghost" onClick={handleNetworkScan} icon="dot-grid">
-                  Scan Network
                 </Button>
               </div>
             </div>
@@ -464,7 +465,7 @@ export function LiteLLMWizard() {
                 <span>Models added. Select one below to start using it.</span>
               </div>
               <div class="flex items-center gap-2">
-                <Button size="small" variant="ghost" onClick={handleScan} icon="dot-grid">
+                <Button size="small" variant="ghost" onClick={() => handleScan()} icon="dot-grid">
                   Scan for more servers
                 </Button>
               </div>
@@ -478,7 +479,7 @@ export function LiteLLMWizard() {
                 <Icon name="circle-ban-sign" class="text-icon-critical-base size-3.5" />
                 <span>{error()}</span>
               </div>
-              <Button size="small" variant="ghost" onClick={handleScan}>
+              <Button size="small" variant="ghost" onClick={() => handleScan()}>
                 Try again
               </Button>
             </div>

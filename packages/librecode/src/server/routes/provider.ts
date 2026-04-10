@@ -258,12 +258,12 @@ export const ProviderRoutes = lazy(() =>
       validator(
         "json",
         z.object({
-          network: z.boolean().optional().meta({ description: "Also scan LAN hosts" }),
+          host: z.string().optional().meta({ description: "Remote hostname or IP to probe" }),
         }),
       ),
       async (c) => {
-        const { network } = c.req.valid("json")
-        console.log(`[scan] POST /provider/scan called (network=${network})`)
+        const { host } = c.req.valid("json")
+        console.log(`[scan] POST /provider/scan called (host=${host ?? "localhost only"})`)
 
         const KNOWN_PORTS = [
           { port: 4000, name: "LiteLLM" },
@@ -275,6 +275,12 @@ export const ProviderRoutes = lazy(() =>
           { port: 8001, name: "Model Server" },
           { port: 9000, name: "Model Server" },
         ]
+
+        function guessServerName(hostName: string, port: number): string {
+          const known = KNOWN_PORTS.find((p) => p.port === port)
+          const label = known?.name ?? `Server`
+          return hostName === "localhost" ? label : `${label} (${hostName})`
+        }
         const TIMEOUT_MS = 3000
 
         type Server = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
@@ -372,7 +378,7 @@ export const ProviderRoutes = lazy(() =>
         // Always scan localhost
         await Promise.allSettled(
           KNOWN_PORTS.map(async (entry) => {
-            const server = await probe("localhost", entry.port, entry.name)
+            const server = await probe("localhost", entry.port, guessServerName("localhost", entry.port))
             if (server && !seen.has(server.url)) {
               seen.add(server.url)
               servers.push(server)
@@ -382,39 +388,21 @@ export const ProviderRoutes = lazy(() =>
 
         console.log(`[scan] Local scan done. Found ${servers.length} servers.`)
 
-        // Optionally scan LAN
-        if (network) {
-          console.log("[scan] Starting network scan...")
-          const networkPorts = [4000, 11434, 8000, 8080]
-          const subnets = ["192.168.1", "192.168.0", "192.168.86", "10.0.0", "10.0.1"]
-          const hostRange = 30
-          const BATCH = 50
-
-          const targets: Array<{ host: string; port: number; name: string }> = []
-          for (const sub of subnets) {
-            for (let i = 1; i <= hostRange; i++) {
-              for (const entry of KNOWN_PORTS.filter((p) => networkPorts.includes(p.port))) {
-                targets.push({ host: `${sub}.${i}`, port: entry.port, name: entry.name })
+        // If a specific host was provided, also probe that
+        if (host) {
+          const remoteHost = host.trim()
+          console.log(`[scan] Probing remote host: ${remoteHost}`)
+          const remotePorts = [4000, 11434, 8000, 8080, 3000, 5000]
+          await Promise.allSettled(
+            remotePorts.map(async (port) => {
+              const server = await probe(remoteHost, port, guessServerName(remoteHost, port))
+              if (server && !seen.has(server.url)) {
+                seen.add(server.url)
+                servers.push(server)
               }
-            }
-          }
-
-          console.log(`[scan] Scanning ${targets.length} network targets...`)
-          for (let i = 0; i < targets.length; i += BATCH) {
-            const batch = targets.slice(i, i + BATCH)
-            await Promise.allSettled(
-              batch.map(async (t) => {
-                const url = `http://${t.host}:${t.port}`
-                if (seen.has(url)) return
-                const server = await probe(t.host, t.port, `${t.name} (${t.host})`)
-                if (server) {
-                  seen.add(server.url)
-                  servers.push(server)
-                }
-              }),
-            )
-          }
-          console.log(`[scan] Network scan done. Total servers: ${servers.length}`)
+            }),
+          )
+          console.log(`[scan] Remote probe done. Total servers: ${servers.length}`)
         }
 
         return c.json(servers)
