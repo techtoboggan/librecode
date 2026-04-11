@@ -77,7 +77,7 @@ LibreCode ships with built-in support for local model servers and enterprise pro
 | **Amazon Bedrock** | Enterprise | &mdash; |
 | **Azure OpenAI** | Enterprise | &mdash; |
 
-Cloud providers (Anthropic, OpenAI, Google, etc.) are available as community plugins:
+Cloud providers (Anthropic, OpenAI, OpenRouter, etc.) are available as community plugins. Add them to `.librecode/librecode.json`:
 
 ```json
 {
@@ -85,7 +85,24 @@ Cloud providers (Anthropic, OpenAI, Google, etc.) are available as community plu
 }
 ```
 
-See the [Provider Guide](docs/providers.md) for adding new providers.
+Or install the bundle for all cloud providers at once:
+
+```json
+{
+  "plugin": ["@librecode/provider-bundle@latest"]
+}
+```
+
+**Available provider plugins:**
+
+| Package | Provider |
+|---------|----------|
+| [`@librecode/provider-anthropic`](https://www.npmjs.com/package/@librecode/provider-anthropic) | Anthropic (Claude) |
+| [`@librecode/provider-openai`](https://www.npmjs.com/package/@librecode/provider-openai) | OpenAI |
+| [`@librecode/provider-openrouter`](https://www.npmjs.com/package/@librecode/provider-openrouter) | OpenRouter |
+| [`@librecode/provider-bundle`](https://www.npmjs.com/package/@librecode/provider-bundle) | All of the above |
+
+See the [Provider Guide](docs/providers.md) for adding new providers or writing your own.
 
 ## Install
 
@@ -148,11 +165,14 @@ packages/
   desktop/      Tauri desktop app (Rust + Solid.js)
   app/          Shared UI application
   ui/           Component library
-  sdk/          TypeScript SDK (@librecode/sdk on npm)
-  plugin/       Plugin system (@librecode/plugin on npm)
+  sdk/          TypeScript SDK  →  @librecode/sdk on npm
+  plugin/       Plugin API      →  @librecode/plugin on npm
   util/         Shared utilities
   script/       Build tooling
 ```
+
+**Community packages** (separate repo: [librecode-3rdparty-providers](https://github.com/techtoboggan/librecode-3rdparty-providers)):
+`@librecode/provider-anthropic` · `@librecode/provider-openai` · `@librecode/provider-openrouter` · `@librecode/provider-bundle`
 
 ## Contributing
 
