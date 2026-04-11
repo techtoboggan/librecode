@@ -80,8 +80,8 @@
 | **Remove stale "librecode" provider refs** | `isFree()` dead code, `librecode`/`librecode-go` icon sprite entries removed | Small | ✅ Done |
 | **Fix the 1 failing test** | `tool.registry` singular dir test timed out due to `bun install` network call. Fixed with `LIBRECODE_SKIP_DEPS_INSTALL` env var | Small | ✅ Done |
 | **Stale i18n strings** | Audited — all stale keys were already removed in earlier phases | Small | ✅ Done (clean) |
-| **First-run experience** | When no providers connected AND no local servers found, the onboarding should guide clearly: "Install Ollama" or "Connect to LiteLLM" with links | Medium | Pending |
-| **Model selector "No results"** | Reported but unverified — may be fixed by recent provider work. Needs manual validation. | Small | Pending |
+| **First-run experience** | Empty state now shows "Connect a provider below — Ollama or LiteLLM recommended" hint. No dedicated wizard yet, but the settings UI is self-guiding. | Medium | ✅ Done (basic) |
+| **Model selector "No results"** | Context-sensitive: shows actionable "connect Ollama or LiteLLM" hint when no providers, vs "No model results" for search-filtered empty | Small | ✅ Done |
 | **README update** | Current README references old architecture. Needs: local-first positioning, provider ecosystem, install guide for Ollama/LiteLLM users | Medium | Pending |
 
 ### Should Have (v0.1.x fast-follows)
