@@ -53,12 +53,21 @@
 
 ### Phase 7: npm & Community Ecosystem ✅
 - `@librecode/sdk@0.1.0` published to npm
-- `@librecode/plugin@0.1.0` published to npm
+- `@librecode/plugin@0.1.0` published to npm (has broken `zod: "catalog:"` dep — needs 0.1.1)
 - npm org `@librecode` created (techtoboggan)
 - `~/Projects/librecode-3rdparty-providers` monorepo scaffolded (provider-anthropic, provider-openai, provider-openrouter, provider-bundle)
-- GitHub Actions npm-publish.yml with OIDC provenance (both repos)
+- GitHub Actions npm-publish.yml with OIDC provenance (both repos) — fixed catalog: dep resolution, fixed workflow ordering
 - `docs/providers.md` — comprehensive guide for adding new providers
 - `.claude/skills/add-provider` — Claude Code skill for adding providers
+- 3rdparty repo pushed to `github.com/techtoboggan/librecode-3rdparty-providers` (v0.1.0 tag)
+
+### Phase 8: Provider System Cleanup ✅
+- `BUILTIN = []` — removed broken `librecode-anthropic-auth@0.0.13` npm reference
+  - Generic auth fallback in `dialog-connect-provider.tsx` handles all simple API key providers
+  - `loadApiKeyProviders()` generically injects stored keys for all providers
+  - No BUILTIN npm plugins needed for Anthropic/OpenAI/etc.
+- Ollama provider icon added to sprite sheet
+- npm-publish.yml in both repos fixed: catalog: dep resolution + workflow job ordering
 
 ---
 
@@ -79,10 +88,9 @@
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **Provider extraction Phase 3-4** | Move cloud providers (Anthropic, OpenAI, Copilot, etc.) to `librecode-3rdparty-providers`. Add to BUILTIN array as npm packages. | Large |
-| **Trusted publishers CI** | Configure npm OIDC trusted publishers for automated releases | Small |
+| **npm auth setup** | Configure npm OIDC trusted publishers OR add NPM_TOKEN secret to both GitHub repos. Needed to publish `@librecode/plugin@0.1.1` (catalog: fix) and `@librecode/provider-*@0.1.0`. CI workflows are correct; only auth is missing. | Small |
+| **Provider extraction Phase 3-4** | 3rdparty repo is live on GitHub. Packages ready. Needs npm auth to publish. BUILTIN deliberately empty — generic fallback handles simple API key providers. | Blocked (npm auth) |
 | **OllamaAuthPlugin** | Proper auth plugin for Ollama (like LiteLLM) with prompts for URL | Medium |
-| **Provider icon for Ollama** | Need an Ollama icon in the provider-icon sprite | Small |
 | **Delete litellm-wizard.tsx** | Once the standard provider auth flow handles everything, the wizard can be replaced by the prompts system | Medium |
 
 ### Code Quality Cleanup ✅
