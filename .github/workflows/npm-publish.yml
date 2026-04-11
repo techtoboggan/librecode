@@ -25,9 +25,6 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install latest npm
-        run: npm install -g npm@latest
-
       - run: bun install --frozen-lockfile
 
       - name: Build SDK
@@ -74,9 +71,6 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
-      - name: Install latest npm
-        run: npm install -g npm@latest
-
       - run: bun install --frozen-lockfile
 
       - name: Build plugin
@@ -88,6 +82,9 @@ jobs:
         run: |
           node -e "
           const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          const rootPkg = JSON.parse(require('fs').readFileSync('../../package.json', 'utf8'));
+          const catalog = rootPkg.catalog || {};
+
           for (const [key, value] of Object.entries(pkg.exports)) {
             if (typeof value === 'string') {
               const file = value.replace('./src/', './dist/').replace('.ts', '');
@@ -97,9 +94,19 @@ jobs:
           const tag = process.env.GITHUB_REF_NAME || '';
           const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
           pkg.version = version;
-          pkg.dependencies['@librecode/sdk'] = '^' + version;
+
+          // Resolve workspace: and catalog: deps to real semver versions
+          for (const [k, v] of Object.entries(pkg.dependencies || {})) {
+            if (v === 'workspace:*' || v === 'workspace:^' || v.startsWith('workspace:')) {
+              pkg.dependencies[k] = '^' + version;
+            } else if (v === 'catalog:' || v.startsWith('catalog:')) {
+              const resolved = catalog[k];
+              if (resolved) pkg.dependencies[k] = '^' + resolved;
+            }
+          }
           require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           console.log('Publishing @librecode/plugin@' + version);
+          console.log('Dependencies:', JSON.stringify(pkg.dependencies, null, 2));
           "
 
       - name: Publish
