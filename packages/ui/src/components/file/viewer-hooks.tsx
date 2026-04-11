@@ -95,7 +95,7 @@ export type VirtualStrategy = {
 // Core viewer hook
 // ---------------------------------------------------------------------------
 
-export function useFileViewer(config: ViewerConfig): Viewer {
+export function useFileViewer(config: ViewerConfig) {
   let wrapper!: HTMLDivElement
   let container!: HTMLDivElement
   let overlay!: HTMLDivElement
@@ -421,7 +421,7 @@ export function renderViewer<I extends RenderTarget>(opts: {
   opts.draw(next)
 
   applyViewerScheme(opts.viewer.getHost())
-  opts.viewer.setRendered((value) => value + 1)
+  opts.viewer.setRendered((value: number) => value + 1)
   opts.onReady()
 }
 

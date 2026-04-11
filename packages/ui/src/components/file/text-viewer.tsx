@@ -310,5 +310,5 @@ export function TextViewer<T>(props: TextFileProps<T>): JSX.Element {
 }
 
 export function TextFileViewer<T>(props: TextFileProps<T> & { media?: FileMediaOptions }): JSX.Element {
-  return <FileMedia media={props.media} fallback={() => TextViewer(props)} />
+  return <FileMedia media={props.media} fallback={() => TextViewer<T>(props)} />
 }
