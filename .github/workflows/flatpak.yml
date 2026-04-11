@@ -2,7 +2,7 @@ name: Flatpak
 
 on:
   push:
-    tags: ["v*-desktop"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
