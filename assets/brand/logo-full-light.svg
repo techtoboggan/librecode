@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 268" width="1200" height="670">
+  <defs>
+    <!-- Brand gradient: top-left teal → bottom-right navy, across monogram artboard -->
+    <linearGradient id="g" x1="128" y1="22" x2="372" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4A8"/>
+      <stop offset="42%"  stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#15476C"/>
+    </linearGradient>
+    <!-- Code symbols: same gradient at 82% opacity -->
+    <linearGradient id="gc" x1="128" y1="22" x2="372" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4A8" stop-opacity="0.82"/>
+      <stop offset="100%" stop-color="#1E6CA0" stop-opacity="0.82"/>
+    </linearGradient>
+    <!-- Paths for binary stream text -->
+    <path id="s1" d="M 129,32 C 127,72 125,112 127,148"/>
+    <path id="s2" d="M 163,170 C 194,178 226,177 252,167 C 270,159 282,146 276,127"/>
+    <path id="s3" d="M 328,50 C 358,63 376,90 376,117 C 376,144 358,170 328,185"/>
+  </defs>
+
+  <!-- ─── BACKGROUND ──────────────────────────────── -->
+  <rect width="480" height="268" fill="#F5F0E8"/>
+
+  <!-- ─── MONOGRAM ────────────────────────────────── -->
+
+  <!-- C arc — drawn first so L tail layers on top -->
+  <path d="M 315,40
+           C 346,32 326,21 298,28
+           C 267,36 241,59 231,90
+           C 221,121 225,150 244,169
+           C 261,186 289,196 315,190"
+        fill="none" stroke="url(#g)"
+        stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- L — vertical stem -->
+  <path d="M 148,26
+           C 146,68 143,110 145,144
+           C 146,150 150,156 158,157"
+        fill="none" stroke="url(#g)"
+        stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- L — foot -->
+  <path d="M 145,154
+           C 172,163 210,164 252,155"
+        fill="none" stroke="url(#g)"
+        stroke-width="16" stroke-linecap="round"/>
+
+  <!-- L — swooping tail (in front of C lower arm) -->
+  <path d="M 250,155
+           C 278,147 300,128 285,107
+           C 272,87 248,95 247,116"
+        fill="none" stroke="url(#g)"
+        stroke-width="12" stroke-linecap="round"/>
+
+  <!-- ─── DECORATIVE ────────────────────────────────── -->
+
+  <!-- Binary stream alongside L stem (left side) -->
+  <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+        font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+    <textPath href="#s1">0 1 0 1 0 1 1 0 0 1 1 0</textPath>
+  </text>
+
+  <!-- Binary stream along foot / tail -->
+  <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+        font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+    <textPath href="#s2">0 1 1 0 0 1 0 1 1 0 0 1</textPath>
+  </text>
+
+  <!-- Binary stream along outer C arc -->
+  <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+        font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+    <textPath href="#s3">1 0 0 1 0 1 1 0 0 1 0 1</textPath>
+  </text>
+
+  <!-- {} — lower-left, between L and C strokes -->
+  <text x="185" y="175"
+        font-family="'Fira Code','SF Mono','Consolas',monospace"
+        font-size="19" font-weight="500"
+        fill="url(#gc)">{}</text>
+
+  <!-- </> — inside C opening, right of L tail -->
+  <text x="258" y="127"
+        font-family="'Fira Code','SF Mono','Consolas',monospace"
+        font-size="15" font-weight="500"
+        fill="url(#gc)">&lt;/&gt;</text>
+
+  <!-- ─── BIRDS ──────────────────────────────────── -->
+  <!-- Three angular seagull silhouettes, upper-right, decreasing size + opacity -->
+  <path d="M 318,31 C 325,23 335,19 343,20 C 351,19 360,24 368,30"
+        fill="none" stroke="#15476C"
+        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 335,18 C 341,11 350,8 357,9 C 364,8 372,13 379,19"
+        fill="none" stroke="#0A7E76"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.82"/>
+  <path d="M 350,8 C 355,3 363,1 369,2 C 375,1 382,5 389,10"
+        fill="none" stroke="#0A7E76"
+        stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.62"/>
+
+  <!-- ─── WORDMARK ───────────────────────────────── -->
+  <text x="240" y="220"
+        text-anchor="middle"
+        font-family="'Inter','Helvetica Neue','Arial',sans-serif"
+        font-size="30" font-weight="800" letter-spacing="-1">
+    <tspan fill="#15476C">LIBRE</tspan><tspan fill="#0D9488">CODE</tspan>
+  </text>
+
+  <!-- ─── TAGLINE ────────────────────────────────── -->
+  <text x="240" y="247"
+        text-anchor="middle"
+        font-family="'Inter','Helvetica Neue','Arial',sans-serif"
+        font-size="9.5" font-weight="600" letter-spacing="1.4" fill="#4A5568">
+    FREE SOFTWARE. MODERN CODE.
+  </text>
+</svg>

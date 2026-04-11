@@ -140,6 +140,16 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 | **Monorepo migration** | Removed 19,037 lines of duplicated locale files from app/ui/desktop packages | ✅ Done |
 | **CI publish** | `npm-publish.yml` publishes `@librecode/i18n` on every `v*` tag from main repo workflow | ✅ Done |
 
+### Phase 12: Brand Assets ✅
+
+| Item | Description | Status |
+|------|-------------|--------|
+| **LC monogram SVG** | Hand-coded stroke-based LC letterforms, teal→navy gradient, intertwining C/L paths | ✅ Done |
+| **Full logo lockups** | `logo-full-light.svg` + `logo-full-dark.svg` (480×268 viewBox, wordmark + tagline) | ✅ Done |
+| **Mark variants** | `mark-dark.svg`, `mark-light.svg`, `mark-transparent.svg` (180×180, rounded rect) | ✅ Done |
+| **PNG export pipeline** | `scripts/generate-brand.ts` (cairosvg) — 30 PNGs: logo@1x/@2x, marks 16–512px, favicon set, OG images | ✅ Done |
+| **Favicon set** | favicon-16/32/48/192/512.png, apple-touch-icon.png, favicon.ico (ImageMagick composite) | ✅ Done |
+
 ---
 
 ## v0.3.x Roadmap
@@ -149,7 +159,8 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 | Item | Description | Effort | Priority |
 |------|-------------|--------|----------|
 | **Flatpak full build** | Fill SHA256 hashes for release tarball + Bun binaries; generate cargo-sources.json; submit to Flathub beta | Medium | Medium |
-| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready; need actual generation via GenAI tools | Small | Medium |
+| **Tater mascot SVG** | Golden retriever puppy mascot (flat illustration, teal t-shirt) — wire into OG social images | Small | Medium |
+| **Wire app icons into Tauri** | Update tauri.conf.json to use assets/favicon/ PNGs now that the full set is generated | Small | High |
 | **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low |
 
 ---

@@ -18,6 +18,12 @@
       "runtimeExecutable": "python3",
       "runtimeArgs": ["-m", "http.server", "3101", "--directory", "sites/app"],
       "port": 3101
+    },
+    {
+      "name": "brand-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "3102", "--directory", "assets/brand"],
+      "port": 3102
     }
   ]
 }

@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="512" height="512">
+  <!--
+    LC monogram mark — transparent background
+    Scaled from logo-full-light.svg monogram artboard (x:128-372, y:22-192, 244×170)
+    into a 180×180 square with 12px padding on all sides.
+    Transform: translate(-65.3, 20.2) scale(0.638)
+  -->
+  <defs>
+    <linearGradient id="g" x1="128" y1="22" x2="372" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4A8"/>
+      <stop offset="42%"  stop-color="#0D9488"/>
+      <stop offset="100%" stop-color="#15476C"/>
+    </linearGradient>
+    <linearGradient id="gc" x1="128" y1="22" x2="372" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#2DD4A8" stop-opacity="0.82"/>
+      <stop offset="100%" stop-color="#1E6CA0" stop-opacity="0.82"/>
+    </linearGradient>
+    <path id="s1" d="M 129,32 C 127,72 125,112 127,148"/>
+    <path id="s2" d="M 163,170 C 194,178 226,177 252,167 C 270,159 282,146 276,127"/>
+    <path id="s3" d="M 328,50 C 358,63 376,90 376,117 C 376,144 358,170 328,185"/>
+  </defs>
+
+  <!-- All monogram elements scaled + translated into 180×180 -->
+  <g transform="translate(-65.3,20.2) scale(0.638)">
+
+    <!-- C arc -->
+    <path d="M 315,40
+             C 346,32 326,21 298,28
+             C 267,36 241,59 231,90
+             C 221,121 225,150 244,169
+             C 261,186 289,196 315,190"
+          fill="none" stroke="url(#g)"
+          stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- L stem -->
+    <path d="M 148,26
+             C 146,68 143,110 145,144
+             C 146,150 150,156 158,157"
+          fill="none" stroke="url(#g)"
+          stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- L foot -->
+    <path d="M 145,154
+             C 172,163 210,164 252,155"
+          fill="none" stroke="url(#g)"
+          stroke-width="16" stroke-linecap="round"/>
+
+    <!-- L tail -->
+    <path d="M 250,155
+             C 278,147 300,128 285,107
+             C 272,87 248,95 247,116"
+          fill="none" stroke="url(#g)"
+          stroke-width="12" stroke-linecap="round"/>
+
+    <!-- Binary streams -->
+    <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+          font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+      <textPath href="#s1">0 1 0 1 0 1 1 0 0 1 1 0</textPath>
+    </text>
+    <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+          font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+      <textPath href="#s2">0 1 1 0 0 1 0 1 1 0 0 1</textPath>
+    </text>
+    <text font-family="'Fira Code','SF Mono','Consolas',monospace"
+          font-size="7.5" fill="#0D9488" fill-opacity="0.58">
+      <textPath href="#s3">1 0 0 1 0 1 1 0 0 1 0 1</textPath>
+    </text>
+
+    <!-- {} symbol -->
+    <text x="185" y="175"
+          font-family="'Fira Code','SF Mono','Consolas',monospace"
+          font-size="19" font-weight="500"
+          fill="url(#gc)">{}</text>
+
+    <!-- </> symbol -->
+    <text x="258" y="127"
+          font-family="'Fira Code','SF Mono','Consolas',monospace"
+          font-size="15" font-weight="500"
+          fill="url(#gc)">&lt;/&gt;</text>
+
+    <!-- Birds -->
+    <path d="M 318,31 C 325,23 335,19 343,20 C 351,19 360,24 368,30"
+          fill="none" stroke="#15476C"
+          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 335,18 C 341,11 350,8 357,9 C 364,8 372,13 379,19"
+          fill="none" stroke="#0A7E76"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.82"/>
+    <path d="M 350,8 C 355,3 363,1 369,2 C 375,1 382,5 389,10"
+          fill="none" stroke="#0A7E76"
+          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.62"/>
+  </g>
+</svg>
