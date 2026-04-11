@@ -9,6 +9,9 @@ import { ProviderID } from "../../provider/schema"
 import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { Log } from "../../util/log"
+
+const log = Log.create({ service: "server.routes.provider" })
 
 const KNOWN_PORTS = [
   { port: 4000, name: "LiteLLM" },
@@ -24,6 +27,28 @@ const KNOWN_PORTS = [
 const SCAN_TIMEOUT_MS = 3000
 
 type ScanServer = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
+
+// SSRF guard: reject attempts to probe cloud metadata services or loopback addresses.
+// Loopback is already covered by the dedicated localhost scan path.
+// 169.254.169.254 is the AWS/Azure/GCP/DO metadata endpoint — must never be reached.
+const BLOCKED_HOST_PATTERNS = [
+  /^127\./,
+  /^0\./,
+  /^169\.254\./,
+  /^::1$/,
+  /^localhost$/i,
+  /^metadata\.google\.internal$/i,
+]
+
+function isValidRemoteHost(host: string): boolean {
+  if (!host || host.length > 253) return false
+  // Reject if it matches any blocked pattern
+  for (const pattern of BLOCKED_HOST_PATTERNS) {
+    if (pattern.test(host)) return false
+  }
+  // Must be a valid hostname or IP (basic check — no shell metacharacters)
+  return /^[a-zA-Z0-9._\-[\]:]+$/.test(host)
+}
 
 function guessServerName(hostName: string, port: number): string {
   const known = KNOWN_PORTS.find((p) => p.port === port)
@@ -133,25 +158,25 @@ async function probeEndpoint(url: string): Promise<Array<{ id: string; name: str
     const res = await fetch(url, { signal: controller.signal })
     clearTimeout(timeout)
     if (!res.ok) {
-      console.log(`[scan] ${url} -> ${res.status}`)
+      log.debug("probe failed", { url, status: res.status })
       return []
     }
     const data = await res.json()
     const openai = parseOpenAIModels(data)
     if (openai) {
-      console.log(`[scan] ${url} -> ${openai.length} models (openai format)`)
+      log.debug("probe found models", { url, count: openai.length, format: "openai" })
       return openai
     }
     const ollama = parseOllamaModels(data)
     if (ollama) {
-      console.log(`[scan] ${url} -> ${ollama.length} models (ollama format)`)
+      log.debug("probe found models", { url, count: ollama.length, format: "ollama" })
       return ollama
     }
-    console.log(`[scan] ${url} -> 200 but unrecognized format`)
+    log.debug("probe unrecognized format", { url })
     return []
   } catch (e: unknown) {
     const err = e as Record<string, unknown>
-    console.log(`[scan] ${url} -> error: ${err?.code ?? err?.message ?? e}`)
+    log.debug("probe error", { url, error: String(err?.code ?? err?.message ?? e) })
     return []
   }
 }
@@ -159,7 +184,7 @@ async function probeEndpoint(url: string): Promise<Array<{ id: string; name: str
 async function probe(host: string, port: number, name: string): Promise<ScanServer | null> {
   const open = await isPortOpen(host, port)
   if (!open) return null
-  console.log(`[scan] ${host}:${port} -> TCP open, probing HTTP...`)
+  log.debug("port open, probing HTTP", { host, port })
 
   const baseUrl = `http://${host}:${port}`
   let models = await probeEndpoint(`${baseUrl}/v1/models`)
@@ -409,20 +434,25 @@ export const ProviderRoutes = lazy(() =>
       ),
       async (c) => {
         const { host } = c.req.valid("json")
-        console.log(`[scan] POST /provider/scan called (host=${host ?? "localhost only"})`)
+        log.info("scan requested", { remote: host ?? null })
 
         const seen = new Set<string>()
-        console.log("[scan] Starting local scan...")
         const servers = await scanPorts("localhost", KNOWN_PORTS, seen)
-        console.log(`[scan] Local scan done. Found ${servers.length} servers.`)
+        log.debug("local scan complete", { found: servers.length })
 
         if (host) {
           const remoteHost = host.trim()
-          console.log(`[scan] Probing remote host: ${remoteHost}`)
-          const remotePorts = [4000, 11434, 8000, 8080, 3000, 5000].map((port) => ({ port, name: guessServerName(remoteHost, port) }))
+          if (!isValidRemoteHost(remoteHost)) {
+            log.warn("rejected invalid or blocked remote host", { host: remoteHost })
+            return c.json({ error: "Invalid remote host" }, 400)
+          }
+          const remotePorts = [4000, 11434, 8000, 8080, 3000, 5000].map((port) => ({
+            port,
+            name: guessServerName(remoteHost, port),
+          }))
           const remoteServers = await scanPorts(remoteHost, remotePorts, seen)
           servers.push(...remoteServers)
-          console.log(`[scan] Remote probe done. Total servers: ${servers.length}`)
+          log.debug("remote scan complete", { host: remoteHost, found: servers.length })
         }
 
         return c.json(servers)

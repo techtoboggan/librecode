@@ -289,7 +289,13 @@ export namespace Config {
 
   export async function installDependencies(dir: string) {
     const pkg = path.join(dir, "package.json")
-    const targetVersion = Installation.isLocal() ? "*" : Installation.VERSION
+    // Use "*" for local dev builds; fall back to "latest" for CI/channel builds
+    // whose version strings (e.g. "0.0.0-main-202604111840") are never published to npm.
+    const targetVersion = Installation.isLocal()
+      ? "*"
+      : /^0\.0\.0-/.test(Installation.VERSION)
+        ? "latest"
+        : Installation.VERSION
 
     const json = await Filesystem.readJson<{ dependencies?: Record<string, string> }>(pkg).catch(() => ({
       dependencies: {},

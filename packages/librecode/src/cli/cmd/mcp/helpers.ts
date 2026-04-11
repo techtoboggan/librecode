@@ -136,7 +136,8 @@ export async function resolveAddConfigPath(): Promise<string> {
 export async function printDebugTokenInfo(serverName: string): Promise<void> {
   const entry = await McpAuth.get(serverName)
   if (entry?.tokens) {
-    prompts.log.info(`  Access token: ${entry.tokens.accessToken.substring(0, 20)}...`)
+    prompts.log.info(`  Access token: present`)
+
     if (entry.tokens.expiresAt) {
       const expiresDate = new Date(entry.tokens.expiresAt * 1000)
       const isExpired = entry.tokens.expiresAt < Date.now() / 1000

@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-11 | 118 commits | Tests: 1358 pass, 0 fail
+> Last updated: 2026-04-11 | 119 commits | Tests: 1358 pass, 0 fail
 
 ---
 
@@ -121,16 +121,69 @@ fixes requiring helper extraction that adds lines. These are tracked below.
 
 File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
 
+### Phase 10: Bug Fixes + Security Hardening ✅
+
+Runtime bugs and security issues identified via OWASP analysis and production log review.
+
+| Item | File | Status |
+|------|------|--------|
+| **Rust unused imports** | `desktop/src-tauri/src/lib.rs` — removed `PathBuf` and `sleep` | ✅ Done |
+| **GTK main thread panic** | `windows.rs:set_window_icon()` called from tokio worker — wrapped `gtk::Window::set_default_icon_name()` in `app.run_on_main_thread()` | ✅ Done |
+| **Dev channel plugin version** | `config.ts:installDependencies()` — `0.0.0-main-{datetime}` versions don't exist on npm; fall back to `"latest"` when version matches `0.0.0-*` | ✅ Done |
+| **npm package name injection** | `plugin/index.ts` — validate plugin names against safe regex before `bun add` | ✅ Done |
+| **SSRF in /provider/scan** | `routes/provider.ts` — reject `169.254.x.x`, loopback, metadata endpoints; validate host format | ✅ Done |
+| **console.log → structured logging** | `routes/provider.ts` scan functions — replaced 10x `console.log` with `log.debug/info/warn` | ✅ Done |
+| **Partial access token in logs** | `mcp/helpers.ts:printDebugTokenInfo()` — was logging first 20 chars of token; now logs only "present" | ✅ Done |
+
 ### Nice to Have (v0.2+)
 
-| Item | Description | Effort |
-|------|-------------|--------|
-| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small |
-| **Turbo evaluation** | 1.3 from Phase 1 — Turbo vs Bun workspaces alone | Small |
-| **AppImage/Flatpak** | Additional Linux packaging formats | Medium |
-| **Provider capability detection** | During discovery, probe what models support (vision, tools, streaming) | Large |
-| **Structured credential storage** | Separate URL from API key in auth storage (currently encoded as `url\|key`) | Medium |
-| **i18n extraction** | Move locale files from core to `@librecode/i18n` (repo scaffolded) | Medium |
+| Item | Description | Effort | Priority |
+|------|-------------|--------|----------|
+| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low |
+| **Turbo evaluation** | 1.3 from Phase 1 — Turbo vs Bun workspaces alone | Small | Low |
+| **AppImage packaging** | Add `"appimage"` to `bundle.targets` in `tauri.prod.conf.json`; verify build on CI | Small | Medium |
+| **Flatpak packaging** | Create `com.librecode.LibreCode.yml` manifest; update appstream.metainfo.xml with `<bundle type="flatpak">`; add Flathub submission workflow | Medium | Medium |
+| **Provider capability detection** | During local server discovery, probe vision/tools/streaming support — `detectCapabilities()` function wired into ollama/litellm loaders; results stored in `provider.models[id].capabilities` | Large | Medium |
+| **Structured credential storage** | New Drizzle migration: `provider_credentials(provider_id, url, api_key, metadata)` table. Migrate from `auth.json` `url|key` encoding. Update all `getAuth()`/`authorize()` callers. Backward-compat shim for `url|key` format during transition. | Medium | High |
+| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package (repo already scaffolded). Update all `t()` import paths. Publish via existing npm-publish workflow. | Medium | Low |
+| **File-size splits** | See table above — 8 files over 1000 lines, no behavior impact | Large | Low |
+
+#### Structured Credential Storage — Implementation Plan
+
+1. **Migration** — `migration/{timestamp}_provider_credentials/migration.sql`:
+   ```sql
+   CREATE TABLE provider_credentials (
+     provider_id TEXT PRIMARY KEY,
+     url TEXT,
+     api_key TEXT,
+     metadata TEXT DEFAULT '{}'
+   );
+   ```
+2. **Schema** — `src/provider/credentials.ts`: Zod schema + Drizzle table def
+3. **Auth module** — update `ProviderAuth.get/set()` to read/write new table;
+   keep `auth.json` reader as fallback for migration
+4. **Parser removal** — drop `url|key` split logic from `litellm.ts`, `ollama.ts`, all loaders
+5. **Tests** — migration round-trip test, backward-compat test for legacy `url|key` format
+
+#### Provider Capability Detection — Implementation Plan
+
+1. **Types** — extend `ModelInfo` in `src/provider/schema.ts`:
+   ```typescript
+   capabilities?: { vision?: boolean; tools?: boolean; streaming?: boolean }
+   ```
+2. **Detector** — `src/provider/detect-capabilities.ts`:
+   - For OpenAI-compat: parse `/v1/models` response for model name patterns
+   - For Ollama: parse `/api/show` model details
+   - Timeout 2s, fail-open (unknown = undefined)
+3. **Wire-in** — call `detectCapabilities(models)` in `LiteLLMAuthPlugin.loader()` and `OllamaAuthPlugin.loader()`
+4. **UI** — model selector shows capability badges (👁 vision, 🔧 tools)
+
+#### Flatpak Packaging — Implementation Plan
+
+1. Create `packages/desktop/flatpak/com.librecode.LibreCode.yml`
+2. Update `packages/desktop/src-tauri/icons/com.librecode.LibreCode.appstream.metainfo.xml` with `<bundle type="flatpak">` tag
+3. Add GitHub Actions workflow `workflows/flatpak.yml` building on `ubuntu-latest` with `flatpak-builder`
+4. Submit to Flathub beta queue (separate PR to flathub/flathub repo)
 
 ---
 
@@ -138,7 +191,7 @@ File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
 
 | Metric | Value |
 |--------|-------|
-| Total commits | 118 |
+| Total commits | 119 |
 | Tests passing | 1,358 |
 | Tests failing | 0 |
 | Test files | 111 |

@@ -17,7 +17,6 @@ use std::{
     env,
     future::Future,
     net::TcpListener,
-    path::PathBuf,
     process::Command,
     sync::{Arc, Mutex},
     time::Duration,
@@ -27,7 +26,7 @@ use tauri::{AppHandle, Manager, RunEvent, State, ipc::Channel};
 use tauri_plugin_deep_link::DeepLinkExt;
 use tokio::{
     sync::{oneshot, watch},
-    time::{sleep, timeout},
+    time::timeout,
 };
 
 use crate::cli::sync_cli;

@@ -71,7 +71,7 @@ impl MainWindow {
         // Set the window icon programmatically so it appears in Wayland taskbars.
         // Tauri's bundle icon config only affects the packaged .desktop launcher;
         // the running window needs its icon set via the windowing API.
-        set_window_icon(&window);
+        set_window_icon(app, &window);
 
         // Ensure window is focused after creation (e.g., after update/relaunch)
         let _ = window.set_focus();
@@ -147,19 +147,23 @@ impl LoadingWindow {
         .visible(true);
 
         let window = window_builder.build()?;
-        set_window_icon(&window);
+        set_window_icon(app, &window);
         Ok(Self(window))
     }
 }
 
 /// Set the window icon from the embedded PNG so it appears in taskbars
 /// (especially on Wayland where the .desktop file icon is not always used).
-fn set_window_icon(window: &WebviewWindow) {
+fn set_window_icon(app: &AppHandle, window: &WebviewWindow) {
     // On Linux, set the GTK default icon name so the compositor can find our icon
     // from the XDG icon theme. This works on both X11 and Wayland.
+    // GTK operations MUST run on the main thread — dispatch via run_on_main_thread
+    // since this function may be called from a tokio worker thread.
     #[cfg(target_os = "linux")]
     {
-        gtk::Window::set_default_icon_name("librecode-desktop");
+        let _ = app.run_on_main_thread(|| {
+            gtk::Window::set_default_icon_name("librecode-desktop");
+        });
     }
 
     // Also set the window icon directly from the embedded PNG.

@@ -41,7 +41,18 @@ export namespace Plugin {
     }
   }
 
+  // Validates npm package name: allows scoped (@scope/name) and unscoped names,
+  // with optional version suffix (@version). Rejects shell metacharacters.
+  const VALID_NPM_PACKAGE = /^(@[a-z0-9][a-z0-9-_.]*\/)?[a-z0-9][a-z0-9-_.]*(@[a-zA-Z0-9._\-~^*]+)?$/
+
   async function installNpmPlugin(plugin: string): Promise<string> {
+    if (!VALID_NPM_PACKAGE.test(plugin)) {
+      log.error("rejected invalid plugin name", { plugin })
+      Bus.publish(Session.Event.Error, {
+        error: new NamedError.Unknown({ message: `Invalid plugin name: ${plugin}` }).toObject(),
+      })
+      return ""
+    }
     const lastAtIndex = plugin.lastIndexOf("@")
     const pkg = lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
     const version = lastAtIndex > 0 ? plugin.substring(lastAtIndex + 1) : "latest"
