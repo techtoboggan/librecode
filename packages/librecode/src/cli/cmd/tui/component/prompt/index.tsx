@@ -1,8 +1,6 @@
 import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
-import path from "path"
-import { Filesystem } from "@/util/filesystem"
 import { useLocal } from "@tui/context/local"
 import { useTheme } from "@tui/context/theme"
 import { EmptyBorder } from "@tui/component/border"
@@ -20,19 +18,19 @@ import { useCommandDialog } from "../dialog-command"
 import { useRenderer } from "@opentui/solid"
 import { Editor } from "@tui/util/editor"
 import { useExit } from "../../context/exit"
-import { Clipboard } from "../../util/clipboard"
-import type { FilePart, SessionStatus } from "@librecode/sdk/v2"
+import type { SessionStatus } from "@librecode/sdk/v2"
 import { TuiEvent } from "../../event"
 import { Locale } from "@/util/locale"
-import { formatDuration } from "@/util/format"
 import { createColors, createFrames } from "../../ui/spinner.ts"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
-import { DialogAlert } from "../../ui/dialog-alert"
 import { useToast } from "../../ui/toast"
 import { useKV } from "../../context/kv"
 import { useTextareaKeybindings } from "../textarea-keybindings"
 import { DialogSkill } from "../dialog-skill"
+import { buildCommandArgs, isKnownSlashCommand, updatedPartPositionInContent } from "./prompt-helpers"
+import { RetryStatusDisplay } from "./prompt-status"
+import { usePromptPaste } from "./prompt-paste"
 
 export type PromptProps = {
   sessionID?: string
@@ -57,144 +55,6 @@ export type PromptRef = {
 
 const PLACEHOLDERS = ["Fix a TODO in the codebase", "What is the tech stack of this project?", "Fix broken tests"]
 const SHELL_PLACEHOLDERS = ["ls -la", "git status", "pwd"]
-
-// ---------------------------------------------------------------------------
-// Module-level pure helpers (no captured state — safe to extract)
-// ---------------------------------------------------------------------------
-
-function normalizeLineEndings(text: string): string {
-  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-}
-
-function updatedFilePartPosition(
-  part: Extract<PromptInfo["parts"][number], { type: "file" }>,
-  newStart: number,
-  newEnd: number,
-): typeof part {
-  if (!part.source?.text) return part
-  return {
-    ...part,
-    source: {
-      ...part.source,
-      text: { ...part.source.text, start: newStart, end: newEnd },
-    },
-  }
-}
-
-function updatedAgentPartPosition(
-  part: Extract<PromptInfo["parts"][number], { type: "agent" }>,
-  newStart: number,
-  newEnd: number,
-): typeof part {
-  if (!part.source) return part
-  return {
-    ...part,
-    source: { ...part.source, start: newStart, end: newEnd },
-  }
-}
-
-function resolvePartVirtualText(part: PromptInfo["parts"][number]): string {
-  if (part.type === "file" && part.source?.text) return part.source.text.value
-  if (part.type === "agent" && part.source) return part.source.value
-  return ""
-}
-
-function updatedPartPositionInContent(
-  part: PromptInfo["parts"][number],
-  content: string,
-): PromptInfo["parts"][number] | null {
-  const virtualText = resolvePartVirtualText(part)
-  if (!virtualText) return part
-
-  const newStart = content.indexOf(virtualText)
-  if (newStart === -1) return null
-  const newEnd = newStart + virtualText.length
-
-  if (part.type === "file") return updatedFilePartPosition(part, newStart, newEnd)
-  if (part.type === "agent") return updatedAgentPartPosition(part, newStart, newEnd)
-  return part
-}
-
-function buildCommandArgs(inputText: string): { commandName: string; args: string } {
-  const firstLineEnd = inputText.indexOf("\n")
-  const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
-  const [commandToken, ...firstLineArgs] = firstLine.split(" ")
-  const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
-  const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
-  return { commandName: commandToken.slice(1), args }
-}
-
-function isKnownSlashCommand(inputText: string, knownCommands: { name: string }[]): boolean {
-  if (!inputText.startsWith("/")) return false
-  const firstLine = inputText.split("\n")[0]
-  const command = firstLine.split(" ")[0].slice(1)
-  return knownCommands.some((x) => x.name === command)
-}
-
-
-// ---------------------------------------------------------------------------
-// RetryStatusDisplay — extracted subcomponent to reduce Prompt render complexity
-// ---------------------------------------------------------------------------
-
-type RetryStatusDisplayProps = {
-  status: () => SessionStatus
-  dialog: ReturnType<typeof useDialog>
-  theme: ReturnType<typeof useTheme>["theme"]
-}
-
-function RetryStatusDisplay(props: RetryStatusDisplayProps) {
-  const retry = createMemo(() => {
-    const s = props.status()
-    if (s.type !== "retry") return undefined
-    return s
-  })
-
-  const message = createMemo(() => {
-    const r = retry()
-    if (!r) return undefined
-    if (r.message.includes("exceeded your current quota") && r.message.includes("gemini")) return "gemini is way too hot right now"
-    if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-    return r.message
-  })
-
-  const isTruncated = createMemo(() => {
-    const r = retry()
-    if (!r) return false
-    return r.message.length > 120
-  })
-
-  const [seconds, setSeconds] = createSignal(0)
-  onMount(() => {
-    const timer = setInterval(() => {
-      const next = retry()?.next
-      if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-    }, 1000)
-    onCleanup(() => clearInterval(timer))
-  })
-
-  const handleMessageClick = () => {
-    const r = retry()
-    if (!r) return
-    if (isTruncated()) DialogAlert.show(props.dialog, "Retry Error", r.message)
-  }
-
-  const retryText = () => {
-    const r = retry()
-    if (!r) return ""
-    const truncatedHint = isTruncated() ? " (click to expand)" : ""
-    const duration = formatDuration(seconds())
-    const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
-    return message() + truncatedHint + retryInfo
-  }
-
-  return (
-    <Show when={retry()}>
-      <box onMouseUp={handleMessageClick}>
-        <text fg={props.theme.error}>{retryText()}</text>
-      </box>
-    </Show>
-  )
-}
 
 export function Prompt(props: PromptProps) {
   let input: TextareaRenderable
@@ -307,6 +167,18 @@ export function Prompt(props: PromptProps) {
   })
 
   // ---------------------------------------------------------------------------
+  // Paste handlers — via extracted hook
+  // ---------------------------------------------------------------------------
+
+  const { pasteText, pasteImage, handleKeyDownPaste, onPaste } = usePromptPaste({
+    getInput: () => input,
+    store,
+    setStore: setStore as Parameters<typeof usePromptPaste>[0]["setStore"],
+    pasteStyleId,
+    getPromptPartTypeId: () => promptPartTypeId,
+  })
+
+  // ---------------------------------------------------------------------------
   // Command onSelect handlers — extracted to reduce complexity of register callbacks
   // ---------------------------------------------------------------------------
 
@@ -391,7 +263,7 @@ export function Prompt(props: PromptProps) {
         category: "Prompt",
         hidden: true,
         onSelect: async () => {
-          const content = await Clipboard.read()
+          const content = await import("../../util/clipboard").then((m) => m.Clipboard.read())
           if (content?.mime.startsWith("image/")) {
             await pasteImage({
               filename: "clipboard",
@@ -704,8 +576,8 @@ export function Prompt(props: PromptProps) {
     return res.data.id
   }
 
-  function isExitCommand(input: string): boolean {
-    const t = input.trim()
+  function isExitCommand(inputStr: string): boolean {
+    const t = inputStr.trim()
     return t === "exit" || t === "quit" || t === ":q"
   }
 
@@ -767,96 +639,9 @@ export function Prompt(props: PromptProps) {
   }
   const exit = useExit()
 
-  function pasteText(text: string, virtualText: string) {
-    const currentOffset = input.visualCursor.offset
-    const extmarkStart = currentOffset
-    const extmarkEnd = extmarkStart + virtualText.length
-
-    input.insertText(virtualText + " ")
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push({
-          type: "text" as const,
-          text,
-          source: {
-            text: {
-              start: extmarkStart,
-              end: extmarkEnd,
-              value: virtualText,
-            },
-          },
-        })
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-  }
-
-  async function pasteImage(file: { filename?: string; content: string; mime: string }) {
-    const currentOffset = input.visualCursor.offset
-    const extmarkStart = currentOffset
-    const count = store.prompt.parts.filter((x) => x.type === "file" && x.mime.startsWith("image/")).length
-    const virtualText = `[Image ${count + 1}]`
-    const extmarkEnd = extmarkStart + virtualText.length
-    const textToInsert = virtualText + " "
-
-    input.insertText(textToInsert)
-
-    const extmarkId = input.extmarks.create({
-      start: extmarkStart,
-      end: extmarkEnd,
-      virtual: true,
-      styleId: pasteStyleId,
-      typeId: promptPartTypeId,
-    })
-
-    const part: Omit<FilePart, "id" | "messageID" | "sessionID"> = {
-      type: "file" as const,
-      mime: file.mime,
-      filename: file.filename,
-      url: `data:${file.mime};base64,${file.content}`,
-      source: {
-        type: "file",
-        path: file.filename ?? "",
-        text: {
-          start: extmarkStart,
-          end: extmarkEnd,
-          value: virtualText,
-        },
-      },
-    }
-    setStore(
-      produce((draft) => {
-        const partIndex = draft.prompt.parts.length
-        draft.prompt.parts.push(part)
-        draft.extmarkToPartIndex.set(extmarkId, partIndex)
-      }),
-    )
-    return
-  }
-
   // ---------------------------------------------------------------------------
   // Keyboard handler helpers — extracted to reduce onKeyDown complexity
   // ---------------------------------------------------------------------------
-
-  async function handleKeyDownPaste(e: { preventDefault(): void }): Promise<boolean> {
-    const content = await Clipboard.read()
-    if (content?.mime.startsWith("image/")) {
-      e.preventDefault()
-      await pasteImage({ filename: "clipboard", mime: content.mime, content: content.data })
-      return true
-    }
-    return false
-  }
 
   function handleKeyDownClear(e: { preventDefault(): void }): boolean {
     if (store.prompt.input === "") return false
@@ -921,58 +706,28 @@ export function Prompt(props: PromptProps) {
     if (isNext && input.visualCursor.visualRow === input.height - 1) input.cursorOffset = input.plainText.length
   }
 
-  // ---------------------------------------------------------------------------
-  // Paste handler helpers — extracted to reduce onPaste complexity
-  // ---------------------------------------------------------------------------
-
-  async function handlePasteSvg(filepath: string, filename: string, event: { preventDefault(): void }): Promise<boolean> {
-    event.preventDefault()
-    const content = await Filesystem.readText(filepath).catch(() => {})
-    if (content) {
-      pasteText(content, `[SVG: ${filename ?? "image"}]`)
+  async function handleSpecialKeys(e: { name: string; preventDefault(): void }): Promise<boolean> {
+    if (keybind.match("input_paste", e)) {
+      const handled = await handleKeyDownPaste(e)
+      if (handled) return true
+      // If no image, let the default paste behavior continue
+    }
+    if (keybind.match("input_clear", e) && handleKeyDownClear(e)) return true
+    if (keybind.match("app_exit", e)) {
+      await handleKeyDownExit(e)
       return true
     }
-    return false
+    return handleKeyDownShellMode(e)
   }
 
-  async function handlePasteRasterImage(filepath: string, filename: string, mime: string, event: { preventDefault(): void }): Promise<boolean> {
-    event.preventDefault()
-    const content = await Filesystem.readArrayBuffer(filepath)
-      .then((buffer) => Buffer.from(buffer).toString("base64"))
-      .catch(() => {})
-    if (content) {
-      await pasteImage({ filename, mime, content })
-      return true
+  async function onTextareaKeyDown(e: { name: string; preventDefault(): void }): Promise<void> {
+    if (props.disabled) {
+      e.preventDefault()
+      return
     }
-    return false
-  }
-
-  async function handlePasteFilePath(
-    filepath: string,
-    event: { preventDefault(): void },
-  ): Promise<boolean> {
-    try {
-      const mime = Filesystem.mimeType(filepath)
-      const filename = path.basename(filepath)
-      if (mime === "image/svg+xml") return await handlePasteSvg(filepath, filename, event)
-      if (mime.startsWith("image/")) return await handlePasteRasterImage(filepath, filename, mime, event)
-    } catch {}
-    return false
-  }
-
-  function shouldSummarizePaste(pastedContent: string): boolean {
-    const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-    const tooLong = lineCount >= 3 || pastedContent.length > 150
-    return tooLong && !sync.data.config.experimental?.disable_paste_summary
-  }
-
-  function triggerLayoutUpdate(): void {
-    setTimeout(() => {
-      // setTimeout is a workaround and needs to be addressed properly
-      if (!input || input.isDestroyed) return
-      input.getLayoutNode().markDirty()
-      renderer.requestRender()
-    }, 0)
+    if (await handleSpecialKeys(e)) return
+    if (store.mode === "normal") autocomplete.onKeyDown(e)
+    if (!autocomplete.visible) handleKeyDownHistory(e)
   }
 
   const highlight = createMemo(() => {
@@ -1004,42 +759,16 @@ export function Prompt(props: PromptProps) {
         color,
         style: "blocks",
         inactiveFactor: 0.6,
-        // enableFading: false,
         minAlpha: 0.3,
       }),
       color: createColors({
         color,
         style: "blocks",
         inactiveFactor: 0.6,
-        // enableFading: false,
         minAlpha: 0.3,
       }),
     }
   })
-
-  async function handleSpecialKeys(e: { name: string; preventDefault(): void }): Promise<boolean> {
-    if (keybind.match("input_paste", e)) {
-      const handled = await handleKeyDownPaste(e)
-      if (handled) return true
-      // If no image, let the default paste behavior continue
-    }
-    if (keybind.match("input_clear", e) && handleKeyDownClear(e)) return true
-    if (keybind.match("app_exit", e)) {
-      await handleKeyDownExit(e)
-      return true
-    }
-    return handleKeyDownShellMode(e)
-  }
-
-  async function onTextareaKeyDown(e: { name: string; preventDefault(): void }): Promise<void> {
-    if (props.disabled) {
-      e.preventDefault()
-      return
-    }
-    if (await handleSpecialKeys(e)) return
-    if (store.mode === "normal") autocomplete.onKeyDown(e)
-    if (!autocomplete.visible) handleKeyDownHistory(e)
-  }
 
   return (
     <>
@@ -1096,36 +825,7 @@ export function Prompt(props: PromptProps) {
               keyBindings={textareaKeybindings()}
               onKeyDown={onTextareaKeyDown}
               onSubmit={submit}
-              onPaste={async (event: PasteEvent) => {
-                if (props.disabled) {
-                  event.preventDefault()
-                  return
-                }
-
-                // Normalize line endings — Windows ConPTY/Terminal often sends CR-only newlines
-                const pastedContent = normalizeLineEndings(event.text).trim()
-                if (!pastedContent) {
-                  command.trigger("prompt.paste")
-                  return
-                }
-
-                // trim ' from beginning/end; unescape spaces for file paths
-                const filepath = pastedContent.replace(/^'+|'+$/g, "").replace(/\\ /g, " ")
-                const isUrl = /^(https?):\/\//.test(filepath)
-                if (!isUrl) {
-                  const handled = await handlePasteFilePath(filepath, event)
-                  if (handled) return
-                }
-
-                if (shouldSummarizePaste(pastedContent)) {
-                  const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-                  event.preventDefault()
-                  pasteText(pastedContent, `[Pasted ~${lineCount} lines]`)
-                  return
-                }
-
-                triggerLayoutUpdate()
-              }}
+              onPaste={(event: PasteEvent) => onPaste(event, !!props.disabled)}
               ref={(r: TextareaRenderable) => {
                 input = r
                 if (promptPartTypeId === 0) {
