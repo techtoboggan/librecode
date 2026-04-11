@@ -52,14 +52,14 @@
 - Local-first UI overhaul: popularProviders = [litellm, ollama, bedrock, azure], cloud providers deprioritized, "paid" concept removed
 
 ### Phase 7: npm & Community Ecosystem ✅
-- `@librecode/sdk@0.1.0` published to npm
-- `@librecode/plugin@0.1.0` published to npm (has broken `zod: "catalog:"` dep — needs 0.1.1)
+- `@librecode/sdk@0.1.7` published to npm (with sigstore provenance)
+- `@librecode/plugin@0.1.7` published to npm (zod: `^4.1.8` — catalog: dep resolved from bun.lock)
 - npm org `@librecode` created (techtoboggan)
 - `~/Projects/librecode-3rdparty-providers` monorepo scaffolded (provider-anthropic, provider-openai, provider-openrouter, provider-bundle)
-- GitHub Actions npm-publish.yml with OIDC provenance (both repos) — fixed catalog: dep resolution, fixed workflow ordering
+- GitHub Actions npm-publish.yml in both repos: NPM_TOKEN auth, sigstore provenance, catalog: dep resolution via bun.lock parsing
 - `docs/providers.md` — comprehensive guide for adding new providers
 - `.claude/skills/add-provider` — Claude Code skill for adding providers
-- 3rdparty repo pushed to `github.com/techtoboggan/librecode-3rdparty-providers` (v0.1.0 tag)
+- 3rdparty repo: `@librecode/provider-{anthropic,openai,openrouter,bundle}@0.1.4` published to npm
 
 ### Phase 8: Provider System Cleanup ✅
 - `BUILTIN = []` — removed broken `librecode-anthropic-auth@0.0.13` npm reference
@@ -67,7 +67,7 @@
   - `loadApiKeyProviders()` generically injects stored keys for all providers
   - No BUILTIN npm plugins needed for Anthropic/OpenAI/etc.
 - Ollama provider icon added to sprite sheet
-- npm-publish.yml in both repos fixed: catalog: dep resolution + workflow job ordering
+- npm-publish.yml in both repos fixed: NPM_TOKEN auth, catalog: dep resolution, repository.url for provenance
 
 ---
 
@@ -88,8 +88,8 @@
 
 | Item | Description | Effort |
 |------|-------------|--------|
-| **npm auth setup** | Configure npm OIDC trusted publishers OR add NPM_TOKEN secret to both GitHub repos. Needed to publish `@librecode/plugin@0.1.1` (catalog: fix) and `@librecode/provider-*@0.1.0`. CI workflows are correct; only auth is missing. | Small |
-| **Provider extraction Phase 3-4** | 3rdparty repo is live on GitHub. Packages ready. Needs npm auth to publish. BUILTIN deliberately empty — generic fallback handles simple API key providers. | Blocked (npm auth) |
+| **npm auth setup** | NPM_TOKEN added to both repos. All 6 packages publishing with provenance. ✅ Done | Small |
+| **Provider extraction Phase 3-4** | All 4 `@librecode/provider-*@0.1.4` packages live on npm. BUILTIN deliberately empty. ✅ Done | — |
 | **OllamaAuthPlugin** | Proper auth plugin for Ollama (like LiteLLM) with prompts for URL | Medium |
 | **Delete litellm-wizard.tsx** | Once the standard provider auth flow handles everything, the wizard can be replaced by the prompts system | Medium |
 
