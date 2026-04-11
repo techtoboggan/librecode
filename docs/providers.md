@@ -397,6 +397,7 @@ async loader(
 | **Codex** | `src/plugin/codex.ts` | OAuth (PKCE + device code) + API key | Token refresh, model filtering, custom fetch wrapper |
 | **Copilot** | `src/plugin/copilot.ts` | OAuth (device code) | GitHub Enterprise domain support, vision headers |
 | **LiteLLM** | `src/plugin/litellm.ts` | API + prompts | URL config, connection validation, model discovery |
+| **Ollama** | `src/plugin/ollama.ts` | API + prompts | URL config, `/v1/models` + `/api/tags` dual-format probe |
 
 ### Full pipeline for LiteLLM (local server):
 
@@ -410,3 +411,8 @@ async loader(
 7. loader() runs → parses url|apiKey → fetches models → registers them
 8. Models appear in model selector
 ```
+
+> **Note:** `LocalServerWizard` (formerly `LiteLLMWizard`) provides an alternate path with
+> network auto-discovery, port scanning, and selective model import. It saves providers as
+> `local-<sanitized-url>` entries directly in config. Both paths work — the wizard is for
+> convenience, the auth plugin is for the standard connect flow.

@@ -224,7 +224,7 @@ export function LocalServerWizard() {
 
     const baseUrl = url().trim().replace(/\/+$/, "")
     const key = apiKey().trim() || undefined
-    const providerID = `litellm-${baseUrl.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
+    const providerID = makeProviderID(baseUrl)
     const serverName = guessServerName(baseUrl)
     const modelConfig = Object.fromEntries(selected.map((m) => [m.id, { name: m.name }]))
 

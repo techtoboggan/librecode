@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-10 | 92 commits | Tests: 1358 pass, 0 fail
+> Last updated: 2026-04-11 | 118 commits | Tests: 1358 pass, 0 fail
 
 ---
 
@@ -138,7 +138,7 @@ File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
 
 | Metric | Value |
 |--------|-------|
-| Total commits | 116 |
+| Total commits | 118 |
 | Tests passing | 1,358 |
 | Tests failing | 0 |
 | Test files | 111 |
