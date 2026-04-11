@@ -1,20 +1,4 @@
-import { dict as ar } from "@/i18n/ar"
-import { dict as br } from "@/i18n/br"
-import { dict as bs } from "@/i18n/bs"
-import { dict as da } from "@/i18n/da"
-import { dict as de } from "@/i18n/de"
-import { dict as en } from "@/i18n/en"
-import { dict as es } from "@/i18n/es"
-import { dict as fr } from "@/i18n/fr"
-import { dict as ja } from "@/i18n/ja"
-import { dict as ko } from "@/i18n/ko"
-import { dict as no } from "@/i18n/no"
-import { dict as pl } from "@/i18n/pl"
-import { dict as ru } from "@/i18n/ru"
-import { dict as th } from "@/i18n/th"
-import { dict as tr } from "@/i18n/tr"
-import { dict as zh } from "@/i18n/zh"
-import { dict as zht } from "@/i18n/zht"
+import { ar, br, bs, da, de, en, es, fr, ja, ko, no, pl, ru, th, tr, zh, zht } from "@librecode/i18n/app"
 
 const numbered = Array.from(
   new Set([

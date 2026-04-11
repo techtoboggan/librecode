@@ -1,37 +1,17 @@
 import * as i18n from "@solid-primitives/i18n"
 import { Store } from "@tauri-apps/plugin-store"
-
-import { dict as desktopEn } from "./en"
-import { dict as desktopZh } from "./zh"
-import { dict as desktopZht } from "./zht"
-import { dict as desktopKo } from "./ko"
-import { dict as desktopDe } from "./de"
-import { dict as desktopEs } from "./es"
-import { dict as desktopFr } from "./fr"
-import { dict as desktopDa } from "./da"
-import { dict as desktopJa } from "./ja"
-import { dict as desktopPl } from "./pl"
-import { dict as desktopRu } from "./ru"
-import { dict as desktopAr } from "./ar"
-import { dict as desktopNo } from "./no"
-import { dict as desktopBr } from "./br"
-import { dict as desktopBs } from "./bs"
-
-import { dict as appEn } from "../../../app/src/i18n/en"
-import { dict as appZh } from "../../../app/src/i18n/zh"
-import { dict as appZht } from "../../../app/src/i18n/zht"
-import { dict as appKo } from "../../../app/src/i18n/ko"
-import { dict as appDe } from "../../../app/src/i18n/de"
-import { dict as appEs } from "../../../app/src/i18n/es"
-import { dict as appFr } from "../../../app/src/i18n/fr"
-import { dict as appDa } from "../../../app/src/i18n/da"
-import { dict as appJa } from "../../../app/src/i18n/ja"
-import { dict as appPl } from "../../../app/src/i18n/pl"
-import { dict as appRu } from "../../../app/src/i18n/ru"
-import { dict as appAr } from "../../../app/src/i18n/ar"
-import { dict as appNo } from "../../../app/src/i18n/no"
-import { dict as appBr } from "../../../app/src/i18n/br"
-import { dict as appBs } from "../../../app/src/i18n/bs"
+import {
+  en as desktopEn, zh as desktopZh, zht as desktopZht, ko as desktopKo,
+  de as desktopDe, es as desktopEs, fr as desktopFr, da as desktopDa,
+  ja as desktopJa, pl as desktopPl, ru as desktopRu, ar as desktopAr,
+  no as desktopNo, br as desktopBr, bs as desktopBs,
+} from "@librecode/i18n/desktop"
+import {
+  en as appEn, zh as appZh, zht as appZht, ko as appKo,
+  de as appDe, es as appEs, fr as appFr, da as appDa,
+  ja as appJa, pl as appPl, ru as appRu, ar as appAr,
+  no as appNo, br as appBr, bs as appBs,
+} from "@librecode/i18n/app"
 
 export type Locale =
   | "en"

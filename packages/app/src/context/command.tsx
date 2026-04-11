@@ -2,7 +2,7 @@ import { createEffect, createMemo, onCleanup, onMount, type Accessor } from "sol
 import { createStore } from "solid-js/store"
 import { createSimpleContext } from "@librecode/ui/context"
 import { useDialog } from "@librecode/ui/context/dialog"
-import { dict as en } from "@/i18n/en"
+import { en } from "@librecode/i18n/app"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { Persist, persisted } from "@/utils/persist"

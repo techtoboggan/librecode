@@ -1,5 +1,5 @@
 import { createContext, useContext, type Accessor, type ParentProps } from "solid-js"
-import { dict as en } from "../i18n/en"
+import { en } from "@librecode/i18n/ui"
 
 export type UiI18nKey = keyof typeof en
 

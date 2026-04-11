@@ -24,6 +24,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@kobalte/core": "catalog:",
+        "@librecode/i18n": "^0.1.0",
         "@librecode/sdk": "workspace:*",
         "@librecode/ui": "workspace:*",
         "@librecode/util": "workspace:*",
@@ -75,6 +76,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@librecode/app": "workspace:*",
+        "@librecode/i18n": "^0.1.0",
         "@librecode/ui": "workspace:*",
         "@solid-primitives/i18n": "2.2.1",
         "@solid-primitives/storage": "catalog:",
@@ -258,6 +260,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@kobalte/core": "catalog:",
+        "@librecode/i18n": "^0.1.0",
         "@librecode/sdk": "workspace:*",
         "@librecode/util": "workspace:*",
         "@pierre/diffs": "catalog:",
@@ -781,6 +784,8 @@
     "@librecode/app": ["@librecode/app@workspace:packages/app"],
 
     "@librecode/desktop": ["@librecode/desktop@workspace:packages/desktop"],
+
+    "@librecode/i18n": ["@librecode/i18n@0.1.0", "", {}, "sha512-7lq+pwfW54akYvFQITsE+xVrwLoT0Kttj55FEMyKDu4csRn65X4zQw0SgiMd5Lrz0MmhsYlquKZZW0jKp+UNIQ=="],
 
     "@librecode/plugin": ["@librecode/plugin@workspace:packages/plugin"],
 
