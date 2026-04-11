@@ -57,18 +57,22 @@ function init() {
   )
   const suspended = () => suspendCount() > 0
 
-  useKeyboard((evt) => {
-    if (suspended()) return
-    if (dialog.stack.length > 0) return
+  function dispatchOptionKeybind(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]): void {
     for (const option of entries()) {
-      if (!isEnabled(option)) continue
-      if (option.keybind && keybind.match(option.keybind, evt)) {
+      if (isEnabled(option) && option.keybind && keybind.match(option.keybind, evt)) {
         evt.preventDefault()
         option.onSelect?.(dialog)
         return
       }
     }
-  })
+  }
+
+  function handleCommandKeybind(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]): void {
+    if (suspended() || dialog.stack.length > 0) return
+    dispatchOptionKeybind(evt)
+  }
+
+  useKeyboard(handleCommandKeybind)
 
   const result = {
     trigger(name: string) {
@@ -123,16 +127,17 @@ export function CommandProvider(props: ParentProps) {
   const dialog = useDialog()
   const keybind = useKeybind()
 
-  useKeyboard((evt) => {
+  function handleCommandListKeybind(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]): void {
     if (value.suspended()) return
     if (dialog.stack.length > 0) return
     if (evt.defaultPrevented) return
     if (keybind.match("command_list", evt)) {
       evt.preventDefault()
       value.show()
-      return
     }
-  })
+  }
+
+  useKeyboard(handleCommandListKeybind)
 
   return <ctx.Provider value={value}>{props.children}</ctx.Provider>
 }

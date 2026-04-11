@@ -33,6 +33,33 @@ interface McpCodeResponse {
   }
 }
 
+function parseSseText(responseText: string): string | undefined {
+  for (const line of responseText.split("\n")) {
+    if (!line.startsWith("data: ")) continue
+    const data: McpCodeResponse = JSON.parse(line.substring(6))
+    if (data.result?.content?.length > 0) return data.result.content[0].text
+  }
+  return undefined
+}
+
+async function fetchCodeSearchResponse(request: McpCodeRequest, signal: AbortSignal): Promise<string> {
+  const headers: Record<string, string> = {
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json",
+  }
+  const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CONTEXT}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(request),
+    signal,
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Code search error (${response.status}): ${errorText}`)
+  }
+  return response.text()
+}
+
 export const CodeSearchTool = Tool.define("codesearch", {
   description: DESCRIPTION,
   parameters: z.object({
@@ -77,40 +104,12 @@ export const CodeSearchTool = Tool.define("codesearch", {
     const { signal, clearTimeout } = abortAfterAny(30000, ctx.abort)
 
     try {
-      const headers: Record<string, string> = {
-        accept: "application/json, text/event-stream",
-        "content-type": "application/json",
-      }
-
-      const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.CONTEXT}`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(codeRequest),
-        signal,
-      })
-
+      const responseText = await fetchCodeSearchResponse(codeRequest, signal)
       clearTimeout()
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`Code search error (${response.status}): ${errorText}`)
-      }
-
-      const responseText = await response.text()
-
-      // Parse SSE response
-      const lines = responseText.split("\n")
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const data: McpCodeResponse = JSON.parse(line.substring(6))
-          if (data.result && data.result.content && data.result.content.length > 0) {
-            return {
-              output: data.result.content[0].text,
-              title: `Code search: ${params.query}`,
-              metadata: {},
-            }
-          }
-        }
+      const output = parseSseText(responseText)
+      if (output) {
+        return { output, title: `Code search: ${params.query}`, metadata: {} }
       }
 
       return {
@@ -121,11 +120,9 @@ export const CodeSearchTool = Tool.define("codesearch", {
       }
     } catch (error) {
       clearTimeout()
-
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error("Code search request timed out")
       }
-
       throw error
     }
   },

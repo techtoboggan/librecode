@@ -6,6 +6,24 @@ import DESCRIPTION from "./batch.txt"
 const DISALLOWED = new Set(["batch"])
 const FILTERED_FROM_SUGGESTIONS = new Set(["invalid", "patch", ...DISALLOWED])
 
+type RegistryTool = Awaited<ReturnType<typeof import("./registry").ToolRegistry.tools>>[number]
+
+function validateBatchCall(call: { tool: string; parameters: unknown }, toolMap: Map<string, RegistryTool>): RegistryTool {
+  if (DISALLOWED.has(call.tool)) {
+    throw new Error(
+      `Tool '${call.tool}' is not allowed in batch. Disallowed tools: ${Array.from(DISALLOWED).join(", ")}`,
+    )
+  }
+  const tool = toolMap.get(call.tool)
+  if (!tool) {
+    const availableToolsList = Array.from(toolMap.keys()).filter((name) => !FILTERED_FROM_SUGGESTIONS.has(name))
+    throw new Error(
+      `Tool '${call.tool}' not in registry. External tools (MCP, environment) cannot be batched - call them directly. Available tools: ${availableToolsList.join(", ")}`,
+    )
+  }
+  return tool
+}
+
 export const BatchTool = Tool.define("batch", async () => {
   return {
     description: DESCRIPTION,
@@ -46,19 +64,7 @@ export const BatchTool = Tool.define("batch", async () => {
         const partID = PartID.ascending()
 
         try {
-          if (DISALLOWED.has(call.tool)) {
-            throw new Error(
-              `Tool '${call.tool}' is not allowed in batch. Disallowed tools: ${Array.from(DISALLOWED).join(", ")}`,
-            )
-          }
-
-          const tool = toolMap.get(call.tool)
-          if (!tool) {
-            const availableToolsList = Array.from(toolMap.keys()).filter((name) => !FILTERED_FROM_SUGGESTIONS.has(name))
-            throw new Error(
-              `Tool '${call.tool}' not in registry. External tools (MCP, environment) cannot be batched - call them directly. Available tools: ${availableToolsList.join(", ")}`,
-            )
-          }
+          const tool = validateBatchCall(call, toolMap as Map<string, RegistryTool>)
           const validatedParams = tool.parameters.parse(call.parameters)
 
           await Session.updatePart({
@@ -71,9 +77,7 @@ export const BatchTool = Tool.define("batch", async () => {
             state: {
               status: "running",
               input: call.parameters,
-              time: {
-                start: callStartTime,
-              },
+              time: { start: callStartTime },
             },
           })
 
@@ -99,10 +103,7 @@ export const BatchTool = Tool.define("batch", async () => {
               title: result.title,
               metadata: result.metadata,
               attachments,
-              time: {
-                start: callStartTime,
-                end: Date.now(),
-              },
+              time: { start: callStartTime, end: Date.now() },
             },
           })
 
@@ -119,13 +120,9 @@ export const BatchTool = Tool.define("batch", async () => {
               status: "error",
               input: call.parameters,
               error: error instanceof Error ? error.message : String(error),
-              time: {
-                start: callStartTime,
-                end: Date.now(),
-              },
+              time: { start: callStartTime, end: Date.now() },
             },
           })
-
           return { success: false as const, tool: call.tool, error }
         }
       }

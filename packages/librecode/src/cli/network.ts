@@ -36,25 +36,35 @@ export function withNetworkOptions<T>(yargs: Argv<T>) {
   return yargs.options(options)
 }
 
+function resolveHostname(
+  args: NetworkOptions,
+  serverConfig: { hostname?: string } | undefined,
+  mdns: boolean,
+  hostnameExplicitlySet: boolean,
+): string {
+  if (hostnameExplicitlySet) return args.hostname
+  if (mdns && !serverConfig?.hostname) return "0.0.0.0"
+  return serverConfig?.hostname ?? args.hostname
+}
+
+function resolveCors(args: NetworkOptions, serverConfig: { cors?: string[] } | undefined): string[] {
+  const configCors = serverConfig?.cors ?? []
+  const argsCors = Array.isArray(args.cors) ? args.cors : args.cors ? [args.cors] : []
+  return [...configCors, ...argsCors]
+}
+
 export async function resolveNetworkOptions(args: NetworkOptions) {
   const config = await Config.global()
   const portExplicitlySet = process.argv.includes("--port")
   const hostnameExplicitlySet = process.argv.includes("--hostname")
   const mdnsExplicitlySet = process.argv.includes("--mdns")
   const mdnsDomainExplicitlySet = process.argv.includes("--mdns-domain")
-  const corsExplicitlySet = process.argv.includes("--cors")
 
   const mdns = mdnsExplicitlySet ? args.mdns : (config?.server?.mdns ?? args.mdns)
   const mdnsDomain = mdnsDomainExplicitlySet ? args["mdns-domain"] : (config?.server?.mdnsDomain ?? args["mdns-domain"])
   const port = portExplicitlySet ? args.port : (config?.server?.port ?? args.port)
-  const hostname = hostnameExplicitlySet
-    ? args.hostname
-    : mdns && !config?.server?.hostname
-      ? "0.0.0.0"
-      : (config?.server?.hostname ?? args.hostname)
-  const configCors = config?.server?.cors ?? []
-  const argsCors = Array.isArray(args.cors) ? args.cors : args.cors ? [args.cors] : []
-  const cors = [...configCors, ...argsCors]
+  const hostname = resolveHostname(args, config?.server, mdns, hostnameExplicitlySet)
+  const cors = resolveCors(args, config?.server)
 
   return { hostname, port, mdns, mdnsDomain, cors }
 }

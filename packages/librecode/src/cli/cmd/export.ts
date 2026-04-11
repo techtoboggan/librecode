@@ -7,6 +7,37 @@ import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { EOL } from "os"
 
+async function selectSessionInteractive(): Promise<typeof SessionID.Type | undefined> {
+  UI.empty()
+  prompts.intro("Export session", { output: process.stderr })
+
+  const sessions: Session.Info[] = []
+  for await (const session of Session.list()) sessions.push(session)
+
+  if (sessions.length === 0) {
+    prompts.log.error("No sessions found", { output: process.stderr })
+    prompts.outro("Done", { output: process.stderr })
+    return undefined
+  }
+
+  sessions.sort((a, b) => b.time.updated - a.time.updated)
+
+  const selected = await prompts.autocomplete({
+    message: "Select session to export",
+    maxItems: 10,
+    options: sessions.map((s) => ({
+      label: s.title,
+      value: s.id,
+      hint: `${new Date(s.time.updated).toLocaleString()} • ${s.id.slice(-8)}`,
+    })),
+    output: process.stderr,
+  })
+
+  if (prompts.isCancel(selected)) throw new UI.CancelledError()
+  prompts.outro("Exporting session...", { output: process.stderr })
+  return selected
+}
+
 export const ExportCommand = cmd({
   command: "export [sessionID]",
   describe: "export session data as JSON",
@@ -22,65 +53,20 @@ export const ExportCommand = cmd({
       process.stderr.write(`Exporting session: ${sessionID ?? "latest"}\n`)
 
       if (!sessionID) {
-        UI.empty()
-        prompts.intro("Export session", {
-          output: process.stderr,
-        })
-
-        const sessions = []
-        for await (const session of Session.list()) {
-          sessions.push(session)
-        }
-
-        if (sessions.length === 0) {
-          prompts.log.error("No sessions found", {
-            output: process.stderr,
-          })
-          prompts.outro("Done", {
-            output: process.stderr,
-          })
-          return
-        }
-
-        sessions.sort((a, b) => b.time.updated - a.time.updated)
-
-        const selectedSession = await prompts.autocomplete({
-          message: "Select session to export",
-          maxItems: 10,
-          options: sessions.map((session) => ({
-            label: session.title,
-            value: session.id,
-            hint: `${new Date(session.time.updated).toLocaleString()} • ${session.id.slice(-8)}`,
-          })),
-          output: process.stderr,
-        })
-
-        if (prompts.isCancel(selectedSession)) {
-          throw new UI.CancelledError()
-        }
-
-        sessionID = selectedSession
-
-        prompts.outro("Exporting session...", {
-          output: process.stderr,
-        })
+        sessionID = await selectSessionInteractive()
+        if (!sessionID) return
       }
 
       try {
         const sessionInfo = await Session.get(sessionID!)
         const messages = await Session.messages({ sessionID: sessionInfo.id })
-
         const exportData = {
           info: sessionInfo,
-          messages: messages.map((msg) => ({
-            info: msg.info,
-            parts: msg.parts,
-          })),
+          messages: messages.map((msg) => ({ info: msg.info, parts: msg.parts })),
         }
-
         process.stdout.write(JSON.stringify(exportData, null, 2))
         process.stdout.write(EOL)
-      } catch (error) {
+      } catch {
         UI.error(`Session not found: ${sessionID!}`)
         process.exit(1)
       }

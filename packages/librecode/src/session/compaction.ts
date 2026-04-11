@@ -53,6 +53,47 @@ export namespace SessionCompaction {
 
   const PRUNE_PROTECTED_TOOLS = ["skill"]
 
+  // Scan one message's parts backwards, accumulating prune candidates.
+  // Returns true if the outer loop should stop (hit a compacted marker).
+  function scanMsgPartsForPrune(
+    msg: MessageV2.WithParts,
+    state: { total: number; pruned: number; toPrune: MessageV2.ToolPart[] },
+  ): boolean {
+    for (let partIndex = msg.parts.length - 1; partIndex >= 0; partIndex--) {
+      const part = msg.parts[partIndex]
+      if (part.type !== "tool") continue
+      if (part.state.status !== "completed") continue
+      if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
+      if (part.state.time.compacted) return true
+      const estimate = Token.estimate(part.state.output)
+      state.total += estimate
+      if (state.total > PRUNE_PROTECT) {
+        state.pruned += estimate
+        state.toPrune.push(part)
+      }
+    }
+    return false
+  }
+
+  // Collect tool parts eligible for pruning (those beyond the PRUNE_PROTECT token budget)
+  // Returns { toPrune, pruned, total } from a backwards scan starting at msgIndex.
+  function collectPruneCandidates(
+    msgs: MessageV2.WithParts[],
+  ): { toPrune: MessageV2.ToolPart[]; pruned: number; total: number } {
+    const state = { toPrune: [] as MessageV2.ToolPart[], total: 0, pruned: 0 }
+    let turns = 0
+
+    for (let msgIndex = msgs.length - 1; msgIndex >= 0; msgIndex--) {
+      const msg = msgs[msgIndex]
+      if (msg.info.role === "user") turns++
+      if (turns < 2) continue
+      if (msg.info.role === "assistant" && msg.info.summary) break
+      if (scanMsgPartsForPrune(msg, state)) break
+    }
+
+    return state
+  }
+
   // goes backwards through parts until there are 40_000 tokens worth of tool
   // calls. then erases output of previous tool calls. idea is to throw away old
   // tool calls that are no longer relevant.
@@ -61,32 +102,7 @@ export namespace SessionCompaction {
     if (config.compaction?.prune === false) return
     log.info("pruning")
     const msgs = await Session.messages({ sessionID: input.sessionID })
-    let total = 0
-    let pruned = 0
-    const toPrune = []
-    let turns = 0
-
-    loop: for (let msgIndex = msgs.length - 1; msgIndex >= 0; msgIndex--) {
-      const msg = msgs[msgIndex]
-      if (msg.info.role === "user") turns++
-      if (turns < 2) continue
-      if (msg.info.role === "assistant" && msg.info.summary) break loop
-      for (let partIndex = msg.parts.length - 1; partIndex >= 0; partIndex--) {
-        const part = msg.parts[partIndex]
-        if (part.type === "tool")
-          if (part.state.status === "completed") {
-            if (PRUNE_PROTECTED_TOOLS.includes(part.tool)) continue
-
-            if (part.state.time.compacted) break loop
-            const estimate = Token.estimate(part.state.output)
-            total += estimate
-            if (total > PRUNE_PROTECT) {
-              pruned += estimate
-              toPrune.push(part)
-            }
-          }
-      }
-    }
+    const { toPrune, pruned, total } = collectPruneCandidates(msgs)
     log.info("found", { pruned, total })
     if (pruned > PRUNE_MINIMUM) {
       for (const part of toPrune) {
@@ -99,76 +115,38 @@ export namespace SessionCompaction {
     }
   }
 
-  export async function process(input: {
-    parentID: MessageID
-    messages: MessageV2.WithParts[]
-    sessionID: SessionID
-    abort: AbortSignal
-    auto: boolean
-    overflow?: boolean
-  }) {
-    const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)!.info as MessageV2.User
-
-    let messages = input.messages
+  // Find the replay message and trim messages list for overflow compaction.
+  // Returns { replay, messages } where replay is the message to re-send after compaction.
+  function resolveOverflowReplay(
+    messages: MessageV2.WithParts[],
+    parentID: MessageID,
+  ): { replay: MessageV2.WithParts | undefined; messages: MessageV2.WithParts[] } {
+    const idx = messages.findIndex((m) => m.info.id === parentID)
     let replay: MessageV2.WithParts | undefined
-    if (input.overflow) {
-      const idx = input.messages.findIndex((m) => m.info.id === input.parentID)
-      for (let i = idx - 1; i >= 0; i--) {
-        const msg = input.messages[i]
-        if (msg.info.role === "user" && !msg.parts.some((p) => p.type === "compaction")) {
-          replay = msg
-          messages = input.messages.slice(0, i)
-          break
-        }
-      }
-      const hasContent =
-        replay && messages.some((m) => m.info.role === "user" && !m.parts.some((p) => p.type === "compaction"))
-      if (!hasContent) {
-        replay = undefined
-        messages = input.messages
+
+    for (let i = idx - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.info.role === "user" && !msg.parts.some((p) => p.type === "compaction")) {
+        replay = msg
+        messages = messages.slice(0, i)
+        break
       }
     }
 
-    const agent = await Agent.get("compaction")
-    const model = agent.model
-      ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
-      : await Provider.getModel(userMessage.model.providerID, userMessage.model.modelID)
-    const msg = (await Session.updateMessage({
-      id: MessageID.ascending(),
-      role: "assistant",
-      parentID: input.parentID,
-      sessionID: input.sessionID,
-      mode: "compaction",
-      agent: "compaction",
-      variant: userMessage.variant,
-      summary: true,
-      path: {
-        cwd: Instance.directory,
-        root: Instance.worktree,
-      },
-      cost: 0,
-      tokens: {
-        output: 0,
-        input: 0,
-        reasoning: 0,
-        cache: { read: 0, write: 0 },
-      },
-      modelID: model.id,
-      providerID: model.providerID,
-      time: {
-        created: Date.now(),
-      },
-    })) as MessageV2.Assistant
-    const processor = SessionProcessor.create({
-      assistantMessage: msg,
-      sessionID: input.sessionID,
-      model,
-      abort: input.abort,
-    })
-    // Allow plugins to inject context or replace compaction prompt
+    const hasContent =
+      replay && messages.some((m) => m.info.role === "user" && !m.parts.some((p) => p.type === "compaction"))
+    if (!hasContent) {
+      return { replay: undefined, messages }
+    }
+
+    return { replay, messages }
+  }
+
+  // Build the compaction prompt text from plugin context and default template
+  async function buildCompactionPrompt(sessionID: SessionID): Promise<string> {
     const compacting = await Plugin.trigger(
       "experimental.session.compacting",
-      { sessionID: input.sessionID },
+      { sessionID },
       { context: [], prompt: undefined },
     )
     const defaultPrompt = `Provide a detailed prompt for continuing our conversation above.
@@ -199,7 +177,131 @@ When constructing the summary, try to stick to this template:
 [Construct a structured list of relevant files that have been read, edited, or created that pertain to the task at hand. If all the files in a directory are relevant, include the path to the directory.]
 ---`
 
-    const promptText = compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
+    return compacting.prompt ?? [defaultPrompt, ...compacting.context].join("\n\n")
+  }
+
+  // Replay a user message after compaction, stripping media and compaction parts
+  async function replayUserMessage(replay: MessageV2.WithParts, sessionID: SessionID): Promise<void> {
+    const original = replay.info as MessageV2.User
+    const replayMsg = await Session.updateMessage({
+      id: MessageID.ascending(),
+      role: "user",
+      sessionID,
+      time: { created: Date.now() },
+      agent: original.agent,
+      model: original.model,
+      format: original.format,
+      tools: original.tools,
+      system: original.system,
+      variant: original.variant,
+    })
+    for (const part of replay.parts) {
+      if (part.type === "compaction") continue
+      const replayPart =
+        part.type === "file" && MessageV2.isMedia(part.mime)
+          ? { type: "text" as const, text: `[Attached ${part.mime}: ${part.filename ?? "file"}]` }
+          : part
+      await Session.updatePart({
+        ...replayPart,
+        id: PartID.ascending(),
+        messageID: replayMsg.id,
+        sessionID,
+      })
+    }
+  }
+
+  // Inject a synthetic "continue" message after compaction when there is no replay message
+  async function injectContinueMessage(
+    sessionID: SessionID,
+    userMessage: MessageV2.User,
+    overflow: boolean | undefined,
+  ): Promise<void> {
+    const continueMsg = await Session.updateMessage({
+      id: MessageID.ascending(),
+      role: "user",
+      sessionID,
+      time: { created: Date.now() },
+      agent: userMessage.agent,
+      model: userMessage.model,
+    })
+    const text =
+      (overflow
+        ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
+        : "") +
+      "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+    await Session.updatePart({
+      id: PartID.ascending(),
+      messageID: continueMsg.id,
+      sessionID,
+      type: "text",
+      synthetic: true,
+      text,
+      time: {
+        start: Date.now(),
+        end: Date.now(),
+      },
+    })
+  }
+
+  export async function process(input: {
+    parentID: MessageID
+    messages: MessageV2.WithParts[]
+    sessionID: SessionID
+    abort: AbortSignal
+    auto: boolean
+    overflow?: boolean
+  }) {
+    const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)!.info as MessageV2.User
+
+    let messages = input.messages
+    let replay: MessageV2.WithParts | undefined
+
+    if (input.overflow) {
+      const resolved = resolveOverflowReplay(input.messages, input.parentID)
+      replay = resolved.replay
+      messages = resolved.messages
+    }
+
+    const agent = await Agent.get("compaction")
+    const model = agent.model
+      ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
+      : await Provider.getModel(userMessage.model.providerID, userMessage.model.modelID)
+
+    const msg = (await Session.updateMessage({
+      id: MessageID.ascending(),
+      role: "assistant",
+      parentID: input.parentID,
+      sessionID: input.sessionID,
+      mode: "compaction",
+      agent: "compaction",
+      variant: userMessage.variant,
+      summary: true,
+      path: {
+        cwd: Instance.directory,
+        root: Instance.worktree,
+      },
+      cost: 0,
+      tokens: {
+        output: 0,
+        input: 0,
+        reasoning: 0,
+        cache: { read: 0, write: 0 },
+      },
+      modelID: model.id,
+      providerID: model.providerID,
+      time: {
+        created: Date.now(),
+      },
+    })) as MessageV2.Assistant
+
+    const processor = SessionProcessor.create({
+      assistantMessage: msg,
+      sessionID: input.sessionID,
+      model,
+      abort: input.abort,
+    })
+
+    const promptText = await buildCompactionPrompt(input.sessionID)
     const result = await processor.process({
       user: userMessage,
       agent,
@@ -211,12 +313,7 @@ When constructing the summary, try to stick to this template:
         ...MessageV2.toModelMessages(messages, model, { stripMedia: true }),
         {
           role: "user",
-          content: [
-            {
-              type: "text",
-              text: promptText,
-            },
-          ],
+          content: [{ type: "text", text: promptText }],
         },
       ],
       model,
@@ -235,60 +332,12 @@ When constructing the summary, try to stick to this template:
 
     if (result === "continue" && input.auto) {
       if (replay) {
-        const original = replay.info as MessageV2.User
-        const replayMsg = await Session.updateMessage({
-          id: MessageID.ascending(),
-          role: "user",
-          sessionID: input.sessionID,
-          time: { created: Date.now() },
-          agent: original.agent,
-          model: original.model,
-          format: original.format,
-          tools: original.tools,
-          system: original.system,
-          variant: original.variant,
-        })
-        for (const part of replay.parts) {
-          if (part.type === "compaction") continue
-          const replayPart =
-            part.type === "file" && MessageV2.isMedia(part.mime)
-              ? { type: "text" as const, text: `[Attached ${part.mime}: ${part.filename ?? "file"}]` }
-              : part
-          await Session.updatePart({
-            ...replayPart,
-            id: PartID.ascending(),
-            messageID: replayMsg.id,
-            sessionID: input.sessionID,
-          })
-        }
+        await replayUserMessage(replay, input.sessionID)
       } else {
-        const continueMsg = await Session.updateMessage({
-          id: MessageID.ascending(),
-          role: "user",
-          sessionID: input.sessionID,
-          time: { created: Date.now() },
-          agent: userMessage.agent,
-          model: userMessage.model,
-        })
-        const text =
-          (input.overflow
-            ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
-            : "") +
-          "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
-        await Session.updatePart({
-          id: PartID.ascending(),
-          messageID: continueMsg.id,
-          sessionID: input.sessionID,
-          type: "text",
-          synthetic: true,
-          text,
-          time: {
-            start: Date.now(),
-            end: Date.now(),
-          },
-        })
+        await injectContinueMessage(input.sessionID, userMessage, input.overflow)
       }
     }
+
     if (processor.message.error) return "stop"
     Bus.publish(Event.Compacted, { sessionID: input.sessionID })
     return "continue"

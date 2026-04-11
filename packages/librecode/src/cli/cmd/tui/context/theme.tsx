@@ -174,28 +174,29 @@ export const DEFAULT_THEMES: Record<string, ThemeJson> = {
   carbonfox,
 }
 
+function resolveColorRef(
+  c: ColorValue,
+  defs: Record<string, ColorValue>,
+  themeColors: ThemeJson["theme"],
+  mode: "dark" | "light",
+): RGBA {
+  if (c instanceof RGBA) return c
+  if (typeof c === "number") return ansiToRgba(c)
+  if (typeof c !== "string") return resolveColorRef(c[mode], defs, themeColors, mode)
+
+  if (c === "transparent" || c === "none") return RGBA.fromInts(0, 0, 0, 0)
+  if (c.startsWith("#")) return RGBA.fromHex(c)
+
+  if (defs[c] != null) return resolveColorRef(defs[c], defs, themeColors, mode)
+  if (themeColors[c as keyof ThemeColors] !== undefined) {
+    return resolveColorRef(themeColors[c as keyof ThemeColors]!, defs, themeColors, mode)
+  }
+  throw new Error(`Color reference "${c}" not found in defs or theme`)
+}
+
 function resolveTheme(theme: ThemeJson, mode: "dark" | "light") {
   const defs = theme.defs ?? {}
-  function resolveColor(c: ColorValue): RGBA {
-    if (c instanceof RGBA) return c
-    if (typeof c === "string") {
-      if (c === "transparent" || c === "none") return RGBA.fromInts(0, 0, 0, 0)
-
-      if (c.startsWith("#")) return RGBA.fromHex(c)
-
-      if (defs[c] != null) {
-        return resolveColor(defs[c])
-      } else if (theme.theme[c as keyof ThemeColors] !== undefined) {
-        return resolveColor(theme.theme[c as keyof ThemeColors]!)
-      } else {
-        throw new Error(`Color reference "${c}" not found in defs or theme`)
-      }
-    }
-    if (typeof c === "number") {
-      return ansiToRgba(c)
-    }
-    return resolveColor(c[mode])
-  }
+  const resolveColor = (c: ColorValue): RGBA => resolveColorRef(c, defs, theme.theme, mode)
 
   const resolved = Object.fromEntries(
     Object.entries(theme.theme)

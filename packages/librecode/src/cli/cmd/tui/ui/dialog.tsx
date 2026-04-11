@@ -67,37 +67,40 @@ function init() {
 
   const renderer = useRenderer()
 
-  useKeyboard((evt) => {
-    if (store.stack.length === 0) return
-    if (evt.defaultPrevented) return
-    if ((evt.name === "escape" || (evt.ctrl && evt.name === "c")) && renderer.getSelection()) return
-    if (evt.name === "escape" || (evt.ctrl && evt.name === "c")) {
-      const current = store.stack.at(-1)!
-      current.onClose?.()
-      setStore("stack", store.stack.slice(0, -1))
-      evt.preventDefault()
-      evt.stopPropagation()
-      refocus()
-    }
-  })
-
   let focus: Renderable | null
+
+  function findRenderable(item: Renderable, target: Renderable): boolean {
+    for (const child of item.getChildren()) {
+      if (child === target) return true
+      if (findRenderable(child, target)) return true
+    }
+    return false
+  }
+
   function refocus() {
     setTimeout(() => {
-      if (!focus) return
-      if (focus.isDestroyed) return
-      function find(item: Renderable) {
-        for (const child of item.getChildren()) {
-          if (child === focus) return true
-          if (find(child)) return true
-        }
-        return false
-      }
-      const found = find(renderer.root)
-      if (!found) return
+      if (!focus || focus.isDestroyed) return
+      if (!findRenderable(renderer.root, focus)) return
       focus.focus()
     }, 1)
   }
+
+  function isCloseKey(evt: { name: string; ctrl: boolean }): boolean {
+    return evt.name === "escape" || (evt.ctrl && evt.name === "c")
+  }
+
+  useKeyboard((evt) => {
+    if (store.stack.length === 0) return
+    if (evt.defaultPrevented) return
+    if (!isCloseKey(evt)) return
+    if (renderer.getSelection()) return
+    const current = store.stack.at(-1)!
+    current.onClose?.()
+    setStore("stack", store.stack.slice(0, -1))
+    evt.preventDefault()
+    evt.stopPropagation()
+    refocus()
+  })
 
   return {
     clear() {

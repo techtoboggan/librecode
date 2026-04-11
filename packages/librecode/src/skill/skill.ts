@@ -17,8 +17,145 @@ import { pathToFileURL } from "url"
 import type { Agent } from "@/agent/agent"
 import { PermissionNext } from "@/permission/next"
 
+const skillLog = Log.create({ service: "skill" })
+
+const SKILL_EXTERNAL_DIRS = [".claude", ".agents"]
+const SKILL_EXTERNAL_PATTERN = "skills/**/SKILL.md"
+const SKILL_LIBRECODE_PATTERN = "{skill,skills}/**/SKILL.md"
+const SKILL_GLOB_PATTERN = "**/SKILL.md"
+
+async function addSkill(
+  match: string,
+  skills: Record<string, Skill.Info>,
+  dirs: Set<string>,
+): Promise<void> {
+  const md = await ConfigMarkdown.parse(match).catch((err) => {
+    const message = ConfigMarkdown.FrontmatterError.isInstance(err)
+      ? err.data.message
+      : `Failed to parse skill ${match}`
+    Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
+    skillLog.error("failed to load skill", { skill: match, err })
+    return undefined
+  })
+
+  if (!md) return
+
+  const parsed = Skill.Info.pick({ name: true, description: true }).safeParse(md.data)
+  if (!parsed.success) return
+
+  if (skills[parsed.data.name]) {
+    skillLog.warn("duplicate skill name", {
+      name: parsed.data.name,
+      existing: skills[parsed.data.name].location,
+      duplicate: match,
+    })
+  }
+
+  dirs.add(path.dirname(match))
+  skills[parsed.data.name] = {
+    name: parsed.data.name,
+    description: parsed.data.description,
+    location: match,
+    content: md.content,
+  }
+}
+
+async function scanExternal(
+  root: string,
+  scope: "global" | "project",
+  addSkillFn: (match: string) => Promise<void>,
+): Promise<void> {
+  await Glob.scan(SKILL_EXTERNAL_PATTERN, {
+    cwd: root,
+    absolute: true,
+    include: "file",
+    dot: true,
+    symlink: true,
+  })
+    .then((matches) => Promise.all(matches.map(addSkillFn)))
+    .catch((error) => {
+      skillLog.error(`failed to scan ${scope} skills`, { dir: root, error })
+    })
+}
+
+async function scanConfigPath(
+  skillPath: string,
+  addSkillFn: (match: string) => Promise<void>,
+): Promise<void> {
+  const expanded = skillPath.startsWith("~/") ? path.join(os.homedir(), skillPath.slice(2)) : skillPath
+  const resolved = path.isAbsolute(expanded) ? expanded : path.join(Instance.directory, expanded)
+  if (!(await Filesystem.isDir(resolved))) {
+    skillLog.warn("skill path not found", { path: resolved })
+    return
+  }
+  const matches = await Glob.scan(SKILL_GLOB_PATTERN, {
+    cwd: resolved,
+    absolute: true,
+    include: "file",
+    symlink: true,
+  })
+  for (const match of matches) {
+    await addSkillFn(match)
+  }
+}
+
+async function scanLibrecodeDirs(addSkillFn: (match: string) => Promise<void>): Promise<void> {
+  for (const dir of await Config.directories()) {
+    const matches = await Glob.scan(SKILL_LIBRECODE_PATTERN, {
+      cwd: dir,
+      absolute: true,
+      include: "file",
+      symlink: true,
+    })
+    for (const match of matches) {
+      await addSkillFn(match)
+    }
+  }
+}
+
+async function scanUrlSkills(
+  urls: string[],
+  dirs: Set<string>,
+  addSkillFn: (match: string) => Promise<void>,
+): Promise<void> {
+  for (const url of urls) {
+    const list = await Discovery.pull(url)
+    for (const dir of list) {
+      dirs.add(dir)
+      const matches = await Glob.scan(SKILL_GLOB_PATTERN, {
+        cwd: dir,
+        absolute: true,
+        include: "file",
+        symlink: true,
+      })
+      for (const match of matches) {
+        await addSkillFn(match)
+      }
+    }
+  }
+}
+
+async function scanExternalDirs(
+  addSkillFn: (match: string) => Promise<void>,
+): Promise<void> {
+  const scanExternalDir = (root: string, scope: "global" | "project") => scanExternal(root, scope, addSkillFn)
+
+  for (const dir of SKILL_EXTERNAL_DIRS) {
+    const root = path.join(Global.Path.home, dir)
+    if (!(await Filesystem.isDir(root))) continue
+    await scanExternalDir(root, "global")
+  }
+
+  for await (const root of Filesystem.up({
+    targets: SKILL_EXTERNAL_DIRS,
+    start: Instance.directory,
+    stop: Instance.worktree,
+  })) {
+    await scanExternalDir(root, "project")
+  }
+}
+
 export namespace Skill {
-  const log = Log.create({ service: "skill" })
   export const Info = z.object({
     name: z.string(),
     description: z.string(),
@@ -45,132 +182,28 @@ export namespace Skill {
     }),
   )
 
-  // External skill directories to search for (project-level and global)
-  // These follow the directory layout used by Claude Code and other agents.
-  const EXTERNAL_DIRS = [".claude", ".agents"]
-  const EXTERNAL_SKILL_PATTERN = "skills/**/SKILL.md"
-  const LIBRECODE_SKILL_PATTERN = "{skill,skills}/**/SKILL.md"
-  const SKILL_PATTERN = "**/SKILL.md"
-
   export const state = Instance.state(async () => {
     const skills: Record<string, Info> = {}
     const dirs = new Set<string>()
-
-    const addSkill = async (match: string) => {
-      const md = await ConfigMarkdown.parse(match).catch((err) => {
-        const message = ConfigMarkdown.FrontmatterError.isInstance(err)
-          ? err.data.message
-          : `Failed to parse skill ${match}`
-        Bus.publish(Session.Event.Error, { error: new NamedError.Unknown({ message }).toObject() })
-        log.error("failed to load skill", { skill: match, err })
-        return undefined
-      })
-
-      if (!md) return
-
-      const parsed = Info.pick({ name: true, description: true }).safeParse(md.data)
-      if (!parsed.success) return
-
-      // Warn on duplicate skill names
-      if (skills[parsed.data.name]) {
-        log.warn("duplicate skill name", {
-          name: parsed.data.name,
-          existing: skills[parsed.data.name].location,
-          duplicate: match,
-        })
-      }
-
-      dirs.add(path.dirname(match))
-
-      skills[parsed.data.name] = {
-        name: parsed.data.name,
-        description: parsed.data.description,
-        location: match,
-        content: md.content,
-      }
-    }
-
-    const scanExternal = async (root: string, scope: "global" | "project") => {
-      return Glob.scan(EXTERNAL_SKILL_PATTERN, {
-        cwd: root,
-        absolute: true,
-        include: "file",
-        dot: true,
-        symlink: true,
-      })
-        .then((matches) => Promise.all(matches.map(addSkill)))
-        .catch((error) => {
-          log.error(`failed to scan ${scope} skills`, { dir: root, error })
-        })
-    }
+    const addSkillToState = (match: string) => addSkill(match, skills, dirs)
 
     // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
     // Load global (home) first, then project-level (so project-level overwrites)
     if (!Flag.LIBRECODE_DISABLE_EXTERNAL_SKILLS) {
-      for (const dir of EXTERNAL_DIRS) {
-        const root = path.join(Global.Path.home, dir)
-        if (!(await Filesystem.isDir(root))) continue
-        await scanExternal(root, "global")
-      }
-
-      for await (const root of Filesystem.up({
-        targets: EXTERNAL_DIRS,
-        start: Instance.directory,
-        stop: Instance.worktree,
-      })) {
-        await scanExternal(root, "project")
-      }
+      await scanExternalDirs(addSkillToState)
     }
 
     // Scan .librecode/skill/ directories
-    for (const dir of await Config.directories()) {
-      const matches = await Glob.scan(LIBRECODE_SKILL_PATTERN, {
-        cwd: dir,
-        absolute: true,
-        include: "file",
-        symlink: true,
-      })
-      for (const match of matches) {
-        await addSkill(match)
-      }
-    }
+    await scanLibrecodeDirs(addSkillToState)
 
     // Scan additional skill paths from config
     const config = await Config.get()
     for (const skillPath of config.skills?.paths ?? []) {
-      const expanded = skillPath.startsWith("~/") ? path.join(os.homedir(), skillPath.slice(2)) : skillPath
-      const resolved = path.isAbsolute(expanded) ? expanded : path.join(Instance.directory, expanded)
-      if (!(await Filesystem.isDir(resolved))) {
-        log.warn("skill path not found", { path: resolved })
-        continue
-      }
-      const matches = await Glob.scan(SKILL_PATTERN, {
-        cwd: resolved,
-        absolute: true,
-        include: "file",
-        symlink: true,
-      })
-      for (const match of matches) {
-        await addSkill(match)
-      }
+      await scanConfigPath(skillPath, addSkillToState)
     }
 
     // Download and load skills from URLs
-    for (const url of config.skills?.urls ?? []) {
-      const list = await Discovery.pull(url)
-      for (const dir of list) {
-        dirs.add(dir)
-        const matches = await Glob.scan(SKILL_PATTERN, {
-          cwd: dir,
-          absolute: true,
-          include: "file",
-          symlink: true,
-        })
-        for (const match of matches) {
-          await addSkill(match)
-        }
-      }
-    }
+    await scanUrlSkills(config.skills?.urls ?? [], dirs, addSkillToState)
 
     return {
       skills,

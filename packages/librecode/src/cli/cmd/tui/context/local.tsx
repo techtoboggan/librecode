@@ -151,44 +151,37 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         })
 
       const args = useArgs()
-      const fallbackModel = createMemo(() => {
-        if (args.model) {
-          const { providerID, modelID } = Provider.parseModel(args.model)
-          if (isModelValid({ providerID, modelID })) {
-            return {
-              providerID,
-              modelID,
-            }
-          }
-        }
 
-        if (sync.data.config.model) {
-          const { providerID, modelID } = Provider.parseModel(sync.data.config.model)
-          if (isModelValid({ providerID, modelID })) {
-            return {
-              providerID,
-              modelID,
-            }
-          }
-        }
+      function resolveModelFromString(raw: string): { providerID: string; modelID: string } | undefined {
+        const { providerID, modelID } = Provider.parseModel(raw)
+        if (isModelValid({ providerID, modelID })) return { providerID, modelID }
+        return undefined
+      }
 
+      function firstRecentValidModel(): { providerID: string; modelID: string } | undefined {
         for (const item of modelStore.recent) {
-          if (isModelValid(item)) {
-            return item
-          }
+          if (isModelValid(item)) return item
         }
+        return undefined
+      }
 
+      function firstProviderDefaultModel(): { providerID: string; modelID: string } | undefined {
         const provider = sync.data.provider[0]
         if (!provider) return undefined
         const defaultModel = sync.data.provider_default[provider.id]
         const firstModel = Object.values(provider.models)[0]
-        const model = defaultModel ?? firstModel?.id
-        if (!model) return undefined
-        return {
-          providerID: provider.id,
-          modelID: model,
-        }
-      })
+        const modelID = defaultModel ?? firstModel?.id
+        if (!modelID) return undefined
+        return { providerID: provider.id, modelID }
+      }
+
+      const fallbackModel = createMemo(
+        () =>
+          (args.model ? resolveModelFromString(args.model) : undefined) ??
+          (sync.data.config.model ? resolveModelFromString(sync.data.config.model) : undefined) ??
+          firstRecentValidModel() ??
+          firstProviderDefaultModel(),
+      )
 
       const currentModel = createMemo(() => {
         const a = agent.current()
@@ -200,6 +193,39 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           ) ?? undefined
         )
       })
+
+      type ModelRef = { providerID: string; modelID: string }
+
+      function wrapBounded(index: number, length: number): number {
+        if (index < 0) return length - 1
+        if (index >= length) return 0
+        return index
+      }
+
+      function saveRecentWith(added: ModelRef): void {
+        const uniq = uniqueBy([added, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
+        if (uniq.length > 10) uniq.pop()
+        setModelStore(
+          "recent",
+          uniq.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
+        )
+        save()
+      }
+
+      function toastInvalidModel(m: ModelRef): void {
+        toast.show({ message: `Model ${m.providerID}/${m.modelID} is not valid`, variant: "warning", duration: 3000 })
+      }
+
+      function defaultFavoriteIndex(favorites: ModelRef[], direction: 1 | -1): number {
+        return direction === 1 ? 0 : favorites.length - 1
+      }
+
+      function findFavoriteIndex(favorites: ModelRef[], current: ModelRef | undefined, direction: 1 | -1): number {
+        if (!current) return defaultFavoriteIndex(favorites, direction)
+        const found = favorites.findIndex((x) => x.providerID === current.providerID && x.modelID === current.modelID)
+        if (found === -1) return defaultFavoriteIndex(favorites, direction)
+        return wrapBounded(found + direction, favorites.length)
+      }
 
       return {
         current: currentModel,
@@ -235,76 +261,35 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const recent = modelStore.recent
           const index = recent.findIndex((x) => x.providerID === current.providerID && x.modelID === current.modelID)
           if (index === -1) return
-          let next = index + direction
-          if (next < 0) next = recent.length - 1
-          if (next >= recent.length) next = 0
-          const val = recent[next]
-          if (!val) return
-          setModelStore("model", agent.current().name, { ...val })
+          const next = recent[wrapBounded(index + direction, recent.length)]
+          if (!next) return
+          setModelStore("model", agent.current().name, { ...next })
         },
         cycleFavorite(direction: 1 | -1) {
           const favorites = modelStore.favorite.filter((item) => isModelValid(item))
           if (!favorites.length) {
-            toast.show({
-              variant: "info",
-              message: "Add a favorite model to use this shortcut",
-              duration: 3000,
-            })
+            toast.show({ variant: "info", message: "Add a favorite model to use this shortcut", duration: 3000 })
             return
           }
-          const current = currentModel()
-          let index = -1
-          if (current) {
-            index = favorites.findIndex((x) => x.providerID === current.providerID && x.modelID === current.modelID)
-          }
-          if (index === -1) {
-            index = direction === 1 ? 0 : favorites.length - 1
-          } else {
-            index += direction
-            if (index < 0) index = favorites.length - 1
-            if (index >= favorites.length) index = 0
-          }
-          const next = favorites[index]
+          const next = favorites[findFavoriteIndex(favorites, currentModel(), direction)]
           if (!next) return
           setModelStore("model", agent.current().name, { ...next })
-          const uniq = uniqueBy([next, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
-          if (uniq.length > 10) uniq.pop()
-          setModelStore(
-            "recent",
-            uniq.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
-          )
-          save()
+          saveRecentWith(next)
         },
-        set(model: { providerID: string; modelID: string }, options?: { recent?: boolean }) {
+        set(model: ModelRef, options?: { recent?: boolean }) {
           batch(() => {
             if (!isModelValid(model)) {
-              toast.show({
-                message: `Model ${model.providerID}/${model.modelID} is not valid`,
-                variant: "warning",
-                duration: 3000,
-              })
+              toastInvalidModel(model)
               return
             }
             setModelStore("model", agent.current().name, model)
-            if (options?.recent) {
-              const uniq = uniqueBy([model, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
-              if (uniq.length > 10) uniq.pop()
-              setModelStore(
-                "recent",
-                uniq.map((x) => ({ providerID: x.providerID, modelID: x.modelID })),
-              )
-              save()
-            }
+            if (options?.recent) saveRecentWith(model)
           })
         },
-        toggleFavorite(model: { providerID: string; modelID: string }) {
+        toggleFavorite(model: ModelRef) {
           batch(() => {
             if (!isModelValid(model)) {
-              toast.show({
-                message: `Model ${model.providerID}/${model.modelID} is not valid`,
-                variant: "warning",
-                duration: 3000,
-              })
+              toastInvalidModel(model)
               return
             }
             const exists = modelStore.favorite.some(

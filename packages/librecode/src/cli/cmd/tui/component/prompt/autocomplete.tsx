@@ -148,6 +148,80 @@ export function Autocomplete(props: {
     setStore("input", "keyboard")
   })
 
+  function applyLineRangeToUrl(
+    urlObj: URL,
+    item: string,
+    lineRange: { startLine: number; endLine?: number },
+  ): string {
+    const filename = `${item}#${lineRange.startLine}${lineRange.endLine ? `-${lineRange.endLine}` : ""}`
+    urlObj.searchParams.set("start", String(lineRange.startLine))
+    if (lineRange.endLine !== undefined) {
+      urlObj.searchParams.set("end", String(lineRange.endLine))
+    }
+    return filename
+  }
+
+  function buildFileOption(
+    item: string,
+    baseDir: string,
+    width: number,
+    lineRange: { startLine: number; endLine?: number } | undefined,
+  ): AutocompleteOption {
+    const urlObj = pathToFileURL(`${baseDir}/${item}`)
+    const filename = lineRange && !item.endsWith("/") ? applyLineRangeToUrl(urlObj, item, lineRange) : item
+    const url = urlObj.href
+    return {
+      display: Locale.truncateMiddle(filename, width),
+      value: filename,
+      isDirectory: item.endsWith("/"),
+      path: item,
+      onSelect: () => {
+        insertPart(filename, {
+          type: "file",
+          mime: "text/plain",
+          filename,
+          url,
+          source: { type: "file", text: { start: 0, end: 0, value: "" }, path: item },
+        })
+      },
+    }
+  }
+
+  function updateExistingFilePart(
+    draft: PromptInfo,
+    part: PromptInfo["parts"][number] & { type: "file" },
+    extmarkStart: number,
+    extmarkEnd: number,
+    virtualText: string,
+  ): boolean {
+    const existingIndex = draft.parts.findIndex((p) => p.type === "file" && "url" in p && p.url === part.url)
+    if (existingIndex === -1) return false
+    const existing = draft.parts[existingIndex]
+    if (part.source?.text && existing && "source" in existing && existing.source && "text" in existing.source && existing.source.text) {
+      existing.source.text.start = extmarkStart
+      existing.source.text.end = extmarkEnd
+      existing.source.text.value = virtualText
+    }
+    return true
+  }
+
+  function stampPartSource(
+    part: PromptInfo["parts"][number],
+    extmarkStart: number,
+    extmarkEnd: number,
+    virtualText: string,
+  ): void {
+    if (part.type === "file" && part.source?.text) {
+      part.source.text.start = extmarkStart
+      part.source.text.end = extmarkEnd
+      part.source.text.value = virtualText
+    } else if (part.type === "agent" && part.source) {
+      part.source.start = extmarkStart
+      part.source.end = extmarkEnd
+      part.source.value = virtualText
+    }
+  }
+
   function insertPart(text: string, part: PromptInfo["parts"][number]) {
     const input = props.input()
     const currentCursorOffset = input.cursorOffset
@@ -179,35 +253,8 @@ export function Autocomplete(props: {
     })
 
     props.setPrompt((draft) => {
-      if (part.type === "file") {
-        const existingIndex = draft.parts.findIndex((p) => p.type === "file" && "url" in p && p.url === part.url)
-        if (existingIndex !== -1) {
-          const existing = draft.parts[existingIndex]
-          if (
-            part.source?.text &&
-            existing &&
-            "source" in existing &&
-            existing.source &&
-            "text" in existing.source &&
-            existing.source.text
-          ) {
-            existing.source.text.start = extmarkStart
-            existing.source.text.end = extmarkEnd
-            existing.source.text.value = virtualText
-          }
-          return
-        }
-      }
-
-      if (part.type === "file" && part.source?.text) {
-        part.source.text.start = extmarkStart
-        part.source.text.end = extmarkEnd
-        part.source.text.value = virtualText
-      } else if (part.type === "agent" && part.source) {
-        part.source.start = extmarkStart
-        part.source.end = extmarkEnd
-        part.source.value = virtualText
-      }
+      if (part.type === "file" && updateExistingFilePart(draft, part, extmarkStart, extmarkEnd, virtualText)) return
+      stampPartSource(part, extmarkStart, extmarkEnd, virtualText)
       const partIndex = draft.parts.length
       draft.parts.push(part)
       props.setExtmark(partIndex, extmarkId)
@@ -245,47 +292,8 @@ export function Autocomplete(props: {
         })
 
         const width = props.anchor().width - 4
-        options.push(
-          ...sortedFiles.map((item): AutocompleteOption => {
-            const baseDir = (sync.data.path.directory || process.cwd()).replace(/\/+$/, "")
-            const fullPath = `${baseDir}/${item}`
-            const urlObj = pathToFileURL(fullPath)
-            let filename = item
-            if (lineRange && !item.endsWith("/")) {
-              filename = `${item}#${lineRange.startLine}${lineRange.endLine ? `-${lineRange.endLine}` : ""}`
-              urlObj.searchParams.set("start", String(lineRange.startLine))
-              if (lineRange.endLine !== undefined) {
-                urlObj.searchParams.set("end", String(lineRange.endLine))
-              }
-            }
-            const url = urlObj.href
-
-            const isDir = item.endsWith("/")
-            return {
-              display: Locale.truncateMiddle(filename, width),
-              value: filename,
-              isDirectory: isDir,
-              path: item,
-              onSelect: () => {
-                insertPart(filename, {
-                  type: "file",
-                  mime: "text/plain",
-                  filename,
-                  url,
-                  source: {
-                    type: "file",
-                    text: {
-                      start: 0,
-                      end: 0,
-                      value: "",
-                    },
-                    path: item,
-                  },
-                })
-              },
-            }
-          }),
-        )
+        const baseDir = (sync.data.path.directory || process.cwd()).replace(/\/+$/, "")
+        options.push(...sortedFiles.map((item) => buildFileOption(item, baseDir, width, lineRange)))
       }
 
       return options
@@ -497,6 +505,80 @@ export function Autocomplete(props: {
     setStore("visible", false)
   }
 
+  function handleInputWhileVisible(value: string): void {
+    const input = props.input()
+    const shouldHide =
+      input.cursorOffset <= store.index ||
+      input.getTextRange(store.index, input.cursorOffset).match(/\s/) ||
+      (store.visible === "/" && value.match(/^\S+\s+\S+\s*$/))
+    if (shouldHide) hide()
+  }
+
+  function tryShowAtTrigger(value: string, offset: number): void {
+    const text = value.slice(0, offset)
+    const idx = text.lastIndexOf("@")
+    if (idx === -1) return
+    const between = text.slice(idx)
+    const before = idx === 0 ? undefined : value[idx - 1]
+    if ((before === undefined || /\s/.test(before)) && !between.match(/\s/)) {
+      show("@")
+      setStore("index", idx)
+    }
+  }
+
+  function handleInputWhileHidden(value: string): void {
+    const offset = props.input().cursorOffset
+    if (offset === 0) return
+    if (value.startsWith("/") && !value.slice(0, offset).match(/\s/)) {
+      show("/")
+      setStore("index", 0)
+      return
+    }
+    tryShowAtTrigger(value, offset)
+  }
+
+  function handleNavKey(e: KeyEvent, name: string, ctrlOnly: boolean): boolean {
+    if (name === "up" || (ctrlOnly && name === "p")) {
+      setStore("input", "keyboard")
+      move(-1)
+      e.preventDefault()
+      return true
+    }
+    if (name === "down" || (ctrlOnly && name === "n")) {
+      setStore("input", "keyboard")
+      move(1)
+      e.preventDefault()
+      return true
+    }
+    return false
+  }
+
+  function handleTabKey(e: KeyEvent): void {
+    const selected = options()[store.selected]
+    if (selected?.isDirectory) expandDirectory()
+    else select()
+    e.preventDefault()
+  }
+
+  function handleKeyDownVisible(e: KeyEvent): void {
+    const name = e.name?.toLowerCase() ?? ""
+    const ctrlOnly = e.ctrl && !e.meta && !e.shift
+    if (handleNavKey(e, name, ctrlOnly)) return
+    if (name === "escape") { hide(); e.preventDefault(); return }
+    if (name === "return") { select(); e.preventDefault(); return }
+    if (name === "tab") handleTabKey(e)
+  }
+
+  function handleKeyDownHidden(e: KeyEvent): void {
+    if (e.name === "@") {
+      const cursorOffset = props.input().cursorOffset
+      const charBeforeCursor = cursorOffset === 0 ? undefined : props.input().getTextRange(cursorOffset - 1, cursorOffset)
+      const canTrigger = charBeforeCursor === undefined || charBeforeCursor === "" || /\s/.test(charBeforeCursor)
+      if (canTrigger) show("@")
+    }
+    if (e.name === "/" && props.input().cursorOffset === 0) show("/")
+  }
+
   onMount(() => {
     props.ref({
       get visible() {
@@ -504,95 +586,17 @@ export function Autocomplete(props: {
       },
       onInput(value) {
         if (store.visible) {
-          if (
-            // Typed text before the trigger
-            props.input().cursorOffset <= store.index ||
-            // There is a space between the trigger and the cursor
-            props.input().getTextRange(store.index, props.input().cursorOffset).match(/\s/) ||
-            // "/<command>" is not the sole content
-            (store.visible === "/" && value.match(/^\S+\s+\S+\s*$/))
-          ) {
-            hide()
-          }
+          handleInputWhileVisible(value)
           return
         }
-
-        // Check if autocomplete should reopen (e.g., after backspace deleted a space)
-        const offset = props.input().cursorOffset
-        if (offset === 0) return
-
-        // Check for "/" at position 0 - reopen slash commands
-        if (value.startsWith("/") && !value.slice(0, offset).match(/\s/)) {
-          show("/")
-          setStore("index", 0)
-          return
-        }
-
-        // Check for "@" trigger - find the nearest "@" before cursor with no whitespace between
-        const text = value.slice(0, offset)
-        const idx = text.lastIndexOf("@")
-        if (idx === -1) return
-
-        const between = text.slice(idx)
-        const before = idx === 0 ? undefined : value[idx - 1]
-        if ((before === undefined || /\s/.test(before)) && !between.match(/\s/)) {
-          show("@")
-          setStore("index", idx)
-        }
+        handleInputWhileHidden(value)
       },
       onKeyDown(e: KeyEvent) {
         if (store.visible) {
-          const name = e.name?.toLowerCase()
-          const ctrlOnly = e.ctrl && !e.meta && !e.shift
-          const isNavUp = name === "up" || (ctrlOnly && name === "p")
-          const isNavDown = name === "down" || (ctrlOnly && name === "n")
-
-          if (isNavUp) {
-            setStore("input", "keyboard")
-            move(-1)
-            e.preventDefault()
-            return
-          }
-          if (isNavDown) {
-            setStore("input", "keyboard")
-            move(1)
-            e.preventDefault()
-            return
-          }
-          if (name === "escape") {
-            hide()
-            e.preventDefault()
-            return
-          }
-          if (name === "return") {
-            select()
-            e.preventDefault()
-            return
-          }
-          if (name === "tab") {
-            const selected = options()[store.selected]
-            if (selected?.isDirectory) {
-              expandDirectory()
-            } else {
-              select()
-            }
-            e.preventDefault()
-            return
-          }
+          handleKeyDownVisible(e)
+          return
         }
-        if (!store.visible) {
-          if (e.name === "@") {
-            const cursorOffset = props.input().cursorOffset
-            const charBeforeCursor =
-              cursorOffset === 0 ? undefined : props.input().getTextRange(cursorOffset - 1, cursorOffset)
-            const canTrigger = charBeforeCursor === undefined || charBeforeCursor === "" || /\s/.test(charBeforeCursor)
-            if (canTrigger) show("@")
-          }
-
-          if (e.name === "/") {
-            if (props.input().cursorOffset === 0) show("/")
-          }
-        }
+        handleKeyDownHidden(e)
       },
     })
   })

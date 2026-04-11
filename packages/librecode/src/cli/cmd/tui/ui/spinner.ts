@@ -159,28 +159,11 @@ function createKnightRiderTrail(options: AdvancedGradientOptions): ColorGenerato
     }
 
     const state = cachedState!
-
     const index = calculateColorIndex(frameIndex, charIndex, totalChars, options, state)
-
-    // Calculate global fade for inactive dots during hold or movement
-    const { isHolding, holdProgress, holdTotal, movementProgress, movementTotal } = state
-
-    let fadeFactor = 1.0
-    if (enableFading) {
-      if (isHolding && holdTotal > 0) {
-        // Fade out linearly to minAlpha
-        const progress = Math.min(holdProgress / holdTotal, 1)
-        fadeFactor = Math.max(minAlpha, 1 - progress * (1 - minAlpha))
-      } else if (!isHolding && movementTotal > 0) {
-        // Fade in linearly from minAlpha during movement
-        const progress = Math.min(movementProgress / Math.max(1, movementTotal - 1), 1)
-        fadeFactor = minAlpha + progress * (1 - minAlpha)
-      }
-    }
 
     // Combine base inactive alpha with the fade factor
     // This ensures inactiveFactor is respected while still allowing fading animation
-    defaultRgba.a = baseInactiveAlpha * fadeFactor
+    defaultRgba.a = baseInactiveAlpha * calcFadeFactor(state, enableFading, minAlpha)
 
     if (index === -1) {
       return defaultRgba
@@ -188,6 +171,22 @@ function createKnightRiderTrail(options: AdvancedGradientOptions): ColorGenerato
 
     return colors[index] ?? defaultRgba
   }
+}
+
+function calcFadeFactor(state: ScannerState, enableFading: boolean, minAlpha: number): number {
+  if (!enableFading) return 1.0
+  const { isHolding, holdProgress, holdTotal, movementProgress, movementTotal } = state
+  if (isHolding && holdTotal > 0) {
+    // Fade out linearly to minAlpha
+    const progress = Math.min(holdProgress / holdTotal, 1)
+    return Math.max(minAlpha, 1 - progress * (1 - minAlpha))
+  }
+  if (!isHolding && movementTotal > 0) {
+    // Fade in linearly from minAlpha during movement
+    const progress = Math.min(movementProgress / Math.max(1, movementTotal - 1), 1)
+    return minAlpha + progress * (1 - minAlpha)
+  }
+  return 1.0
 }
 
 /**

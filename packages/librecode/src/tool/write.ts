@@ -16,6 +16,30 @@ import { assertExternalDirectory } from "./external-directory"
 const MAX_DIAGNOSTICS_PER_FILE = 20
 const MAX_PROJECT_DIAGNOSTICS_FILES = 5
 
+function formatDiagnosticsOutput(
+  diagnostics: Awaited<ReturnType<typeof LSP.diagnostics>>,
+  normalizedFilepath: string,
+  filepath: string,
+): string {
+  let output = ""
+  let projectDiagnosticsCount = 0
+  for (const [file, issues] of Object.entries(diagnostics)) {
+    const errors = issues.filter((item) => item.severity === 1)
+    if (errors.length === 0) continue
+    const limited = errors.slice(0, MAX_DIAGNOSTICS_PER_FILE)
+    const suffix =
+      errors.length > MAX_DIAGNOSTICS_PER_FILE ? `\n... and ${errors.length - MAX_DIAGNOSTICS_PER_FILE} more` : ""
+    if (file === normalizedFilepath) {
+      output += `\n\nLSP errors detected in this file, please fix:\n<diagnostics file="${filepath}">\n${limited.map(LSP.Diagnostic.pretty).join("\n")}${suffix}\n</diagnostics>`
+      continue
+    }
+    if (projectDiagnosticsCount >= MAX_PROJECT_DIAGNOSTICS_FILES) continue
+    projectDiagnosticsCount++
+    output += `\n\nLSP errors detected in other files:\n<diagnostics file="${file}">\n${limited.map(LSP.Diagnostic.pretty).join("\n")}${suffix}\n</diagnostics>`
+  }
+  return output
+}
+
 export const WriteTool = Tool.define("write", {
   description: DESCRIPTION,
   parameters: z.object({
@@ -55,21 +79,7 @@ export const WriteTool = Tool.define("write", {
     await LSP.touchFile(filepath, true)
     const diagnostics = await LSP.diagnostics()
     const normalizedFilepath = Filesystem.normalizePath(filepath)
-    let projectDiagnosticsCount = 0
-    for (const [file, issues] of Object.entries(diagnostics)) {
-      const errors = issues.filter((item) => item.severity === 1)
-      if (errors.length === 0) continue
-      const limited = errors.slice(0, MAX_DIAGNOSTICS_PER_FILE)
-      const suffix =
-        errors.length > MAX_DIAGNOSTICS_PER_FILE ? `\n... and ${errors.length - MAX_DIAGNOSTICS_PER_FILE} more` : ""
-      if (file === normalizedFilepath) {
-        output += `\n\nLSP errors detected in this file, please fix:\n<diagnostics file="${filepath}">\n${limited.map(LSP.Diagnostic.pretty).join("\n")}${suffix}\n</diagnostics>`
-        continue
-      }
-      if (projectDiagnosticsCount >= MAX_PROJECT_DIAGNOSTICS_FILES) continue
-      projectDiagnosticsCount++
-      output += `\n\nLSP errors detected in other files:\n<diagnostics file="${file}">\n${limited.map(LSP.Diagnostic.pretty).join("\n")}${suffix}\n</diagnostics>`
-    }
+    output += formatDiagnosticsOutput(diagnostics, normalizedFilepath, filepath)
 
     return {
       title: path.relative(Instance.worktree, filepath),

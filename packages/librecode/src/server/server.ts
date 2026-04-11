@@ -49,6 +49,34 @@ import { lazy } from "@/util/lazy"
 // @ts-ignore This global is needed to prevent ai-sdk from logging warnings to stdout https://github.com/vercel/ai/blob/2dc67e0ef538307f21368db32d5a12345d98831b/packages/ai/src/logger/log-warnings.ts#L85
 globalThis.AI_SDK_LOG_WARNINGS = false
 
+function namedErrorStatus(err: NamedError): ContentfulStatusCode {
+  if (err instanceof NotFoundError) return 404
+  if (err instanceof Provider.ModelNotFoundError) return 400
+  if (err.name.startsWith("Worktree")) return 400
+  return 500
+}
+
+function handleServerError(err: Error, c: import("hono").Context): Response {
+  if (err instanceof NamedError) {
+    const status = namedErrorStatus(err)
+    return c.json(err.toObject(), { status })
+  }
+  if (err instanceof HTTPException) return err.getResponse()
+  const message = err instanceof Error && err.stack ? err.stack : err.toString()
+  return c.json(new NamedError.Unknown({ message }).toObject(), { status: 500 })
+}
+
+function resolveCorsOrigin(input: string | null | undefined, allowed: string[] | undefined): string | undefined {
+  if (!input) return undefined
+  if (input.startsWith("http://localhost:")) return input
+  if (input.startsWith("http://127.0.0.1:")) return input
+  if (input === "tauri://localhost" || input === "http://tauri.localhost" || input === "https://tauri.localhost")
+    return input
+  if (/^https:\/\/([a-z0-9-]+\.)*librecode\.ai$/.test(input)) return input
+  if (allowed?.includes(input)) return input
+  return undefined
+}
+
 export namespace Server {
   const log = Log.create({ service: "server" })
 
@@ -61,19 +89,7 @@ export namespace Server {
         log.error("failed", {
           error: err,
         })
-        if (err instanceof NamedError) {
-          let status: ContentfulStatusCode
-          if (err instanceof NotFoundError) status = 404
-          else if (err instanceof Provider.ModelNotFoundError) status = 400
-          else if (err.name.startsWith("Worktree")) status = 400
-          else status = 500
-          return c.json(err.toObject(), { status })
-        }
-        if (err instanceof HTTPException) return err.getResponse()
-        const message = err instanceof Error && err.stack ? err.stack : err.toString()
-        return c.json(new NamedError.Unknown({ message }).toObject(), {
-          status: 500,
-        })
+        return handleServerError(err, c)
       })
       .use((c, next) => {
         // Allow CORS preflight requests to succeed without auth.
@@ -104,26 +120,7 @@ export namespace Server {
       .use(
         cors({
           origin(input) {
-            if (!input) return
-
-            if (input.startsWith("http://localhost:")) return input
-            if (input.startsWith("http://127.0.0.1:")) return input
-            if (
-              input === "tauri://localhost" ||
-              input === "http://tauri.localhost" ||
-              input === "https://tauri.localhost"
-            )
-              return input
-
-            // *.librecode.ai (https only, adjust if needed)
-            if (/^https:\/\/([a-z0-9-]+\.)*librecode\.ai$/.test(input)) {
-              return input
-            }
-            if (opts?.cors?.includes(input)) {
-              return input
-            }
-
-            return
+            return resolveCorsOrigin(input, opts?.cors)
           },
         }),
       )

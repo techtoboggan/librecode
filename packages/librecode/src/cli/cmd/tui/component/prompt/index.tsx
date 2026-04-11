@@ -21,9 +21,8 @@ import { useRenderer } from "@opentui/solid"
 import { Editor } from "@tui/util/editor"
 import { useExit } from "../../context/exit"
 import { Clipboard } from "../../util/clipboard"
-import type { FilePart } from "@librecode/sdk/v2"
+import type { FilePart, SessionStatus } from "@librecode/sdk/v2"
 import { TuiEvent } from "../../event"
-import { iife } from "@/util/iife"
 import { Locale } from "@/util/locale"
 import { formatDuration } from "@/util/format"
 import { createColors, createFrames } from "../../ui/spinner.ts"
@@ -58,6 +57,144 @@ export type PromptRef = {
 
 const PLACEHOLDERS = ["Fix a TODO in the codebase", "What is the tech stack of this project?", "Fix broken tests"]
 const SHELL_PLACEHOLDERS = ["ls -la", "git status", "pwd"]
+
+// ---------------------------------------------------------------------------
+// Module-level pure helpers (no captured state — safe to extract)
+// ---------------------------------------------------------------------------
+
+function normalizeLineEndings(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
+}
+
+function updatedFilePartPosition(
+  part: Extract<PromptInfo["parts"][number], { type: "file" }>,
+  newStart: number,
+  newEnd: number,
+): typeof part {
+  if (!part.source?.text) return part
+  return {
+    ...part,
+    source: {
+      ...part.source,
+      text: { ...part.source.text, start: newStart, end: newEnd },
+    },
+  }
+}
+
+function updatedAgentPartPosition(
+  part: Extract<PromptInfo["parts"][number], { type: "agent" }>,
+  newStart: number,
+  newEnd: number,
+): typeof part {
+  if (!part.source) return part
+  return {
+    ...part,
+    source: { ...part.source, start: newStart, end: newEnd },
+  }
+}
+
+function resolvePartVirtualText(part: PromptInfo["parts"][number]): string {
+  if (part.type === "file" && part.source?.text) return part.source.text.value
+  if (part.type === "agent" && part.source) return part.source.value
+  return ""
+}
+
+function updatedPartPositionInContent(
+  part: PromptInfo["parts"][number],
+  content: string,
+): PromptInfo["parts"][number] | null {
+  const virtualText = resolvePartVirtualText(part)
+  if (!virtualText) return part
+
+  const newStart = content.indexOf(virtualText)
+  if (newStart === -1) return null
+  const newEnd = newStart + virtualText.length
+
+  if (part.type === "file") return updatedFilePartPosition(part, newStart, newEnd)
+  if (part.type === "agent") return updatedAgentPartPosition(part, newStart, newEnd)
+  return part
+}
+
+function buildCommandArgs(inputText: string): { commandName: string; args: string } {
+  const firstLineEnd = inputText.indexOf("\n")
+  const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
+  const [commandToken, ...firstLineArgs] = firstLine.split(" ")
+  const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
+  const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
+  return { commandName: commandToken.slice(1), args }
+}
+
+function isKnownSlashCommand(inputText: string, knownCommands: { name: string }[]): boolean {
+  if (!inputText.startsWith("/")) return false
+  const firstLine = inputText.split("\n")[0]
+  const command = firstLine.split(" ")[0].slice(1)
+  return knownCommands.some((x) => x.name === command)
+}
+
+
+// ---------------------------------------------------------------------------
+// RetryStatusDisplay — extracted subcomponent to reduce Prompt render complexity
+// ---------------------------------------------------------------------------
+
+type RetryStatusDisplayProps = {
+  status: () => SessionStatus
+  dialog: ReturnType<typeof useDialog>
+  theme: ReturnType<typeof useTheme>["theme"]
+}
+
+function RetryStatusDisplay(props: RetryStatusDisplayProps) {
+  const retry = createMemo(() => {
+    const s = props.status()
+    if (s.type !== "retry") return undefined
+    return s
+  })
+
+  const message = createMemo(() => {
+    const r = retry()
+    if (!r) return undefined
+    if (r.message.includes("exceeded your current quota") && r.message.includes("gemini")) return "gemini is way too hot right now"
+    if (r.message.length > 80) return r.message.slice(0, 80) + "..."
+    return r.message
+  })
+
+  const isTruncated = createMemo(() => {
+    const r = retry()
+    if (!r) return false
+    return r.message.length > 120
+  })
+
+  const [seconds, setSeconds] = createSignal(0)
+  onMount(() => {
+    const timer = setInterval(() => {
+      const next = retry()?.next
+      if (next) setSeconds(Math.round((next - Date.now()) / 1000))
+    }, 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const handleMessageClick = () => {
+    const r = retry()
+    if (!r) return
+    if (isTruncated()) DialogAlert.show(props.dialog, "Retry Error", r.message)
+  }
+
+  const retryText = () => {
+    const r = retry()
+    if (!r) return ""
+    const truncatedHint = isTruncated() ? " (click to expand)" : ""
+    const duration = formatDuration(seconds())
+    const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
+    return message() + truncatedHint + retryInfo
+  }
+
+  return (
+    <Show when={retry()}>
+      <box onMouseUp={handleMessageClick}>
+        <text fg={props.theme.error}>{retryText()}</text>
+      </box>
+    </Show>
+  )
+}
 
 export function Prompt(props: PromptProps) {
   let input: TextareaRenderable
@@ -150,24 +287,77 @@ export function Prompt(props: PromptProps) {
 
   // Initialize agent/model/variant from last user message when session changes
   let syncedSessionID: string | undefined
+
+  function syncAgentFromMessage(msg: ReturnType<typeof lastUserMessage>): void {
+    if (!msg?.agent) return
+    const isPrimaryAgent = local.agent.list().some((x) => x.name === msg.agent)
+    if (!isPrimaryAgent) return
+    local.agent.set(msg.agent)
+    if (msg.model) local.model.set(msg.model)
+    if (msg.variant) local.model.variant.set(msg.variant)
+  }
+
   createEffect(() => {
     const sessionID = props.sessionID
     const msg = lastUserMessage()
-
-    if (sessionID !== syncedSessionID) {
-      if (!sessionID || !msg) return
-
-      syncedSessionID = sessionID
-
-      // Only set agent if it's a primary agent (not a subagent)
-      const isPrimaryAgent = local.agent.list().some((x) => x.name === msg.agent)
-      if (msg.agent && isPrimaryAgent) {
-        local.agent.set(msg.agent)
-        if (msg.model) local.model.set(msg.model)
-        if (msg.variant) local.model.variant.set(msg.variant)
-      }
-    }
+    if (sessionID === syncedSessionID) return
+    if (!sessionID || !msg) return
+    syncedSessionID = sessionID
+    syncAgentFromMessage(msg)
   })
+
+  // ---------------------------------------------------------------------------
+  // Command onSelect handlers — extracted to reduce complexity of register callbacks
+  // ---------------------------------------------------------------------------
+
+  function handleInterruptSelect(dialogClear: () => void): void {
+    if (autocomplete.visible) return
+    if (!input.focused) return
+    // TODO: this should be its own command
+    if (store.mode === "shell") {
+      setStore("mode", "normal")
+      return
+    }
+    if (!props.sessionID) return
+
+    setStore("interrupt", store.interrupt + 1)
+    setTimeout(() => {
+      setStore("interrupt", 0)
+    }, 5000)
+
+    if (store.interrupt >= 2) {
+      sdk.client.session.abort({ sessionID: props.sessionID })
+      setStore("interrupt", 0)
+    }
+    dialogClear()
+  }
+
+  async function handleEditorOpen(dialogClear: () => void): Promise<void> {
+    dialogClear()
+
+    // Replace summarized text parts with the actual text
+    const text = store.prompt.parts
+      .filter((p) => p.type === "text")
+      .reduce((acc, p) => {
+        if (!p.source) return acc
+        return acc.replace(p.source.text.value, p.text)
+      }, store.prompt.input)
+
+    const nonTextParts = store.prompt.parts.filter((p) => p.type !== "text")
+
+    const content = await Editor.open({ value: text, renderer })
+    if (!content) return
+
+    input.setText(content)
+
+    const updatedNonTextParts = nonTextParts
+      .map((part) => updatedPartPositionInContent(part, content))
+      .filter((part): part is PromptInfo["parts"][number] => part !== null)
+
+    setStore("prompt", { input: content, parts: updatedNonTextParts })
+    restoreExtmarksFromParts(updatedNonTextParts)
+    input.cursorOffset = Bun.stringWidth(content)
+  }
 
   command.register(() => {
     return [
@@ -218,30 +408,7 @@ export function Prompt(props: PromptProps) {
         category: "Session",
         hidden: true,
         enabled: status().type !== "idle",
-        onSelect: (dialog) => {
-          if (autocomplete.visible) return
-          if (!input.focused) return
-          // TODO: this should be its own command
-          if (store.mode === "shell") {
-            setStore("mode", "normal")
-            return
-          }
-          if (!props.sessionID) return
-
-          setStore("interrupt", store.interrupt + 1)
-
-          setTimeout(() => {
-            setStore("interrupt", 0)
-          }, 5000)
-
-          if (store.interrupt >= 2) {
-            sdk.client.session.abort({
-              sessionID: props.sessionID,
-            })
-            setStore("interrupt", 0)
-          }
-          dialog.clear()
-        },
+        onSelect: (dialog) => handleInterruptSelect(dialog.clear.bind(dialog)),
       },
       {
         title: "Open editor",
@@ -251,84 +418,7 @@ export function Prompt(props: PromptProps) {
         slash: {
           name: "editor",
         },
-        onSelect: async (dialog) => {
-          dialog.clear()
-
-          // replace summarized text parts with the actual text
-          const text = store.prompt.parts
-            .filter((p) => p.type === "text")
-            .reduce((acc, p) => {
-              if (!p.source) return acc
-              return acc.replace(p.source.text.value, p.text)
-            }, store.prompt.input)
-
-          const nonTextParts = store.prompt.parts.filter((p) => p.type !== "text")
-
-          const value = text
-          const content = await Editor.open({ value, renderer })
-          if (!content) return
-
-          input.setText(content)
-
-          // Update positions for nonTextParts based on their location in new content
-          // Filter out parts whose virtual text was deleted
-          // this handles a case where the user edits the text in the editor
-          // such that the virtual text moves around or is deleted
-          const updatedNonTextParts = nonTextParts
-            .map((part) => {
-              let virtualText = ""
-              if (part.type === "file" && part.source?.text) {
-                virtualText = part.source.text.value
-              } else if (part.type === "agent" && part.source) {
-                virtualText = part.source.value
-              }
-
-              if (!virtualText) return part
-
-              const newStart = content.indexOf(virtualText)
-              // if the virtual text is deleted, remove the part
-              if (newStart === -1) return null
-
-              const newEnd = newStart + virtualText.length
-
-              if (part.type === "file" && part.source?.text) {
-                return {
-                  ...part,
-                  source: {
-                    ...part.source,
-                    text: {
-                      ...part.source.text,
-                      start: newStart,
-                      end: newEnd,
-                    },
-                  },
-                }
-              }
-
-              if (part.type === "agent" && part.source) {
-                return {
-                  ...part,
-                  source: {
-                    ...part.source,
-                    start: newStart,
-                    end: newEnd,
-                  },
-                }
-              }
-
-              return part
-            })
-            .filter((part) => part !== null)
-
-          setStore("prompt", {
-            input: content,
-            // keep only the non-text parts because the text parts were
-            // already expanded inline
-            parts: updatedNonTextParts,
-          })
-          restoreExtmarksFromParts(updatedNonTextParts)
-          input.cursorOffset = Bun.stringWidth(content)
-        },
+        onSelect: async (dialog) => handleEditorOpen(dialog.clear.bind(dialog)),
       },
       {
         title: "Skills",
@@ -393,48 +483,58 @@ export function Prompt(props: PromptProps) {
     if (props.visible === false) input?.blur()
   })
 
+  function resolvePartExtmarkInfo(
+    part: PromptInfo["parts"][number],
+  ): { start: number; end: number; virtualText: string; styleId: number | undefined } | null {
+    if (part.type === "file" && part.source?.text) {
+      return { start: part.source.text.start, end: part.source.text.end, virtualText: part.source.text.value, styleId: fileStyleId }
+    }
+    if (part.type === "agent" && part.source) {
+      return { start: part.source.start, end: part.source.end, virtualText: part.source.value, styleId: agentStyleId }
+    }
+    if (part.type === "text" && part.source?.text) {
+      return { start: part.source.text.start, end: part.source.text.end, virtualText: part.source.text.value, styleId: pasteStyleId }
+    }
+    return null
+  }
+
   function restoreExtmarksFromParts(parts: PromptInfo["parts"]) {
     input.extmarks.clear()
     setStore("extmarkToPartIndex", new Map())
 
     parts.forEach((part, partIndex) => {
-      let start = 0
-      let end = 0
-      let virtualText = ""
-      let styleId: number | undefined
+      const info = resolvePartExtmarkInfo(part)
+      if (!info) return
 
-      if (part.type === "file" && part.source?.text) {
-        start = part.source.text.start
-        end = part.source.text.end
-        virtualText = part.source.text.value
-        styleId = fileStyleId
-      } else if (part.type === "agent" && part.source) {
-        start = part.source.start
-        end = part.source.end
-        virtualText = part.source.value
-        styleId = agentStyleId
-      } else if (part.type === "text" && part.source?.text) {
-        start = part.source.text.start
-        end = part.source.text.end
-        virtualText = part.source.text.value
-        styleId = pasteStyleId
-      }
-
-      if (virtualText) {
-        const extmarkId = input.extmarks.create({
-          start,
-          end,
-          virtual: true,
-          styleId,
-          typeId: promptPartTypeId,
-        })
-        setStore("extmarkToPartIndex", (map: Map<number, number>) => {
-          const newMap = new Map(map)
-          newMap.set(extmarkId, partIndex)
-          return newMap
-        })
-      }
+      const extmarkId = input.extmarks.create({
+        start: info.start,
+        end: info.end,
+        virtual: true,
+        styleId: info.styleId,
+        typeId: promptPartTypeId,
+      })
+      setStore("extmarkToPartIndex", (map: Map<number, number>) => {
+        const newMap = new Map(map)
+        newMap.set(extmarkId, partIndex)
+        return newMap
+      })
     })
+  }
+
+  function applyExtmarkPositionToDraftPart(
+    part: PromptInfo["parts"][number],
+    extmark: { start: number; end: number },
+  ): void {
+    if (part.type === "agent" && part.source) {
+      part.source.start = extmark.start
+      part.source.end = extmark.end
+    } else if (part.type === "file" && part.source?.text) {
+      part.source.text.start = extmark.start
+      part.source.text.end = extmark.end
+    } else if (part.type === "text" && part.source?.text) {
+      part.source.text.start = extmark.start
+      part.source.text.end = extmark.end
+    }
   }
 
   function syncExtmarksWithPromptParts() {
@@ -446,23 +546,12 @@ export function Prompt(props: PromptProps) {
 
         for (const extmark of allExtmarks) {
           const partIndex = draft.extmarkToPartIndex.get(extmark.id)
-          if (partIndex !== undefined) {
-            const part = draft.prompt.parts[partIndex]
-            if (part) {
-              if (part.type === "agent" && part.source) {
-                part.source.start = extmark.start
-                part.source.end = extmark.end
-              } else if (part.type === "file" && part.source?.text) {
-                part.source.text.start = extmark.start
-                part.source.text.end = extmark.end
-              } else if (part.type === "text" && part.source?.text) {
-                part.source.text.start = extmark.start
-                part.source.text.end = extmark.end
-              }
-              newMap.set(extmark.id, newParts.length)
-              newParts.push(part)
-            }
-          }
+          if (partIndex === undefined) continue
+          const part = draft.prompt.parts[partIndex]
+          if (!part) continue
+          applyExtmarkPositionToDraftPart(part, extmark)
+          newMap.set(extmark.id, newParts.length)
+          newParts.push(part)
         }
 
         draft.extmarkToPartIndex = newMap
@@ -526,12 +615,134 @@ export function Prompt(props: PromptProps) {
     },
   ])
 
+  function dispatchShellSubmit(
+    sessionID: string,
+    inputText: string,
+    selectedModel: { providerID: string; modelID: string },
+  ): void {
+    sdk.client.session.shell({
+      sessionID,
+      agent: local.agent.current().name,
+      model: { providerID: selectedModel.providerID, modelID: selectedModel.modelID },
+      command: inputText,
+    })
+    setStore("mode", "normal")
+  }
+
+  function dispatchCommandSubmit(
+    sessionID: string,
+    inputText: string,
+    selectedModel: { providerID: string; modelID: string },
+    messageID: string,
+    variant: string | undefined,
+    nonTextParts: PromptInfo["parts"],
+  ): void {
+    const { commandName, args } = buildCommandArgs(inputText)
+    sdk.client.session.command({
+      sessionID,
+      command: commandName,
+      arguments: args,
+      agent: local.agent.current().name,
+      model: `${selectedModel.providerID}/${selectedModel.modelID}`,
+      messageID,
+      variant,
+      parts: nonTextParts
+        .filter((x) => x.type === "file")
+        .map((x) => ({ id: PartID.ascending(), ...x })),
+    })
+  }
+
+  function dispatchPromptSubmit(
+    sessionID: string,
+    inputText: string,
+    selectedModel: ReturnType<typeof local.model.current>,
+    messageID: string,
+    variant: string | undefined,
+    nonTextParts: PromptInfo["parts"],
+  ): void {
+    sdk.client.session
+      .prompt({
+        sessionID,
+        ...selectedModel,
+        messageID,
+        agent: local.agent.current().name,
+        model: selectedModel,
+        variant,
+        parts: [
+          { id: PartID.ascending(), type: "text", text: inputText },
+          ...nonTextParts.map((x) => ({ id: PartID.ascending(), ...x })),
+        ],
+      })
+      .catch(() => {})
+  }
+
+  function expandInputText(): string {
+    const allExtmarks = input.extmarks.getAllForTypeId(promptPartTypeId)
+    const sortedExtmarks = allExtmarks
+      .slice()
+      .sort((a: { start: number }, b: { start: number }) => b.start - a.start)
+    let text = store.prompt.input
+    for (const extmark of sortedExtmarks) {
+      const partIndex = store.extmarkToPartIndex.get(extmark.id)
+      if (partIndex === undefined) continue
+      const part = store.prompt.parts[partIndex]
+      if (part?.type === "text" && part.text) {
+        text = text.slice(0, extmark.start) + part.text + text.slice(extmark.end)
+      }
+    }
+    return text
+  }
+
+  async function resolveSessionID(): Promise<string | null> {
+    if (props.sessionID != null) return props.sessionID
+    const res = await sdk.client.session.create({ workspaceID: props.workspaceID })
+    if (res.error) {
+      console.log("Creating a session failed:", res.error)
+      toast.show({ message: "Creating a session failed. Open console for more details.", variant: "error" })
+      return null
+    }
+    return res.data.id
+  }
+
+  function isExitCommand(input: string): boolean {
+    const t = input.trim()
+    return t === "exit" || t === "quit" || t === ":q"
+  }
+
+  function dispatchToSession(
+    sessionID: string,
+    inputText: string,
+    selectedModel: NonNullable<ReturnType<typeof local.model.current>>,
+    messageID: string,
+    variant: string | undefined,
+    nonTextParts: PromptInfo["parts"],
+  ): void {
+    if (store.mode === "shell") {
+      dispatchShellSubmit(sessionID, inputText, selectedModel)
+    } else if (isKnownSlashCommand(inputText, sync.data.command)) {
+      dispatchCommandSubmit(sessionID, inputText, selectedModel, messageID, variant, nonTextParts)
+    } else {
+      dispatchPromptSubmit(sessionID, inputText, selectedModel, messageID, variant, nonTextParts)
+    }
+  }
+
+  function afterSubmitCleanup(currentMode: string, sessionID: string): void {
+    input.extmarks.clear()
+    setStore("prompt", { input: "", parts: [] })
+    setStore("extmarkToPartIndex", new Map())
+    props.onSubmit?.()
+    if (!props.sessionID)
+      setTimeout(() => {
+        route.navigate({ type: "session", sessionID })
+      }, 50)
+    input.clear()
+  }
+
   async function submit() {
     if (props.disabled) return
     if (autocomplete?.visible) return
     if (!store.prompt.input) return
-    const trimmed = store.prompt.input.trim()
-    if (trimmed === "exit" || trimmed === "quit" || trimmed === ":q") {
+    if (isExitCommand(store.prompt.input)) {
       exit()
       return
     }
@@ -541,137 +752,18 @@ export function Prompt(props: PromptProps) {
       return
     }
 
-    let sessionID = props.sessionID
-    if (sessionID == null) {
-      const res = await sdk.client.session.create({
-        workspaceID: props.workspaceID,
-      })
-
-      if (res.error) {
-        console.log("Creating a session failed:", res.error)
-
-        toast.show({
-          message: "Creating a session failed. Open console for more details.",
-          variant: "error",
-        })
-
-        return
-      }
-
-      sessionID = res.data.id
-    }
+    const sessionID = await resolveSessionID()
+    if (!sessionID) return
 
     const messageID = MessageID.ascending()
-    let inputText = store.prompt.input
-
-    // Expand pasted text inline before submitting
-    const allExtmarks = input.extmarks.getAllForTypeId(promptPartTypeId)
-    const sortedExtmarks = allExtmarks.sort((a: { start: number }, b: { start: number }) => b.start - a.start)
-
-    for (const extmark of sortedExtmarks) {
-      const partIndex = store.extmarkToPartIndex.get(extmark.id)
-      if (partIndex !== undefined) {
-        const part = store.prompt.parts[partIndex]
-        if (part?.type === "text" && part.text) {
-          const before = inputText.slice(0, extmark.start)
-          const after = inputText.slice(extmark.end)
-          inputText = before + part.text + after
-        }
-      }
-    }
-
-    // Filter out text parts (pasted content) since they're now expanded inline
+    const inputText = expandInputText()
     const nonTextParts = store.prompt.parts.filter((part) => part.type !== "text")
-
-    // Capture mode before it gets reset
     const currentMode = store.mode
     const variant = local.model.variant.current()
 
-    if (store.mode === "shell") {
-      sdk.client.session.shell({
-        sessionID,
-        agent: local.agent.current().name,
-        model: {
-          providerID: selectedModel.providerID,
-          modelID: selectedModel.modelID,
-        },
-        command: inputText,
-      })
-      setStore("mode", "normal")
-    } else if (
-      inputText.startsWith("/") &&
-      iife(() => {
-        const firstLine = inputText.split("\n")[0]
-        const command = firstLine.split(" ")[0].slice(1)
-        return sync.data.command.some((x) => x.name === command)
-      })
-    ) {
-      // Parse command from first line, preserve multi-line content in arguments
-      const firstLineEnd = inputText.indexOf("\n")
-      const firstLine = firstLineEnd === -1 ? inputText : inputText.slice(0, firstLineEnd)
-      const [command, ...firstLineArgs] = firstLine.split(" ")
-      const restOfInput = firstLineEnd === -1 ? "" : inputText.slice(firstLineEnd + 1)
-      const args = firstLineArgs.join(" ") + (restOfInput ? "\n" + restOfInput : "")
-
-      sdk.client.session.command({
-        sessionID,
-        command: command.slice(1),
-        arguments: args,
-        agent: local.agent.current().name,
-        model: `${selectedModel.providerID}/${selectedModel.modelID}`,
-        messageID,
-        variant,
-        parts: nonTextParts
-          .filter((x) => x.type === "file")
-          .map((x) => ({
-            id: PartID.ascending(),
-            ...x,
-          })),
-      })
-    } else {
-      sdk.client.session
-        .prompt({
-          sessionID,
-          ...selectedModel,
-          messageID,
-          agent: local.agent.current().name,
-          model: selectedModel,
-          variant,
-          parts: [
-            {
-              id: PartID.ascending(),
-              type: "text",
-              text: inputText,
-            },
-            ...nonTextParts.map((x) => ({
-              id: PartID.ascending(),
-              ...x,
-            })),
-          ],
-        })
-        .catch(() => {})
-    }
-    history.append({
-      ...store.prompt,
-      mode: currentMode,
-    })
-    input.extmarks.clear()
-    setStore("prompt", {
-      input: "",
-      parts: [],
-    })
-    setStore("extmarkToPartIndex", new Map())
-    props.onSubmit?.()
-
-    // temporary hack to make sure the message is sent
-    if (!props.sessionID)
-      setTimeout(() => {
-        route.navigate({
-          type: "session",
-          sessionID,
-        })
-      }, 50)
-    input.clear()
+    history.append({ ...store.prompt, mode: currentMode })
+    dispatchToSession(sessionID, inputText, selectedModel, messageID, variant, nonTextParts)
+    afterSubmitCleanup(currentMode, sessionID)
   }
   const exit = useExit()
 
@@ -752,6 +844,137 @@ export function Prompt(props: PromptProps) {
     return
   }
 
+  // ---------------------------------------------------------------------------
+  // Keyboard handler helpers — extracted to reduce onKeyDown complexity
+  // ---------------------------------------------------------------------------
+
+  async function handleKeyDownPaste(e: { preventDefault(): void }): Promise<boolean> {
+    const content = await Clipboard.read()
+    if (content?.mime.startsWith("image/")) {
+      e.preventDefault()
+      await pasteImage({ filename: "clipboard", mime: content.mime, content: content.data })
+      return true
+    }
+    return false
+  }
+
+  function handleKeyDownClear(e: { preventDefault(): void }): boolean {
+    if (store.prompt.input === "") return false
+    input.clear()
+    input.extmarks.clear()
+    setStore("prompt", { input: "", parts: [] })
+    setStore("extmarkToPartIndex", new Map())
+    e.preventDefault()
+    return true
+  }
+
+  async function handleKeyDownExit(e: { preventDefault(): void }): Promise<void> {
+    if (store.prompt.input === "") {
+      await exit()
+      e.preventDefault()
+    }
+  }
+
+  function handleKeyDownShellMode(e: { name: string; preventDefault(): void }): boolean {
+    if (e.name === "!" && input.visualCursor.offset === 0) {
+      setStore("placeholder", Math.floor(Math.random() * SHELL_PLACEHOLDERS.length))
+      setStore("mode", "shell")
+      e.preventDefault()
+      return true
+    }
+    if (store.mode === "shell") {
+      if ((e.name === "backspace" && input.visualCursor.offset === 0) || e.name === "escape") {
+        setStore("mode", "normal")
+        e.preventDefault()
+        return true
+      }
+    }
+    return false
+  }
+
+  function applyHistoryItem(item: PromptInfo & { mode?: "normal" | "shell" }, direction: -1 | 1, e: { preventDefault(): void }): void {
+    input.setText(item.input)
+    setStore("prompt", item)
+    setStore("mode", item.mode ?? "normal")
+    restoreExtmarksFromParts(item.parts)
+    e.preventDefault()
+    input.cursorOffset = direction === -1 ? 0 : input.plainText.length
+  }
+
+  function handleHistoryNavigation(isPrev: boolean, isNext: boolean, e: { preventDefault(): void }): void {
+    const direction: -1 | 1 = isPrev ? -1 : 1
+    const item = history.move(direction, input.plainText)
+    if (item) applyHistoryItem(item, direction, e)
+  }
+
+  function handleKeyDownHistory(e: { preventDefault(): void; name: string }): void {
+    const isPrev = keybind.match("history_previous", e)
+    const isNext = keybind.match("history_next", e)
+    const atStart = input.cursorOffset === 0
+    const atEnd = input.cursorOffset === input.plainText.length
+
+    if ((isPrev && atStart) || (isNext && atEnd)) {
+      handleHistoryNavigation(isPrev, isNext, e)
+      return
+    }
+    if (isPrev && input.visualCursor.visualRow === 0) input.cursorOffset = 0
+    if (isNext && input.visualCursor.visualRow === input.height - 1) input.cursorOffset = input.plainText.length
+  }
+
+  // ---------------------------------------------------------------------------
+  // Paste handler helpers — extracted to reduce onPaste complexity
+  // ---------------------------------------------------------------------------
+
+  async function handlePasteSvg(filepath: string, filename: string, event: { preventDefault(): void }): Promise<boolean> {
+    event.preventDefault()
+    const content = await Filesystem.readText(filepath).catch(() => {})
+    if (content) {
+      pasteText(content, `[SVG: ${filename ?? "image"}]`)
+      return true
+    }
+    return false
+  }
+
+  async function handlePasteRasterImage(filepath: string, filename: string, mime: string, event: { preventDefault(): void }): Promise<boolean> {
+    event.preventDefault()
+    const content = await Filesystem.readArrayBuffer(filepath)
+      .then((buffer) => Buffer.from(buffer).toString("base64"))
+      .catch(() => {})
+    if (content) {
+      await pasteImage({ filename, mime, content })
+      return true
+    }
+    return false
+  }
+
+  async function handlePasteFilePath(
+    filepath: string,
+    event: { preventDefault(): void },
+  ): Promise<boolean> {
+    try {
+      const mime = Filesystem.mimeType(filepath)
+      const filename = path.basename(filepath)
+      if (mime === "image/svg+xml") return await handlePasteSvg(filepath, filename, event)
+      if (mime.startsWith("image/")) return await handlePasteRasterImage(filepath, filename, mime, event)
+    } catch {}
+    return false
+  }
+
+  function shouldSummarizePaste(pastedContent: string): boolean {
+    const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
+    const tooLong = lineCount >= 3 || pastedContent.length > 150
+    return tooLong && !sync.data.config.experimental?.disable_paste_summary
+  }
+
+  function triggerLayoutUpdate(): void {
+    setTimeout(() => {
+      // setTimeout is a workaround and needs to be addressed properly
+      if (!input || input.isDestroyed) return
+      input.getLayoutNode().markDirty()
+      renderer.requestRender()
+    }, 0)
+  }
+
   const highlight = createMemo(() => {
     if (keybind.leader) return theme.border
     if (store.mode === "shell") return theme.primary
@@ -793,6 +1016,30 @@ export function Prompt(props: PromptProps) {
       }),
     }
   })
+
+  async function handleSpecialKeys(e: { name: string; preventDefault(): void }): Promise<boolean> {
+    if (keybind.match("input_paste", e)) {
+      const handled = await handleKeyDownPaste(e)
+      if (handled) return true
+      // If no image, let the default paste behavior continue
+    }
+    if (keybind.match("input_clear", e) && handleKeyDownClear(e)) return true
+    if (keybind.match("app_exit", e)) {
+      await handleKeyDownExit(e)
+      return true
+    }
+    return handleKeyDownShellMode(e)
+  }
+
+  async function onTextareaKeyDown(e: { name: string; preventDefault(): void }): Promise<void> {
+    if (props.disabled) {
+      e.preventDefault()
+      return
+    }
+    if (await handleSpecialKeys(e)) return
+    if (store.mode === "normal") autocomplete.onKeyDown(e)
+    if (!autocomplete.visible) handleKeyDownHistory(e)
+  }
 
   return (
     <>
@@ -847,85 +1094,7 @@ export function Prompt(props: PromptProps) {
                 syncExtmarksWithPromptParts()
               }}
               keyBindings={textareaKeybindings()}
-              onKeyDown={async (e) => {
-                if (props.disabled) {
-                  e.preventDefault()
-                  return
-                }
-                // Handle clipboard paste (Ctrl+V) - check for images first on Windows
-                // This is needed because Windows terminal doesn't properly send image data
-                // through bracketed paste, so we need to intercept the keypress and
-                // directly read from clipboard before the terminal handles it
-                if (keybind.match("input_paste", e)) {
-                  const content = await Clipboard.read()
-                  if (content?.mime.startsWith("image/")) {
-                    e.preventDefault()
-                    await pasteImage({
-                      filename: "clipboard",
-                      mime: content.mime,
-                      content: content.data,
-                    })
-                    return
-                  }
-                  // If no image, let the default paste behavior continue
-                }
-                if (keybind.match("input_clear", e) && store.prompt.input !== "") {
-                  input.clear()
-                  input.extmarks.clear()
-                  setStore("prompt", {
-                    input: "",
-                    parts: [],
-                  })
-                  setStore("extmarkToPartIndex", new Map())
-                  return
-                }
-                if (keybind.match("app_exit", e)) {
-                  if (store.prompt.input === "") {
-                    await exit()
-                    // Don't preventDefault - let textarea potentially handle the event
-                    e.preventDefault()
-                    return
-                  }
-                }
-                if (e.name === "!" && input.visualCursor.offset === 0) {
-                  setStore("placeholder", Math.floor(Math.random() * SHELL_PLACEHOLDERS.length))
-                  setStore("mode", "shell")
-                  e.preventDefault()
-                  return
-                }
-                if (store.mode === "shell") {
-                  if ((e.name === "backspace" && input.visualCursor.offset === 0) || e.name === "escape") {
-                    setStore("mode", "normal")
-                    e.preventDefault()
-                    return
-                  }
-                }
-                if (store.mode === "normal") autocomplete.onKeyDown(e)
-                if (!autocomplete.visible) {
-                  if (
-                    (keybind.match("history_previous", e) && input.cursorOffset === 0) ||
-                    (keybind.match("history_next", e) && input.cursorOffset === input.plainText.length)
-                  ) {
-                    const direction = keybind.match("history_previous", e) ? -1 : 1
-                    const item = history.move(direction, input.plainText)
-
-                    if (item) {
-                      input.setText(item.input)
-                      setStore("prompt", item)
-                      setStore("mode", item.mode ?? "normal")
-                      restoreExtmarksFromParts(item.parts)
-                      e.preventDefault()
-                      if (direction === -1) input.cursorOffset = 0
-                      if (direction === 1) input.cursorOffset = input.plainText.length
-                    }
-                    return
-                  }
-
-                  if (keybind.match("history_previous", e) && input.visualCursor.visualRow === 0) input.cursorOffset = 0
-                  if (keybind.match("history_next", e) && input.visualCursor.visualRow === input.height - 1)
-                    input.cursorOffset = input.plainText.length
-                }
-              }}
+              onKeyDown={onTextareaKeyDown}
               onSubmit={submit}
               onPaste={async (event: PasteEvent) => {
                 if (props.disabled) {
@@ -933,67 +1102,29 @@ export function Prompt(props: PromptProps) {
                   return
                 }
 
-                // Normalize line endings at the boundary
-                // Windows ConPTY/Terminal often sends CR-only newlines in bracketed paste
-                // Replace CRLF first, then any remaining CR
-                const normalizedText = event.text.replace(/\r\n/g, "\n").replace(/\r/g, "\n")
-                const pastedContent = normalizedText.trim()
+                // Normalize line endings — Windows ConPTY/Terminal often sends CR-only newlines
+                const pastedContent = normalizeLineEndings(event.text).trim()
                 if (!pastedContent) {
                   command.trigger("prompt.paste")
                   return
                 }
 
-                // trim ' from the beginning and end of the pasted content. just
-                // ' and nothing else
+                // trim ' from beginning/end; unescape spaces for file paths
                 const filepath = pastedContent.replace(/^'+|'+$/g, "").replace(/\\ /g, " ")
                 const isUrl = /^(https?):\/\//.test(filepath)
                 if (!isUrl) {
-                  try {
-                    const mime = Filesystem.mimeType(filepath)
-                    const filename = path.basename(filepath)
-                    // Handle SVG as raw text content, not as base64 image
-                    if (mime === "image/svg+xml") {
-                      event.preventDefault()
-                      const content = await Filesystem.readText(filepath).catch(() => {})
-                      if (content) {
-                        pasteText(content, `[SVG: ${filename ?? "image"}]`)
-                        return
-                      }
-                    }
-                    if (mime.startsWith("image/")) {
-                      event.preventDefault()
-                      const content = await Filesystem.readArrayBuffer(filepath)
-                        .then((buffer) => Buffer.from(buffer).toString("base64"))
-                        .catch(() => {})
-                      if (content) {
-                        await pasteImage({
-                          filename,
-                          mime,
-                          content,
-                        })
-                        return
-                      }
-                    }
-                  } catch {}
+                  const handled = await handlePasteFilePath(filepath, event)
+                  if (handled) return
                 }
 
-                const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
-                if (
-                  (lineCount >= 3 || pastedContent.length > 150) &&
-                  !sync.data.config.experimental?.disable_paste_summary
-                ) {
+                if (shouldSummarizePaste(pastedContent)) {
+                  const lineCount = (pastedContent.match(/\n/g)?.length ?? 0) + 1
                   event.preventDefault()
                   pasteText(pastedContent, `[Pasted ~${lineCount} lines]`)
                   return
                 }
 
-                // Force layout update and render for the pasted content
-                setTimeout(() => {
-                  // setTimeout is a workaround and needs to be addressed properly
-                  if (!input || input.isDestroyed) return
-                  input.getLayoutNode().markDirty()
-                  renderer.requestRender()
-                }, 0)
+                triggerLayoutUpdate()
               }}
               ref={(r: TextareaRenderable) => {
                 input = r
@@ -1074,62 +1205,7 @@ export function Prompt(props: PromptProps) {
                   </Show>
                 </box>
                 <box flexDirection="row" gap={1} flexShrink={0}>
-                  {(() => {
-                    const retry = createMemo(() => {
-                      const s = status()
-                      if (s.type !== "retry") return
-                      return s
-                    })
-                    const message = createMemo(() => {
-                      const r = retry()
-                      if (!r) return
-                      if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
-                        return "gemini is way too hot right now"
-                      if (r.message.length > 80) return r.message.slice(0, 80) + "..."
-                      return r.message
-                    })
-                    const isTruncated = createMemo(() => {
-                      const r = retry()
-                      if (!r) return false
-                      return r.message.length > 120
-                    })
-                    const [seconds, setSeconds] = createSignal(0)
-                    onMount(() => {
-                      const timer = setInterval(() => {
-                        const next = retry()?.next
-                        if (next) setSeconds(Math.round((next - Date.now()) / 1000))
-                      }, 1000)
-
-                      onCleanup(() => {
-                        clearInterval(timer)
-                      })
-                    })
-                    const handleMessageClick = () => {
-                      const r = retry()
-                      if (!r) return
-                      if (isTruncated()) {
-                        DialogAlert.show(dialog, "Retry Error", r.message)
-                      }
-                    }
-
-                    const retryText = () => {
-                      const r = retry()
-                      if (!r) return ""
-                      const baseMessage = message()
-                      const truncatedHint = isTruncated() ? " (click to expand)" : ""
-                      const duration = formatDuration(seconds())
-                      const retryInfo = ` [retrying ${duration ? `in ${duration} ` : ""}attempt #${r.attempt}]`
-                      return baseMessage + truncatedHint + retryInfo
-                    }
-
-                    return (
-                      <Show when={retry()}>
-                        <box onMouseUp={handleMessageClick}>
-                          <text fg={theme.error}>{retryText()}</text>
-                        </box>
-                      </Show>
-                    )
-                  })()}
+                  <RetryStatusDisplay status={status} dialog={dialog} theme={theme} />
                 </box>
               </box>
               <text fg={store.interrupt > 0 ? theme.primary : theme.text}>

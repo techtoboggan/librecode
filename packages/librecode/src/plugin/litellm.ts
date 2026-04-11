@@ -40,6 +40,51 @@ async function fetchModelsFromUrl(
   }
 }
 
+function parseLiteLLMCredentials(
+  authKey: string,
+  fallbackURL: string,
+  fallbackApiKey: string | undefined,
+): { baseURL: string; apiKey: string | undefined } {
+  const pipeIdx = authKey.indexOf("|")
+  if (pipeIdx >= 0) {
+    return {
+      baseURL: authKey.substring(0, pipeIdx) || fallbackURL,
+      apiKey: authKey.substring(pipeIdx + 1) || fallbackApiKey,
+    }
+  }
+  return { baseURL: fallbackURL, apiKey: authKey }
+}
+
+function injectLiteLLMPluginModel(
+  models: Record<string, unknown>,
+  id: string,
+  baseURL: string,
+): void {
+  if (models[id]) return
+  models[id] = {
+    id,
+    providerID: "litellm",
+    name: id,
+    api: { id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
+    status: "active",
+    headers: {},
+    options: {},
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: 128000, output: 4096 },
+    capabilities: {
+      temperature: true,
+      reasoning: false,
+      attachment: false,
+      toolcall: true,
+      input: { text: true, audio: false, image: false, video: false, pdf: false },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    release_date: new Date().toISOString().split("T")[0],
+    variants: {},
+  }
+}
+
 export async function LiteLLMAuthPlugin(_input: PluginInput): Promise<Hooks> {
   return {
     auth: {
@@ -49,56 +94,23 @@ export async function LiteLLMAuthPlugin(_input: PluginInput): Promise<Hooks> {
 
         // The key is stored as "url|apiKey" by the authorize function.
         // Fall back to env vars for backwards compatibility.
-        let baseURL = Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
-        let apiKey = Env.get("LITELLM_API_KEY")
+        const fallbackURL = Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
+        const fallbackApiKey = Env.get("LITELLM_API_KEY")
 
-        if (auth.type === "api" && auth.key) {
-          const pipeIdx = auth.key.indexOf("|")
-          if (pipeIdx >= 0) {
-            baseURL = auth.key.substring(0, pipeIdx) || baseURL
-            apiKey = auth.key.substring(pipeIdx + 1) || apiKey
-          } else {
-            apiKey = auth.key
-          }
-        }
+        const { baseURL, apiKey } =
+          auth.type === "api" && auth.key
+            ? parseLiteLLMCredentials(auth.key, fallbackURL, fallbackApiKey)
+            : { baseURL: fallbackURL, apiKey: fallbackApiKey }
 
         if (!apiKey && !baseURL) return {}
 
         const models = await fetchModelsFromUrl(baseURL, apiKey)
         if (models.length > 0) {
           log.info("litellm models discovered", { count: models.length, baseURL })
-          for (const m of models) {
-            if (!provider.models[m.id]) {
-              provider.models[m.id] = {
-                id: m.id as any,
-                providerID: "litellm" as any,
-                name: m.id,
-                api: { id: m.id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
-                status: "active" as const,
-                headers: {},
-                options: {},
-                cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-                limit: { context: 128000, output: 4096 },
-                capabilities: {
-                  temperature: true,
-                  reasoning: false,
-                  attachment: false,
-                  toolcall: true,
-                  input: { text: true, audio: false, image: false, video: false, pdf: false },
-                  output: { text: true, audio: false, image: false, video: false, pdf: false },
-                  interleaved: false,
-                },
-                release_date: new Date().toISOString().split("T")[0],
-                variants: {},
-              } as any
-            }
-          }
+          for (const m of models) injectLiteLLMPluginModel(provider.models as Record<string, unknown>, m.id, baseURL)
         }
 
-        return {
-          apiKey,
-          baseURL: `${baseURL}/v1`,
-        }
+        return { apiKey, baseURL: `${baseURL}/v1` }
       },
       methods: [
         {

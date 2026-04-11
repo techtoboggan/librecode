@@ -35,6 +35,56 @@ export const IGNORE_PATTERNS = [
 
 const LIMIT = 100
 
+interface DirStructure {
+  dirs: Set<string>
+  filesByDir: Map<string, string[]>
+}
+
+function buildDirStructure(files: string[]): DirStructure {
+  const dirs = new Set<string>()
+  const filesByDir = new Map<string, string[]>()
+
+  for (const file of files) {
+    const dir = path.dirname(file)
+    const parts = dir === "." ? [] : dir.split("/")
+
+    for (let i = 0; i <= parts.length; i++) {
+      const dirPath = i === 0 ? "." : parts.slice(0, i).join("/")
+      dirs.add(dirPath)
+    }
+
+    if (!filesByDir.has(dir)) filesByDir.set(dir, [])
+    filesByDir.get(dir)!.push(path.basename(file))
+  }
+
+  return { dirs, filesByDir }
+}
+
+function renderDir(dirPath: string, depth: number, dirs: Set<string>, filesByDir: Map<string, string[]>): string {
+  const indent = "  ".repeat(depth)
+  let output = ""
+
+  if (depth > 0) {
+    output += `${indent}${path.basename(dirPath)}/\n`
+  }
+
+  const childIndent = "  ".repeat(depth + 1)
+  const children = Array.from(dirs)
+    .filter((d) => path.dirname(d) === dirPath && d !== dirPath)
+    .sort()
+
+  for (const child of children) {
+    output += renderDir(child, depth + 1, dirs, filesByDir)
+  }
+
+  const dirFiles = filesByDir.get(dirPath) ?? []
+  for (const file of dirFiles.sort()) {
+    output += `${childIndent}${file}\n`
+  }
+
+  return output
+}
+
 export const ListTool = Tool.define("list", {
   description: DESCRIPTION,
   parameters: z.object({
@@ -61,53 +111,8 @@ export const ListTool = Tool.define("list", {
       if (files.length >= LIMIT) break
     }
 
-    // Build directory structure
-    const dirs = new Set<string>()
-    const filesByDir = new Map<string, string[]>()
-
-    for (const file of files) {
-      const dir = path.dirname(file)
-      const parts = dir === "." ? [] : dir.split("/")
-
-      // Add all parent directories
-      for (let i = 0; i <= parts.length; i++) {
-        const dirPath = i === 0 ? "." : parts.slice(0, i).join("/")
-        dirs.add(dirPath)
-      }
-
-      // Add file to its directory
-      if (!filesByDir.has(dir)) filesByDir.set(dir, [])
-      filesByDir.get(dir)!.push(path.basename(file))
-    }
-
-    function renderDir(dirPath: string, depth: number): string {
-      const indent = "  ".repeat(depth)
-      let output = ""
-
-      if (depth > 0) {
-        output += `${indent}${path.basename(dirPath)}/\n`
-      }
-
-      const childIndent = "  ".repeat(depth + 1)
-      const children = Array.from(dirs)
-        .filter((d) => path.dirname(d) === dirPath && d !== dirPath)
-        .sort()
-
-      // Render subdirectories first
-      for (const child of children) {
-        output += renderDir(child, depth + 1)
-      }
-
-      // Render files
-      const files = filesByDir.get(dirPath) || []
-      for (const file of files.sort()) {
-        output += `${childIndent}${file}\n`
-      }
-
-      return output
-    }
-
-    const output = `${searchPath}/\n` + renderDir(".", 0)
+    const { dirs, filesByDir } = buildDirStructure(files)
+    const output = `${searchPath}/\n` + renderDir(".", 0, dirs, filesByDir)
 
     return {
       title: path.relative(Instance.worktree, searchPath),

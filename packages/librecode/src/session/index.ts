@@ -31,7 +31,6 @@ import { ModelID, ProviderID } from "@/provider/schema"
 import { PermissionNext } from "@/permission/next"
 import { Global } from "@/global"
 import type { LanguageModelV2Usage } from "@ai-sdk/provider"
-import { iife } from "@/util/iife"
 
 const log = Log.create({ service: "session" })
 
@@ -50,18 +49,19 @@ export function isDefaultTitle(title: string) {
 
 type SessionRow = typeof SessionTable.$inferSelect
 
+function parseSummaryFromRow(row: SessionRow): _Info["summary"] {
+  if (row.summary_additions === null && row.summary_deletions === null && row.summary_files === null) {
+    return undefined
+  }
+  return {
+    additions: row.summary_additions ?? 0,
+    deletions: row.summary_deletions ?? 0,
+    files: row.summary_files ?? 0,
+    diffs: row.summary_diffs ?? undefined,
+  }
+}
+
 export function fromRow(row: SessionRow): _Info {
-  const summary =
-    row.summary_additions !== null || row.summary_deletions !== null || row.summary_files !== null
-      ? {
-          additions: row.summary_additions ?? 0,
-          deletions: row.summary_deletions ?? 0,
-          files: row.summary_files ?? 0,
-          diffs: row.summary_diffs ?? undefined,
-        }
-      : undefined
-  const share = row.share_url ? { url: row.share_url } : undefined
-  const revert = row.revert ?? undefined
   return {
     id: row.id,
     slug: row.slug,
@@ -71,9 +71,9 @@ export function fromRow(row: SessionRow): _Info {
     parentID: row.parent_id ?? undefined,
     title: row.title,
     version: row.version,
-    summary,
-    share,
-    revert,
+    summary: parseSummaryFromRow(row),
+    share: row.share_url ? { url: row.share_url } : undefined,
+    revert: row.revert ?? undefined,
     permission: row.permission ?? undefined,
     time: {
       created: row.time_created,
@@ -579,6 +579,41 @@ export function* list(input?: {
   }
 }
 
+function buildGlobalListConditions(input?: {
+  directory?: string
+  roots?: boolean
+  start?: number
+  cursor?: number
+  search?: string
+  archived?: boolean
+}): SQL[] {
+  const conditions: SQL[] = []
+  if (input?.directory) conditions.push(eq(SessionTable.directory, input.directory))
+  if (input?.roots) conditions.push(isNull(SessionTable.parent_id))
+  if (input?.start) conditions.push(gte(SessionTable.time_updated, input.start))
+  if (input?.cursor) conditions.push(lt(SessionTable.time_updated, input.cursor))
+  if (input?.search) conditions.push(like(SessionTable.title, `%${input.search}%`))
+  if (!input?.archived) conditions.push(isNull(SessionTable.time_archived))
+  return conditions
+}
+
+function fetchProjectsForRows(rows: typeof SessionTable.$inferSelect[]): Map<string, _ProjectInfo> {
+  const ids = [...new Set(rows.map((row) => row.project_id))]
+  const projects = new Map<string, _ProjectInfo>()
+  if (ids.length === 0) return projects
+  const items = Database.use((db) =>
+    db
+      .select({ id: ProjectTable.id, name: ProjectTable.name, worktree: ProjectTable.worktree })
+      .from(ProjectTable)
+      .where(inArray(ProjectTable.id, ids))
+      .all(),
+  )
+  for (const item of items) {
+    projects.set(item.id, { id: item.id, name: item.name ?? undefined, worktree: item.worktree })
+  }
+  return projects
+}
+
 export function* listGlobal(input?: {
   directory?: string
   roots?: boolean
@@ -588,27 +623,7 @@ export function* listGlobal(input?: {
   limit?: number
   archived?: boolean
 }) {
-  const conditions: SQL[] = []
-
-  if (input?.directory) {
-    conditions.push(eq(SessionTable.directory, input.directory))
-  }
-  if (input?.roots) {
-    conditions.push(isNull(SessionTable.parent_id))
-  }
-  if (input?.start) {
-    conditions.push(gte(SessionTable.time_updated, input.start))
-  }
-  if (input?.cursor) {
-    conditions.push(lt(SessionTable.time_updated, input.cursor))
-  }
-  if (input?.search) {
-    conditions.push(like(SessionTable.title, `%${input.search}%`))
-  }
-  if (!input?.archived) {
-    conditions.push(isNull(SessionTable.time_archived))
-  }
-
+  const conditions = buildGlobalListConditions(input)
   const limit = input?.limit ?? 100
 
   const rows = Database.use((db) => {
@@ -622,29 +637,9 @@ export function* listGlobal(input?: {
     return query.orderBy(desc(SessionTable.time_updated), desc(SessionTable.id)).limit(limit).all()
   })
 
-  const ids = [...new Set(rows.map((row) => row.project_id))]
-  const projects = new Map<string, _ProjectInfo>()
-
-  if (ids.length > 0) {
-    const items = Database.use((db) =>
-      db
-        .select({ id: ProjectTable.id, name: ProjectTable.name, worktree: ProjectTable.worktree })
-        .from(ProjectTable)
-        .where(inArray(ProjectTable.id, ids))
-        .all(),
-    )
-    for (const item of items) {
-      projects.set(item.id, {
-        id: item.id,
-        name: item.name ?? undefined,
-        worktree: item.worktree,
-      })
-    }
-  }
-
+  const projects = fetchProjectsForRows(rows)
   for (const row of rows) {
-    const project = projects.get(row.project_id) ?? null
-    yield { ...fromRow(row), project }
+    yield { ...fromRow(row), project: projects.get(row.project_id) ?? null }
   }
 }
 
@@ -787,6 +782,94 @@ export const updatePartDelta = fn(
   },
 )
 
+function safeNumber(value: number): number {
+  return Number.isFinite(value) ? value : 0
+}
+
+function extractCacheWriteTokens(metadata: ProviderMetadata | undefined): number {
+  return safeNumber(
+    (metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
+      // @ts-expect-error
+      metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
+      // @ts-expect-error
+      metadata?.["venice"]?.["usage"]?.["cacheCreationInputTokens"] ??
+      0) as number,
+  )
+}
+
+function computeTotalTokens(
+  model: Provider.Model,
+  adjustedInput: number,
+  output: number,
+  cacheRead: number,
+  cacheWrite: number,
+  totalFromUsage: number | undefined,
+): number | undefined {
+  // Anthropic doesn't provide total_tokens, also ai sdk will vastly undercount if we
+  // don't compute from components
+  const isAnthropic =
+    model.api.npm === "@ai-sdk/anthropic" ||
+    model.api.npm === "@ai-sdk/amazon-bedrock" ||
+    model.api.npm === "@ai-sdk/google-vertex/anthropic"
+  if (isAnthropic) return adjustedInput + output + cacheRead + cacheWrite
+  return totalFromUsage
+}
+
+type TokenCounts = {
+  total: number | undefined
+  input: number
+  output: number
+  reasoning: number
+  cache: { write: number; read: number }
+}
+
+function extractTokenCounts(
+  model: Provider.Model,
+  usage: LanguageModelV2Usage,
+  metadata: ProviderMetadata | undefined,
+): TokenCounts {
+  const inputTokens = safeNumber(usage.inputTokens ?? 0)
+  const outputTokens = safeNumber(usage.outputTokens ?? 0)
+  const reasoningTokens = safeNumber(usage.reasoningTokens ?? 0)
+  const cacheReadInputTokens = safeNumber(usage.cachedInputTokens ?? 0)
+  const cacheWriteInputTokens = extractCacheWriteTokens(metadata)
+
+  // OpenRouter provides inputTokens as the total count of input tokens (including cached).
+  // AFAIK other providers (OpenRouter/OpenAI/Gemini etc.) do it the same way e.g. vercel/ai#8794 (comment)
+  // Anthropic does it differently though - inputTokens doesn't include cached tokens.
+  // It looks like LibreCode's cost calculation assumes all providers return inputTokens the same way Anthropic does (I'm guessing getUsage logic was originally implemented with anthropic), so it's causing incorrect cost calculation for OpenRouter and others.
+  const excludesCachedTokens = !!(metadata?.["anthropic"] || metadata?.["bedrock"])
+  const adjustedInput = safeNumber(
+    excludesCachedTokens ? inputTokens : inputTokens - cacheReadInputTokens - cacheWriteInputTokens,
+  )
+
+  return {
+    total: computeTotalTokens(model, adjustedInput, outputTokens, cacheReadInputTokens, cacheWriteInputTokens, usage.totalTokens),
+    input: adjustedInput,
+    output: outputTokens,
+    reasoning: reasoningTokens,
+    cache: { write: cacheWriteInputTokens, read: cacheReadInputTokens },
+  }
+}
+
+function computeCost(tokens: TokenCounts, model: Provider.Model): number {
+  const costInfo =
+    model.cost?.experimentalOver200K && tokens.input + tokens.cache.read > 200_000
+      ? model.cost.experimentalOver200K
+      : model.cost
+  return safeNumber(
+    new Decimal(0)
+      .add(new Decimal(tokens.input).mul(costInfo?.input ?? 0).div(1_000_000))
+      .add(new Decimal(tokens.output).mul(costInfo?.output ?? 0).div(1_000_000))
+      .add(new Decimal(tokens.cache.read).mul(costInfo?.cache?.read ?? 0).div(1_000_000))
+      .add(new Decimal(tokens.cache.write).mul(costInfo?.cache?.write ?? 0).div(1_000_000))
+      // TODO: update models.dev to have better pricing model, for now:
+      // charge reasoning tokens at the same rate as output tokens
+      .add(new Decimal(tokens.reasoning).mul(costInfo?.output ?? 0).div(1_000_000))
+      .toNumber(),
+  )
+}
+
 export const getUsage = fn(
   z.object({
     model: z.custom<Provider.Model>(),
@@ -794,75 +877,8 @@ export const getUsage = fn(
     metadata: z.custom<ProviderMetadata>().optional(),
   }),
   (input) => {
-    const safe = (value: number) => {
-      if (!Number.isFinite(value)) return 0
-      return value
-    }
-    const inputTokens = safe(input.usage.inputTokens ?? 0)
-    const outputTokens = safe(input.usage.outputTokens ?? 0)
-    const reasoningTokens = safe(input.usage.reasoningTokens ?? 0)
-
-    const cacheReadInputTokens = safe(input.usage.cachedInputTokens ?? 0)
-    const cacheWriteInputTokens = safe(
-      (input.metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
-        // @ts-expect-error
-        input.metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
-        // @ts-expect-error
-        input.metadata?.["venice"]?.["usage"]?.["cacheCreationInputTokens"] ??
-        0) as number,
-    )
-
-    // OpenRouter provides inputTokens as the total count of input tokens (including cached).
-    // AFAIK other providers (OpenRouter/OpenAI/Gemini etc.) do it the same way e.g. vercel/ai#8794 (comment)
-    // Anthropic does it differently though - inputTokens doesn't include cached tokens.
-    // It looks like LibreCode's cost calculation assumes all providers return inputTokens the same way Anthropic does (I'm guessing getUsage logic was originally implemented with anthropic), so it's causing incorrect cost calculation for OpenRouter and others.
-    const excludesCachedTokens = !!(input.metadata?.["anthropic"] || input.metadata?.["bedrock"])
-    const adjustedInputTokens = safe(
-      excludesCachedTokens ? inputTokens : inputTokens - cacheReadInputTokens - cacheWriteInputTokens,
-    )
-
-    const total = iife(() => {
-      // Anthropic doesn't provide total_tokens, also ai sdk will vastly undercount if we
-      // don't compute from components
-      if (
-        input.model.api.npm === "@ai-sdk/anthropic" ||
-        input.model.api.npm === "@ai-sdk/amazon-bedrock" ||
-        input.model.api.npm === "@ai-sdk/google-vertex/anthropic"
-      ) {
-        return adjustedInputTokens + outputTokens + cacheReadInputTokens + cacheWriteInputTokens
-      }
-      return input.usage.totalTokens
-    })
-
-    const tokens = {
-      total,
-      input: adjustedInputTokens,
-      output: outputTokens,
-      reasoning: reasoningTokens,
-      cache: {
-        write: cacheWriteInputTokens,
-        read: cacheReadInputTokens,
-      },
-    }
-
-    const costInfo =
-      input.model.cost?.experimentalOver200K && tokens.input + tokens.cache.read > 200_000
-        ? input.model.cost.experimentalOver200K
-        : input.model.cost
-    return {
-      cost: safe(
-        new Decimal(0)
-          .add(new Decimal(tokens.input).mul(costInfo?.input ?? 0).div(1_000_000))
-          .add(new Decimal(tokens.output).mul(costInfo?.output ?? 0).div(1_000_000))
-          .add(new Decimal(tokens.cache.read).mul(costInfo?.cache?.read ?? 0).div(1_000_000))
-          .add(new Decimal(tokens.cache.write).mul(costInfo?.cache?.write ?? 0).div(1_000_000))
-          // TODO: update models.dev to have better pricing model, for now:
-          // charge reasoning tokens at the same rate as output tokens
-          .add(new Decimal(tokens.reasoning).mul(costInfo?.output ?? 0).div(1_000_000))
-          .toNumber(),
-      ),
-      tokens,
-    }
+    const tokens = extractTokenCounts(input.model, input.usage, input.metadata)
+    return { cost: computeCost(tokens, input.model), tokens }
   },
 )
 

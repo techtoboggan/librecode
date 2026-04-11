@@ -555,6 +555,254 @@ async function hydrate(rows: (typeof MessageTable.$inferSelect)[]) {
   }))
 }
 
+// OpenAI-compatible APIs only support string content in tool results, so we need
+// to extract media and inject as user messages. Other SDKs (anthropic, google,
+// bedrock) handle type: "content" with media parts natively.
+//
+// Only apply this workaround if the model actually supports image input -
+// otherwise there's no point extracting images.
+function checkSupportsMediaInToolResults(model: Provider.Model): boolean {
+  if (model.api.npm === "@ai-sdk/anthropic") return true
+  if (model.api.npm === "@ai-sdk/openai") return true
+  if (model.api.npm === "@ai-sdk/amazon-bedrock") return true
+  if (model.api.npm === "@ai-sdk/google-vertex/anthropic") return true
+  if (model.api.npm === "@ai-sdk/google") {
+    const id = model.api.id.toLowerCase()
+    return id.includes("gemini-3") && !id.includes("gemini-2")
+  }
+  return false
+}
+
+function toModelOutput(output: unknown): { type: string; value: unknown } {
+  if (typeof output === "string") {
+    return { type: "text", value: output }
+  }
+
+  if (typeof output === "object" && output !== null) {
+    const outputObject = output as {
+      text: string
+      attachments?: Array<{ mime: string; url: string }>
+    }
+    const attachments = (outputObject.attachments ?? []).filter((attachment) => {
+      return attachment.url.startsWith("data:") && attachment.url.includes(",")
+    })
+
+    return {
+      type: "content",
+      value: [
+        { type: "text", text: outputObject.text },
+        ...attachments.map((attachment) => ({
+          type: "media",
+          mediaType: attachment.mime,
+          data: iife(() => {
+            const commaIndex = attachment.url.indexOf(",")
+            return commaIndex === -1 ? attachment.url : attachment.url.slice(commaIndex + 1)
+          }),
+        })),
+      ],
+    }
+  }
+
+  return { type: "json", value: output as never }
+}
+
+function processUserPart(part: _Part, userMessage: UIMessage, options: { stripMedia?: boolean } | undefined): void {
+  if (part.type === "text" && !part.ignored) {
+    userMessage.parts.push({ type: "text", text: part.text })
+    return
+  }
+  // text/plain and directory files are converted into text parts, ignore them
+  if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
+    if (options?.stripMedia && isMedia(part.mime)) {
+      userMessage.parts.push({ type: "text", text: `[Attached ${part.mime}: ${part.filename ?? "file"}]` })
+    } else {
+      userMessage.parts.push({ type: "file", url: part.url, mediaType: part.mime, filename: part.filename })
+    }
+    return
+  }
+  if (part.type === "compaction") {
+    userMessage.parts.push({ type: "text", text: "What did we do so far?" })
+    return
+  }
+  if (part.type === "subtask") {
+    userMessage.parts.push({ type: "text", text: "The following tool was executed by the user" })
+  }
+}
+
+function buildUserMessage(
+  msg: _WithParts & { info: { role: "user"; id: string } },
+  options: { stripMedia?: boolean } | undefined,
+): UIMessage {
+  const userMessage: UIMessage = { id: msg.info.id, role: "user", parts: [] }
+  for (const part of msg.parts) {
+    processUserPart(part, userMessage, options)
+  }
+  return userMessage
+}
+
+function appendCompletedToolPart(
+  assistantMessage: UIMessage,
+  part: _ToolPart & { state: _ToolStateCompleted },
+  differentModel: boolean,
+  supportsMediaInToolResults: boolean,
+  media: Array<{ mime: string; url: string }>,
+  options: { stripMedia?: boolean } | undefined,
+): void {
+  const outputText = part.state.time.compacted ? "[Old tool result content cleared]" : part.state.output
+  const attachments = part.state.time.compacted || options?.stripMedia ? [] : (part.state.attachments ?? [])
+
+  // For providers that don't support media in tool results, extract media files
+  // (images, PDFs) to be sent as a separate user message
+  const mediaAttachments = attachments.filter((a) => isMedia(a.mime))
+  const nonMediaAttachments = attachments.filter((a) => !isMedia(a.mime))
+  if (!supportsMediaInToolResults && mediaAttachments.length > 0) {
+    media.push(...mediaAttachments)
+  }
+  const finalAttachments = supportsMediaInToolResults ? attachments : nonMediaAttachments
+  const output = finalAttachments.length > 0 ? { text: outputText, attachments: finalAttachments } : outputText
+
+  assistantMessage.parts.push({
+    type: ("tool-" + part.tool) as `tool-${string}`,
+    state: "output-available",
+    toolCallId: part.callID,
+    input: part.state.input,
+    output,
+    ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
+  })
+}
+
+function appendToolPart(
+  assistantMessage: UIMessage,
+  part: _ToolPart,
+  differentModel: boolean,
+  supportsMediaInToolResults: boolean,
+  media: Array<{ mime: string; url: string }>,
+  options: { stripMedia?: boolean } | undefined,
+): void {
+  if (part.state.status === "completed") {
+    appendCompletedToolPart(
+      assistantMessage,
+      part as _ToolPart & { state: _ToolStateCompleted },
+      differentModel,
+      supportsMediaInToolResults,
+      media,
+      options,
+    )
+    return
+  }
+  if (part.state.status === "error") {
+    assistantMessage.parts.push({
+      type: ("tool-" + part.tool) as `tool-${string}`,
+      state: "output-error",
+      toolCallId: part.callID,
+      input: part.state.input,
+      errorText: part.state.error,
+      ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
+    })
+    return
+  }
+  // Handle pending/running tool calls to prevent dangling tool_use blocks
+  // Anthropic/Claude APIs require every tool_use to have a corresponding tool_result
+  if (part.state.status === "pending" || part.state.status === "running") {
+    assistantMessage.parts.push({
+      type: ("tool-" + part.tool) as `tool-${string}`,
+      state: "output-error",
+      toolCallId: part.callID,
+      input: part.state.input,
+      errorText: "[Tool execution was interrupted]",
+      ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
+    })
+  }
+}
+
+function providerMeta(metadata: Record<string, unknown> | undefined, differentModel: boolean): Record<string, unknown> {
+  return differentModel ? {} : { providerMetadata: metadata }
+}
+
+function appendAssistantPart(
+  part: _Part,
+  assistantMessage: UIMessage,
+  differentModel: boolean,
+  supportsMediaInToolResults: boolean,
+  media: Array<{ mime: string; url: string }>,
+  toolNames: Set<string>,
+  options: { stripMedia?: boolean } | undefined,
+): void {
+  if (part.type === "text") {
+    assistantMessage.parts.push({ type: "text", text: part.text, ...providerMeta(part.metadata, differentModel) })
+  } else if (part.type === "step-start") {
+    assistantMessage.parts.push({ type: "step-start" })
+  } else if (part.type === "tool") {
+    toolNames.add(part.tool)
+    appendToolPart(assistantMessage, part as _ToolPart, differentModel, supportsMediaInToolResults, media, options)
+  } else if (part.type === "reasoning") {
+    assistantMessage.parts.push({ type: "reasoning", text: part.text, ...providerMeta(part.metadata, differentModel) })
+  }
+}
+
+function appendAssistantParts(
+  assistantMessage: UIMessage,
+  msg: _WithParts,
+  differentModel: boolean,
+  supportsMediaInToolResults: boolean,
+  media: Array<{ mime: string; url: string }>,
+  toolNames: Set<string>,
+  options: { stripMedia?: boolean } | undefined,
+): void {
+  for (const part of msg.parts) {
+    appendAssistantPart(part, assistantMessage, differentModel, supportsMediaInToolResults, media, toolNames, options)
+  }
+}
+
+function buildMediaInjectionMessage(media: Array<{ mime: string; url: string }>): UIMessage {
+  return {
+    id: MessageID.ascending(),
+    role: "user",
+    parts: [
+      { type: "text" as const, text: "Attached image(s) from tool result:" },
+      ...media.map((attachment) => ({
+        type: "file" as const,
+        url: attachment.url,
+        mediaType: attachment.mime,
+      })),
+    ],
+  }
+}
+
+function shouldSkipAssistantMessage(msg: _WithParts & { info: _Assistant }): boolean {
+  if (!msg.info.error) return false
+  // Keep aborted messages that have content beyond step-start/reasoning
+  if (MessageV2.AbortedError.isInstance(msg.info.error) && msg.parts.some((p) => p.type !== "step-start" && p.type !== "reasoning")) {
+    return false
+  }
+  return true
+}
+
+function processAssistantMessage(
+  msg: _WithParts & { info: _Assistant },
+  model: Provider.Model,
+  result: UIMessage[],
+  toolNames: Set<string>,
+  supportsMediaInToolResults: boolean,
+  options: { stripMedia?: boolean } | undefined,
+): void {
+  if (shouldSkipAssistantMessage(msg)) return
+
+  const differentModel = `${model.providerID}/${model.id}` !== `${msg.info.providerID}/${msg.info.modelID}`
+  const media: Array<{ mime: string; url: string }> = []
+  const assistantMessage: UIMessage = { id: msg.info.id, role: "assistant", parts: [] }
+  appendAssistantParts(assistantMessage, msg, differentModel, supportsMediaInToolResults, media, toolNames, options)
+
+  if (assistantMessage.parts.length > 0) {
+    result.push(assistantMessage)
+    // Inject pending media as a user message for providers that don't support
+    // media (images, PDFs) in tool results
+    if (media.length > 0) {
+      result.push(buildMediaInjectionMessage(media))
+    }
+  }
+}
+
 export function toModelMessages(
   input: _WithParts[],
   model: Provider.Model,
@@ -562,220 +810,14 @@ export function toModelMessages(
 ): ModelMessage[] {
   const result: UIMessage[] = []
   const toolNames = new Set<string>()
-  // Track media from tool results that need to be injected as user messages
-  // for providers that don't support media in tool results.
-  //
-  // OpenAI-compatible APIs only support string content in tool results, so we need
-  // to extract media and inject as user messages. Other SDKs (anthropic, google,
-  // bedrock) handle type: "content" with media parts natively.
-  //
-  // Only apply this workaround if the model actually supports image input -
-  // otherwise there's no point extracting images.
-  const supportsMediaInToolResults = (() => {
-    if (model.api.npm === "@ai-sdk/anthropic") return true
-    if (model.api.npm === "@ai-sdk/openai") return true
-    if (model.api.npm === "@ai-sdk/amazon-bedrock") return true
-    if (model.api.npm === "@ai-sdk/google-vertex/anthropic") return true
-    if (model.api.npm === "@ai-sdk/google") {
-      const id = model.api.id.toLowerCase()
-      return id.includes("gemini-3") && !id.includes("gemini-2")
-    }
-    return false
-  })()
-
-  const toModelOutput = (output: unknown) => {
-    if (typeof output === "string") {
-      return { type: "text", value: output }
-    }
-
-    if (typeof output === "object") {
-      const outputObject = output as {
-        text: string
-        attachments?: Array<{ mime: string; url: string }>
-      }
-      const attachments = (outputObject.attachments ?? []).filter((attachment) => {
-        return attachment.url.startsWith("data:") && attachment.url.includes(",")
-      })
-
-      return {
-        type: "content",
-        value: [
-          { type: "text", text: outputObject.text },
-          ...attachments.map((attachment) => ({
-            type: "media",
-            mediaType: attachment.mime,
-            data: iife(() => {
-              const commaIndex = attachment.url.indexOf(",")
-              return commaIndex === -1 ? attachment.url : attachment.url.slice(commaIndex + 1)
-            }),
-          })),
-        ],
-      }
-    }
-
-    return { type: "json", value: output as never }
-  }
+  const supportsMediaInToolResults = checkSupportsMediaInToolResults(model)
 
   for (const msg of input) {
     if (msg.parts.length === 0) continue
-
     if (msg.info.role === "user") {
-      const userMessage: UIMessage = {
-        id: msg.info.id,
-        role: "user",
-        parts: [],
-      }
-      result.push(userMessage)
-      for (const part of msg.parts) {
-        if (part.type === "text" && !part.ignored)
-          userMessage.parts.push({
-            type: "text",
-            text: part.text,
-          })
-        // text/plain and directory files are converted into text parts, ignore them
-        if (part.type === "file" && part.mime !== "text/plain" && part.mime !== "application/x-directory") {
-          if (options?.stripMedia && isMedia(part.mime)) {
-            userMessage.parts.push({
-              type: "text",
-              text: `[Attached ${part.mime}: ${part.filename ?? "file"}]`,
-            })
-          } else {
-            userMessage.parts.push({
-              type: "file",
-              url: part.url,
-              mediaType: part.mime,
-              filename: part.filename,
-            })
-          }
-        }
-
-        if (part.type === "compaction") {
-          userMessage.parts.push({
-            type: "text",
-            text: "What did we do so far?",
-          })
-        }
-        if (part.type === "subtask") {
-          userMessage.parts.push({
-            type: "text",
-            text: "The following tool was executed by the user",
-          })
-        }
-      }
-    }
-
-    if (msg.info.role === "assistant") {
-      const differentModel = `${model.providerID}/${model.id}` !== `${msg.info.providerID}/${msg.info.modelID}`
-      const media: Array<{ mime: string; url: string }> = []
-
-      if (
-        msg.info.error &&
-        !(
-          MessageV2.AbortedError.isInstance(msg.info.error) &&
-          msg.parts.some((part) => part.type !== "step-start" && part.type !== "reasoning")
-        )
-      ) {
-        continue
-      }
-      const assistantMessage: UIMessage = {
-        id: msg.info.id,
-        role: "assistant",
-        parts: [],
-      }
-      for (const part of msg.parts) {
-        if (part.type === "text")
-          assistantMessage.parts.push({
-            type: "text",
-            text: part.text,
-            ...(differentModel ? {} : { providerMetadata: part.metadata }),
-          })
-        if (part.type === "step-start")
-          assistantMessage.parts.push({
-            type: "step-start",
-          })
-        if (part.type === "tool") {
-          toolNames.add(part.tool)
-          if (part.state.status === "completed") {
-            const outputText = part.state.time.compacted ? "[Old tool result content cleared]" : part.state.output
-            const attachments = part.state.time.compacted || options?.stripMedia ? [] : (part.state.attachments ?? [])
-
-            // For providers that don't support media in tool results, extract media files
-            // (images, PDFs) to be sent as a separate user message
-            const mediaAttachments = attachments.filter((a) => isMedia(a.mime))
-            const nonMediaAttachments = attachments.filter((a) => !isMedia(a.mime))
-            if (!supportsMediaInToolResults && mediaAttachments.length > 0) {
-              media.push(...mediaAttachments)
-            }
-            const finalAttachments = supportsMediaInToolResults ? attachments : nonMediaAttachments
-
-            const output =
-              finalAttachments.length > 0
-                ? {
-                    text: outputText,
-                    attachments: finalAttachments,
-                  }
-                : outputText
-
-            assistantMessage.parts.push({
-              type: ("tool-" + part.tool) as `tool-${string}`,
-              state: "output-available",
-              toolCallId: part.callID,
-              input: part.state.input,
-              output,
-              ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
-            })
-          }
-          if (part.state.status === "error")
-            assistantMessage.parts.push({
-              type: ("tool-" + part.tool) as `tool-${string}`,
-              state: "output-error",
-              toolCallId: part.callID,
-              input: part.state.input,
-              errorText: part.state.error,
-              ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
-            })
-          // Handle pending/running tool calls to prevent dangling tool_use blocks
-          // Anthropic/Claude APIs require every tool_use to have a corresponding tool_result
-          if (part.state.status === "pending" || part.state.status === "running")
-            assistantMessage.parts.push({
-              type: ("tool-" + part.tool) as `tool-${string}`,
-              state: "output-error",
-              toolCallId: part.callID,
-              input: part.state.input,
-              errorText: "[Tool execution was interrupted]",
-              ...(differentModel ? {} : { callProviderMetadata: part.metadata }),
-            })
-        }
-        if (part.type === "reasoning") {
-          assistantMessage.parts.push({
-            type: "reasoning",
-            text: part.text,
-            ...(differentModel ? {} : { providerMetadata: part.metadata }),
-          })
-        }
-      }
-      if (assistantMessage.parts.length > 0) {
-        result.push(assistantMessage)
-        // Inject pending media as a user message for providers that don't support
-        // media (images, PDFs) in tool results
-        if (media.length > 0) {
-          result.push({
-            id: MessageID.ascending(),
-            role: "user",
-            parts: [
-              {
-                type: "text" as const,
-                text: "Attached image(s) from tool result:",
-              },
-              ...media.map((attachment) => ({
-                type: "file" as const,
-                url: attachment.url,
-                mediaType: attachment.mime,
-              })),
-            ],
-          })
-        }
-      }
+      result.push(buildUserMessage(msg as _WithParts & { info: { role: "user"; id: string } }, options))
+    } else if (msg.info.role === "assistant") {
+      processAssistantMessage(msg as _WithParts & { info: _Assistant }, model, result, toolNames, supportsMediaInToolResults, options)
     }
   }
 
@@ -896,93 +938,79 @@ export async function filterCompacted(stream: AsyncIterable<MessageV2.WithParts>
   return result
 }
 
-export function fromError(e: unknown, ctx: { providerID: ProviderID }): NonNullable<_Assistant["error"]> {
-  switch (true) {
-    case e instanceof DOMException && e.name === "AbortError":
-      return new MessageV2.AbortedError(
-        { message: e.message },
-        {
-          cause: e,
-        },
-      ).toObject()
-    case MessageV2.OutputLengthError.isInstance(e):
-      return e
-    case LoadAPIKeyError.isInstance(e):
-      return new MessageV2.AuthError(
-        {
-          providerID: ctx.providerID,
-          message: e.message,
-        },
-        { cause: e },
-      ).toObject()
-    case (e as SystemError)?.code === "ECONNRESET":
-      return new MessageV2.APIError(
-        {
-          message: "Connection reset by server",
-          isRetryable: true,
-          metadata: {
-            code: (e as SystemError).code ?? "",
-            syscall: (e as SystemError).syscall ?? "",
-            message: (e as SystemError).message ?? "",
-          },
-        },
-        { cause: e },
-      ).toObject()
-    case APICallError.isInstance(e):
-      const parsed = ProviderError.parseAPICallError({
-        providerID: ctx.providerID,
-        error: e,
-      })
-      if (parsed.type === "context_overflow") {
-        return new MessageV2.ContextOverflowError(
-          {
-            message: parsed.message,
-            responseBody: parsed.responseBody,
-          },
-          { cause: e },
-        ).toObject()
-      }
-
-      return new MessageV2.APIError(
-        {
-          message: parsed.message,
-          statusCode: parsed.statusCode,
-          isRetryable: parsed.isRetryable,
-          responseHeaders: parsed.responseHeaders,
-          responseBody: parsed.responseBody,
-          metadata: parsed.metadata,
-        },
-        { cause: e },
-      ).toObject()
-    case e instanceof Error:
-      return new NamedError.Unknown({ message: e.toString() }, { cause: e }).toObject()
-    default:
-      try {
-        const parsed = ProviderError.parseStreamError(e)
-        if (parsed) {
-          if (parsed.type === "context_overflow") {
-            return new MessageV2.ContextOverflowError(
-              {
-                message: parsed.message,
-                responseBody: parsed.responseBody,
-              },
-              { cause: e },
-            ).toObject()
-          }
-          return new MessageV2.APIError(
-            {
-              message: parsed.message,
-              isRetryable: parsed.isRetryable,
-              responseBody: parsed.responseBody,
-            },
-            {
-              cause: e,
-            },
-          ).toObject()
-        }
-      } catch {}
-      return new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e }).toObject()
+function parsedAPICallErrorToObject(
+  parsed: ProviderError.ParsedAPICallError,
+  e: unknown,
+): NonNullable<_Assistant["error"]> {
+  if (parsed.type === "context_overflow") {
+    return new MessageV2.ContextOverflowError(
+      { message: parsed.message, responseBody: parsed.responseBody },
+      { cause: e },
+    ).toObject()
   }
+  return new MessageV2.APIError(
+    {
+      message: parsed.message,
+      statusCode: parsed.statusCode,
+      isRetryable: parsed.isRetryable,
+      responseHeaders: parsed.responseHeaders,
+      responseBody: parsed.responseBody,
+      metadata: parsed.metadata,
+    },
+    { cause: e },
+  ).toObject()
+}
+
+function parsedStreamErrorToObject(
+  parsed: ProviderError.ParsedStreamError,
+  e: unknown,
+): NonNullable<_Assistant["error"]> {
+  if (parsed.type === "context_overflow") {
+    return new MessageV2.ContextOverflowError(
+      { message: parsed.message, responseBody: parsed.responseBody },
+      { cause: e },
+    ).toObject()
+  }
+  return new MessageV2.APIError(
+    { message: parsed.message, isRetryable: parsed.isRetryable, responseBody: parsed.responseBody },
+    { cause: e },
+  ).toObject()
+}
+
+function fromStreamError(e: unknown): NonNullable<_Assistant["error"]> | undefined {
+  try {
+    const parsed = ProviderError.parseStreamError(e)
+    if (parsed) return parsedStreamErrorToObject(parsed, e)
+  } catch {}
+  return undefined
+}
+
+export function fromError(e: unknown, ctx: { providerID: ProviderID }): NonNullable<_Assistant["error"]> {
+  if (e instanceof DOMException && e.name === "AbortError") {
+    return new MessageV2.AbortedError({ message: e.message }, { cause: e }).toObject()
+  }
+  if (MessageV2.OutputLengthError.isInstance(e)) return e
+  if (LoadAPIKeyError.isInstance(e)) {
+    return new MessageV2.AuthError({ providerID: ctx.providerID, message: e.message }, { cause: e }).toObject()
+  }
+  if ((e as SystemError)?.code === "ECONNRESET") {
+    const sys = e as SystemError
+    return new MessageV2.APIError(
+      {
+        message: "Connection reset by server",
+        isRetryable: true,
+        metadata: { code: sys.code ?? "", syscall: sys.syscall ?? "", message: sys.message ?? "" },
+      },
+      { cause: e },
+    ).toObject()
+  }
+  if (APICallError.isInstance(e)) {
+    const parsed = ProviderError.parseAPICallError({ providerID: ctx.providerID, error: e })
+    return parsedAPICallErrorToObject(parsed, e)
+  }
+  if (e instanceof Error) return new NamedError.Unknown({ message: e.toString() }, { cause: e }).toObject()
+
+  return fromStreamError(e) ?? new NamedError.Unknown({ message: JSON.stringify(e) }, { cause: e }).toObject()
 }
 
 // Barrel export preserving MessageV2.X access pattern for consumers

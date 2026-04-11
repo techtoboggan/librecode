@@ -42,6 +42,49 @@ async function resolveRelative(instruction: string): Promise<string[]> {
   return Filesystem.globUp(instruction, Flag.LIBRECODE_CONFIG_DIR, Flag.LIBRECODE_CONFIG_DIR).catch(() => [])
 }
 
+async function addProjectFilePaths(paths: Set<string>): Promise<void> {
+  if (Flag.LIBRECODE_DISABLE_PROJECT_CONFIG) return
+  for (const file of FILES) {
+    const matches = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
+    if (matches.length > 0) {
+      matches.forEach((p) => paths.add(path.resolve(p)))
+      break
+    }
+  }
+}
+
+async function addGlobalFilePaths(paths: Set<string>): Promise<void> {
+  for (const file of globalFiles()) {
+    if (await Filesystem.exists(file)) {
+      paths.add(path.resolve(file))
+      break
+    }
+  }
+}
+
+async function resolveConfigInstruction(instruction: string): Promise<string[]> {
+  if (instruction.startsWith("https://") || instruction.startsWith("http://")) return []
+  let resolved = instruction
+  if (resolved.startsWith("~/")) {
+    resolved = path.join(os.homedir(), resolved.slice(2))
+  }
+  if (path.isAbsolute(resolved)) {
+    return Glob.scan(path.basename(resolved), {
+      cwd: path.dirname(resolved),
+      absolute: true,
+      include: "file",
+    }).catch(() => [])
+  }
+  return resolveRelative(resolved)
+}
+
+async function addConfigInstructionPaths(paths: Set<string>, instructions: string[]): Promise<void> {
+  for (const instruction of instructions) {
+    const matches = await resolveConfigInstruction(instruction)
+    matches.forEach((p) => paths.add(path.resolve(p)))
+  }
+}
+
 export namespace InstructionPrompt {
   const state = Instance.state(() => {
     return {
@@ -69,52 +112,21 @@ export namespace InstructionPrompt {
     state().claims.delete(messageID)
   }
 
-  export async function systemPaths() {
+  export async function systemPaths(): Promise<Set<string>> {
     const config = await Config.get()
     const paths = new Set<string>()
 
-    if (!Flag.LIBRECODE_DISABLE_PROJECT_CONFIG) {
-      for (const file of FILES) {
-        const matches = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
-        if (matches.length > 0) {
-          matches.forEach((p) => {
-            paths.add(path.resolve(p))
-          })
-          break
-        }
-      }
-    }
-
-    for (const file of globalFiles()) {
-      if (await Filesystem.exists(file)) {
-        paths.add(path.resolve(file))
-        break
-      }
-    }
+    await addProjectFilePaths(paths)
+    await addGlobalFilePaths(paths)
 
     if (config.instructions) {
-      for (let instruction of config.instructions) {
-        if (instruction.startsWith("https://") || instruction.startsWith("http://")) continue
-        if (instruction.startsWith("~/")) {
-          instruction = path.join(os.homedir(), instruction.slice(2))
-        }
-        const matches = path.isAbsolute(instruction)
-          ? await Glob.scan(path.basename(instruction), {
-              cwd: path.dirname(instruction),
-              absolute: true,
-              include: "file",
-            }).catch(() => [])
-          : await resolveRelative(instruction)
-        matches.forEach((p) => {
-          paths.add(path.resolve(p))
-        })
-      }
+      await addConfigInstructionPaths(paths, config.instructions)
     }
 
     return paths
   }
 
-  export async function system() {
+  export async function system(): Promise<string[]> {
     const config = await Config.get()
     const paths = await systemPaths()
 
@@ -141,31 +153,47 @@ export namespace InstructionPrompt {
     return Promise.all([...files, ...fetches]).then((result) => result.filter(Boolean))
   }
 
-  export function loaded(messages: MessageV2.WithParts[]) {
+  function isLoadedReadPart(part: MessageV2.Part): boolean {
+    return (
+      part.type === "tool" &&
+      part.tool === "read" &&
+      part.state.status === "completed" &&
+      !part.state.time.compacted
+    )
+  }
+
+  function collectLoadedFromPart(part: MessageV2.Part, paths: Set<string>): void {
+    if (!isLoadedReadPart(part)) return
+    if (part.type !== "tool" || part.state.status !== "completed") return
+    const loadedPaths = part.state.metadata?.loaded
+    if (!loadedPaths || !Array.isArray(loadedPaths)) return
+    for (const p of loadedPaths) {
+      if (typeof p === "string") paths.add(p)
+    }
+  }
+
+  export function loaded(messages: MessageV2.WithParts[]): Set<string> {
     const paths = new Set<string>()
     for (const msg of messages) {
       for (const part of msg.parts) {
-        if (part.type === "tool" && part.tool === "read" && part.state.status === "completed") {
-          if (part.state.time.compacted) continue
-          const loaded = part.state.metadata?.loaded
-          if (!loaded || !Array.isArray(loaded)) continue
-          for (const p of loaded) {
-            if (typeof p === "string") paths.add(p)
-          }
-        }
+        collectLoadedFromPart(part, paths)
       }
     }
     return paths
   }
 
-  export async function find(dir: string) {
+  export async function find(dir: string): Promise<string | undefined> {
     for (const file of FILES) {
       const filepath = path.resolve(path.join(dir, file))
       if (await Filesystem.exists(filepath)) return filepath
     }
   }
 
-  export async function resolve(messages: MessageV2.WithParts[], filepath: string, messageID: string) {
+  export async function resolve(
+    messages: MessageV2.WithParts[],
+    filepath: string,
+    messageID: string,
+  ): Promise<{ filepath: string; content: string }[]> {
     const system = await systemPaths()
     const already = loaded(messages)
     const results: { filepath: string; content: string }[] = []

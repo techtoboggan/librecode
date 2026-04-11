@@ -75,9 +75,171 @@ export namespace Config {
     return merged
   }
 
-  export const state = Instance.state(async () => {
-    const auth = await Auth.all()
+  // ---------------------------------------------------------------------------
+  // State helpers — each loads one layer of the config precedence stack
+  // ---------------------------------------------------------------------------
 
+  async function loadWellKnownConfigs(auth: Awaited<ReturnType<typeof Auth.all>>, result: Info): Promise<Info> {
+    for (const [key, value] of Object.entries(auth)) {
+      if (value.type !== "wellknown") continue
+      const url = key.replace(/\/+$/, "")
+      process.env[value.key] = value.token
+      log.debug("fetching remote config", { url: `${url}/.well-known/librecode` })
+      const response = await fetch(`${url}/.well-known/librecode`)
+      if (!response.ok) {
+        throw new Error(`failed to fetch remote config from ${url}: ${response.status}`)
+      }
+      const wellknown = (await response.json()) as Record<string, unknown>
+      const remoteConfig = (wellknown.config ?? {}) as Record<string, unknown>
+      if (!remoteConfig.$schema) remoteConfig.$schema = "https://github.com/techtoboggan/librecode/config.json"
+      result = mergeConfigConcatArrays(
+        result,
+        await load(JSON.stringify(remoteConfig), {
+          dir: path.dirname(`${url}/.well-known/librecode`),
+          source: `${url}/.well-known/librecode`,
+        }),
+      )
+      log.debug("loaded remote config from well-known", { url })
+    }
+    return result
+  }
+
+  async function loadProjectFileConfigs(result: Info): Promise<Info> {
+    if (!Flag.LIBRECODE_DISABLE_PROJECT_CONFIG) {
+      for (const file of await ConfigPaths.projectFiles("librecode", Instance.directory, Instance.worktree)) {
+        result = mergeConfigConcatArrays(result, await loadFile(file))
+      }
+    }
+    return result
+  }
+
+  async function loadLibrecodeDirConfigs(
+    directories: string[],
+    result: Info,
+  ): Promise<{ result: Info; deps: Promise<void>[] }> {
+    if (Flag.LIBRECODE_CONFIG_DIR) {
+      log.debug("loading config from LIBRECODE_CONFIG_DIR", { path: Flag.LIBRECODE_CONFIG_DIR })
+    }
+    // Ensure required sub-objects are initialized before iterating
+    result.agent ??= {}
+    result.mode ??= {}
+    result.plugin ??= []
+
+    const deps: Promise<void>[] = []
+    for (const dir of unique(directories)) {
+      if (dir.endsWith(".librecode") || dir === Flag.LIBRECODE_CONFIG_DIR) {
+        for (const file of ["librecode.jsonc", "librecode.json"]) {
+          log.debug(`loading config from ${path.join(dir, file)}`)
+          result = mergeConfigConcatArrays(result, await loadFile(path.join(dir, file)))
+          result.agent ??= {}
+          result.mode ??= {}
+          result.plugin ??= []
+        }
+      }
+      deps.push(
+        iife(async () => {
+          const shouldInstall = await needsInstall(dir)
+          if (shouldInstall) await installDependencies(dir)
+        }),
+      )
+      result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
+      result.agent = mergeDeep(result.agent ?? {}, await loadAgent(dir))
+      result.agent = mergeDeep(result.agent ?? {}, await loadMode(dir))
+      result.plugin!.push(...(await loadPlugin(dir)))
+    }
+    return { result, deps }
+  }
+
+  async function loadInlineConfig(result: Info): Promise<Info> {
+    if (!process.env.LIBRECODE_CONFIG_CONTENT) return result
+    result = mergeConfigConcatArrays(
+      result,
+      await load(process.env.LIBRECODE_CONFIG_CONTENT, {
+        dir: Instance.directory,
+        source: "LIBRECODE_CONFIG_CONTENT",
+      }),
+    )
+    log.debug("loaded custom config from LIBRECODE_CONFIG_CONTENT")
+    return result
+  }
+
+  async function loadAccountConfig(result: Info): Promise<Info> {
+    const active = Account.active()
+    if (!active?.active_org_id) return result
+    try {
+      const [config, token] = await Promise.all([
+        Account.config(active.id, active.active_org_id),
+        Account.token(active.id),
+      ])
+      if (token) {
+        process.env["LIBRECODE_CONSOLE_TOKEN"] = token
+        Env.set("LIBRECODE_CONSOLE_TOKEN", token)
+      }
+      if (config) {
+        result = mergeConfigConcatArrays(
+          result,
+          await load(JSON.stringify(config), {
+            dir: path.dirname(`${active.url}/api/config`),
+            source: `${active.url}/api/config`,
+          }),
+        )
+      }
+    } catch (err: unknown) {
+      log.debug("failed to fetch remote account config", { error: err instanceof Error ? err.message : err })
+    }
+    return result
+  }
+
+  async function loadManagedConfig(result: Info): Promise<Info> {
+    // Load managed config files last (highest priority) - enterprise admin-controlled
+    // Kept separate from directories array to avoid write operations when installing plugins
+    // which would fail on system directories requiring elevated permissions
+    // This way it only loads config file and not skills/plugins/commands
+    if (!existsSync(managedDir)) return result
+    for (const file of ["librecode.jsonc", "librecode.json"]) {
+      result = mergeConfigConcatArrays(result, await loadFile(path.join(managedDir, file)))
+    }
+    return result
+  }
+
+  function migrateModesToAgents(result: Info): void {
+    for (const [name, mode] of Object.entries(result.mode ?? {})) {
+      result.agent = mergeDeep(result.agent ?? {}, { [name]: { ...mode, mode: "primary" as const } })
+    }
+  }
+
+  function applyLegacyToolsPermissions(result: Info): void {
+    if (!result.tools) return
+    const perms: Record<string, Config.PermissionAction> = {}
+    for (const [tool, enabled] of Object.entries(result.tools)) {
+      const action: Config.PermissionAction = enabled ? "allow" : "deny"
+      if (tool === "write" || tool === "edit" || tool === "patch" || tool === "multiedit") {
+        perms.edit = action
+      } else {
+        perms[tool] = action
+      }
+    }
+    result.permission = mergeDeep(perms, result.permission ?? {})
+  }
+
+  function applyLegacyMigrations(result: Info): Info {
+    migrateModesToAgents(result)
+
+    if (Flag.LIBRECODE_PERMISSION) {
+      result.permission = mergeDeep(result.permission ?? {}, JSON.parse(Flag.LIBRECODE_PERMISSION))
+    }
+
+    applyLegacyToolsPermissions(result)
+
+    if (!result.username) result.username = os.userInfo().username
+    if (result.autoshare === true && !result.share) result.share = "auto"
+    if (Flag.LIBRECODE_DISABLE_AUTOCOMPACT) result.compaction = { ...result.compaction, auto: false }
+    if (Flag.LIBRECODE_DISABLE_PRUNE) result.compaction = { ...result.compaction, prune: false }
+
+    return result
+  }
+
+  export const state = Instance.state(async () => {
     // Config loading order (low -> high precedence): https://github.com/techtoboggan/librecode/docs/config#precedence-order
     // 1) Remote .well-known/librecode (org defaults)
     // 2) Global config (~/.config/librecode/librecode.json{,c})
@@ -86,176 +248,31 @@ export namespace Config {
     // 5) .librecode directories (.librecode/agents/, .librecode/commands/, .librecode/plugins/, .librecode/librecode.json{,c})
     // 6) Inline config (LIBRECODE_CONFIG_CONTENT)
     // Managed config directory is enterprise-only and always overrides everything above.
+    const auth = await Auth.all()
     let result: Info = {}
-    for (const [key, value] of Object.entries(auth)) {
-      if (value.type === "wellknown") {
-        const url = key.replace(/\/+$/, "")
-        process.env[value.key] = value.token
-        log.debug("fetching remote config", { url: `${url}/.well-known/librecode` })
-        const response = await fetch(`${url}/.well-known/librecode`)
-        if (!response.ok) {
-          throw new Error(`failed to fetch remote config from ${url}: ${response.status}`)
-        }
-        const wellknown = (await response.json()) as any
-        const remoteConfig = wellknown.config ?? {}
-        // Add $schema to prevent load() from trying to write back to a non-existent file
-        if (!remoteConfig.$schema) remoteConfig.$schema = "https://github.com/techtoboggan/librecode/config.json"
-        result = mergeConfigConcatArrays(
-          result,
-          await load(JSON.stringify(remoteConfig), {
-            dir: path.dirname(`${url}/.well-known/librecode`),
-            source: `${url}/.well-known/librecode`,
-          }),
-        )
-        log.debug("loaded remote config from well-known", { url })
-      }
-    }
 
-    // Global user config overrides remote config.
+    result = await loadWellKnownConfigs(auth, result)
     result = mergeConfigConcatArrays(result, await global())
 
-    // Custom config path overrides global config.
     if (Flag.LIBRECODE_CONFIG) {
       result = mergeConfigConcatArrays(result, await loadFile(Flag.LIBRECODE_CONFIG))
       log.debug("loaded custom config", { path: Flag.LIBRECODE_CONFIG })
     }
 
-    // Project config overrides global and remote config.
-    if (!Flag.LIBRECODE_DISABLE_PROJECT_CONFIG) {
-      for (const file of await ConfigPaths.projectFiles("librecode", Instance.directory, Instance.worktree)) {
-        result = mergeConfigConcatArrays(result, await loadFile(file))
-      }
-    }
+    result = await loadProjectFileConfigs(result)
 
     result.agent = result.agent || {}
     result.mode = result.mode || {}
     result.plugin = result.plugin || []
 
     const directories = await ConfigPaths.directories(Instance.directory, Instance.worktree)
+    const { result: resultAfterDirs, deps } = await loadLibrecodeDirConfigs(directories, result)
+    result = resultAfterDirs
 
-    // .librecode directory config overrides (project and global) config sources.
-    if (Flag.LIBRECODE_CONFIG_DIR) {
-      log.debug("loading config from LIBRECODE_CONFIG_DIR", { path: Flag.LIBRECODE_CONFIG_DIR })
-    }
-
-    const deps = []
-
-    for (const dir of unique(directories)) {
-      if (dir.endsWith(".librecode") || dir === Flag.LIBRECODE_CONFIG_DIR) {
-        for (const file of ["librecode.jsonc", "librecode.json"]) {
-          log.debug(`loading config from ${path.join(dir, file)}`)
-          result = mergeConfigConcatArrays(result, await loadFile(path.join(dir, file)))
-          // to satisfy the type checker
-          result.agent ??= {}
-          result.mode ??= {}
-          result.plugin ??= []
-        }
-      }
-
-      deps.push(
-        iife(async () => {
-          const shouldInstall = await needsInstall(dir)
-          if (shouldInstall) await installDependencies(dir)
-        }),
-      )
-
-      result.command = mergeDeep(result.command ?? {}, await loadCommand(dir))
-      result.agent = mergeDeep(result.agent, await loadAgent(dir))
-      result.agent = mergeDeep(result.agent, await loadMode(dir))
-      result.plugin.push(...(await loadPlugin(dir)))
-    }
-
-    // Inline config content overrides all non-managed config sources.
-    if (process.env.LIBRECODE_CONFIG_CONTENT) {
-      result = mergeConfigConcatArrays(
-        result,
-        await load(process.env.LIBRECODE_CONFIG_CONTENT, {
-          dir: Instance.directory,
-          source: "LIBRECODE_CONFIG_CONTENT",
-        }),
-      )
-      log.debug("loaded custom config from LIBRECODE_CONFIG_CONTENT")
-    }
-
-    const active = Account.active()
-    if (active?.active_org_id) {
-      try {
-        const [config, token] = await Promise.all([
-          Account.config(active.id, active.active_org_id),
-          Account.token(active.id),
-        ])
-        if (token) {
-          process.env["LIBRECODE_CONSOLE_TOKEN"] = token
-          Env.set("LIBRECODE_CONSOLE_TOKEN", token)
-        }
-
-        if (config) {
-          result = mergeConfigConcatArrays(
-            result,
-            await load(JSON.stringify(config), {
-              dir: path.dirname(`${active.url}/api/config`),
-              source: `${active.url}/api/config`,
-            }),
-          )
-        }
-      } catch (err: any) {
-        log.debug("failed to fetch remote account config", { error: err?.message ?? err })
-      }
-    }
-
-    // Load managed config files last (highest priority) - enterprise admin-controlled
-    // Kept separate from directories array to avoid write operations when installing plugins
-    // which would fail on system directories requiring elevated permissions
-    // This way it only loads config file and not skills/plugins/commands
-    if (existsSync(managedDir)) {
-      for (const file of ["librecode.jsonc", "librecode.json"]) {
-        result = mergeConfigConcatArrays(result, await loadFile(path.join(managedDir, file)))
-      }
-    }
-
-    // Migrate deprecated mode field to agent field
-    for (const [name, mode] of Object.entries(result.mode ?? {})) {
-      result.agent = mergeDeep(result.agent ?? {}, {
-        [name]: {
-          ...mode,
-          mode: "primary" as const,
-        },
-      })
-    }
-
-    if (Flag.LIBRECODE_PERMISSION) {
-      result.permission = mergeDeep(result.permission ?? {}, JSON.parse(Flag.LIBRECODE_PERMISSION))
-    }
-
-    // Backwards compatibility: legacy top-level `tools` config
-    if (result.tools) {
-      const perms: Record<string, Config.PermissionAction> = {}
-      for (const [tool, enabled] of Object.entries(result.tools)) {
-        const action: Config.PermissionAction = enabled ? "allow" : "deny"
-        if (tool === "write" || tool === "edit" || tool === "patch" || tool === "multiedit") {
-          perms.edit = action
-          continue
-        }
-        perms[tool] = action
-      }
-      result.permission = mergeDeep(perms, result.permission ?? {})
-    }
-
-    if (!result.username) result.username = os.userInfo().username
-
-    // Handle migration from autoshare to share field
-    if (result.autoshare === true && !result.share) {
-      result.share = "auto"
-    }
-
-    // Apply flag overrides for compaction settings
-    if (Flag.LIBRECODE_DISABLE_AUTOCOMPACT) {
-      result.compaction = { ...result.compaction, auto: false }
-    }
-    if (Flag.LIBRECODE_DISABLE_PRUNE) {
-      result.compaction = { ...result.compaction, prune: false }
-    }
-
+    result = await loadInlineConfig(result)
+    result = await loadAccountConfig(result)
+    result = await loadManagedConfig(result)
+    result = applyLegacyMigrations(result)
     result.plugin = deduplicatePlugins(result.plugin ?? [])
 
     return {
@@ -1268,27 +1285,51 @@ export namespace Config {
     return load(text, { path: filepath })
   }
 
+  function normalizeConfigData(data: unknown, source: string): unknown {
+    if (!data || typeof data !== "object" || Array.isArray(data)) return data
+    const copy = { ...(data as Record<string, unknown>) }
+    const hadLegacy = "theme" in copy || "keybinds" in copy || "tui" in copy
+    if (!hadLegacy) return copy
+    delete copy.theme
+    delete copy.keybinds
+    delete copy.tui
+    log.warn("tui keys in librecode config are deprecated; move them to tui.json", { path: source })
+    return copy
+  }
+
+  function resolvePluginSpecifier(plugin: string, filePath: string): string {
+    try {
+      return import.meta.resolve!(plugin, filePath)
+    } catch {
+      try {
+        // import.meta.resolve sometimes fails with newly created node_modules
+        const require = createRequire(filePath)
+        const resolvedPath = require.resolve(plugin)
+        return pathToFileURL(resolvedPath).href
+      } catch {
+        // Ignore — plugin might be a generic string identifier like "mcp-server"
+        return plugin
+      }
+    }
+  }
+
+  function resolvePluginPaths(data: Info, filePath: string): void {
+    if (!data.plugin) return
+    for (let i = 0; i < data.plugin.length; i++) {
+      data.plugin[i] = resolvePluginSpecifier(data.plugin[i], filePath)
+    }
+  }
+
   async function load(text: string, options: { path: string } | { dir: string; source: string }) {
     const original = text
     const source = "path" in options ? options.path : options.source
     const isFile = "path" in options
-    const data = await ConfigPaths.parseText(
+    const raw = await ConfigPaths.parseText(
       text,
       "path" in options ? options.path : { source: options.source, dir: options.dir },
     )
 
-    const normalized = (() => {
-      if (!data || typeof data !== "object" || Array.isArray(data)) return data
-      const copy = { ...(data as Record<string, unknown>) }
-      const hadLegacy = "theme" in copy || "keybinds" in copy || "tui" in copy
-      if (!hadLegacy) return copy
-      delete copy.theme
-      delete copy.keybinds
-      delete copy.tui
-      log.warn("tui keys in librecode config are deprecated; move them to tui.json", { path: source })
-      return copy
-    })()
-
+    const normalized = normalizeConfigData(raw, source)
     const parsed = Info.safeParse(normalized)
     if (parsed.success) {
       if (!parsed.data.$schema && isFile) {
@@ -1298,21 +1339,7 @@ export namespace Config {
       }
       const data = parsed.data
       if (data.plugin && isFile) {
-        for (let i = 0; i < data.plugin.length; i++) {
-          const plugin = data.plugin[i]
-          try {
-            data.plugin[i] = import.meta.resolve!(plugin, options.path)
-          } catch (e) {
-            try {
-              // import.meta.resolve sometimes fails with newly created node_modules
-              const require = createRequire(options.path)
-              const resolvedPath = require.resolve(plugin)
-              data.plugin[i] = pathToFileURL(resolvedPath).href
-            } catch {
-              // Ignore, plugin might be a generic string identifier like "mcp-server"
-            }
-          }
-        }
+        resolvePluginPaths(data, options.path)
       }
       return data
     }

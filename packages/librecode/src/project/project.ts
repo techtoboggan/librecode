@@ -8,7 +8,6 @@ import { Log } from "../util/log"
 import { Flag } from "@/flag/flag"
 import { fn } from "@librecode/util/fn"
 import { BusEvent } from "@/bus/bus-event"
-import { iife } from "@/util/iife"
 import { GlobalBus } from "@/bus/global"
 import { existsSync } from "fs"
 import { git } from "../util/git"
@@ -95,127 +94,94 @@ export namespace Project {
       .catch(() => undefined)
   }
 
+  type DirectoryData = {
+    id: ProjectID
+    worktree: string
+    sandbox: string
+    vcs: Info["vcs"]
+  }
+
+  const noVcsResult: DirectoryData = {
+    id: ProjectID.global,
+    worktree: "/",
+    sandbox: "/",
+    vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
+  }
+
+  function fakeVcsResult(id: ProjectID, sandbox: string): DirectoryData {
+    return { id, worktree: sandbox, sandbox, vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS) }
+  }
+
+  async function resolveProjectId(sandbox: string, worktree: string, dotgit: string): Promise<ProjectID | undefined> {
+    let id = await readCachedId(dotgit)
+    if (id == null) {
+      id = await readCachedId(path.join(worktree, ".git"))
+    }
+    if (id) return id
+
+    const roots = await git(["rev-list", "--max-parents=0", "HEAD"], { cwd: sandbox })
+      .then(async (result) =>
+        (await result.text())
+          .split("\n")
+          .filter(Boolean)
+          .map((x) => x.trim())
+          .toSorted(),
+      )
+      .catch(() => undefined)
+
+    if (!roots) return undefined
+
+    const resolved = roots[0] ? ProjectID.make(roots[0]) : undefined
+    if (resolved) {
+      await Filesystem.write(path.join(worktree, ".git", "librecode"), resolved).catch(() => undefined)
+    }
+    return resolved
+  }
+
+  async function resolveWorktree(sandbox: string): Promise<string | undefined> {
+    return git(["rev-parse", "--git-common-dir"], { cwd: sandbox })
+      .then(async (result) => {
+        const common = gitpath(sandbox, await result.text())
+        return common === sandbox ? sandbox : path.dirname(common)
+      })
+      .catch(() => undefined)
+  }
+
+  async function resolveDirectoryData(directory: string): Promise<DirectoryData> {
+    const matches = Filesystem.up({ targets: [".git"], start: directory })
+    const dotgit = await matches.next().then((x) => x.value)
+    await matches.return()
+
+    if (!dotgit) return noVcsResult
+
+    const sandbox = path.dirname(dotgit)
+    if (!which("git")) {
+      const id = (await readCachedId(dotgit)) ?? ProjectID.global
+      return fakeVcsResult(id, sandbox)
+    }
+
+    const worktree = await resolveWorktree(sandbox)
+    if (!worktree) {
+      const id = (await readCachedId(dotgit)) ?? ProjectID.global
+      return fakeVcsResult(id, sandbox)
+    }
+
+    const id = await resolveProjectId(sandbox, worktree, dotgit)
+    if (!id) return { id: ProjectID.global, worktree: sandbox, sandbox, vcs: "git" }
+
+    const top = await git(["rev-parse", "--show-toplevel"], { cwd: sandbox })
+      .then(async (result) => gitpath(sandbox, await result.text()))
+      .catch(() => undefined)
+
+    if (!top) return fakeVcsResult(id, sandbox)
+
+    return { id, sandbox: top, worktree, vcs: "git" }
+  }
+
   export async function fromDirectory(directory: string) {
     log.info("fromDirectory", { directory })
 
-    const data = await iife(async () => {
-      const matches = Filesystem.up({ targets: [".git"], start: directory })
-      const dotgit = await matches.next().then((x) => x.value)
-      await matches.return()
-      if (dotgit) {
-        let sandbox = path.dirname(dotgit)
-
-        const gitBinary = which("git")
-
-        // cached id calculation
-        let id = await readCachedId(dotgit)
-
-        if (!gitBinary) {
-          return {
-            id: id ?? ProjectID.global,
-            worktree: sandbox,
-            sandbox,
-            vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
-          }
-        }
-
-        const worktree = await git(["rev-parse", "--git-common-dir"], {
-          cwd: sandbox,
-        })
-          .then(async (result) => {
-            const common = gitpath(sandbox, await result.text())
-            // Avoid going to parent of sandbox when git-common-dir is empty.
-            return common === sandbox ? sandbox : path.dirname(common)
-          })
-          .catch(() => undefined)
-
-        if (!worktree) {
-          return {
-            id: id ?? ProjectID.global,
-            worktree: sandbox,
-            sandbox,
-            vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
-          }
-        }
-
-        // In the case of a git worktree, it can't cache the id
-        // because `.git` is not a folder, but it always needs the
-        // same project id as the common dir, so we resolve it now
-        if (id == null) {
-          id = await readCachedId(path.join(worktree, ".git"))
-        }
-
-        // generate id from root commit
-        if (!id) {
-          const roots = await git(["rev-list", "--max-parents=0", "HEAD"], {
-            cwd: sandbox,
-          })
-            .then(async (result) =>
-              (await result.text())
-                .split("\n")
-                .filter(Boolean)
-                .map((x) => x.trim())
-                .toSorted(),
-            )
-            .catch(() => undefined)
-
-          if (!roots) {
-            return {
-              id: ProjectID.global,
-              worktree: sandbox,
-              sandbox,
-              vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
-            }
-          }
-
-          id = roots[0] ? ProjectID.make(roots[0]) : undefined
-          if (id) {
-            // Write to common dir so the cache is shared across worktrees.
-            await Filesystem.write(path.join(worktree, ".git", "librecode"), id).catch(() => undefined)
-          }
-        }
-
-        if (!id) {
-          return {
-            id: ProjectID.global,
-            worktree: sandbox,
-            sandbox,
-            vcs: "git",
-          }
-        }
-
-        const top = await git(["rev-parse", "--show-toplevel"], {
-          cwd: sandbox,
-        })
-          .then(async (result) => gitpath(sandbox, await result.text()))
-          .catch(() => undefined)
-
-        if (!top) {
-          return {
-            id,
-            worktree: sandbox,
-            sandbox,
-            vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
-          }
-        }
-
-        sandbox = top
-
-        return {
-          id,
-          sandbox,
-          worktree,
-          vcs: "git",
-        }
-      }
-
-      return {
-        id: ProjectID.global,
-        worktree: "/",
-        sandbox: "/",
-        vcs: Info.shape.vcs.parse(Flag.LIBRECODE_FAKE_VCS),
-      }
-    })
+    const data = await resolveDirectoryData(directory)
 
     const row = Database.use((db) => db.select().from(ProjectTable).where(eq(ProjectTable.id, data.id)).get())
     const existing = row

@@ -10,6 +10,180 @@ import { mapValues } from "remeda"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 
+const KNOWN_PORTS = [
+  { port: 4000, name: "LiteLLM" },
+  { port: 11434, name: "Ollama" },
+  { port: 8000, name: "vLLM" },
+  { port: 8080, name: "llama.cpp" },
+  { port: 3000, name: "LocalAI" },
+  { port: 5000, name: "Model Server" },
+  { port: 8001, name: "Model Server" },
+  { port: 9000, name: "Model Server" },
+]
+
+const SCAN_TIMEOUT_MS = 3000
+
+type ScanServer = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
+
+function guessServerName(hostName: string, port: number): string {
+  const known = KNOWN_PORTS.find((p) => p.port === port)
+  const label = known?.name ?? "Server"
+  return hostName === "localhost" ? label : `${label} (${hostName})`
+}
+
+function ensureLocalFirstProviders(allProviders: Record<string, ModelsDev.Provider>): void {
+  if (!allProviders["litellm"]) {
+    allProviders["litellm"] = {
+      id: "litellm",
+      name: "LiteLLM",
+      api: "http://localhost:4000/v1",
+      npm: "@ai-sdk/openai-compatible",
+      env: ["LITELLM_API_KEY"],
+      models: {},
+    }
+  }
+  if (!allProviders["ollama"]) {
+    allProviders["ollama"] = {
+      id: "ollama",
+      name: "Ollama",
+      api: "http://localhost:11434/v1",
+      npm: "@ai-sdk/openai-compatible",
+      env: [],
+      models: {},
+    }
+  }
+}
+
+function filterProviders(
+  allProviders: Record<string, ModelsDev.Provider>,
+  disabled: Set<string>,
+  enabled: Set<string> | undefined,
+): Record<string, ModelsDev.Provider> {
+  const filtered: Record<string, ModelsDev.Provider> = {}
+  for (const [key, value] of Object.entries(allProviders)) {
+    if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
+      filtered[key] = value
+    }
+  }
+  return filtered
+}
+
+/** TCP port check — fast way to see if anything is listening */
+async function isPortOpen(host: string, port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), 1500)
+    try {
+      Bun.connect({
+        hostname: host,
+        port,
+        socket: {
+          open(socket) {
+            clearTimeout(timer)
+            socket.end()
+            resolve(true)
+          },
+          data() {},
+          error() {
+            clearTimeout(timer)
+            resolve(false)
+          },
+          close() {},
+        },
+      }).catch(() => {
+        clearTimeout(timer)
+        resolve(false)
+      })
+    } catch {
+      clearTimeout(timer)
+      resolve(false)
+    }
+  })
+}
+
+function parseOpenAIModels(data: unknown): Array<{ id: string; name: string }> | undefined {
+  if (data && typeof data === "object" && "data" in data && Array.isArray((data as Record<string, unknown>).data)) {
+    const items = (data as Record<string, unknown>).data as unknown[]
+    return items
+      .filter((m): m is Record<string, unknown> => !!m && typeof m === "object" && !!(m as Record<string, unknown>).id)
+      .map((m) => ({ id: String(m.id), name: String(m.id) }))
+  }
+  return undefined
+}
+
+function parseOllamaModels(data: unknown): Array<{ id: string; name: string }> | undefined {
+  if (
+    data &&
+    typeof data === "object" &&
+    "models" in data &&
+    Array.isArray((data as Record<string, unknown>).models)
+  ) {
+    const items = (data as Record<string, unknown>).models as unknown[]
+    return items
+      .filter((m): m is Record<string, unknown> => !!m && typeof m === "object")
+      .filter((m) => m.name || m.model)
+      .map((m) => ({ id: String(m.name ?? m.model), name: String(m.name ?? m.model) }))
+  }
+  return undefined
+}
+
+async function probeEndpoint(url: string): Promise<Array<{ id: string; name: string }>> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), SCAN_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!res.ok) {
+      console.log(`[scan] ${url} -> ${res.status}`)
+      return []
+    }
+    const data = await res.json()
+    const openai = parseOpenAIModels(data)
+    if (openai) {
+      console.log(`[scan] ${url} -> ${openai.length} models (openai format)`)
+      return openai
+    }
+    const ollama = parseOllamaModels(data)
+    if (ollama) {
+      console.log(`[scan] ${url} -> ${ollama.length} models (ollama format)`)
+      return ollama
+    }
+    console.log(`[scan] ${url} -> 200 but unrecognized format`)
+    return []
+  } catch (e: unknown) {
+    const err = e as Record<string, unknown>
+    console.log(`[scan] ${url} -> error: ${err?.code ?? err?.message ?? e}`)
+    return []
+  }
+}
+
+async function probe(host: string, port: number, name: string): Promise<ScanServer | null> {
+  const open = await isPortOpen(host, port)
+  if (!open) return null
+  console.log(`[scan] ${host}:${port} -> TCP open, probing HTTP...`)
+
+  const baseUrl = `http://${host}:${port}`
+  let models = await probeEndpoint(`${baseUrl}/v1/models`)
+  if (models.length === 0) {
+    models = await probeEndpoint(`${baseUrl}/api/tags`)
+  }
+  if (models.length === 0) return null
+  return { url: baseUrl, serverName: name, modelCount: models.length, models }
+}
+
+async function scanPorts(host: string, ports: { port: number; name: string }[], seen: Set<string>): Promise<ScanServer[]> {
+  const results: ScanServer[] = []
+  await Promise.allSettled(
+    ports.map(async (entry) => {
+      const server = await probe(host, entry.port, guessServerName(host, entry.port))
+      if (server && !seen.has(server.url)) {
+        seen.add(server.url)
+        results.push(server)
+      }
+    }),
+  )
+  return results
+}
+
 export const ProviderRoutes = lazy(() =>
   new Hono()
     .get(
@@ -41,36 +215,8 @@ export const ProviderRoutes = lazy(() =>
         const enabled = config.enabled_providers ? new Set(config.enabled_providers) : undefined
 
         const allProviders = await ModelsDev.get()
-
-        // Ensure local-first providers always appear in the provider list
-        // so users can find and configure them, even before autodiscovery runs.
-        if (!allProviders["litellm"]) {
-          allProviders["litellm"] = {
-            id: "litellm",
-            name: "LiteLLM",
-            api: "http://localhost:4000/v1",
-            npm: "@ai-sdk/openai-compatible",
-            env: ["LITELLM_API_KEY"],
-            models: {},
-          }
-        }
-        if (!allProviders["ollama"]) {
-          allProviders["ollama"] = {
-            id: "ollama",
-            name: "Ollama",
-            api: "http://localhost:11434/v1",
-            npm: "@ai-sdk/openai-compatible",
-            env: [],
-            models: {},
-          }
-        }
-
-        const filteredProviders: Record<string, (typeof allProviders)[string]> = {}
-        for (const [key, value] of Object.entries(allProviders)) {
-          if ((enabled ? enabled.has(key) : true) && !disabled.has(key)) {
-            filteredProviders[key] = value
-          }
-        }
+        ensureLocalFirstProviders(allProviders)
+        const filteredProviders = filterProviders(allProviders, disabled, enabled)
 
         const connected = await Provider.list()
         const providers = Object.assign(
@@ -265,143 +411,17 @@ export const ProviderRoutes = lazy(() =>
         const { host } = c.req.valid("json")
         console.log(`[scan] POST /provider/scan called (host=${host ?? "localhost only"})`)
 
-        const KNOWN_PORTS = [
-          { port: 4000, name: "LiteLLM" },
-          { port: 11434, name: "Ollama" },
-          { port: 8000, name: "vLLM" },
-          { port: 8080, name: "llama.cpp" },
-          { port: 3000, name: "LocalAI" },
-          { port: 5000, name: "Model Server" },
-          { port: 8001, name: "Model Server" },
-          { port: 9000, name: "Model Server" },
-        ]
-
-        function guessServerName(hostName: string, port: number): string {
-          const known = KNOWN_PORTS.find((p) => p.port === port)
-          const label = known?.name ?? `Server`
-          return hostName === "localhost" ? label : `${label} (${hostName})`
-        }
-        const TIMEOUT_MS = 3000
-
-        type Server = { url: string; serverName: string; modelCount: number; models: { id: string; name: string }[] }
-
-        /** TCP port check — fast way to see if anything is listening */
-        async function isPortOpen(host: string, port: number): Promise<boolean> {
-          return new Promise((resolve) => {
-            const timer = setTimeout(() => resolve(false), 1500)
-            try {
-              // Use Bun's TCP connect for port checking
-              Bun.connect({
-                hostname: host,
-                port,
-                socket: {
-                  open(socket) {
-                    clearTimeout(timer)
-                    socket.end()
-                    resolve(true)
-                  },
-                  data() {},
-                  error() {
-                    clearTimeout(timer)
-                    resolve(false)
-                  },
-                  close() {},
-                },
-              }).catch(() => {
-                clearTimeout(timer)
-                resolve(false)
-              })
-            } catch {
-              clearTimeout(timer)
-              resolve(false)
-            }
-          })
-        }
-
-        async function probeEndpoint(url: string): Promise<Array<{ id: string; name: string }>> {
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), TIMEOUT_MS)
-          try {
-            const res = await fetch(url, { signal: controller.signal })
-            clearTimeout(timeout)
-            if (!res.ok) {
-              console.log(`[scan] ${url} -> ${res.status}`)
-              return []
-            }
-            const data = await res.json()
-            // OpenAI format: { data: [{ id }] }
-            if (data?.data && Array.isArray(data.data)) {
-              const models = data.data
-                .filter((m: any) => m.id)
-                .map((m: any) => ({ id: m.id, name: m.id }))
-              console.log(`[scan] ${url} -> ${models.length} models (openai format)`)
-              return models
-            }
-            // Ollama native format: { models: [{ name, model }] }
-            if (data?.models && Array.isArray(data.models)) {
-              const models = data.models
-                .filter((m: any) => m.name || m.model)
-                .map((m: any) => ({ id: m.name ?? m.model, name: m.name ?? m.model }))
-              console.log(`[scan] ${url} -> ${models.length} models (ollama format)`)
-              return models
-            }
-            console.log(`[scan] ${url} -> 200 but unrecognized format`)
-            return []
-          } catch (e: any) {
-            console.log(`[scan] ${url} -> error: ${e?.code ?? e?.message ?? e}`)
-            return []
-          }
-        }
-
-        async function probe(host: string, port: number, name: string): Promise<Server | null> {
-          // Step 1: TCP port check (fast fail)
-          const open = await isPortOpen(host, port)
-          if (!open) return null
-          console.log(`[scan] ${host}:${port} -> TCP open, probing HTTP...`)
-
-          const baseUrl = `http://${host}:${port}`
-          // Step 2: Try OpenAI-compatible endpoint
-          let models = await probeEndpoint(`${baseUrl}/v1/models`)
-          // Step 3: Fallback to Ollama native endpoint
-          if (models.length === 0) {
-            models = await probeEndpoint(`${baseUrl}/api/tags`)
-          }
-          if (models.length === 0) return null
-          return { url: baseUrl, serverName: name, modelCount: models.length, models }
-        }
-
-        const servers: Server[] = []
         const seen = new Set<string>()
-
         console.log("[scan] Starting local scan...")
-
-        // Always scan localhost
-        await Promise.allSettled(
-          KNOWN_PORTS.map(async (entry) => {
-            const server = await probe("localhost", entry.port, guessServerName("localhost", entry.port))
-            if (server && !seen.has(server.url)) {
-              seen.add(server.url)
-              servers.push(server)
-            }
-          }),
-        )
-
+        const servers = await scanPorts("localhost", KNOWN_PORTS, seen)
         console.log(`[scan] Local scan done. Found ${servers.length} servers.`)
 
-        // If a specific host was provided, also probe that
         if (host) {
           const remoteHost = host.trim()
           console.log(`[scan] Probing remote host: ${remoteHost}`)
-          const remotePorts = [4000, 11434, 8000, 8080, 3000, 5000]
-          await Promise.allSettled(
-            remotePorts.map(async (port) => {
-              const server = await probe(remoteHost, port, guessServerName(remoteHost, port))
-              if (server && !seen.has(server.url)) {
-                seen.add(server.url)
-                servers.push(server)
-              }
-            }),
-          )
+          const remotePorts = [4000, 11434, 8000, 8080, 3000, 5000].map((port) => ({ port, name: guessServerName(remoteHost, port) }))
+          const remoteServers = await scanPorts(remoteHost, remotePorts, seen)
+          servers.push(...remoteServers)
           console.log(`[scan] Remote probe done. Total servers: ${servers.length}`)
         }
 

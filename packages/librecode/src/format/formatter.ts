@@ -176,33 +176,37 @@ export const ktlint: Info = {
   },
 }
 
+async function ruffConfigDetected(): Promise<boolean> {
+  const configs = ["pyproject.toml", "ruff.toml", ".ruff.toml"]
+  for (const config of configs) {
+    const found = await Filesystem.findUp(config, Instance.directory, Instance.worktree)
+    if (found.length === 0) continue
+    if (config !== "pyproject.toml") return true
+    const content = await Filesystem.readText(found[0])
+    if (content.includes("[tool.ruff]")) return true
+  }
+  return false
+}
+
+async function ruffDepDetected(): Promise<boolean> {
+  const deps = ["requirements.txt", "pyproject.toml", "Pipfile"]
+  for (const dep of deps) {
+    const found = await Filesystem.findUp(dep, Instance.directory, Instance.worktree)
+    if (found.length === 0) continue
+    const content = await Filesystem.readText(found[0])
+    if (content.includes("ruff")) return true
+  }
+  return false
+}
+
 export const ruff: Info = {
   name: "ruff",
   command: ["ruff", "format", "$FILE"],
   extensions: [".py", ".pyi"],
   async enabled() {
     if (!which("ruff")) return false
-    const configs = ["pyproject.toml", "ruff.toml", ".ruff.toml"]
-    for (const config of configs) {
-      const found = await Filesystem.findUp(config, Instance.directory, Instance.worktree)
-      if (found.length > 0) {
-        if (config === "pyproject.toml") {
-          const content = await Filesystem.readText(found[0])
-          if (content.includes("[tool.ruff]")) return true
-        } else {
-          return true
-        }
-      }
-    }
-    const deps = ["requirements.txt", "pyproject.toml", "Pipfile"]
-    for (const dep of deps) {
-      const found = await Filesystem.findUp(dep, Instance.directory, Instance.worktree)
-      if (found.length > 0) {
-        const content = await Filesystem.readText(found[0])
-        if (content.includes("ruff")) return true
-      }
-    }
-    return false
+    if (await ruffConfigDetected()) return true
+    return ruffDepDetected()
   },
 }
 

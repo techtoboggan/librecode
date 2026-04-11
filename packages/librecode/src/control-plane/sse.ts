@@ -1,13 +1,50 @@
+type SseState = { last: string; retry: number }
+
+function parseSseLine(line: string, data: string[], state: SseState): void {
+  if (line.startsWith("data:")) {
+    data.push(line.replace(/^data:\s*/, ""))
+    return
+  }
+  if (line.startsWith("id:")) {
+    state.last = line.replace(/^id:\s*/, "")
+    return
+  }
+  if (line.startsWith("retry:")) {
+    const parsed = Number.parseInt(line.replace(/^retry:\s*/, ""), 10)
+    if (!Number.isNaN(parsed)) state.retry = parsed
+  }
+}
+
+function dispatchSseChunk(chunk: string, state: SseState, onEvent: (event: unknown) => void): void {
+  const data: string[] = []
+  for (const line of chunk.split("\n")) {
+    parseSseLine(line, data, state)
+  }
+  if (!data.length) return
+  const raw = data.join("\n")
+  try {
+    onEvent(JSON.parse(raw))
+  } catch {
+    onEvent({
+      type: "sse.message",
+      properties: {
+        data: raw,
+        id: state.last || undefined,
+        retry: state.retry,
+      },
+    })
+  }
+}
+
 export async function parseSSE(
   body: ReadableStream<Uint8Array>,
   signal: AbortSignal,
   onEvent: (event: unknown) => void,
-) {
+): Promise<void> {
   const reader = body.getReader()
   const decoder = new TextDecoder()
   let buf = ""
-  let last = ""
-  let retry = 1000
+  const state: SseState = { last: "", retry: 1000 }
 
   const abort = () => {
     void reader.cancel().catch(() => undefined)
@@ -26,38 +63,9 @@ export async function parseSSE(
       const chunks = buf.split("\n\n")
       buf = chunks.pop() ?? ""
 
-      chunks.forEach((chunk) => {
-        const data: string[] = []
-        chunk.split("\n").forEach((line) => {
-          if (line.startsWith("data:")) {
-            data.push(line.replace(/^data:\s*/, ""))
-            return
-          }
-          if (line.startsWith("id:")) {
-            last = line.replace(/^id:\s*/, "")
-            return
-          }
-          if (line.startsWith("retry:")) {
-            const parsed = Number.parseInt(line.replace(/^retry:\s*/, ""), 10)
-            if (!Number.isNaN(parsed)) retry = parsed
-          }
-        })
-
-        if (!data.length) return
-        const raw = data.join("\n")
-        try {
-          onEvent(JSON.parse(raw))
-        } catch {
-          onEvent({
-            type: "sse.message",
-            properties: {
-              data: raw,
-              id: last || undefined,
-              retry,
-            },
-          })
-        }
-      })
+      for (const c of chunks) {
+        dispatchSseChunk(c, state, onEvent)
+      }
     }
   } finally {
     signal.removeEventListener("abort", abort)

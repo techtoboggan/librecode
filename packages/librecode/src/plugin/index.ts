@@ -22,6 +22,82 @@ export namespace Plugin {
   // Built-in plugins that are directly imported (not installed from npm)
   const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
 
+  function buildPluginInput(client: ReturnType<typeof createOpencodeClient>): PluginInput {
+    return {
+      client,
+      project: Instance.project,
+      worktree: Instance.worktree,
+      directory: Instance.directory,
+      get serverUrl(): URL {
+        return Server.url ?? new URL("http://localhost:4096")
+      },
+      $: Bun.$,
+    }
+  }
+
+  async function installNpmPlugin(plugin: string): Promise<string> {
+    const lastAtIndex = plugin.lastIndexOf("@")
+    const pkg = lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
+    const version = lastAtIndex > 0 ? plugin.substring(lastAtIndex + 1) : "latest"
+    return BunProc.install(pkg, version).catch((err) => {
+      const cause = err instanceof Error ? err.cause : err
+      const detail = cause instanceof Error ? cause.message : String(cause ?? err)
+      log.error("failed to install plugin", { pkg, version, error: detail })
+      Bus.publish(Session.Event.Error, {
+        error: new NamedError.Unknown({ message: `Failed to install plugin ${pkg}@${version}: ${detail}` }).toObject(),
+      })
+      return ""
+    })
+  }
+
+  async function loadPluginFromPath(path: string, input: PluginInput, hooks: Hooks[]): Promise<void> {
+    await import(path)
+      .then(async (mod) => {
+        const seen = new Set<PluginInstance>()
+        for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
+          if (seen.has(fn)) continue
+          seen.add(fn)
+          hooks.push(await fn(input))
+        }
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : String(err)
+        log.error("failed to load plugin", { path, error: message })
+        Bus.publish(Session.Event.Error, {
+          error: new NamedError.Unknown({ message: `Failed to load plugin ${path}: ${message}` }).toObject(),
+        })
+      })
+  }
+
+  async function resolvePluginPath(plugin: string): Promise<string> {
+    if (plugin.startsWith("file://")) return plugin
+    return installNpmPlugin(plugin)
+  }
+
+  function isLegacyPlugin(plugin: string): boolean {
+    return plugin.includes("librecode-openai-codex-auth") || plugin.includes("librecode-copilot-auth")
+  }
+
+  async function loadInternalPlugins(input: PluginInput, hooks: Hooks[]): Promise<void> {
+    for (const plugin of INTERNAL_PLUGINS) {
+      log.info("loading internal plugin", { name: plugin.name })
+      const init = await plugin(input).catch((err) => {
+        log.error("failed to load internal plugin", { name: plugin.name, error: err })
+      })
+      if (init) hooks.push(init)
+    }
+  }
+
+  async function loadExternalPlugins(plugins: string[], input: PluginInput, hooks: Hooks[]): Promise<void> {
+    for (const rawPlugin of plugins) {
+      if (isLegacyPlugin(rawPlugin)) continue
+      log.info("loading plugin", { path: rawPlugin })
+      const resolved = await resolvePluginPath(rawPlugin)
+      if (!resolved) continue
+      await loadPluginFromPath(resolved, input, hooks)
+    }
+  }
+
   const state = Instance.state(async () => {
     const client = createOpencodeClient({
       baseUrl: "http://localhost:4096",
@@ -35,79 +111,16 @@ export namespace Plugin {
     })
     const config = await Config.get()
     const hooks: Hooks[] = []
-    const input: PluginInput = {
-      client,
-      project: Instance.project,
-      worktree: Instance.worktree,
-      directory: Instance.directory,
-      get serverUrl(): URL {
-        return Server.url ?? new URL("http://localhost:4096")
-      },
-      $: Bun.$,
-    }
+    const input = buildPluginInput(client)
 
-    for (const plugin of INTERNAL_PLUGINS) {
-      log.info("loading internal plugin", { name: plugin.name })
-      const init = await plugin(input).catch((err) => {
-        log.error("failed to load internal plugin", { name: plugin.name, error: err })
-      })
-      if (init) hooks.push(init)
-    }
+    await loadInternalPlugins(input, hooks)
 
     let plugins = config.plugin ?? []
     if (plugins.length) await Config.waitForDependencies()
-    if (!Flag.LIBRECODE_DISABLE_DEFAULT_PLUGINS) {
-      plugins = [...BUILTIN, ...plugins]
-    }
+    if (!Flag.LIBRECODE_DISABLE_DEFAULT_PLUGINS) plugins = [...BUILTIN, ...plugins]
+    await loadExternalPlugins(plugins, input, hooks)
 
-    for (let plugin of plugins) {
-      // ignore old codex plugin since it is supported first party now
-      if (plugin.includes("librecode-openai-codex-auth") || plugin.includes("librecode-copilot-auth")) continue
-      log.info("loading plugin", { path: plugin })
-      if (!plugin.startsWith("file://")) {
-        const lastAtIndex = plugin.lastIndexOf("@")
-        const pkg = lastAtIndex > 0 ? plugin.substring(0, lastAtIndex) : plugin
-        const version = lastAtIndex > 0 ? plugin.substring(lastAtIndex + 1) : "latest"
-        plugin = await BunProc.install(pkg, version).catch((err) => {
-          const cause = err instanceof Error ? err.cause : err
-          const detail = cause instanceof Error ? cause.message : String(cause ?? err)
-          log.error("failed to install plugin", { pkg, version, error: detail })
-          Bus.publish(Session.Event.Error, {
-            error: new NamedError.Unknown({
-              message: `Failed to install plugin ${pkg}@${version}: ${detail}`,
-            }).toObject(),
-          })
-          return ""
-        })
-        if (!plugin) continue
-      }
-      // Prevent duplicate initialization when plugins export the same function
-      // as both a named export and default export (e.g., `export const X` and `export default X`).
-      // Object.entries(mod) would return both entries pointing to the same function reference.
-      await import(plugin)
-        .then(async (mod) => {
-          const seen = new Set<PluginInstance>()
-          for (const [_name, fn] of Object.entries<PluginInstance>(mod)) {
-            if (seen.has(fn)) continue
-            seen.add(fn)
-            hooks.push(await fn(input))
-          }
-        })
-        .catch((err) => {
-          const message = err instanceof Error ? err.message : String(err)
-          log.error("failed to load plugin", { path: plugin, error: message })
-          Bus.publish(Session.Event.Error, {
-            error: new NamedError.Unknown({
-              message: `Failed to load plugin ${plugin}: ${message}`,
-            }).toObject(),
-          })
-        })
-    }
-
-    return {
-      hooks,
-      input,
-    }
+    return { hooks, input }
   })
 
   export async function trigger<

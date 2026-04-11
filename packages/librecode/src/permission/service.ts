@@ -219,6 +219,40 @@ export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
   }
 }
 
+function rejectSessionPending(s: State, sessionID: SessionID): void {
+  for (const [id, item] of s.pending.entries()) {
+    if (item.info.sessionID !== sessionID) continue
+    s.pending.delete(id)
+    void Bus.publish(Event.Replied, {
+      sessionID: item.info.sessionID,
+      requestID: item.info.id,
+      reply: "reject",
+    })
+    item.deferred.reject(new RejectedError())
+  }
+}
+
+function approveMatchingPending(s: State, existing: PendingEntry): void {
+  for (const pattern of existing.info.always) {
+    s.approved.push({ permission: existing.info.permission, pattern, action: "allow" })
+  }
+
+  for (const [id, item] of s.pending.entries()) {
+    if (item.info.sessionID !== existing.info.sessionID) continue
+    const allAllowed = item.info.patterns.every(
+      (pattern) => evaluate(item.info.permission, pattern, s.approved).action === "allow",
+    )
+    if (!allAllowed) continue
+    s.pending.delete(id)
+    void Bus.publish(Event.Replied, {
+      sessionID: item.info.sessionID,
+      requestID: item.info.id,
+      reply: "always",
+    })
+    item.deferred.resolve(undefined)
+  }
+}
+
 export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
   const s = state()
   const existing = s.pending.get(input.requestID)
@@ -239,45 +273,13 @@ export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
 
   if (input.reply === "reject") {
     existing.deferred.reject(input.message ? new CorrectedError({ feedback: input.message }) : new RejectedError())
-
-    for (const [id, item] of s.pending.entries()) {
-      if (item.info.sessionID !== existing.info.sessionID) continue
-      s.pending.delete(id)
-      void Bus.publish(Event.Replied, {
-        sessionID: item.info.sessionID,
-        requestID: item.info.id,
-        reply: "reject",
-      })
-      item.deferred.reject(new RejectedError())
-    }
+    rejectSessionPending(s, existing.info.sessionID)
     return
   }
 
   existing.deferred.resolve(undefined)
   if (input.reply === "once") return
-
-  for (const pattern of existing.info.always) {
-    s.approved.push({
-      permission: existing.info.permission,
-      pattern,
-      action: "allow",
-    })
-  }
-
-  for (const [id, item] of s.pending.entries()) {
-    if (item.info.sessionID !== existing.info.sessionID) continue
-    const ok = item.info.patterns.every(
-      (pattern) => evaluate(item.info.permission, pattern, s.approved).action === "allow",
-    )
-    if (!ok) continue
-    s.pending.delete(id)
-    void Bus.publish(Event.Replied, {
-      sessionID: item.info.sessionID,
-      requestID: item.info.id,
-      reply: "always",
-    })
-    item.deferred.resolve(undefined)
-  }
+  approveMatchingPending(s, existing)
 }
 
 export async function list(): Promise<Request[]> {

@@ -7,6 +7,28 @@ import { For, Match, Switch, Show, createMemo } from "solid-js"
 
 export type DialogStatusProps = {}
 
+function parseFilePlugin(value: string): { name: string; version?: string } {
+  const path = fileURLToPath(value)
+  const parts = path.split("/")
+  const filename = parts.pop() || path
+  if (!filename.includes(".")) return { name: filename }
+  const basename = filename.split(".")[0]
+  if (basename !== "index") return { name: basename }
+  const dirname = parts.pop()
+  return { name: dirname || basename }
+}
+
+function parseNpmPlugin(value: string): { name: string; version?: string } {
+  const index = value.lastIndexOf("@")
+  if (index <= 0) return { name: value, version: "latest" }
+  return { name: value.substring(0, index), version: value.substring(index + 1) }
+}
+
+function parsePluginEntry(value: string): { name: string; version?: string } {
+  if (value.startsWith("file://")) return parseFilePlugin(value)
+  return parseNpmPlugin(value)
+}
+
 export function DialogStatus() {
   const sync = useSync()
   const { theme } = useTheme()
@@ -16,27 +38,7 @@ export function DialogStatus() {
 
   const plugins = createMemo(() => {
     const list = sync.data.config.plugin ?? []
-    const result = list.map((value) => {
-      if (value.startsWith("file://")) {
-        const path = fileURLToPath(value)
-        const parts = path.split("/")
-        const filename = parts.pop() || path
-        if (!filename.includes(".")) return { name: filename }
-        const basename = filename.split(".")[0]
-        if (basename === "index") {
-          const dirname = parts.pop()
-          const name = dirname || basename
-          return { name }
-        }
-        return { name: basename }
-      }
-      const index = value.lastIndexOf("@")
-      if (index <= 0) return { name: value, version: "latest" }
-      const name = value.substring(0, index)
-      const version = value.substring(index + 1)
-      return { name, version }
-    })
-    return result.toSorted((a, b) => a.name.localeCompare(b.name))
+    return list.map(parsePluginEntry).toSorted((a, b) => a.name.localeCompare(b.name))
   })
 
   return (

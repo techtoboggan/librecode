@@ -25,11 +25,12 @@ import {
   addDefaultParsers,
   MacOSScrollAccel,
   type ScrollAcceleration,
+  type CliRenderer,
   TextAttributes,
   RGBA,
 } from "@opentui/core"
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import type { AssistantMessage, Part, ToolPart, UserMessage, TextPart, ReasoningPart } from "@librecode/sdk/v2"
+import type { AssistantMessage, Message, Part, ToolPart, UserMessage, TextPart, ReasoningPart } from "@librecode/sdk/v2"
 import { useLocal } from "@tui/context/local"
 import { Locale } from "@/util/locale"
 import type { Tool } from "@/tool/tool"
@@ -66,7 +67,7 @@ import { Flag } from "@/flag/flag"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import parsers from "../../../../../../parsers-config.ts"
 import { Clipboard } from "../../util/clipboard"
-import { Toast, useToast } from "../../ui/toast"
+import { Toast, useToast, type ToastContext } from "../../ui/toast"
 import { useKV } from "../../context/kv.tsx"
 import { Editor } from "../../util/editor"
 import stripAnsi from "strip-ansi"
@@ -111,6 +112,61 @@ function use() {
   const ctx = useContext(context)
   if (!ctx) throw new Error("useContext must be used within a Session component")
   return ctx
+}
+
+function reducePartsToPromptInfo(parts: Part[]): { input: string; parts: PromptInfo["parts"] } {
+  return parts.reduce(
+    (agg, part) => {
+      if (part.type === "text") {
+        if (!part.synthetic) agg.input += part.text
+      }
+      if (part.type === "file") agg.parts.push(part)
+      return agg
+    },
+    { input: "", parts: [] as PromptInfo["parts"] },
+  )
+}
+
+function hasValidTextContent(parts: Part[]): boolean {
+  return parts.some((part) => part && part.type === "text" && !part.synthetic && !part.ignored)
+}
+
+function scrollToChildById(scroll: ScrollBoxRenderable, messageId: string): void {
+  const child = scroll.getChildren().find((c) => c.id === messageId)
+  if (child) scroll.scrollBy(child.y - scroll.y - 1)
+}
+
+function scrollToLastUserMessage(
+  messages: Message[],
+  partData: Record<string, Part[]>,
+  scroll: ScrollBoxRenderable,
+): void {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (!message || message.role !== "user") continue
+    const parts = partData[message.id]
+    if (!parts || !Array.isArray(parts)) continue
+    if (hasValidTextContent(parts)) {
+      scrollToChildById(scroll, message.id)
+      break
+    }
+  }
+}
+
+async function saveTranscriptToFile(
+  transcript: string,
+  filename: string,
+  renderer: CliRenderer,
+  toast: ToastContext,
+): Promise<void> {
+  const exportDir = process.cwd()
+  const filepath = path.join(exportDir, filename)
+  await Bun.write(filepath, transcript)
+  const result = await Editor.open({ value: transcript, renderer })
+  if (result !== undefined) {
+    await Bun.write(filepath, result)
+  }
+  toast.show({ message: `Session exported to ${filename}`, variant: "success" })
 }
 
 export function Session() {
@@ -523,18 +579,7 @@ export function Session() {
             toBottom()
           })
         const parts = sync.data.part[message.id]
-        prompt.set(
-          parts.reduce(
-            (agg, part) => {
-              if (part.type === "text") {
-                if (!part.synthetic) agg.input += part.text
-              }
-              if (part.type === "file") agg.parts.push(part)
-              return agg
-            },
-            { input: "", parts: [] as PromptInfo["parts"] },
-          ),
-        )
+        prompt.set(reducePartsToPromptInfo(parts))
         dialog.clear()
       },
     },
@@ -565,6 +610,9 @@ export function Session() {
         })
       },
     },
+  ])
+
+  command.register(() => [
     {
       title: sidebarVisible() ? "Hide sidebar" : "Show sidebar",
       value: "session.sidebar.toggle",
@@ -616,6 +664,9 @@ export function Session() {
         dialog.clear()
       },
     },
+  ])
+
+  command.register(() => [
     {
       title: showDetails() ? "Hide tool details" : "Show tool details",
       value: "session.toggle.actions",
@@ -654,6 +705,9 @@ export function Session() {
         dialog.clear()
       },
     },
+  ])
+
+  command.register(() => [
     {
       title: "Page up",
       value: "session.page.up",
@@ -749,29 +803,9 @@ export function Session() {
       category: "Session",
       hidden: true,
       onSelect: () => {
-        const messages = sync.data.message[route.sessionID]
-        if (!messages || !messages.length) return
-
-        // Find the most recent user message with non-ignored, non-synthetic text parts
-        for (let i = messages.length - 1; i >= 0; i--) {
-          const message = messages[i]
-          if (!message || message.role !== "user") continue
-
-          const parts = sync.data.part[message.id]
-          if (!parts || !Array.isArray(parts)) continue
-
-          const hasValidTextPart = parts.some(
-            (part) => part && part.type === "text" && !part.synthetic && !part.ignored,
-          )
-
-          if (hasValidTextPart) {
-            const child = scroll.getChildren().find((child) => {
-              return child.id === message.id
-            })
-            if (child) scroll.scrollBy(child.y - scroll.y - 1)
-            break
-          }
-        }
+        const msgs = sync.data.message[route.sessionID]
+        if (!msgs || !msgs.length) return
+        scrollToLastUserMessage(msgs, sync.data.part, scroll)
       },
     },
     {
@@ -903,19 +937,7 @@ export function Session() {
             // Just open in editor without saving
             await Editor.open({ value: transcript, renderer })
           } else {
-            const exportDir = process.cwd()
-            const filename = options.filename.trim()
-            const filepath = path.join(exportDir, filename)
-
-            await Bun.write(filepath, transcript)
-
-            // Open with EDITOR if available
-            const result = await Editor.open({ value: transcript, renderer })
-            if (result !== undefined) {
-              await Bun.write(filepath, result)
-            }
-
-            toast.show({ message: `Session exported to ${filename}`, variant: "success" })
+            await saveTranscriptToFile(transcript, options.filename.trim(), renderer, toast)
           }
         } catch (error) {
           toast.show({ message: "Failed to export session", variant: "error" })

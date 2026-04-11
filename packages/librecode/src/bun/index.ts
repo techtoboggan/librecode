@@ -50,6 +50,23 @@ export namespace BunProc {
     }),
   )
 
+  async function shouldSkipInstall(
+    modExists: boolean,
+    cachedVersion: string | undefined,
+    version: string,
+    pkg: string,
+  ): Promise<boolean> {
+    if (!modExists || !cachedVersion) return false
+    if (version !== "latest" && cachedVersion === version) return true
+    if (version !== "latest") return false
+    const isOutdated = await PackageRegistry.isOutdated(pkg, cachedVersion, Global.Path.cache)
+    if (isOutdated) {
+      log.info("Cached version is outdated, proceeding with install", { pkg, cachedVersion })
+      return false
+    }
+    return true
+  }
+
   export async function install(pkg: string, version = "latest") {
     // Use lock to ensure only one install at a time
     using _ = await Lock.write("bun-install")
@@ -62,19 +79,8 @@ export namespace BunProc {
       return result
     })
     if (!parsed.dependencies) parsed.dependencies = {} as Record<string, string>
-    const dependencies = parsed.dependencies
     const modExists = await Filesystem.exists(mod)
-    const cachedVersion = dependencies[pkg]
-
-    if (!modExists || !cachedVersion) {
-      // continue to install
-    } else if (version !== "latest" && cachedVersion === version) {
-      return mod
-    } else if (version === "latest") {
-      const isOutdated = await PackageRegistry.isOutdated(pkg, cachedVersion, Global.Path.cache)
-      if (!isOutdated) return mod
-      log.info("Cached version is outdated, proceeding with install", { pkg, cachedVersion })
-    }
+    if (await shouldSkipInstall(modExists, parsed.dependencies[pkg], version, pkg)) return mod
 
     // Build command arguments
     const args = [

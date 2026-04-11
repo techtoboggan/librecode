@@ -42,6 +42,37 @@ import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { TuiConfigProvider } from "./context/tui-config"
 import { TuiConfig } from "@/config/tui"
 
+type Rgb = { r: number; g: number; b: number }
+
+function parseColorComponents(color: string): Rgb {
+  if (color.startsWith("rgb:")) {
+    const parts = color.substring(4).split("/")
+    return {
+      r: parseInt(parts[0], 16) >> 8,
+      g: parseInt(parts[1], 16) >> 8,
+      b: parseInt(parts[2], 16) >> 8,
+    }
+  }
+  if (color.startsWith("#")) {
+    return {
+      r: parseInt(color.substring(1, 3), 16),
+      g: parseInt(color.substring(3, 5), 16),
+      b: parseInt(color.substring(5, 7), 16),
+    }
+  }
+  if (color.startsWith("rgb(")) {
+    const parts = color.substring(4, color.length - 1).split(",")
+    return { r: parseInt(parts[0]), g: parseInt(parts[1]), b: parseInt(parts[2]) }
+  }
+  return { r: 0, g: 0, b: 0 }
+}
+
+function colorToMode(color: string): "dark" | "light" {
+  const { r, g, b } = parseColorComponents(color)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.5 ? "light" : "dark"
+}
+
 async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
   // can't set raw mode if not a TTY
   if (!process.stdin.isTTY) return "dark"
@@ -60,34 +91,7 @@ async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
       const match = str.match(/\x1b]11;([^\x07\x1b]+)/)
       if (match) {
         cleanup()
-        const color = match[1]
-        // Parse RGB values from color string
-        // Formats: rgb:RR/GG/BB or #RRGGBB or rgb(R,G,B)
-        let r = 0,
-          g = 0,
-          b = 0
-
-        if (color.startsWith("rgb:")) {
-          const parts = color.substring(4).split("/")
-          r = parseInt(parts[0], 16) >> 8 // Convert 16-bit to 8-bit
-          g = parseInt(parts[1], 16) >> 8 // Convert 16-bit to 8-bit
-          b = parseInt(parts[2], 16) >> 8 // Convert 16-bit to 8-bit
-        } else if (color.startsWith("#")) {
-          r = parseInt(color.substring(1, 3), 16)
-          g = parseInt(color.substring(3, 5), 16)
-          b = parseInt(color.substring(5, 7), 16)
-        } else if (color.startsWith("rgb(")) {
-          const parts = color.substring(4, color.length - 1).split(",")
-          r = parseInt(parts[0])
-          g = parseInt(parts[1])
-          b = parseInt(parts[2])
-        }
-
-        // Calculate luminance using relative luminance formula
-        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
-
-        // Determine if dark or light based on luminance threshold
-        resolve(luminance > 0.5 ? "light" : "dark")
+        resolve(colorToMode(match[1]))
       }
     }
 
@@ -260,48 +264,42 @@ function App() {
     console.log(JSON.stringify(route.data))
   })
 
+  function resolveSessionTitle(sessionID: string): string {
+    const session = sync.session.get(sessionID)
+    if (!session || SessionApi.isDefaultTitle(session.title)) return "LibreCode"
+    const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
+    return `OC | ${title}`
+  }
+
   // Update terminal window title based on current route and session
   createEffect(() => {
     if (!terminalTitleEnabled() || Flag.LIBRECODE_DISABLE_TERMINAL_TITLE) return
-
     if (route.data.type === "home") {
       renderer.setTerminalTitle("LibreCode")
       return
     }
-
     if (route.data.type === "session") {
-      const session = sync.session.get(route.data.sessionID)
-      if (!session || SessionApi.isDefaultTitle(session.title)) {
-        renderer.setTerminalTitle("LibreCode")
-        return
-      }
-
-      // Truncate title to 40 chars max
-      const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
-      renderer.setTerminalTitle(`OC | ${title}`)
+      renderer.setTerminalTitle(resolveSessionTitle(route.data.sessionID))
     }
   })
+
+  function applyModelArg(modelArg: string): void {
+    const { providerID, modelID } = Provider.parseModel(modelArg)
+    if (!providerID || !modelID) {
+      toast.show({ variant: "warning", message: `Invalid model format: ${modelArg}`, duration: 3000 })
+      return
+    }
+    local.model.set({ providerID, modelID }, { recent: true })
+  }
 
   const args = useArgs()
   onMount(() => {
     batch(() => {
       if (args.agent) local.agent.set(args.agent)
-      if (args.model) {
-        const { providerID, modelID } = Provider.parseModel(args.model)
-        if (!providerID || !modelID)
-          return toast.show({
-            variant: "warning",
-            message: `Invalid model format: ${args.model}`,
-            duration: 3000,
-          })
-        local.model.set({ providerID, modelID }, { recent: true })
-      }
+      if (args.model) applyModelArg(args.model)
       // Handle --session without --fork immediately (fork is handled in createEffect below)
       if (args.sessionID && !args.fork) {
-        route.navigate({
-          type: "session",
-          sessionID: args.sessionID,
-        })
+        route.navigate({ type: "session", sessionID: args.sessionID })
       }
     })
   })

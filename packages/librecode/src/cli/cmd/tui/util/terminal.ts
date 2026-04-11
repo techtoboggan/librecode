@@ -51,28 +51,34 @@ export namespace Terminal {
         return null
       }
 
-      const handler = (data: Buffer) => {
-        const str = data.toString()
-
-        // Match OSC 11 (background color)
+      function applyBgMatch(str: string): void {
         const bgMatch = str.match(/\x1b]11;([^\x07\x1b]+)/)
-        if (bgMatch) {
-          background = parseColor(bgMatch[1])
-        }
+        if (bgMatch) background = parseColor(bgMatch[1])
+      }
 
-        // Match OSC 10 (foreground color)
+      function applyFgMatch(str: string): void {
         const fgMatch = str.match(/\x1b]10;([^\x07\x1b]+)/)
-        if (fgMatch) {
-          foreground = parseColor(fgMatch[1])
-        }
+        if (fgMatch) foreground = parseColor(fgMatch[1])
+      }
 
-        // Match OSC 4 (palette colors)
+      function applyPaletteMatches(str: string): void {
         const paletteMatches = str.matchAll(/\x1b]4;(\d+);([^\x07\x1b]+)/g)
         for (const match of paletteMatches) {
           const index = parseInt(match[1])
           const color = parseColor(match[2])
           if (color) paletteColors[index] = color
         }
+      }
+
+      const handler = (data: Buffer) => {
+        const str = data.toString()
+
+        // Match OSC 11 (background color)
+        applyBgMatch(str)
+        // Match OSC 10 (foreground color)
+        applyFgMatch(str)
+        // Match OSC 4 (palette colors)
+        applyPaletteMatches(str)
 
         // Return immediately if we have all 16 palette colors
         if (paletteColors.filter((c) => c !== undefined).length === 16) {

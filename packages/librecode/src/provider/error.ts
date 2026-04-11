@@ -41,44 +41,49 @@ export namespace ProviderError {
     return /^4(00|13)\s*(status code)?\s*\(no body\)/i.test(message)
   }
 
+  function resolveEmptyMessage(e: APICallError): string {
+    if (e.responseBody) return e.responseBody
+    if (e.statusCode) {
+      const err = STATUS_CODES[e.statusCode]
+      if (err) return err
+    }
+    return "Unknown error"
+  }
+
+  function extractJsonErrorMessage(responseBody: string, baseMsg: string): string | undefined {
+    try {
+      const body = JSON.parse(responseBody)
+      const errMsg = body.message || body.error || body.error?.message
+      if (errMsg && typeof errMsg === "string") return `${baseMsg}: ${errMsg}`
+    } catch {}
+    return undefined
+  }
+
+  function resolveHtmlErrorMessage(statusCode: number | undefined, baseMsg: string): string {
+    if (statusCode === 401) {
+      return "Unauthorized: request was blocked by a gateway or proxy. Your authentication token may be missing or expired — try running `librecode auth login <your provider URL>` to re-authenticate."
+    }
+    if (statusCode === 403) {
+      return "Forbidden: request was blocked by a gateway or proxy. You may not have permission to access this resource — check your account and provider settings."
+    }
+    return baseMsg
+  }
+
+  function resolveMessageWithBody(e: APICallError, msg: string): string {
+    const jsonMsg = extractJsonErrorMessage(e.responseBody!, msg)
+    if (jsonMsg) return jsonMsg
+    if (/^\s*<!doctype|^\s*<html/i.test(e.responseBody!)) {
+      return resolveHtmlErrorMessage(e.statusCode, msg)
+    }
+    return `${msg}: ${e.responseBody}`
+  }
+
   function message(providerID: ProviderID, e: APICallError) {
     return iife(() => {
       const msg = e.message
-      if (msg === "") {
-        if (e.responseBody) return e.responseBody
-        if (e.statusCode) {
-          const err = STATUS_CODES[e.statusCode]
-          if (err) return err
-        }
-        return "Unknown error"
-      }
-
-      if (!e.responseBody || (e.statusCode && msg !== STATUS_CODES[e.statusCode])) {
-        return msg
-      }
-
-      try {
-        const body = JSON.parse(e.responseBody)
-        // try to extract common error message fields
-        const errMsg = body.message || body.error || body.error?.message
-        if (errMsg && typeof errMsg === "string") {
-          return `${msg}: ${errMsg}`
-        }
-      } catch {}
-
-      // If responseBody is HTML (e.g. from a gateway or proxy error page),
-      // provide a human-readable message instead of dumping raw markup
-      if (/^\s*<!doctype|^\s*<html/i.test(e.responseBody)) {
-        if (e.statusCode === 401) {
-          return "Unauthorized: request was blocked by a gateway or proxy. Your authentication token may be missing or expired — try running `librecode auth login <your provider URL>` to re-authenticate."
-        }
-        if (e.statusCode === 403) {
-          return "Forbidden: request was blocked by a gateway or proxy. You may not have permission to access this resource — check your account and provider settings."
-        }
-        return msg
-      }
-
-      return `${msg}: ${e.responseBody}`
+      if (msg === "") return resolveEmptyMessage(e)
+      if (!e.responseBody || (e.statusCode && msg !== STATUS_CODES[e.statusCode])) return msg
+      return resolveMessageWithBody(e, msg)
     }).trim()
   }
 

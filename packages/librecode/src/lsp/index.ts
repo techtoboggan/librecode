@@ -175,86 +175,85 @@ export namespace LSP {
     })
   }
 
-  async function getClients(file: string) {
+  async function spawnLspClient(
+    s: Awaited<ReturnType<typeof state>>,
+    server: LSPServer.Info,
+    root: string,
+    key: string,
+  ): Promise<LSPClient.Info | undefined> {
+    const handle = await server
+      .spawn(root)
+      .then((value) => {
+        if (!value) s.broken.add(key)
+        return value
+      })
+      .catch((err) => {
+        s.broken.add(key)
+        log.error(`Failed to spawn LSP server ${server.id}`, { error: err })
+        return undefined
+      })
+
+    if (!handle) return undefined
+    log.info("spawned lsp server", { serverID: server.id })
+
+    const client = await LSPClient.create({ serverID: server.id, server: handle, root }).catch((err) => {
+      s.broken.add(key)
+      handle.process.kill()
+      log.error(`Failed to initialize LSP client ${server.id}`, { error: err })
+      return undefined
+    })
+
+    if (!client) {
+      handle.process.kill()
+      return undefined
+    }
+
+    const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
+    if (existing) {
+      handle.process.kill()
+      return existing
+    }
+
+    s.clients.push(client)
+    return client
+  }
+
+  async function resolveServerClient(
+    s: Awaited<ReturnType<typeof state>>,
+    server: LSPServer.Info,
+    file: string,
+    extension: string,
+  ): Promise<LSPClient.Info | undefined> {
+    if (server.extensions.length && !server.extensions.includes(extension)) return undefined
+
+    const root = await server.root(file)
+    if (!root) return undefined
+
+    const key = root + server.id
+    if (s.broken.has(key)) return undefined
+
+    const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
+    if (existing) return existing
+
+    const inflight = s.spawning.get(key)
+    if (inflight) return inflight
+
+    const task = spawnLspClient(s, server, root, key)
+    s.spawning.set(key, task)
+    task.finally(() => {
+      if (s.spawning.get(key) === task) s.spawning.delete(key)
+    })
+    return task
+  }
+
+  async function getClients(file: string): Promise<LSPClient.Info[]> {
     const s = await state()
     const extension = path.parse(file).ext || file
     const result: LSPClient.Info[] = []
 
-    async function schedule(server: LSPServer.Info, root: string, key: string) {
-      const handle = await server
-        .spawn(root)
-        .then((value) => {
-          if (!value) s.broken.add(key)
-          return value
-        })
-        .catch((err) => {
-          s.broken.add(key)
-          log.error(`Failed to spawn LSP server ${server.id}`, { error: err })
-          return undefined
-        })
-
-      if (!handle) return undefined
-      log.info("spawned lsp server", { serverID: server.id })
-
-      const client = await LSPClient.create({
-        serverID: server.id,
-        server: handle,
-        root,
-      }).catch((err) => {
-        s.broken.add(key)
-        handle.process.kill()
-        log.error(`Failed to initialize LSP client ${server.id}`, { error: err })
-        return undefined
-      })
-
-      if (!client) {
-        handle.process.kill()
-        return undefined
-      }
-
-      const existing = s.clients.find((x) => x.root === root && x.serverID === server.id)
-      if (existing) {
-        handle.process.kill()
-        return existing
-      }
-
-      s.clients.push(client)
-      return client
-    }
-
     for (const server of Object.values(s.servers)) {
-      if (server.extensions.length && !server.extensions.includes(extension)) continue
-
-      const root = await server.root(file)
-      if (!root) continue
-      if (s.broken.has(root + server.id)) continue
-
-      const match = s.clients.find((x) => x.root === root && x.serverID === server.id)
-      if (match) {
-        result.push(match)
-        continue
-      }
-
-      const inflight = s.spawning.get(root + server.id)
-      if (inflight) {
-        const client = await inflight
-        if (!client) continue
-        result.push(client)
-        continue
-      }
-
-      const task = schedule(server, root, root + server.id)
-      s.spawning.set(root + server.id, task)
-
-      task.finally(() => {
-        if (s.spawning.get(root + server.id) === task) {
-          s.spawning.delete(root + server.id)
-        }
-      })
-
-      const client = await task
+      const client = await resolveServerClient(s, server, file, extension)
       if (!client) continue
-
       result.push(client)
       Bus.publish(Event.Updated, {})
     }

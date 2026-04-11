@@ -70,24 +70,28 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
       flush()
     }
 
-    function startSSE() {
+    async function drainEventStream(ctrl: AbortController): Promise<void> {
+      const events = await sdk.event.subscribe({}, { signal: ctrl.signal })
+      for await (const event of events.stream) {
+        if (ctrl.signal.aborted) break
+        handleEvent(event)
+      }
+      if (timer) clearTimeout(timer)
+      if (queue.length > 0) flush()
+    }
+
+    async function runSSELoop(ctrl: AbortController): Promise<void> {
+      while (true) {
+        if (abort.signal.aborted || ctrl.signal.aborted) break
+        await drainEventStream(ctrl)
+      }
+    }
+
+    function startSSE(): void {
       sse?.abort()
       const ctrl = new AbortController()
       sse = ctrl
-      ;(async () => {
-        while (true) {
-          if (abort.signal.aborted || ctrl.signal.aborted) break
-          const events = await sdk.event.subscribe({}, { signal: ctrl.signal })
-
-          for await (const event of events.stream) {
-            if (ctrl.signal.aborted) break
-            handleEvent(event)
-          }
-
-          if (timer) clearTimeout(timer)
-          if (queue.length > 0) flush()
-        }
-      })().catch(() => {})
+      runSSELoop(ctrl).catch(() => {})
     }
 
     onMount(() => {

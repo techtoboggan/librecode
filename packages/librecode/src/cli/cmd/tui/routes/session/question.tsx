@@ -4,7 +4,7 @@ import { useKeyboard } from "@opentui/solid"
 import type { TextareaRenderable } from "@opentui/core"
 import { useKeybind } from "../../context/keybind"
 import { selectedForeground, tint, useTheme } from "../../context/theme"
-import type { QuestionAnswer, QuestionRequest } from "@librecode/sdk/v2"
+import type { QuestionAnswer, QuestionInfo, QuestionRequest } from "@librecode/sdk/v2"
 import { useSDK } from "../../context/sdk"
 import { SplitBorder } from "../../component/border"
 import { useTextareaKeybindings } from "../../component/textarea-keybindings"
@@ -97,20 +97,20 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
     setStore("selected", 0)
   }
 
-  function selectOption() {
-    if (other()) {
-      if (!multi()) {
-        setStore("editing", true)
-        return
-      }
-      const value = input()
-      if (value && customPicked()) {
-        toggle(value)
-        return
-      }
+  function selectOtherOption() {
+    if (!multi()) {
       setStore("editing", true)
       return
     }
+    const value = input()
+    if (value && customPicked()) {
+      toggle(value)
+      return
+    }
+    setStore("editing", true)
+  }
+
+  function selectRegularOption() {
     const opt = options()[store.selected]
     if (!opt) return
     if (multi()) {
@@ -120,135 +120,295 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
     pick(opt.label)
   }
 
-  const dialog = useDialog()
-
-  useKeyboard((evt) => {
-    // Skip processing if a dialog (e.g., command palette) is open
-    if (dialog.stack.length > 0) return
-
-    // When editing custom answer textarea
-    if (store.editing && !confirm()) {
-      if (evt.name === "escape") {
-        evt.preventDefault()
-        setStore("editing", false)
-        return
-      }
-      if (keybind.match("input_clear", evt)) {
-        evt.preventDefault()
-        const text = textarea?.plainText ?? ""
-        if (!text) {
-          setStore("editing", false)
-          return
-        }
-        textarea?.setText("")
-        return
-      }
-      if (evt.name === "return") {
-        evt.preventDefault()
-        const text = textarea?.plainText?.trim() ?? ""
-        const prev = store.custom[store.tab]
-
-        if (!text) {
-          if (prev) {
-            const inputs = [...store.custom]
-            inputs[store.tab] = ""
-            setStore("custom", inputs)
-
-            const answers = [...store.answers]
-            answers[store.tab] = (answers[store.tab] ?? []).filter((x) => x !== prev)
-            setStore("answers", answers)
-          }
-          setStore("editing", false)
-          return
-        }
-
-        if (multi()) {
-          const inputs = [...store.custom]
-          inputs[store.tab] = text
-          setStore("custom", inputs)
-
-          const existing = store.answers[store.tab] ?? []
-          const next = [...existing]
-          if (prev) {
-            const index = next.indexOf(prev)
-            if (index !== -1) next.splice(index, 1)
-          }
-          if (!next.includes(text)) next.push(text)
-          const answers = [...store.answers]
-          answers[store.tab] = next
-          setStore("answers", answers)
-          setStore("editing", false)
-          return
-        }
-
-        pick(text, true)
-        setStore("editing", false)
-        return
-      }
-      // Let textarea handle all other keys
+  function selectOption() {
+    if (other()) {
+      selectOtherOption()
       return
     }
+    selectRegularOption()
+  }
 
+  const dialog = useDialog()
+
+  function commitMultiCustomEdit(text: string) {
+    const prev = store.custom[store.tab]
+    const inputs = [...store.custom]
+    inputs[store.tab] = text
+    setStore("custom", inputs)
+    const existing = store.answers[store.tab] ?? []
+    const next = [...existing]
+    if (prev) {
+      const idx = next.indexOf(prev)
+      if (idx !== -1) next.splice(idx, 1)
+    }
+    if (!next.includes(text)) next.push(text)
+    const answers = [...store.answers]
+    answers[store.tab] = next
+    setStore("answers", answers)
+    setStore("editing", false)
+  }
+
+  function commitCustomEdit(text: string) {
+    if (multi()) {
+      commitMultiCustomEdit(text)
+      return
+    }
+    pick(text, true)
+    setStore("editing", false)
+  }
+
+  function clearCustomEdit() {
+    const prev = store.custom[store.tab]
+    if (prev) {
+      const inputs = [...store.custom]
+      inputs[store.tab] = ""
+      setStore("custom", inputs)
+      const answers = [...store.answers]
+      answers[store.tab] = (answers[store.tab] ?? []).filter((x) => x !== prev)
+      setStore("answers", answers)
+    }
+    setStore("editing", false)
+  }
+
+  function handleEditingClear(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+    evt.preventDefault()
+    const text = textarea?.plainText ?? ""
+    if (!text) {
+      setStore("editing", false)
+      return
+    }
+    textarea?.setText("")
+  }
+
+  function handleEditingReturn(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+    evt.preventDefault()
+    const text = textarea?.plainText?.trim() ?? ""
+    if (!text) {
+      clearCustomEdit()
+      return
+    }
+    commitCustomEdit(text)
+  }
+
+  function handleEditingKey(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+    if (evt.name === "escape") {
+      evt.preventDefault()
+      setStore("editing", false)
+      return
+    }
+    if (keybind.match("input_clear", evt)) {
+      handleEditingClear(evt)
+      return
+    }
+    if (evt.name === "return") {
+      handleEditingReturn(evt)
+      return
+    }
+    // Let textarea handle all other keys
+  }
+
+  function handleOptionNav(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0], total: number): boolean {
+    if (evt.name === "up" || evt.name === "k") {
+      evt.preventDefault()
+      moveTo((store.selected - 1 + total) % total)
+      return true
+    }
+    if (evt.name === "down" || evt.name === "j") {
+      evt.preventDefault()
+      moveTo((store.selected + 1) % total)
+      return true
+    }
+    return false
+  }
+
+  function handleOptionKey(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+    const total = options().length + (custom() ? 1 : 0)
+    const digit = Number(evt.name)
+    const max = Math.min(total, 9)
+
+    if (!Number.isNaN(digit) && digit >= 1 && digit <= max) {
+      evt.preventDefault()
+      moveTo(digit - 1)
+      selectOption()
+      return
+    }
+    if (handleOptionNav(evt, total)) return
+    if (evt.name === "return") {
+      evt.preventDefault()
+      selectOption()
+      return
+    }
+    if (evt.name === "escape" || keybind.match("app_exit", evt)) {
+      evt.preventDefault()
+      reject()
+    }
+  }
+
+  function handleConfirmKey(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]) {
+    if (evt.name === "return") {
+      evt.preventDefault()
+      submit()
+      return
+    }
+    if (evt.name === "escape" || keybind.match("app_exit", evt)) {
+      evt.preventDefault()
+      reject()
+    }
+  }
+
+  function handleTabNav(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]): boolean {
     if (evt.name === "left" || evt.name === "h") {
       evt.preventDefault()
       selectTab((store.tab - 1 + tabs()) % tabs())
+      return true
     }
-
     if (evt.name === "right" || evt.name === "l") {
       evt.preventDefault()
       selectTab((store.tab + 1) % tabs())
+      return true
     }
-
     if (evt.name === "tab") {
       evt.preventDefault()
       const direction = evt.shift ? -1 : 1
       selectTab((store.tab + direction + tabs()) % tabs())
+      return true
     }
+    return false
+  }
 
+  useKeyboard((evt) => {
+    if (dialog.stack.length > 0) return
+    if (store.editing && !confirm()) {
+      handleEditingKey(evt)
+      return
+    }
+    if (handleTabNav(evt)) return
     if (confirm()) {
-      if (evt.name === "return") {
-        evt.preventDefault()
-        submit()
-      }
-      if (evt.name === "escape" || keybind.match("app_exit", evt)) {
-        evt.preventDefault()
-        reject()
-      }
+      handleConfirmKey(evt)
     } else {
-      const opts = options()
-      const total = opts.length + (custom() ? 1 : 0)
-      const max = Math.min(total, 9)
-      const digit = Number(evt.name)
-
-      if (!Number.isNaN(digit) && digit >= 1 && digit <= max) {
-        evt.preventDefault()
-        const index = digit - 1
-        moveTo(index)
-        selectOption()
-        return
-      }
-
-      if (evt.name === "up" || evt.name === "k") {
-        evt.preventDefault()
-        moveTo((store.selected - 1 + total) % total)
-      }
-
-      if (evt.name === "down" || evt.name === "j") {
-        evt.preventDefault()
-        moveTo((store.selected + 1) % total)
-      }
-
-      if (evt.name === "return") {
-        evt.preventDefault()
-        selectOption()
-      }
-
-      if (evt.name === "escape" || keybind.match("app_exit", evt)) {
-        evt.preventDefault()
-        reject()
-      }
+      handleOptionKey(evt)
     }
   })
+
+  function optionLabelFg(active: () => boolean, picked: () => boolean) {
+    if (active()) return theme.secondary
+    if (picked()) return theme.success
+    return theme.text
+  }
+
+  function renderOption(opt: { label: string; description?: string }, i: () => number) {
+    const active = () => i() === store.selected
+    const picked = () => store.answers[store.tab]?.includes(opt.label) ?? false
+    const multiLabel = () => `[${picked() ? "✓" : " "}] ${opt.label}`
+    const label = () => (multi() ? multiLabel() : opt.label)
+    return (
+      <box onMouseOver={() => moveTo(i())} onMouseDown={() => moveTo(i())} onMouseUp={() => selectOption()}>
+        <box flexDirection="row">
+          <box backgroundColor={active() ? theme.backgroundElement : undefined} paddingRight={1}>
+            <text fg={active() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>
+              {`${i() + 1}.`}
+            </text>
+          </box>
+          <box backgroundColor={active() ? theme.backgroundElement : undefined}>
+            <text fg={optionLabelFg(active, picked)}>{label()}</text>
+          </box>
+          <Show when={!multi()}>
+            <text fg={theme.success}>{picked() ? "✓" : ""}</text>
+          </Show>
+        </box>
+        <box paddingLeft={3}>
+          <text fg={theme.textMuted}>{opt.description}</text>
+        </box>
+      </box>
+    )
+  }
+
+  function tabBg(index: () => number) {
+    if (index() === store.tab) return theme.accent
+    if (tabHover() === index()) return theme.backgroundElement
+    return theme.backgroundPanel
+  }
+
+  function tabFg(index: () => number) {
+    const isActive = index() === store.tab
+    const isAnswered = (store.answers[index()]?.length ?? 0) > 0
+    if (isActive) return selectedForeground(theme, theme.accent)
+    if (isAnswered) return theme.text
+    return theme.textMuted
+  }
+
+  function renderTab(q: QuestionInfo, index: () => number) {
+    return (
+      <box
+        paddingLeft={1}
+        paddingRight={1}
+        backgroundColor={tabBg(index)}
+        onMouseOver={() => setTabHover(index())}
+        onMouseOut={() => setTabHover(null)}
+        onMouseUp={() => selectTab(index())}
+      >
+        <text fg={tabFg(index)}>{q.header}</text>
+      </box>
+    )
+  }
+
+  function customOptionFg() {
+    if (other()) return theme.secondary
+    if (customPicked()) return theme.success
+    return theme.text
+  }
+
+  function renderCustomOption() {
+    const customLabel = () =>
+      multi() ? `[${customPicked() ? "✓" : " "}] Type your own answer` : "Type your own answer"
+    return (
+      <box
+        onMouseOver={() => moveTo(options().length)}
+        onMouseDown={() => moveTo(options().length)}
+        onMouseUp={() => selectOption()}
+      >
+        <box flexDirection="row">
+          <box backgroundColor={other() ? theme.backgroundElement : undefined} paddingRight={1}>
+            <text fg={other() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>
+              {`${options().length + 1}.`}
+            </text>
+          </box>
+          <box backgroundColor={other() ? theme.backgroundElement : undefined}>
+            <text fg={customOptionFg()}>{customLabel()}</text>
+          </box>
+          <Show when={!multi()}>
+            <text fg={theme.success}>{customPicked() ? "✓" : ""}</text>
+          </Show>
+        </box>
+        <Show when={store.editing}>
+          <box paddingLeft={3}>
+            <textarea
+              ref={(val: TextareaRenderable) => {
+                textarea = val
+                queueMicrotask(() => {
+                  val.focus()
+                  val.gotoLineEnd()
+                })
+              }}
+              initialValue={input()}
+              placeholder="Type your own answer"
+              minHeight={1}
+              maxHeight={6}
+              textColor={theme.text}
+              focusedTextColor={theme.text}
+              cursorColor={theme.primary}
+              keyBindings={bindings()}
+            />
+          </box>
+        </Show>
+        <Show when={!store.editing && input()}>
+          <box paddingLeft={3}>
+            <text fg={theme.textMuted}>{input()}</text>
+          </box>
+        </Show>
+      </box>
+    )
+  }
 
   return (
     <box
@@ -260,42 +420,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
       <box gap={1} paddingLeft={1} paddingRight={3} paddingTop={1} paddingBottom={1}>
         <Show when={!single()}>
           <box flexDirection="row" gap={1} paddingLeft={1}>
-            <For each={questions()}>
-              {(q, index) => {
-                const isActive = () => index() === store.tab
-                const isAnswered = () => {
-                  return (store.answers[index()]?.length ?? 0) > 0
-                }
-                return (
-                  <box
-                    paddingLeft={1}
-                    paddingRight={1}
-                    backgroundColor={
-                      isActive()
-                        ? theme.accent
-                        : tabHover() === index()
-                          ? theme.backgroundElement
-                          : theme.backgroundPanel
-                    }
-                    onMouseOver={() => setTabHover(index())}
-                    onMouseOut={() => setTabHover(null)}
-                    onMouseUp={() => selectTab(index())}
-                  >
-                    <text
-                      fg={
-                        isActive()
-                          ? selectedForeground(theme, theme.accent)
-                          : isAnswered()
-                            ? theme.text
-                            : theme.textMuted
-                      }
-                    >
-                      {q.header}
-                    </text>
-                  </box>
-                )
-              }}
-            </For>
+            <For each={questions()}>{renderTab}</For>
             <box
               paddingLeft={1}
               paddingRight={1}
@@ -320,89 +445,8 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
               </text>
             </box>
             <box>
-              <For each={options()}>
-                {(opt, i) => {
-                  const active = () => i() === store.selected
-                  const picked = () => store.answers[store.tab]?.includes(opt.label) ?? false
-                  return (
-                    <box
-                      onMouseOver={() => moveTo(i())}
-                      onMouseDown={() => moveTo(i())}
-                      onMouseUp={() => selectOption()}
-                    >
-                      <box flexDirection="row">
-                        <box backgroundColor={active() ? theme.backgroundElement : undefined} paddingRight={1}>
-                          <text fg={active() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>
-                            {`${i() + 1}.`}
-                          </text>
-                        </box>
-                        <box backgroundColor={active() ? theme.backgroundElement : undefined}>
-                          <text fg={active() ? theme.secondary : picked() ? theme.success : theme.text}>
-                            {multi() ? `[${picked() ? "✓" : " "}] ${opt.label}` : opt.label}
-                          </text>
-                        </box>
-                        <Show when={!multi()}>
-                          <text fg={theme.success}>{picked() ? "✓" : ""}</text>
-                        </Show>
-                      </box>
-
-                      <box paddingLeft={3}>
-                        <text fg={theme.textMuted}>{opt.description}</text>
-                      </box>
-                    </box>
-                  )
-                }}
-              </For>
-              <Show when={custom()}>
-                <box
-                  onMouseOver={() => moveTo(options().length)}
-                  onMouseDown={() => moveTo(options().length)}
-                  onMouseUp={() => selectOption()}
-                >
-                  <box flexDirection="row">
-                    <box backgroundColor={other() ? theme.backgroundElement : undefined} paddingRight={1}>
-                      <text fg={other() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>
-                        {`${options().length + 1}.`}
-                      </text>
-                    </box>
-                    <box backgroundColor={other() ? theme.backgroundElement : undefined}>
-                      <text fg={other() ? theme.secondary : customPicked() ? theme.success : theme.text}>
-                        {multi() ? `[${customPicked() ? "✓" : " "}] Type your own answer` : "Type your own answer"}
-                      </text>
-                    </box>
-
-                    <Show when={!multi()}>
-                      <text fg={theme.success}>{customPicked() ? "✓" : ""}</text>
-                    </Show>
-                  </box>
-                  <Show when={store.editing}>
-                    <box paddingLeft={3}>
-                      <textarea
-                        ref={(val: TextareaRenderable) => {
-                          textarea = val
-                          queueMicrotask(() => {
-                            val.focus()
-                            val.gotoLineEnd()
-                          })
-                        }}
-                        initialValue={input()}
-                        placeholder="Type your own answer"
-                        minHeight={1}
-                        maxHeight={6}
-                        textColor={theme.text}
-                        focusedTextColor={theme.text}
-                        cursorColor={theme.primary}
-                        keyBindings={bindings()}
-                      />
-                    </box>
-                  </Show>
-                  <Show when={!store.editing && input()}>
-                    <box paddingLeft={3}>
-                      <text fg={theme.textMuted}>{input()}</text>
-                    </box>
-                  </Show>
-                </box>
-              </Show>
+              <For each={options()}>{renderOption}</For>
+              <Show when={custom()}>{renderCustomOption()}</Show>
             </box>
           </box>
         </Show>

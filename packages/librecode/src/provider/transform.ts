@@ -1,4 +1,4 @@
-import type { ModelMessage } from "ai"
+import type { ModelMessage, TextPart, ImagePart, FilePart, ProviderMetadata } from "ai"
 import { mergeDeep, unique } from "remeda"
 import type { JSONSchema7 } from "@ai-sdk/provider"
 import type { JSONSchema } from "zod/v4/core"
@@ -49,123 +49,19 @@ export namespace ProviderTransform {
     model: Provider.Model,
     options: Record<string, unknown>,
   ): ModelMessage[] {
-    // Anthropic rejects messages with empty content - filter out empty string messages
-    // and remove empty text/reasoning parts from array content
     if (model.api.npm === "@ai-sdk/anthropic" || model.api.npm === "@ai-sdk/amazon-bedrock") {
-      msgs = msgs
-        .map((msg) => {
-          if (typeof msg.content === "string") {
-            if (msg.content === "") return undefined
-            return msg
-          }
-          if (!Array.isArray(msg.content)) return msg
-          const filtered = msg.content.filter((part) => {
-            if (part.type === "text" || part.type === "reasoning") {
-              return part.text !== ""
-            }
-            return true
-          })
-          if (filtered.length === 0) return undefined
-          return { ...msg, content: filtered }
-        })
-        .filter((msg): msg is ModelMessage => msg !== undefined && msg.content !== "")
+      msgs = filterAnthropicEmptyMessages(msgs)
     }
 
     if (model.api.id.includes("claude")) {
-      return msgs.map((msg) => {
-        if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
-          msg.content = msg.content.map((part) => {
-            if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
-              return {
-                ...part,
-                toolCallId: part.toolCallId.replace(/[^a-zA-Z0-9_-]/g, "_"),
-              }
-            }
-            return part
-          })
-        }
-        return msg
-      })
+      return msgs.map((msg) => sanitizeClaudeToolCallIds(msg))
     }
-    if (
-      model.providerID === "mistral" ||
-      model.api.id.toLowerCase().includes("mistral") ||
-      model.api.id.toLocaleLowerCase().includes("devstral")
-    ) {
-      const result: ModelMessage[] = []
-      for (let i = 0; i < msgs.length; i++) {
-        const msg = msgs[i]
-        const nextMsg = msgs[i + 1]
-
-        if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
-          msg.content = msg.content.map((part) => {
-            if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
-              // Mistral requires alphanumeric tool call IDs with exactly 9 characters
-              const normalizedId = part.toolCallId
-                .replace(/[^a-zA-Z0-9]/g, "") // Remove non-alphanumeric characters
-                .substring(0, 9) // Take first 9 characters
-                .padEnd(9, "0") // Pad with zeros if less than 9 characters
-
-              return {
-                ...part,
-                toolCallId: normalizedId,
-              }
-            }
-            return part
-          })
-        }
-
-        result.push(msg)
-
-        // Fix message sequence: tool messages cannot be followed by user messages
-        if (msg.role === "tool" && nextMsg?.role === "user") {
-          result.push({
-            role: "assistant",
-            content: [
-              {
-                type: "text",
-                text: "Done.",
-              },
-            ],
-          })
-        }
-      }
-      return result
+    if (isMistralModel(model)) {
+      return normalizeMistralMessages(msgs)
     }
 
     if (typeof model.capabilities.interleaved === "object" && model.capabilities.interleaved.field) {
-      const field = model.capabilities.interleaved.field
-      return msgs.map((msg) => {
-        if (msg.role === "assistant" && Array.isArray(msg.content)) {
-          const reasoningParts = msg.content.filter((part: any) => part.type === "reasoning")
-          const reasoningText = reasoningParts.map((part: any) => part.text).join("")
-
-          // Filter out reasoning parts from content
-          const filteredContent = msg.content.filter((part: any) => part.type !== "reasoning")
-
-          // Include reasoning_content | reasoning_details directly on the message for all assistant messages
-          if (reasoningText) {
-            return {
-              ...msg,
-              content: filteredContent,
-              providerOptions: {
-                ...msg.providerOptions,
-                openaiCompatible: {
-                  ...(msg.providerOptions as any)?.openaiCompatible,
-                  [field]: reasoningText,
-                },
-              },
-            }
-          }
-
-          return {
-            ...msg,
-            content: filteredContent,
-          }
-        }
-
-        return msg
-      })
+      return normalizeInterleavedReasoning(msgs, model.capabilities.interleaved.field)
     }
 
     return msgs
@@ -214,76 +110,24 @@ export namespace ProviderTransform {
   function unsupportedParts(msgs: ModelMessage[], model: Provider.Model): ModelMessage[] {
     return msgs.map((msg) => {
       if (msg.role !== "user" || !Array.isArray(msg.content)) return msg
-
-      const filtered = msg.content.map((part) => {
-        if (part.type !== "file" && part.type !== "image") return part
-
-        // Check for empty base64 image data
-        if (part.type === "image") {
-          const imageStr = part.image.toString()
-          if (imageStr.startsWith("data:")) {
-            const match = imageStr.match(/^data:([^;]+);base64,(.*)$/)
-            if (match && (!match[2] || match[2].length === 0)) {
-              return {
-                type: "text" as const,
-                text: "ERROR: Image file is empty or corrupted. Please provide a valid image.",
-              }
-            }
-          }
-        }
-
-        const mime = part.type === "image" ? part.image.toString().split(";")[0].replace("data:", "") : part.mediaType
-        const filename = part.type === "file" ? part.filename : undefined
-        const modality = mimeToModality(mime)
-        if (!modality) return part
-        if (model.capabilities.input[modality]) return part
-
-        const name = filename ? `"${filename}"` : modality
-        return {
-          type: "text" as const,
-          text: `ERROR: Cannot read ${name} (this model does not support ${modality} input). Inform the user.`,
-        }
-      })
-
-      return { ...msg, content: filtered }
+      const filtered = (msg.content as Array<TextPart | ImagePart | FilePart>).map((part) =>
+        filterUnsupportedPart(part, model),
+      )
+      return { ...msg, content: filtered } as ModelMessage
     })
   }
 
   export function message(msgs: ModelMessage[], model: Provider.Model, options: Record<string, unknown>) {
     msgs = unsupportedParts(msgs, model)
     msgs = normalizeMessages(msgs, model, options)
-    if (
-      (model.providerID === "anthropic" ||
-        model.api.id.includes("anthropic") ||
-        model.api.id.includes("claude") ||
-        model.id.includes("anthropic") ||
-        model.id.includes("claude") ||
-        model.api.npm === "@ai-sdk/anthropic") &&
-      model.api.npm !== "@ai-sdk/gateway"
-    ) {
+    if (isAnthropicModel(model)) {
       msgs = applyCaching(msgs, model)
     }
 
     // Remap providerOptions keys from stored providerID to expected SDK key
     const key = sdkKey(model.api.npm)
     if (key && key !== model.providerID && model.api.npm !== "@ai-sdk/azure") {
-      const remap = (opts: Record<string, any> | undefined) => {
-        if (!opts) return opts
-        if (!(model.providerID in opts)) return opts
-        const result = { ...opts }
-        result[key] = result[model.providerID]
-        delete result[model.providerID]
-        return result
-      }
-
-      msgs = msgs.map((msg) => {
-        if (!Array.isArray(msg.content)) return { ...msg, providerOptions: remap(msg.providerOptions) }
-        return {
-          ...msg,
-          providerOptions: remap(msg.providerOptions),
-          content: msg.content.map((part) => ({ ...part, providerOptions: remap(part.providerOptions) })),
-        } as typeof msg
-      })
+      msgs = remapProviderOptionsKeys(msgs, model.providerID, key)
     }
 
     return msgs
@@ -329,131 +173,25 @@ export namespace ProviderTransform {
   const WIDELY_SUPPORTED_EFFORTS = ["low", "medium", "high"]
   const OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
 
-  export function variants(model: Provider.Model): Record<string, Record<string, any>> {
+  export function variants(model: Provider.Model): Record<string, Record<string, unknown>> {
     if (!model.capabilities.reasoning) return {}
 
     const id = model.id.toLowerCase()
-    const isAnthropicAdaptive = ["opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"].some((v) =>
-      model.api.id.includes(v),
-    )
+    const isAnthropicAdaptive = checkIsAnthropicAdaptive(model)
     const adaptiveEfforts = ["low", "medium", "high", "max"]
-    if (
-      id.includes("deepseek") ||
-      id.includes("minimax") ||
-      id.includes("glm") ||
-      id.includes("mistral") ||
-      id.includes("kimi") ||
-      // TODO: Remove this after models.dev data is fixed to use "kimi-k2.5" instead of "k2p5"
-      id.includes("k2p5")
-    )
-      return {}
 
-    // see: https://docs.x.ai/docs/guides/reasoning#control-how-hard-the-model-thinks
-    if (id.includes("grok") && id.includes("grok-3-mini")) {
-      if (model.api.npm === "@openrouter/ai-sdk-provider") {
-        return {
-          low: { reasoning: { effort: "low" } },
-          high: { reasoning: { effort: "high" } },
-        }
-      }
-      return {
-        low: { reasoningEffort: "low" },
-        high: { reasoningEffort: "high" },
-      }
-    }
-    if (id.includes("grok")) return {}
+    if (isNonVariantModel(id)) return {}
+    if (id.includes("grok")) return buildGrokVariants(id, model)
 
     switch (model.api.npm) {
       case "@openrouter/ai-sdk-provider":
-        if (!model.id.includes("gpt") && !model.id.includes("gemini-3") && !model.id.includes("claude")) return {}
-        return Object.fromEntries(OPENAI_EFFORTS.map((effort) => [effort, { reasoning: { effort } }]))
+        return buildOpenrouterVariants(model)
 
       case "@ai-sdk/gateway":
-        if (model.id.includes("anthropic")) {
-          if (isAnthropicAdaptive) {
-            return Object.fromEntries(
-              adaptiveEfforts.map((effort) => [
-                effort,
-                {
-                  thinking: {
-                    type: "adaptive",
-                  },
-                  effort,
-                },
-              ]),
-            )
-          }
-          return {
-            high: {
-              thinking: {
-                type: "enabled",
-                budgetTokens: 16000,
-              },
-            },
-            max: {
-              thinking: {
-                type: "enabled",
-                budgetTokens: 31999,
-              },
-            },
-          }
-        }
-        if (model.id.includes("google")) {
-          if (id.includes("2.5")) {
-            return {
-              high: {
-                thinkingConfig: {
-                  includeThoughts: true,
-                  thinkingBudget: 16000,
-                },
-              },
-              max: {
-                thinkingConfig: {
-                  includeThoughts: true,
-                  thinkingBudget: 24576,
-                },
-              },
-            }
-          }
-          return Object.fromEntries(
-            ["low", "high"].map((effort) => [
-              effort,
-              {
-                includeThoughts: true,
-                thinkingLevel: effort,
-              },
-            ]),
-          )
-        }
-        return Object.fromEntries(OPENAI_EFFORTS.map((effort) => [effort, { reasoningEffort: effort }]))
+        return buildGatewayVariants(model, id, isAnthropicAdaptive, adaptiveEfforts)
 
       case "@ai-sdk/github-copilot":
-        if (model.id.includes("gemini")) {
-          // currently github copilot only returns thinking
-          return {}
-        }
-        if (model.id.includes("claude")) {
-          return {
-            thinking: { thinking_budget: 4000 },
-          }
-        }
-        const copilotEfforts = iife(() => {
-          if (id.includes("5.1-codex-max") || id.includes("5.2") || id.includes("5.3"))
-            return [...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
-          const arr = [...WIDELY_SUPPORTED_EFFORTS]
-          if (id.includes("gpt-5") && model.release_date >= "2025-12-04") arr.push("xhigh")
-          return arr
-        })
-        return Object.fromEntries(
-          copilotEfforts.map((effort) => [
-            effort,
-            {
-              reasoningEffort: effort,
-              reasoningSummary: "auto",
-              include: ["reasoning.encrypted_content"],
-            },
-          ]),
-        )
+        return buildGithubCopilotVariants(model, id)
 
       case "@ai-sdk/cerebras":
       // https://v5.ai-sdk.dev/providers/ai-sdk-providers/cerebras
@@ -469,169 +207,24 @@ export namespace ProviderTransform {
         return Object.fromEntries(WIDELY_SUPPORTED_EFFORTS.map((effort) => [effort, { reasoningEffort: effort }]))
 
       case "@ai-sdk/azure":
-        // https://v5.ai-sdk.dev/providers/ai-sdk-providers/azure
-        if (id === "o1-mini") return {}
-        const azureEfforts = ["low", "medium", "high"]
-        if (id.includes("gpt-5-") || id === "gpt-5") {
-          azureEfforts.unshift("minimal")
-        }
-        return Object.fromEntries(
-          azureEfforts.map((effort) => [
-            effort,
-            {
-              reasoningEffort: effort,
-              reasoningSummary: "auto",
-              include: ["reasoning.encrypted_content"],
-            },
-          ]),
-        )
+        return buildAzureVariants(id)
+
       case "@ai-sdk/openai":
-        // https://v5.ai-sdk.dev/providers/ai-sdk-providers/openai
-        if (id === "gpt-5-pro") return {}
-        const openaiEfforts = iife(() => {
-          if (id.includes("codex")) {
-            if (id.includes("5.2") || id.includes("5.3")) return [...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
-            return WIDELY_SUPPORTED_EFFORTS
-          }
-          const arr = [...WIDELY_SUPPORTED_EFFORTS]
-          if (id.includes("gpt-5-") || id === "gpt-5") {
-            arr.unshift("minimal")
-          }
-          if (model.release_date >= "2025-11-13") {
-            arr.unshift("none")
-          }
-          if (model.release_date >= "2025-12-04") {
-            arr.push("xhigh")
-          }
-          return arr
-        })
-        return Object.fromEntries(
-          openaiEfforts.map((effort) => [
-            effort,
-            {
-              reasoningEffort: effort,
-              reasoningSummary: "auto",
-              include: ["reasoning.encrypted_content"],
-            },
-          ]),
-        )
+        return buildOpenAIVariants(model, id)
 
       case "@ai-sdk/anthropic":
       // https://v5.ai-sdk.dev/providers/ai-sdk-providers/anthropic
       case "@ai-sdk/google-vertex/anthropic":
         // https://v5.ai-sdk.dev/providers/ai-sdk-providers/google-vertex#anthropic-provider
-
-        if (isAnthropicAdaptive) {
-          return Object.fromEntries(
-            adaptiveEfforts.map((effort) => [
-              effort,
-              {
-                thinking: {
-                  type: "adaptive",
-                },
-                effort,
-              },
-            ]),
-          )
-        }
-
-        return {
-          high: {
-            thinking: {
-              type: "enabled",
-              budgetTokens: Math.min(16_000, Math.floor(model.limit.output / 2 - 1)),
-            },
-          },
-          max: {
-            thinking: {
-              type: "enabled",
-              budgetTokens: Math.min(31_999, model.limit.output - 1),
-            },
-          },
-        }
+        return buildAnthropicVariants(model, isAnthropicAdaptive, adaptiveEfforts)
 
       case "@ai-sdk/amazon-bedrock":
-        // https://v5.ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock
-        if (isAnthropicAdaptive) {
-          return Object.fromEntries(
-            adaptiveEfforts.map((effort) => [
-              effort,
-              {
-                reasoningConfig: {
-                  type: "adaptive",
-                  maxReasoningEffort: effort,
-                },
-              },
-            ]),
-          )
-        }
-        // For Anthropic models on Bedrock, use reasoningConfig with budgetTokens
-        if (model.api.id.includes("anthropic")) {
-          return {
-            high: {
-              reasoningConfig: {
-                type: "enabled",
-                budgetTokens: 16000,
-              },
-            },
-            max: {
-              reasoningConfig: {
-                type: "enabled",
-                budgetTokens: 31999,
-              },
-            },
-          }
-        }
-
-        // For Amazon Nova models, use reasoningConfig with maxReasoningEffort
-        return Object.fromEntries(
-          WIDELY_SUPPORTED_EFFORTS.map((effort) => [
-            effort,
-            {
-              reasoningConfig: {
-                type: "enabled",
-                maxReasoningEffort: effort,
-              },
-            },
-          ]),
-        )
+        return buildBedrockVariants(model, isAnthropicAdaptive, adaptiveEfforts)
 
       case "@ai-sdk/google-vertex":
       // https://v5.ai-sdk.dev/providers/ai-sdk-providers/google-vertex
       case "@ai-sdk/google":
-        // https://v5.ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai
-        if (id.includes("2.5")) {
-          return {
-            high: {
-              thinkingConfig: {
-                includeThoughts: true,
-                thinkingBudget: 16000,
-              },
-            },
-            max: {
-              thinkingConfig: {
-                includeThoughts: true,
-                thinkingBudget: 24576,
-              },
-            },
-          }
-        }
-        let levels = ["low", "high"]
-        if (id.includes("3.1")) {
-          levels = ["low", "medium", "high"]
-        }
-
-        return Object.fromEntries(
-          levels.map((effort) => [
-            effort,
-            {
-              thinkingConfig: {
-                includeThoughts: true,
-                thinkingLevel: effort,
-              },
-            },
-          ]),
-        )
+        return buildGoogleVariants(id)
 
       case "@ai-sdk/mistral":
         // https://v5.ai-sdk.dev/providers/ai-sdk-providers/mistral
@@ -642,71 +235,14 @@ export namespace ProviderTransform {
         return {}
 
       case "@ai-sdk/groq":
-        // https://v5.ai-sdk.dev/providers/ai-sdk-providers/groq
-        const groqEffort = ["none", ...WIDELY_SUPPORTED_EFFORTS]
-        return Object.fromEntries(
-          groqEffort.map((effort) => [
-            effort,
-            {
-              reasoningEffort: effort,
-            },
-          ]),
-        )
+        return buildGroqVariants()
 
       case "@ai-sdk/perplexity":
         // https://v5.ai-sdk.dev/providers/ai-sdk-providers/perplexity
         return {}
 
       case "@jerome-benoit/sap-ai-provider-v2":
-        if (model.api.id.includes("anthropic")) {
-          if (isAnthropicAdaptive) {
-            return Object.fromEntries(
-              adaptiveEfforts.map((effort) => [
-                effort,
-                {
-                  thinking: {
-                    type: "adaptive",
-                  },
-                  effort,
-                },
-              ]),
-            )
-          }
-          return {
-            high: {
-              thinking: {
-                type: "enabled",
-                budgetTokens: 16000,
-              },
-            },
-            max: {
-              thinking: {
-                type: "enabled",
-                budgetTokens: 31999,
-              },
-            },
-          }
-        }
-        if (model.api.id.includes("gemini") && id.includes("2.5")) {
-          return {
-            high: {
-              thinkingConfig: {
-                includeThoughts: true,
-                thinkingBudget: 16000,
-              },
-            },
-            max: {
-              thinkingConfig: {
-                includeThoughts: true,
-                thinkingBudget: 24576,
-              },
-            },
-          }
-        }
-        if (model.api.id.includes("gpt") || /\bo[1-9]/.test(model.api.id)) {
-          return Object.fromEntries(WIDELY_SUPPORTED_EFFORTS.map((effort) => [effort, { reasoningEffort: effort }]))
-        }
-        return {}
+        return buildSapVariants(model, id, isAnthropicAdaptive, adaptiveEfforts)
     }
     return {}
   }
@@ -714,109 +250,22 @@ export namespace ProviderTransform {
   export function options(input: {
     model: Provider.Model
     sessionID: string
-    providerOptions?: Record<string, any>
-  }): Record<string, any> {
-    const result: Record<string, any> = {}
+    providerOptions?: Record<string, unknown>
+  }): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
 
-    // openai and providers using openai package should set store to false by default.
-    if (
-      input.model.providerID === "openai" ||
-      input.model.api.npm === "@ai-sdk/openai" ||
-      input.model.api.npm === "@ai-sdk/github-copilot"
-    ) {
-      result["store"] = false
-    }
-
-    if (input.model.api.npm === "@openrouter/ai-sdk-provider") {
-      result["usage"] = {
-        include: true,
-      }
-      if (input.model.api.id.includes("gemini-3")) {
-        result["reasoning"] = { effort: "high" }
-      }
-    }
-
-    if (input.model.providerID === "baseten") {
-      result["chat_template_args"] = { enable_thinking: true }
-    }
-
-    if (["zai", "zhipuai"].includes(input.model.providerID) && input.model.api.npm === "@ai-sdk/openai-compatible") {
-      result["thinking"] = {
-        type: "enabled",
-        clear_thinking: false,
-      }
-    }
-
-    if (input.model.providerID === "openai" || input.providerOptions?.setCacheKey) {
-      result["promptCacheKey"] = input.sessionID
-    }
-
-    if (input.model.api.npm === "@ai-sdk/google" || input.model.api.npm === "@ai-sdk/google-vertex") {
-      result["thinkingConfig"] = {
-        includeThoughts: true,
-      }
-      if (input.model.api.id.includes("gemini-3")) {
-        result["thinkingConfig"]["thinkingLevel"] = "high"
-      }
-    }
-
-    // Enable thinking by default for kimi-k2.5/k2p5 models using anthropic SDK
-    const modelId = input.model.api.id.toLowerCase()
-    if (
-      (input.model.api.npm === "@ai-sdk/anthropic" || input.model.api.npm === "@ai-sdk/google-vertex/anthropic") &&
-      (modelId.includes("k2p5") || modelId.includes("kimi-k2.5") || modelId.includes("kimi-k2p5"))
-    ) {
-      result["thinking"] = {
-        type: "enabled",
-        budgetTokens: Math.min(16_000, Math.floor(input.model.limit.output / 2 - 1)),
-      }
-    }
-
-    // Enable thinking for reasoning models on alibaba-cn (DashScope).
-    // DashScope's OpenAI-compatible API requires `enable_thinking: true` in the request body
-    // to return reasoning_content. Without it, models like kimi-k2.5, qwen-plus, qwen3, qwq,
-    // deepseek-r1, etc. never output thinking/reasoning tokens.
-    // Note: kimi-k2-thinking is excluded as it returns reasoning_content by default.
-    if (
-      input.model.providerID === "alibaba-cn" &&
-      input.model.capabilities.reasoning &&
-      input.model.api.npm === "@ai-sdk/openai-compatible" &&
-      !modelId.includes("kimi-k2-thinking")
-    ) {
-      result["enable_thinking"] = true
-    }
-
-    if (input.model.api.id.includes("gpt-5") && !input.model.api.id.includes("gpt-5-chat")) {
-      if (!input.model.api.id.includes("gpt-5-pro")) {
-        result["reasoningEffort"] = "medium"
-        result["reasoningSummary"] = "auto"
-      }
-
-      // Only set textVerbosity for non-chat gpt-5.x models
-      // Chat models (e.g. gpt-5.2-chat-latest) only support "medium" verbosity
-      if (
-        input.model.api.id.includes("gpt-5.") &&
-        !input.model.api.id.includes("codex") &&
-        !input.model.api.id.includes("-chat") &&
-        input.model.providerID !== "azure"
-      ) {
-        result["textVerbosity"] = "low"
-      }
-
-    }
-
-    if (input.model.providerID === "venice") {
-      result["promptCacheKey"] = input.sessionID
-    }
-
-    if (input.model.providerID === "openrouter") {
-      result["prompt_cache_key"] = input.sessionID
-    }
-    if (input.model.api.npm === "@ai-sdk/gateway") {
-      result["gateway"] = {
-        caching: "auto",
-      }
-    }
+    applyOpenAIStoreOption(result, input.model)
+    applyOpenrouterOptions(result, input.model)
+    applyBasetenOptions(result, input.model)
+    applyZhipuOptions(result, input.model)
+    applyPromptCacheKeyOption(result, input.model, input.sessionID, input.providerOptions)
+    applyGoogleThinkingOptions(result, input.model)
+    applyKimiAnthropicThinkingOptions(result, input.model)
+    applyAlibabaCnThinkingOptions(result, input.model)
+    applyGpt5Options(result, input.model)
+    applyVeniceOptions(result, input.model, input.sessionID)
+    applyOpenrouterCacheOptions(result, input.model, input.sessionID)
+    applyGatewayOptions(result, input.model)
 
     return result
   }
@@ -827,32 +276,17 @@ export namespace ProviderTransform {
       model.api.npm === "@ai-sdk/openai" ||
       model.api.npm === "@ai-sdk/github-copilot"
     ) {
-      if (model.api.id.includes("gpt-5")) {
-        if (model.api.id.includes("5.")) {
-          return { store: false, reasoningEffort: "low" }
-        }
-        return { store: false, reasoningEffort: "minimal" }
-      }
-      return { store: false }
+      return buildOpenAISmallOptions(model)
     }
     if (model.providerID === "google") {
-      // gemini-3 uses thinkingLevel, gemini-2.5 uses thinkingBudget
-      if (model.api.id.includes("gemini-3")) {
-        return { thinkingConfig: { thinkingLevel: "minimal" } }
-      }
-      return { thinkingConfig: { thinkingBudget: 0 } }
+      return buildGoogleSmallOptions(model)
     }
     if (model.providerID === "openrouter") {
-      if (model.api.id.includes("google")) {
-        return { reasoning: { enabled: false } }
-      }
-      return { reasoningEffort: "minimal" }
+      return buildOpenrouterSmallOptions(model)
     }
-
     if (model.providerID === "venice") {
       return { veniceParameters: { disableThinking: true } }
     }
-
     return {}
   }
 
@@ -862,35 +296,9 @@ export namespace ProviderTransform {
     amazon: "bedrock",
   }
 
-  export function providerOptions(model: Provider.Model, options: { [x: string]: any }) {
+  export function providerOptions(model: Provider.Model, options: { [x: string]: unknown }) {
     if (model.api.npm === "@ai-sdk/gateway") {
-      // Gateway providerOptions are split across two namespaces:
-      // - `gateway`: gateway-native routing/caching controls (order, only, byok, etc.)
-      // - `<upstream slug>`: provider-specific model options (anthropic/openai/...)
-      // We keep `gateway` as-is and route every other top-level option under the
-      // model-derived upstream slug.
-      const i = model.api.id.indexOf("/")
-      const rawSlug = i > 0 ? model.api.id.slice(0, i) : undefined
-      const slug = rawSlug ? (SLUG_OVERRIDES[rawSlug] ?? rawSlug) : undefined
-      const gateway = options.gateway
-      const rest = Object.fromEntries(Object.entries(options).filter(([k]) => k !== "gateway"))
-      const has = Object.keys(rest).length > 0
-
-      const result: Record<string, any> = {}
-      if (gateway !== undefined) result.gateway = gateway
-
-      if (has) {
-        if (slug) {
-          // Route model-specific options under the provider slug
-          result[slug] = rest
-        } else if (gateway && typeof gateway === "object" && !Array.isArray(gateway)) {
-          result.gateway = { ...gateway, ...rest }
-        } else {
-          result.gateway = rest
-        }
-      }
-
-      return result
+      return buildGatewayProviderOptions(model, options)
     }
 
     const key = sdkKey(model.api.npm) ?? model.providerID
@@ -922,83 +330,732 @@ export namespace ProviderTransform {
 
     // Convert integer enums to string enums for Google/Gemini
     if (model.providerID === "google" || model.api.id.includes("gemini")) {
-      const isPlainObject = (node: unknown): node is Record<string, any> =>
-        typeof node === "object" && node !== null && !Array.isArray(node)
-      const hasCombiner = (node: unknown) =>
-        isPlainObject(node) && (Array.isArray(node.anyOf) || Array.isArray(node.oneOf) || Array.isArray(node.allOf))
-      const hasSchemaIntent = (node: unknown) => {
-        if (!isPlainObject(node)) return false
-        if (hasCombiner(node)) return true
-        return [
-          "type",
-          "properties",
-          "items",
-          "prefixItems",
-          "enum",
-          "const",
-          "$ref",
-          "additionalProperties",
-          "patternProperties",
-          "required",
-          "not",
-          "if",
-          "then",
-          "else",
-        ].some((key) => key in node)
-      }
-
-      const sanitizeGemini = (obj: any): any => {
-        if (obj === null || typeof obj !== "object") {
-          return obj
-        }
-
-        if (Array.isArray(obj)) {
-          return obj.map(sanitizeGemini)
-        }
-
-        const result: any = {}
-        for (const [key, value] of Object.entries(obj)) {
-          if (key === "enum" && Array.isArray(value)) {
-            // Convert all enum values to strings
-            result[key] = value.map((v) => String(v))
-            // If we have integer type with enum, change type to string
-            if (result.type === "integer" || result.type === "number") {
-              result.type = "string"
-            }
-          } else if (typeof value === "object" && value !== null) {
-            result[key] = sanitizeGemini(value)
-          } else {
-            result[key] = value
-          }
-        }
-
-        // Filter required array to only include fields that exist in properties
-        if (result.type === "object" && result.properties && Array.isArray(result.required)) {
-          result.required = result.required.filter((field: any) => field in result.properties)
-        }
-
-        if (result.type === "array" && !hasCombiner(result)) {
-          if (result.items == null) {
-            result.items = {}
-          }
-          // Ensure items has a type only when it's still schema-empty.
-          if (isPlainObject(result.items) && !hasSchemaIntent(result.items)) {
-            result.items.type = "string"
-          }
-        }
-
-        // Remove properties/required from non-object types (Gemini rejects these)
-        if (result.type && result.type !== "object" && !hasCombiner(result)) {
-          delete result.properties
-          delete result.required
-        }
-
-        return result
-      }
-
-      schema = sanitizeGemini(schema)
+      schema = sanitizeGeminiSchema(schema) as JSONSchema.BaseSchema | JSONSchema7
     }
 
     return schema as JSONSchema7
   }
+
+  // --- Private helpers inside namespace (thin wrappers only) ---
+
+  function isAnthropicModel(model: Provider.Model): boolean {
+    return (
+      (model.providerID === "anthropic" ||
+        model.api.id.includes("anthropic") ||
+        model.api.id.includes("claude") ||
+        model.id.includes("anthropic") ||
+        model.id.includes("claude") ||
+        model.api.npm === "@ai-sdk/anthropic") &&
+      model.api.npm !== "@ai-sdk/gateway"
+    )
+  }
+
+  function buildGatewayProviderOptions(
+    model: Provider.Model,
+    opts: { [x: string]: unknown },
+  ): Record<string, unknown> {
+    const i = model.api.id.indexOf("/")
+    const rawSlug = i > 0 ? model.api.id.slice(0, i) : undefined
+    const slug = rawSlug ? (SLUG_OVERRIDES[rawSlug] ?? rawSlug) : undefined
+    const gateway = opts.gateway
+    const rest = Object.fromEntries(Object.entries(opts).filter(([k]) => k !== "gateway"))
+    const has = Object.keys(rest).length > 0
+
+    const result: Record<string, unknown> = {}
+    if (gateway !== undefined) result.gateway = gateway
+
+    if (has) {
+      if (slug) {
+        result[slug] = rest
+      } else if (gateway && typeof gateway === "object" && !Array.isArray(gateway)) {
+        result.gateway = { ...gateway, ...rest }
+      } else {
+        result.gateway = rest
+      }
+    }
+
+    return result
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Module-level helpers (not exported as part of ProviderTransform namespace)
+// ---------------------------------------------------------------------------
+
+function filterAnthropicEmptyContent(part: { type: string; text?: string }): boolean {
+  if (part.type === "text" || part.type === "reasoning") {
+    return part.text !== ""
+  }
+  return true
+}
+
+function filterAnthropicEmptyMessages(msgs: ModelMessage[]): ModelMessage[] {
+  return msgs
+    .map((msg) => {
+      if (typeof msg.content === "string") {
+        if (msg.content === "") return undefined
+        return msg
+      }
+      if (!Array.isArray(msg.content)) return msg
+      const filtered = (msg.content as Array<{ type: string; text?: string }>).filter(filterAnthropicEmptyContent)
+      if (filtered.length === 0) return undefined
+      return { ...msg, content: filtered }
+    })
+    .filter((msg): msg is ModelMessage => msg !== undefined && msg.content !== "")
+}
+
+function sanitizeClaudeToolCallIds(msg: ModelMessage): ModelMessage {
+  if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
+    msg.content = msg.content.map((part) => {
+      if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
+        return {
+          ...part,
+          toolCallId: (part as { toolCallId: string }).toolCallId.replace(/[^a-zA-Z0-9_-]/g, "_"),
+        }
+      }
+      return part
+    })
+  }
+  return msg
+}
+
+function isMistralModel(model: Provider.Model): boolean {
+  return (
+    model.providerID === "mistral" ||
+    model.api.id.toLowerCase().includes("mistral") ||
+    model.api.id.toLocaleLowerCase().includes("devstral")
+  )
+}
+
+function normalizeMistralToolCallId(id: string): string {
+  return id
+    .replace(/[^a-zA-Z0-9]/g, "") // Remove non-alphanumeric characters
+    .substring(0, 9) // Take first 9 characters
+    .padEnd(9, "0") // Pad with zeros if less than 9 characters
+}
+
+function normalizeMistralMessages(msgs: ModelMessage[]): ModelMessage[] {
+  const result: ModelMessage[] = []
+  for (let i = 0; i < msgs.length; i++) {
+    const msg = msgs[i]
+    const nextMsg = msgs[i + 1]
+
+    if ((msg.role === "assistant" || msg.role === "tool") && Array.isArray(msg.content)) {
+      msg.content = msg.content.map((part) => {
+        if ((part.type === "tool-call" || part.type === "tool-result") && "toolCallId" in part) {
+          return {
+            ...part,
+            toolCallId: normalizeMistralToolCallId((part as { toolCallId: string }).toolCallId),
+          }
+        }
+        return part
+      })
+    }
+
+    result.push(msg)
+
+    // Fix message sequence: tool messages cannot be followed by user messages
+    if (msg.role === "tool" && nextMsg?.role === "user") {
+      result.push({ role: "assistant", content: [{ type: "text", text: "Done." }] })
+    }
+  }
+  return result
+}
+
+function normalizeInterleavedReasoning(msgs: ModelMessage[], field: string): ModelMessage[] {
+  return msgs.map((msg) => {
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) return msg
+
+    // Using type cast here: AssistantContent parts include ReasoningPart which has a `text` field
+    const content = msg.content as Array<{ type: string; text?: string }>
+    const reasoningText = content.filter((p) => p.type === "reasoning").map((p) => p.text ?? "").join("")
+    const filteredContent = content.filter((p) => p.type !== "reasoning")
+
+    if (reasoningText) {
+      return {
+        ...msg,
+        content: filteredContent,
+        providerOptions: {
+          ...(msg.providerOptions as Record<string, unknown> | undefined),
+          openaiCompatible: {
+            ...(msg.providerOptions as Record<string, Record<string, unknown>> | undefined)?.openaiCompatible,
+            [field]: reasoningText,
+          },
+        },
+      } as ModelMessage
+    }
+
+    return { ...msg, content: filteredContent } as ModelMessage
+  })
+}
+
+function checkEmptyBase64Image(imageStr: string): { type: "text"; text: string } | null {
+  if (!imageStr.startsWith("data:")) return null
+  const match = imageStr.match(/^data:([^;]+);base64,(.*)$/)
+  if (match && (!match[2] || match[2].length === 0)) {
+    return {
+      type: "text" as const,
+      text: "ERROR: Image file is empty or corrupted. Please provide a valid image.",
+    }
+  }
+  return null
+}
+
+function filterUnsupportedPart(part: TextPart | ImagePart | FilePart, model: Provider.Model): TextPart | ImagePart | FilePart {
+  if (part.type !== "file" && part.type !== "image") return part
+
+  // Check for empty base64 image data
+  if (part.type === "image") {
+    const imageStr = part.image.toString()
+    const emptyError = checkEmptyBase64Image(imageStr)
+    if (emptyError) return emptyError
+  }
+
+  const mime =
+    part.type === "image"
+      ? part.image.toString().split(";")[0].replace("data:", "")
+      : part.mediaType
+  const filename = part.type === "file" ? part.filename : undefined
+  const modality = mimeToModality(mime)
+  if (!modality) return part
+  if (model.capabilities.input[modality]) return part
+
+  const name = filename ? `"${filename}"` : modality
+  return {
+    type: "text" as const,
+    text: `ERROR: Cannot read ${name} (this model does not support ${modality} input). Inform the user.`,
+  }
+}
+
+function remapProviderOptionsKeys(
+  msgs: ModelMessage[],
+  fromKey: string,
+  toKey: string,
+): ModelMessage[] {
+  const remap = (opts: Record<string, unknown> | undefined): Record<string, unknown> | undefined => {
+    if (!opts) return opts
+    if (!(fromKey in opts)) return opts
+    const result = { ...opts }
+    result[toKey] = result[fromKey]
+    delete result[fromKey]
+    return result
+  }
+
+  return msgs.map((msg) => {
+    if (!Array.isArray(msg.content)) {
+      return { ...msg, providerOptions: remap(msg.providerOptions) } as ModelMessage
+    }
+    return {
+      ...msg,
+      providerOptions: remap(msg.providerOptions),
+      content: msg.content.map((part) => ({
+        ...part,
+        providerOptions: remap((part as { providerOptions?: Record<string, unknown> }).providerOptions),
+      })),
+    } as ModelMessage
+  })
+}
+
+// --- Variant builders ---
+
+const WIDELY_SUPPORTED_EFFORTS = ["low", "medium", "high"]
+const OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
+
+function checkIsAnthropicAdaptive(model: Provider.Model): boolean {
+  return ["opus-4-6", "opus-4.6", "sonnet-4-6", "sonnet-4.6"].some((v) => model.api.id.includes(v))
+}
+
+function isNonVariantModel(id: string): boolean {
+  return (
+    id.includes("deepseek") ||
+    id.includes("minimax") ||
+    id.includes("glm") ||
+    id.includes("mistral") ||
+    id.includes("kimi") ||
+    // TODO: Remove this after models.dev data is fixed to use "kimi-k2.5" instead of "k2p5"
+    id.includes("k2p5")
+  )
+}
+
+function buildGrokVariants(id: string, model: Provider.Model): Record<string, Record<string, unknown>> {
+  // see: https://docs.x.ai/docs/guides/reasoning#control-how-hard-the-model-thinks
+  if (!id.includes("grok-3-mini")) return {}
+  if (model.api.npm === "@openrouter/ai-sdk-provider") {
+    return {
+      low: { reasoning: { effort: "low" } },
+      high: { reasoning: { effort: "high" } },
+    }
+  }
+  return {
+    low: { reasoningEffort: "low" },
+    high: { reasoningEffort: "high" },
+  }
+}
+
+function buildOpenrouterVariants(model: Provider.Model): Record<string, Record<string, unknown>> {
+  if (!model.id.includes("gpt") && !model.id.includes("gemini-3") && !model.id.includes("claude")) return {}
+  return Object.fromEntries(OPENAI_EFFORTS.map((effort) => [effort, { reasoning: { effort } }]))
+}
+
+function buildGatewayAnthropicVariants(
+  model: Provider.Model,
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  if (isAnthropicAdaptive) {
+    return Object.fromEntries(
+      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
+    )
+  }
+  return {
+    high: { thinking: { type: "enabled", budgetTokens: 16000 } },
+    max: { thinking: { type: "enabled", budgetTokens: 31999 } },
+  }
+}
+
+function buildGatewayGoogleVariants(id: string): Record<string, Record<string, unknown>> {
+  if (id.includes("2.5")) {
+    return {
+      high: { thinkingConfig: { includeThoughts: true, thinkingBudget: 16000 } },
+      max: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
+    }
+  }
+  return Object.fromEntries(
+    ["low", "high"].map((effort) => [effort, { includeThoughts: true, thinkingLevel: effort }]),
+  )
+}
+
+function buildGatewayVariants(
+  model: Provider.Model,
+  id: string,
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  if (model.id.includes("anthropic")) {
+    return buildGatewayAnthropicVariants(model, isAnthropicAdaptive, adaptiveEfforts)
+  }
+  if (model.id.includes("google")) {
+    return buildGatewayGoogleVariants(id)
+  }
+  return Object.fromEntries(OPENAI_EFFORTS.map((effort) => [effort, { reasoningEffort: effort }]))
+}
+
+function buildGithubCopilotVariants(model: Provider.Model, id: string): Record<string, Record<string, unknown>> {
+  if (model.id.includes("gemini")) {
+    // currently github copilot only returns thinking
+    return {}
+  }
+  if (model.id.includes("claude")) {
+    return { thinking: { thinking_budget: 4000 } }
+  }
+  const copilotEfforts = iife(() => {
+    if (id.includes("5.1-codex-max") || id.includes("5.2") || id.includes("5.3"))
+      return [...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
+    const arr = [...WIDELY_SUPPORTED_EFFORTS]
+    if (id.includes("gpt-5") && model.release_date >= "2025-12-04") arr.push("xhigh")
+    return arr
+  })
+  return Object.fromEntries(
+    copilotEfforts.map((effort) => [
+      effort,
+      {
+        reasoningEffort: effort,
+        reasoningSummary: "auto",
+        include: ["reasoning.encrypted_content"],
+      },
+    ]),
+  )
+}
+
+function buildAzureVariants(id: string): Record<string, Record<string, unknown>> {
+  // https://v5.ai-sdk.dev/providers/ai-sdk-providers/azure
+  if (id === "o1-mini") return {}
+  const azureEfforts = ["low", "medium", "high"]
+  if (id.includes("gpt-5-") || id === "gpt-5") {
+    azureEfforts.unshift("minimal")
+  }
+  return Object.fromEntries(
+    azureEfforts.map((effort) => [
+      effort,
+      {
+        reasoningEffort: effort,
+        reasoningSummary: "auto",
+        include: ["reasoning.encrypted_content"],
+      },
+    ]),
+  )
+}
+
+function buildOpenAIEfforts(model: Provider.Model, id: string): string[] {
+  if (id.includes("codex")) {
+    if (id.includes("5.2") || id.includes("5.3")) return [...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
+    return WIDELY_SUPPORTED_EFFORTS
+  }
+  const arr = [...WIDELY_SUPPORTED_EFFORTS]
+  if (id.includes("gpt-5-") || id === "gpt-5") arr.unshift("minimal")
+  if (model.release_date >= "2025-11-13") arr.unshift("none")
+  if (model.release_date >= "2025-12-04") arr.push("xhigh")
+  return arr
+}
+
+function buildOpenAIVariants(model: Provider.Model, id: string): Record<string, Record<string, unknown>> {
+  // https://v5.ai-sdk.dev/providers/ai-sdk-providers/openai
+  if (id === "gpt-5-pro") return {}
+  const efforts = buildOpenAIEfforts(model, id)
+  return Object.fromEntries(
+    efforts.map((effort) => [
+      effort,
+      {
+        reasoningEffort: effort,
+        reasoningSummary: "auto",
+        include: ["reasoning.encrypted_content"],
+      },
+    ]),
+  )
+}
+
+function buildAnthropicVariants(
+  model: Provider.Model,
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  if (isAnthropicAdaptive) {
+    return Object.fromEntries(
+      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
+    )
+  }
+  return {
+    high: {
+      thinking: {
+        type: "enabled",
+        budgetTokens: Math.min(16_000, Math.floor(model.limit.output / 2 - 1)),
+      },
+    },
+    max: {
+      thinking: {
+        type: "enabled",
+        budgetTokens: Math.min(31_999, model.limit.output - 1),
+      },
+    },
+  }
+}
+
+function buildBedrockVariants(
+  model: Provider.Model,
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  // https://v5.ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock
+  if (isAnthropicAdaptive) {
+    return Object.fromEntries(
+      adaptiveEfforts.map((effort) => [
+        effort,
+        { reasoningConfig: { type: "adaptive", maxReasoningEffort: effort } },
+      ]),
+    )
+  }
+  // For Anthropic models on Bedrock, use reasoningConfig with budgetTokens
+  if (model.api.id.includes("anthropic")) {
+    return {
+      high: { reasoningConfig: { type: "enabled", budgetTokens: 16000 } },
+      max: { reasoningConfig: { type: "enabled", budgetTokens: 31999 } },
+    }
+  }
+  // For Amazon Nova models, use reasoningConfig with maxReasoningEffort
+  return Object.fromEntries(
+    WIDELY_SUPPORTED_EFFORTS.map((effort) => [
+      effort,
+      { reasoningConfig: { type: "enabled", maxReasoningEffort: effort } },
+    ]),
+  )
+}
+
+function buildGoogleVariants(id: string): Record<string, Record<string, unknown>> {
+  // https://v5.ai-sdk.dev/providers/ai-sdk-providers/google-generative-ai
+  if (id.includes("2.5")) {
+    return {
+      high: { thinkingConfig: { includeThoughts: true, thinkingBudget: 16000 } },
+      max: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
+    }
+  }
+  let levels = ["low", "high"]
+  if (id.includes("3.1")) {
+    levels = ["low", "medium", "high"]
+  }
+  return Object.fromEntries(
+    levels.map((effort) => [effort, { thinkingConfig: { includeThoughts: true, thinkingLevel: effort } }]),
+  )
+}
+
+function buildGroqVariants(): Record<string, Record<string, unknown>> {
+  // https://v5.ai-sdk.dev/providers/ai-sdk-providers/groq
+  const groqEffort = ["none", ...WIDELY_SUPPORTED_EFFORTS]
+  return Object.fromEntries(groqEffort.map((effort) => [effort, { reasoningEffort: effort }]))
+}
+
+function buildSapAnthropicVariants(
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  if (isAnthropicAdaptive) {
+    return Object.fromEntries(
+      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
+    )
+  }
+  return {
+    high: { thinking: { type: "enabled", budgetTokens: 16000 } },
+    max: { thinking: { type: "enabled", budgetTokens: 31999 } },
+  }
+}
+
+function buildSapVariants(
+  model: Provider.Model,
+  id: string,
+  isAnthropicAdaptive: boolean,
+  adaptiveEfforts: string[],
+): Record<string, Record<string, unknown>> {
+  if (model.api.id.includes("anthropic")) {
+    return buildSapAnthropicVariants(isAnthropicAdaptive, adaptiveEfforts)
+  }
+  if (model.api.id.includes("gemini") && id.includes("2.5")) {
+    return {
+      high: { thinkingConfig: { includeThoughts: true, thinkingBudget: 16000 } },
+      max: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
+    }
+  }
+  if (model.api.id.includes("gpt") || /\bo[1-9]/.test(model.api.id)) {
+    return Object.fromEntries(WIDELY_SUPPORTED_EFFORTS.map((effort) => [effort, { reasoningEffort: effort }]))
+  }
+  return {}
+}
+
+// --- options() sub-helpers ---
+
+function applyOpenAIStoreOption(result: Record<string, unknown>, model: Provider.Model): void {
+  if (
+    model.providerID === "openai" ||
+    model.api.npm === "@ai-sdk/openai" ||
+    model.api.npm === "@ai-sdk/github-copilot"
+  ) {
+    result["store"] = false
+  }
+}
+
+function applyOpenrouterOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  if (model.api.npm !== "@openrouter/ai-sdk-provider") return
+  result["usage"] = { include: true }
+  if (model.api.id.includes("gemini-3")) {
+    result["reasoning"] = { effort: "high" }
+  }
+}
+
+function applyBasetenOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  if (model.providerID === "baseten") {
+    result["chat_template_args"] = { enable_thinking: true }
+  }
+}
+
+function applyZhipuOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  if (["zai", "zhipuai"].includes(model.providerID) && model.api.npm === "@ai-sdk/openai-compatible") {
+    result["thinking"] = { type: "enabled", clear_thinking: false }
+  }
+}
+
+function applyPromptCacheKeyOption(
+  result: Record<string, unknown>,
+  model: Provider.Model,
+  sessionID: string,
+  providerOptions?: Record<string, unknown>,
+): void {
+  if (model.providerID === "openai" || providerOptions?.setCacheKey) {
+    result["promptCacheKey"] = sessionID
+  }
+}
+
+function applyGoogleThinkingOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  if (model.api.npm !== "@ai-sdk/google" && model.api.npm !== "@ai-sdk/google-vertex") return
+  result["thinkingConfig"] = { includeThoughts: true }
+  if (model.api.id.includes("gemini-3")) {
+    (result["thinkingConfig"] as Record<string, unknown>)["thinkingLevel"] = "high"
+  }
+}
+
+function applyKimiAnthropicThinkingOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  // Enable thinking by default for kimi-k2.5/k2p5 models using anthropic SDK
+  const modelId = model.api.id.toLowerCase()
+  if (
+    (model.api.npm === "@ai-sdk/anthropic" || model.api.npm === "@ai-sdk/google-vertex/anthropic") &&
+    (modelId.includes("k2p5") || modelId.includes("kimi-k2.5") || modelId.includes("kimi-k2p5"))
+  ) {
+    result["thinking"] = {
+      type: "enabled",
+      budgetTokens: Math.min(16_000, Math.floor(model.limit.output / 2 - 1)),
+    }
+  }
+}
+
+function applyAlibabaCnThinkingOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  // Enable thinking for reasoning models on alibaba-cn (DashScope).
+  // DashScope's OpenAI-compatible API requires `enable_thinking: true` in the request body
+  // to return reasoning_content. Without it, models like kimi-k2.5, qwen-plus, qwen3, qwq,
+  // deepseek-r1, etc. never output thinking/reasoning tokens.
+  // Note: kimi-k2-thinking is excluded as it returns reasoning_content by default.
+  const modelId = model.api.id.toLowerCase()
+  if (
+    model.providerID === "alibaba-cn" &&
+    model.capabilities.reasoning &&
+    model.api.npm === "@ai-sdk/openai-compatible" &&
+    !modelId.includes("kimi-k2-thinking")
+  ) {
+    result["enable_thinking"] = true
+  }
+}
+
+function applyGpt5Options(result: Record<string, unknown>, model: Provider.Model): void {
+  if (!model.api.id.includes("gpt-5") || model.api.id.includes("gpt-5-chat")) return
+  if (!model.api.id.includes("gpt-5-pro")) {
+    result["reasoningEffort"] = "medium"
+    result["reasoningSummary"] = "auto"
+  }
+  // Only set textVerbosity for non-chat gpt-5.x models
+  // Chat models (e.g. gpt-5.2-chat-latest) only support "medium" verbosity
+  if (
+    model.api.id.includes("gpt-5.") &&
+    !model.api.id.includes("codex") &&
+    !model.api.id.includes("-chat") &&
+    model.providerID !== "azure"
+  ) {
+    result["textVerbosity"] = "low"
+  }
+}
+
+function applyVeniceOptions(result: Record<string, unknown>, model: Provider.Model, sessionID: string): void {
+  if (model.providerID === "venice") {
+    result["promptCacheKey"] = sessionID
+  }
+}
+
+function applyOpenrouterCacheOptions(
+  result: Record<string, unknown>,
+  model: Provider.Model,
+  sessionID: string,
+): void {
+  if (model.providerID === "openrouter") {
+    result["prompt_cache_key"] = sessionID
+  }
+}
+
+function applyGatewayOptions(result: Record<string, unknown>, model: Provider.Model): void {
+  if (model.api.npm === "@ai-sdk/gateway") {
+    result["gateway"] = { caching: "auto" }
+  }
+}
+
+// --- smallOptions helpers ---
+
+function buildOpenAISmallOptions(model: Provider.Model): Record<string, unknown> {
+  if (model.api.id.includes("gpt-5")) {
+    if (model.api.id.includes("5.")) return { store: false, reasoningEffort: "low" }
+    return { store: false, reasoningEffort: "minimal" }
+  }
+  return { store: false }
+}
+
+function buildGoogleSmallOptions(model: Provider.Model): Record<string, unknown> {
+  // gemini-3 uses thinkingLevel, gemini-2.5 uses thinkingBudget
+  if (model.api.id.includes("gemini-3")) {
+    return { thinkingConfig: { thinkingLevel: "minimal" } }
+  }
+  return { thinkingConfig: { thinkingBudget: 0 } }
+}
+
+function buildOpenrouterSmallOptions(model: Provider.Model): Record<string, unknown> {
+  if (model.api.id.includes("google")) {
+    return { reasoning: { enabled: false } }
+  }
+  return { reasoningEffort: "minimal" }
+}
+
+// --- Gemini schema sanitization ---
+
+function isPlainObject(node: unknown): node is Record<string, unknown> {
+  return typeof node === "object" && node !== null && !Array.isArray(node)
+}
+
+function hasCombiner(node: unknown): boolean {
+  return isPlainObject(node) && (Array.isArray(node.anyOf) || Array.isArray(node.oneOf) || Array.isArray(node.allOf))
+}
+
+function hasSchemaIntent(node: unknown): boolean {
+  if (!isPlainObject(node)) return false
+  if (hasCombiner(node)) return true
+  return [
+    "type",
+    "properties",
+    "items",
+    "prefixItems",
+    "enum",
+    "const",
+    "$ref",
+    "additionalProperties",
+    "patternProperties",
+    "required",
+    "not",
+    "if",
+    "then",
+    "else",
+  ].some((key) => key in node)
+}
+
+function sanitizeGeminiEnum(result: Record<string, unknown>, value: unknown[]): void {
+  result["enum"] = value.map((v) => String(v))
+  // If we have integer type with enum, change type to string
+  if (result.type === "integer" || result.type === "number") {
+    result.type = "string"
+  }
+}
+
+function sanitizeGeminiObjectType(result: Record<string, unknown>): void {
+  if (result.type === "object" && result.properties && Array.isArray(result.required)) {
+    result.required = (result.required as string[]).filter(
+      (field) => field in (result.properties as Record<string, unknown>),
+    )
+  }
+}
+
+function sanitizeGeminiArrayType(result: Record<string, unknown>): void {
+  if (result.type !== "array" || hasCombiner(result)) return
+  if (result.items == null) result.items = {}
+  if (isPlainObject(result.items) && !hasSchemaIntent(result.items)) {
+    result.items = { ...result.items, type: "string" }
+  }
+}
+
+function sanitizeGeminiNonObjectType(result: Record<string, unknown>): void {
+  if (result.type && result.type !== "object" && !hasCombiner(result)) {
+    delete result.properties
+    delete result.required
+  }
+}
+
+function sanitizeGeminiSchema(obj: unknown): unknown {
+  if (obj === null || typeof obj !== "object") return obj
+  if (Array.isArray(obj)) return obj.map(sanitizeGeminiSchema)
+
+  const result: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (key === "enum" && Array.isArray(value)) {
+      sanitizeGeminiEnum(result, value)
+    } else if (typeof value === "object" && value !== null) {
+      result[key] = sanitizeGeminiSchema(value)
+    } else {
+      result[key] = value
+    }
+  }
+
+  sanitizeGeminiObjectType(result)
+  sanitizeGeminiArrayType(result)
+  sanitizeGeminiNonObjectType(result)
+
+  return result
 }

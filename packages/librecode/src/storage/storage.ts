@@ -22,118 +22,127 @@ export namespace Storage {
     }),
   )
 
-  const MIGRATIONS: Migration[] = [
-    async (dir) => {
-      const project = path.resolve(dir, "../project")
-      if (!(await Filesystem.isDir(project))) return
-      const projectDirs = await Glob.scan("*", {
-        cwd: project,
-        include: "all",
-      })
-      for (const projectDir of projectDirs) {
-        const fullPath = path.join(project, projectDir)
-        if (!(await Filesystem.isDir(fullPath))) continue
-        log.info(`migrating project ${projectDir}`)
-        let projectID = projectDir
-        const fullProjectDir = path.join(project, projectDir)
-        let worktree = "/"
+  async function migrateMessageParts(
+    dir: string,
+    fullProjectDir: string,
+    sessionId: string,
+    messageId: string,
+  ): Promise<void> {
+    for (const partFile of await Glob.scan(`storage/session/part/${sessionId}/${messageId}/*.json`, {
+      cwd: fullProjectDir,
+      absolute: true,
+    })) {
+      const dest = path.join(dir, "part", messageId, path.basename(partFile))
+      const part = await Filesystem.readJson(partFile)
+      log.info("copying", { partFile, dest })
+      await Filesystem.writeJson(dest, part)
+    }
+  }
 
-        if (projectID !== "global") {
-          for (const msgFile of await Glob.scan("storage/session/message/*/*.json", {
-            cwd: path.join(project, projectDir),
-            absolute: true,
-          })) {
-            const json = await Filesystem.readJson<any>(msgFile)
-            worktree = json.path?.root
-            if (worktree) break
-          }
-          if (!worktree) continue
-          if (!(await Filesystem.isDir(worktree))) continue
-          const result = await git(["rev-list", "--max-parents=0", "--all"], {
-            cwd: worktree,
-          })
-          const [id] = result
-            .text()
-            .split("\n")
-            .filter(Boolean)
-            .map((x) => x.trim())
-            .toSorted()
-          if (!id) continue
-          projectID = id
+  async function migrateSessionMessages(
+    dir: string,
+    fullProjectDir: string,
+    projectID: string,
+    sessionFile: string,
+  ): Promise<void> {
+    const dest = path.join(dir, "session", projectID, path.basename(sessionFile))
+    log.info("copying", { sessionFile, dest })
+    const session = await Filesystem.readJson<Record<string, unknown> & { id: string }>(sessionFile)
+    await Filesystem.writeJson(dest, session)
+    log.info(`migrating messages for session ${session.id}`)
+    for (const msgFile of await Glob.scan(`storage/session/message/${session.id}/*.json`, {
+      cwd: fullProjectDir,
+      absolute: true,
+    })) {
+      const msgDest = path.join(dir, "message", session.id, path.basename(msgFile))
+      log.info("copying", { msgFile, dest: msgDest })
+      const message = await Filesystem.readJson<Record<string, unknown> & { id: string }>(msgFile)
+      await Filesystem.writeJson(msgDest, message)
+      log.info(`migrating parts for message ${message.id}`)
+      await migrateMessageParts(dir, fullProjectDir, session.id, message.id)
+    }
+  }
 
-          await Filesystem.writeJson(path.join(dir, "project", projectID + ".json"), {
-            id,
-            vcs: "git",
-            worktree,
-            time: {
-              created: Date.now(),
-              initialized: Date.now(),
-            },
-          })
+  async function resolveProjectWorktree(project: string, projectDir: string): Promise<string | undefined> {
+    for (const msgFile of await Glob.scan("storage/session/message/*/*.json", {
+      cwd: path.join(project, projectDir),
+      absolute: true,
+    })) {
+      const json = await Filesystem.readJson<Record<string, unknown> & { path?: { root?: string } }>(msgFile)
+      if (json.path?.root) return json.path.root
+    }
+    return undefined
+  }
 
-          log.info(`migrating sessions for project ${projectID}`)
-          for (const sessionFile of await Glob.scan("storage/session/info/*.json", {
-            cwd: fullProjectDir,
-            absolute: true,
-          })) {
-            const dest = path.join(dir, "session", projectID, path.basename(sessionFile))
-            log.info("copying", {
-              sessionFile,
-              dest,
-            })
-            const session = await Filesystem.readJson<any>(sessionFile)
-            await Filesystem.writeJson(dest, session)
-            log.info(`migrating messages for session ${session.id}`)
-            for (const msgFile of await Glob.scan(`storage/session/message/${session.id}/*.json`, {
-              cwd: fullProjectDir,
-              absolute: true,
-            })) {
-              const dest = path.join(dir, "message", session.id, path.basename(msgFile))
-              log.info("copying", {
-                msgFile,
-                dest,
-              })
-              const message = await Filesystem.readJson<any>(msgFile)
-              await Filesystem.writeJson(dest, message)
+  async function resolveGitRootId(worktree: string): Promise<string | undefined> {
+    const result = await git(["rev-list", "--max-parents=0", "--all"], { cwd: worktree })
+    const [id] = result.text().split("\n").filter(Boolean).map((x) => x.trim()).toSorted()
+    return id || undefined
+  }
 
-              log.info(`migrating parts for message ${message.id}`)
-              for (const partFile of await Glob.scan(`storage/session/part/${session.id}/${message.id}/*.json`, {
-                cwd: fullProjectDir,
-                absolute: true,
-              })) {
-                const dest = path.join(dir, "part", message.id, path.basename(partFile))
-                const part = await Filesystem.readJson(partFile)
-                log.info("copying", {
-                  partFile,
-                  dest,
-                })
-                await Filesystem.writeJson(dest, part)
-              }
-            }
-          }
+  async function migrateProject(dir: string, project: string, projectDir: string): Promise<void> {
+    const fullPath = path.join(project, projectDir)
+    if (!(await Filesystem.isDir(fullPath))) return
+    log.info(`migrating project ${projectDir}`)
+    const fullProjectDir = path.join(project, projectDir)
+    if (projectDir === "global") return
+
+    const worktree = await resolveProjectWorktree(project, projectDir)
+    if (!worktree) return
+    if (!(await Filesystem.isDir(worktree))) return
+
+    const id = await resolveGitRootId(worktree)
+    if (!id) return
+
+    await Filesystem.writeJson(path.join(dir, "project", id + ".json"), {
+      id,
+      vcs: "git",
+      worktree,
+      time: { created: Date.now(), initialized: Date.now() },
+    })
+
+    log.info(`migrating sessions for project ${id}`)
+    for (const sessionFile of await Glob.scan("storage/session/info/*.json", {
+      cwd: fullProjectDir,
+      absolute: true,
+    })) {
+      await migrateSessionMessages(dir, fullProjectDir, id, sessionFile)
+    }
+  }
+
+  async function migration0(dir: string): Promise<void> {
+    const project = path.resolve(dir, "../project")
+    if (!(await Filesystem.isDir(project))) return
+    const projectDirs = await Glob.scan("*", { cwd: project, include: "all" })
+    for (const projectDir of projectDirs) {
+      await migrateProject(dir, project, projectDir)
+    }
+  }
+
+  async function migration1(dir: string): Promise<void> {
+    for (const item of await Glob.scan("session/*/*.json", { cwd: dir, absolute: true })) {
+      const session = await Filesystem.readJson<
+        Record<string, unknown> & {
+          id: string
+          projectID?: string
+          summary?: { diffs?: Array<{ additions: number; deletions: number }> }
         }
-      }
-    },
-    async (dir) => {
-      for (const item of await Glob.scan("session/*/*.json", {
-        cwd: dir,
-        absolute: true,
-      })) {
-        const session = await Filesystem.readJson<any>(item)
-        if (!session.projectID) continue
-        if (!session.summary?.diffs) continue
-        const { diffs } = session.summary
-        await Filesystem.write(path.join(dir, "session_diff", session.id + ".json"), JSON.stringify(diffs))
-        await Filesystem.writeJson(path.join(dir, "session", session.projectID, session.id + ".json"), {
-          ...session,
-          summary: {
-            additions: diffs.reduce((sum: any, x: any) => sum + x.additions, 0),
-            deletions: diffs.reduce((sum: any, x: any) => sum + x.deletions, 0),
-          },
-        })
-      }
-    },
-  ]
+      >(item)
+      if (!session.projectID) continue
+      if (!session.summary?.diffs) continue
+      const { diffs } = session.summary
+      await Filesystem.write(path.join(dir, "session_diff", session.id + ".json"), JSON.stringify(diffs))
+      await Filesystem.writeJson(path.join(dir, "session", session.projectID, session.id + ".json"), {
+        ...session,
+        summary: {
+          additions: diffs.reduce((sum, x) => sum + x.additions, 0),
+          deletions: diffs.reduce((sum, x) => sum + x.deletions, 0),
+        },
+      })
+    }
+  }
+
+  const MIGRATIONS: Migration[] = [migration0, migration1]
 
   const state = lazy(async () => {
     const dir = path.join(Global.Path.data, "storage")

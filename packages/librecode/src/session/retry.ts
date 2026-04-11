@@ -25,40 +25,74 @@ export namespace SessionRetry {
     })
   }
 
-  export function delay(attempt: number, error?: MessageV2.APIError) {
-    if (error) {
-      const headers = error.data.responseHeaders
-      if (headers) {
-        const retryAfterMs = headers["retry-after-ms"]
-        if (retryAfterMs) {
-          const parsedMs = Number.parseFloat(retryAfterMs)
-          if (!Number.isNaN(parsedMs)) {
-            return parsedMs
-          }
-        }
+  function delayFromRetryAfterMs(value: string): number | undefined {
+    const parsed = Number.parseFloat(value)
+    return Number.isNaN(parsed) ? undefined : parsed
+  }
 
-        const retryAfter = headers["retry-after"]
-        if (retryAfter) {
-          const parsedSeconds = Number.parseFloat(retryAfter)
-          if (!Number.isNaN(parsedSeconds)) {
-            // convert seconds to milliseconds
-            return Math.ceil(parsedSeconds * 1000)
-          }
-          // Try parsing as HTTP date format
-          const parsed = Date.parse(retryAfter) - Date.now()
-          if (!Number.isNaN(parsed) && parsed > 0) {
-            return Math.ceil(parsed)
-          }
-        }
+  function delayFromRetryAfter(value: string): number | undefined {
+    const parsedSeconds = Number.parseFloat(value)
+    if (!Number.isNaN(parsedSeconds)) return Math.ceil(parsedSeconds * 1000)
+    const parsed = Date.parse(value) - Date.now()
+    if (!Number.isNaN(parsed) && parsed > 0) return Math.ceil(parsed)
+    return undefined
+  }
 
-        return RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1)
-      }
+  function delayFromHeaders(headers: Record<string, string>, attempt: number): number {
+    const retryAfterMs = headers["retry-after-ms"]
+    if (retryAfterMs) {
+      const ms = delayFromRetryAfterMs(retryAfterMs)
+      if (ms !== undefined) return ms
     }
 
+    const retryAfter = headers["retry-after"]
+    if (retryAfter) {
+      const ms = delayFromRetryAfter(retryAfter)
+      if (ms !== undefined) return ms
+    }
+
+    return RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1)
+  }
+
+  export function delay(attempt: number, error?: MessageV2.APIError): number {
+    if (error) {
+      const headers = error.data.responseHeaders
+      if (headers) return delayFromHeaders(headers, attempt)
+    }
     return Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS)
   }
 
-  export function retryable(error: ReturnType<NamedError["toObject"]>) {
+  function parseErrorJson(error: ReturnType<NamedError["toObject"]>): unknown {
+    return iife(() => {
+      try {
+        if (typeof error.data?.message === "string") {
+          return JSON.parse(error.data.message)
+        }
+        return JSON.parse(error.data.message)
+      } catch {
+        return undefined
+      }
+    })
+  }
+
+  function retryableFromJson(json: unknown): string | undefined {
+    if (!json || typeof json !== "object") return undefined
+    const obj = json as Record<string, unknown>
+    const code = typeof obj.code === "string" ? obj.code : ""
+
+    if (obj.type === "error" && (obj.error as Record<string, unknown>)?.type === "too_many_requests") {
+      return "Too Many Requests"
+    }
+    if (code.includes("exhausted") || code.includes("unavailable")) {
+      return "Provider is overloaded"
+    }
+    if (obj.type === "error" && ((obj.error as Record<string, unknown>)?.code as string)?.includes("rate_limit")) {
+      return "Rate Limited"
+    }
+    return JSON.stringify(json)
+  }
+
+  export function retryable(error: ReturnType<NamedError["toObject"]>): string | undefined {
     // context overflow errors should not be retried
     if (MessageV2.ContextOverflowError.isInstance(error)) return undefined
     if (MessageV2.APIError.isInstance(error)) {
@@ -68,32 +102,9 @@ export namespace SessionRetry {
       return error.data.message.includes("Overloaded") ? "Provider is overloaded" : error.data.message
     }
 
-    const json = iife(() => {
-      try {
-        if (typeof error.data?.message === "string") {
-          const parsed = JSON.parse(error.data.message)
-          return parsed
-        }
-
-        return JSON.parse(error.data.message)
-      } catch {
-        return undefined
-      }
-    })
+    const json = parseErrorJson(error)
     try {
-      if (!json || typeof json !== "object") return undefined
-      const code = typeof json.code === "string" ? json.code : ""
-
-      if (json.type === "error" && json.error?.type === "too_many_requests") {
-        return "Too Many Requests"
-      }
-      if (code.includes("exhausted") || code.includes("unavailable")) {
-        return "Provider is overloaded"
-      }
-      if (json.type === "error" && json.error?.code?.includes("rate_limit")) {
-        return "Rate Limited"
-      }
-      return JSON.stringify(json)
+      return retryableFromJson(json)
     } catch {
       return undefined
     }

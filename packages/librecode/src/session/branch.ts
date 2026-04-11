@@ -66,70 +66,59 @@ export interface ForkResult {
   partsCopied: number
 }
 
+function sliceMessagesToFork(
+  stream: MessageV2.WithParts[],
+  atMessageID: MessageID | undefined,
+  sessionID: SessionID,
+): MessageV2.WithParts[] {
+  if (!atMessageID) return stream
+  const cutoffIndex = stream.findIndex((m) => m.info.id === atMessageID)
+  if (cutoffIndex === -1) throw new Error(`Message ${atMessageID} not found in session ${sessionID}`)
+  return stream.slice(0, cutoffIndex + 1)
+}
+
+async function copyMessagesToSession(
+  messages: MessageV2.WithParts[],
+  newSessionID: SessionID,
+): Promise<{ partsCopied: number }> {
+  const messageIDMap = new Map<MessageID, MessageID>()
+  let partsCopied = 0
+
+  for (const msg of messages) {
+    const newMessageID = MessageID.ascending()
+    messageIDMap.set(msg.info.id, newMessageID)
+
+    const newInfo: Record<string, unknown> = { ...msg.info, id: newMessageID, sessionID: newSessionID }
+
+    // If assistant message has parentID, remap it
+    if (msg.info.role === "assistant" && "parentID" in msg.info && msg.info.parentID) {
+      const mappedParent = messageIDMap.get(msg.info.parentID as MessageID)
+      if (mappedParent) newInfo.parentID = mappedParent
+    }
+
+    await Session.updateMessage(newInfo as Parameters<typeof Session.updateMessage>[0])
+
+    for (const part of msg.parts) {
+      await Session.updatePart({ ...part, id: PartID.ascending(), messageID: newMessageID, sessionID: newSessionID })
+      partsCopied++
+    }
+  }
+
+  return { partsCopied }
+}
+
 /**
  * Fork a session at a specific point, creating a new independent branch.
  */
 export async function fork(options: ForkOptions): Promise<ForkResult> {
   const original = await Session.get(options.sessionID)
   const stream = await MessageV2.stream({ sessionID: options.sessionID })
+  const messagesToCopy = sliceMessagesToFork(stream, options.atMessageID, options.sessionID)
 
-  // Determine which messages to copy
-  let messagesToCopy: MessageV2.WithParts[]
-  if (options.atMessageID) {
-    const cutoffIndex = stream.findIndex((m) => m.info.id === options.atMessageID)
-    if (cutoffIndex === -1) {
-      throw new Error(`Message ${options.atMessageID} not found in session ${options.sessionID}`)
-    }
-    messagesToCopy = stream.slice(0, cutoffIndex + 1)
-  } else {
-    messagesToCopy = stream
-  }
-
-  // Create the new session
   const title = options.title ?? `${original.title} (branch)`
-  const newSession = await Session.create({
-    title,
-    parentID: options.sessionID,
-  })
+  const newSession = await Session.create({ title, parentID: options.sessionID })
 
-  // Build ID mapping for message references
-  const messageIDMap = new Map<MessageID, MessageID>()
-  let partsCopied = 0
-
-  // Copy messages and parts
-  for (const msg of messagesToCopy) {
-    const newMessageID = MessageID.ascending()
-    messageIDMap.set(msg.info.id, newMessageID)
-
-    // Clone message info with new IDs
-    const newInfo = {
-      ...msg.info,
-      id: newMessageID,
-      sessionID: newSession.id,
-    }
-
-    // If assistant message has parentID, remap it
-    if (msg.info.role === "assistant" && "parentID" in msg.info && msg.info.parentID) {
-      const mappedParent = messageIDMap.get(msg.info.parentID as MessageID)
-      if (mappedParent) {
-        ;(newInfo as any).parentID = mappedParent
-      }
-    }
-
-    await Session.updateMessage(newInfo)
-
-    // Clone parts with new IDs
-    for (const part of msg.parts) {
-      const newPart = {
-        ...part,
-        id: PartID.ascending(),
-        messageID: newMessageID,
-        sessionID: newSession.id,
-      }
-      await Session.updatePart(newPart)
-      partsCopied++
-    }
-  }
+  const { partsCopied } = await copyMessagesToSession(messagesToCopy, newSession.id)
 
   log.info("session forked", {
     original: options.sessionID,

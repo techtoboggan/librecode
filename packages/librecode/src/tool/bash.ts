@@ -21,6 +21,153 @@ import { Plugin } from "@/plugin"
 const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT = Flag.LIBRECODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
 
+const FILE_COMMANDS = new Set(["cd", "rm", "cp", "mv", "mkdir", "touch", "chmod", "chown", "cat"])
+const ACCEPTED_CHILD_TYPES = new Set(["command_name", "word", "string", "raw_string", "concatenation"])
+
+interface CommandPermissions {
+  directories: Set<string>
+  patterns: Set<string>
+  always: Set<string>
+}
+
+function extractCommandTokens(node: import("web-tree-sitter").Node): string[] {
+  const command: string[] = []
+  for (let i = 0; i < node.childCount; i++) {
+    const child = node.child(i)
+    if (child && ACCEPTED_CHILD_TYPES.has(child.type)) command.push(child.text)
+  }
+  return command
+}
+
+async function resolveExternalDir(arg: string, cwd: string): Promise<string | null> {
+  const resolved = await fs.realpath(path.resolve(cwd, arg)).catch(() => "")
+  if (!resolved) return null
+  const normalized = process.platform === "win32" ? Filesystem.windowsPath(resolved).replace(/\//g, "\\") : resolved
+  if (Instance.containsPath(normalized)) return null
+  return (await Filesystem.isDir(normalized)) ? normalized : path.dirname(normalized)
+}
+
+async function collectFileCommandDirs(command: string[], cwd: string): Promise<string[]> {
+  const dirs: string[] = []
+  for (const arg of command.slice(1)) {
+    if (arg.startsWith("-") || (command[0] === "chmod" && arg.startsWith("+"))) continue
+    log.info("resolved path", { arg })
+    const dir = await resolveExternalDir(arg, cwd)
+    if (dir) dirs.push(dir)
+  }
+  return dirs
+}
+
+interface NodePermissions {
+  dirs: string[]
+  commandText: string | null
+  alwaysEntry: string | null
+}
+
+async function processCommandNode(
+  node: import("web-tree-sitter").Node,
+  cwd: string,
+): Promise<NodePermissions> {
+  const commandText = node.parent?.type === "redirected_statement" ? node.parent.text : node.text
+  const command = extractCommandTokens(node)
+  const dirs = FILE_COMMANDS.has(command[0]) ? await collectFileCommandDirs(command, cwd) : []
+  const addPattern = command.length > 0 && command[0] !== "cd"
+  return {
+    dirs,
+    commandText: addPattern ? commandText : null,
+    alwaysEntry: addPattern ? BashArity.prefix(command).join(" ") + " *" : null,
+  }
+}
+
+async function collectCommandPermissions(
+  tree: import("web-tree-sitter").Tree,
+  cwd: string,
+): Promise<CommandPermissions> {
+  const directories = new Set<string>()
+  if (!Instance.containsPath(cwd)) directories.add(cwd)
+  const patterns = new Set<string>()
+  const always = new Set<string>()
+
+  for (const node of tree.rootNode.descendantsOfType("command")) {
+    if (!node) continue
+    const { dirs, commandText, alwaysEntry } = await processCommandNode(node, cwd)
+    for (const dir of dirs) directories.add(dir)
+    if (commandText) patterns.add(commandText)
+    if (alwaysEntry) always.add(alwaysEntry)
+  }
+
+  return { directories, patterns, always }
+}
+
+interface SpawnResult {
+  output: string
+  exitCode: number | null
+  timedOut: boolean
+  aborted: boolean
+}
+
+async function spawnAndWait(
+  command: string,
+  shell: string,
+  cwd: string,
+  env: NodeJS.ProcessEnv,
+  timeout: number,
+  abort: AbortSignal,
+  onChunk: (chunk: Buffer) => void,
+): Promise<SpawnResult> {
+  const proc = spawn(command, {
+    shell,
+    cwd,
+    env,
+    stdio: ["ignore", "pipe", "pipe"],
+    detached: process.platform !== "win32",
+    windowsHide: process.platform === "win32",
+  })
+
+  let output = ""
+  let timedOut = false
+  let aborted = false
+  let exited = false
+
+  const kill = () => Shell.killTree(proc, { exited: () => exited })
+  if (abort.aborted) { aborted = true; await kill() }
+
+  const abortHandler = () => { aborted = true; void kill() }
+  abort.addEventListener("abort", abortHandler, { once: true })
+  const timeoutTimer = setTimeout(() => { timedOut = true; void kill() }, timeout + 100)
+
+  const append = (chunk: Buffer) => { output += chunk.toString(); onChunk(chunk) }
+  proc.stdout?.on("data", append)
+  proc.stderr?.on("data", append)
+
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timeoutTimer)
+      abort.removeEventListener("abort", abortHandler)
+    }
+    proc.once("exit", () => { exited = true; cleanup(); resolve() })
+    proc.once("error", (error) => { exited = true; cleanup(); reject(error) })
+  })
+
+  return { output, exitCode: proc.exitCode, timedOut, aborted }
+}
+
+function dirToGlob(dir: string): string {
+  if (dir.startsWith("/")) return `${dir.replace(/[\\/]+$/, "")}/*`
+  return path.join(dir, "*")
+}
+
+function truncateOutput(output: string): string {
+  return output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output
+}
+
+function buildBashMetadataSuffix(timedOut: boolean, aborted: boolean, timeout: number): string {
+  const parts: string[] = []
+  if (timedOut) parts.push(`bash tool terminated command after exceeding timeout ${timeout} ms`)
+  if (aborted) parts.push("User aborted the command")
+  return parts.length > 0 ? "\n\n<bash_metadata>\n" + parts.join("\n") + "\n</bash_metadata>" : ""
+}
+
 export const log = Log.create({ service: "bash-tool" })
 
 const resolveWasm = (asset: string) => {
@@ -82,72 +229,13 @@ export const BashTool = Tool.define("bash", async () => {
       }
       const timeout = params.timeout ?? DEFAULT_TIMEOUT
       const tree = await parser().then((p) => p.parse(params.command))
-      if (!tree) {
-        throw new Error("Failed to parse command")
-      }
-      const directories = new Set<string>()
-      if (!Instance.containsPath(cwd)) directories.add(cwd)
-      const patterns = new Set<string>()
-      const always = new Set<string>()
+      if (!tree) throw new Error("Failed to parse command")
 
-      for (const node of tree.rootNode.descendantsOfType("command")) {
-        if (!node) continue
-
-        // Get full command text including redirects if present
-        let commandText = node.parent?.type === "redirected_statement" ? node.parent.text : node.text
-
-        const command = []
-        for (let i = 0; i < node.childCount; i++) {
-          const child = node.child(i)
-          if (!child) continue
-          if (
-            child.type !== "command_name" &&
-            child.type !== "word" &&
-            child.type !== "string" &&
-            child.type !== "raw_string" &&
-            child.type !== "concatenation"
-          ) {
-            continue
-          }
-          command.push(child.text)
-        }
-
-        // not an exhaustive list, but covers most common cases
-        if (["cd", "rm", "cp", "mv", "mkdir", "touch", "chmod", "chown", "cat"].includes(command[0])) {
-          for (const arg of command.slice(1)) {
-            if (arg.startsWith("-") || (command[0] === "chmod" && arg.startsWith("+"))) continue
-            const resolved = await fs.realpath(path.resolve(cwd, arg)).catch(() => "")
-            log.info("resolved path", { arg, resolved })
-            if (resolved) {
-              const normalized =
-                process.platform === "win32" ? Filesystem.windowsPath(resolved).replace(/\//g, "\\") : resolved
-              if (!Instance.containsPath(normalized)) {
-                const dir = (await Filesystem.isDir(normalized)) ? normalized : path.dirname(normalized)
-                directories.add(dir)
-              }
-            }
-          }
-        }
-
-        // cd covered by above check
-        if (command.length && command[0] !== "cd") {
-          patterns.add(commandText)
-          always.add(BashArity.prefix(command).join(" ") + " *")
-        }
-      }
+      const { directories, patterns, always } = await collectCommandPermissions(tree, cwd)
 
       if (directories.size > 0) {
-        const globs = Array.from(directories).map((dir) => {
-          // Preserve POSIX-looking paths with /s, even on Windows
-          if (dir.startsWith("/")) return `${dir.replace(/[\\/]+$/, "")}/*`
-          return path.join(dir, "*")
-        })
-        await ctx.ask({
-          permission: "external_directory",
-          patterns: globs,
-          always: globs,
-          metadata: {},
-        })
+        const globs = Array.from(directories).map(dirToGlob)
+        await ctx.ask({ permission: "external_directory", patterns: globs, always: globs, metadata: {} })
       }
 
       if (patterns.size > 0) {
@@ -164,106 +252,30 @@ export const BashTool = Tool.define("bash", async () => {
         { cwd, sessionID: ctx.sessionID, callID: ctx.callID },
         { env: {} },
       )
-      const proc = spawn(params.command, {
+
+      ctx.metadata({ metadata: { output: "", description: params.description } })
+
+      let liveOutput = ""
+      const onChunk = (chunk: Buffer) => {
+        liveOutput += chunk.toString()
+        ctx.metadata({ metadata: { output: truncateOutput(liveOutput), description: params.description } })
+      }
+
+      const { output, exitCode, timedOut, aborted } = await spawnAndWait(
+        params.command,
         shell,
         cwd,
-        env: {
-          ...process.env,
-          ...shellEnv.env,
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: process.platform !== "win32",
-        windowsHide: process.platform === "win32",
-      })
+        { ...process.env, ...shellEnv.env },
+        timeout,
+        ctx.abort,
+        onChunk,
+      )
 
-      let output = ""
-
-      // Initialize metadata with empty output
-      ctx.metadata({
-        metadata: {
-          output: "",
-          description: params.description,
-        },
-      })
-
-      const append = (chunk: Buffer) => {
-        output += chunk.toString()
-        ctx.metadata({
-          metadata: {
-            // truncate the metadata to avoid GIANT blobs of data (has nothing to do w/ what agent can access)
-            output: output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output,
-            description: params.description,
-          },
-        })
-      }
-
-      proc.stdout?.on("data", append)
-      proc.stderr?.on("data", append)
-
-      let timedOut = false
-      let aborted = false
-      let exited = false
-
-      const kill = () => Shell.killTree(proc, { exited: () => exited })
-
-      if (ctx.abort.aborted) {
-        aborted = true
-        await kill()
-      }
-
-      const abortHandler = () => {
-        aborted = true
-        void kill()
-      }
-
-      ctx.abort.addEventListener("abort", abortHandler, { once: true })
-
-      const timeoutTimer = setTimeout(() => {
-        timedOut = true
-        void kill()
-      }, timeout + 100)
-
-      await new Promise<void>((resolve, reject) => {
-        const cleanup = () => {
-          clearTimeout(timeoutTimer)
-          ctx.abort.removeEventListener("abort", abortHandler)
-        }
-
-        proc.once("exit", () => {
-          exited = true
-          cleanup()
-          resolve()
-        })
-
-        proc.once("error", (error) => {
-          exited = true
-          cleanup()
-          reject(error)
-        })
-      })
-
-      const resultMetadata: string[] = []
-
-      if (timedOut) {
-        resultMetadata.push(`bash tool terminated command after exceeding timeout ${timeout} ms`)
-      }
-
-      if (aborted) {
-        resultMetadata.push("User aborted the command")
-      }
-
-      if (resultMetadata.length > 0) {
-        output += "\n\n<bash_metadata>\n" + resultMetadata.join("\n") + "\n</bash_metadata>"
-      }
-
+      const finalOutput = output + buildBashMetadataSuffix(timedOut, aborted, timeout)
       return {
         title: params.description,
-        metadata: {
-          output: output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output,
-          exit: proc.exitCode,
-          description: params.description,
-        },
-        output,
+        metadata: { output: truncateOutput(finalOutput), exit: exitCode, description: params.description },
+        output: finalOutput,
       }
     },
   }

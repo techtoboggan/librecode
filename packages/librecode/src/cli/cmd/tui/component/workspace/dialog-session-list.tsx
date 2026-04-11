@@ -12,6 +12,26 @@ import { useKV } from "../../context/kv"
 import { createDebouncedSignal } from "../../util/signal"
 import { Spinner } from "../spinner"
 import { useToast } from "../../ui/toast"
+import type { Session } from "@librecode/sdk/v2"
+
+function sessionCategory(updatedAt: number): string {
+  const today = new Date().toDateString()
+  const date = new Date(updatedAt)
+  const label = date.toDateString()
+  return label === today ? "Today" : label
+}
+
+function matchesFilter(
+  session: Session,
+  props: { workspaceID?: string; localOnly?: boolean },
+  listed: Session[] | undefined,
+): boolean {
+  if (session.parentID !== undefined) return false
+  if (props.workspaceID && listed) return true
+  if (props.workspaceID) return session.workspaceID === props.workspaceID
+  if (props.localOnly) return !session.workspaceID
+  return true
+}
 
 export function DialogSessionList(props: { workspaceID?: string; localOnly?: boolean } = {}) {
   const dialog = useDialog()
@@ -53,40 +73,45 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
     return sync.data.session
   })
 
-  const options = createMemo(() => {
-    const today = new Date().toDateString()
-    return sessions()
-      .filter((x) => {
-        if (x.parentID !== undefined) return false
-        if (props.workspaceID && listed()) return true
-        if (props.workspaceID) return x.workspaceID === props.workspaceID
-        if (props.localOnly) return !x.workspaceID
-        return true
-      })
+  const options = createMemo(() =>
+    sessions()
+      .filter((x) => matchesFilter(x, props, listed()))
       .toSorted((a, b) => b.time.updated - a.time.updated)
       .map((x) => {
-        const date = new Date(x.time.updated)
-        let category = date.toDateString()
-        if (category === today) {
-          category = "Today"
-        }
         const isDeleting = toDelete() === x.id
         const status = sync.data.session_status?.[x.id]
-        const isWorking = status?.type === "busy"
         return {
           title: isDeleting ? `Press ${keybind.print("session_delete")} again to confirm` : x.title,
           bg: isDeleting ? theme.error : undefined,
           value: x.id,
-          category,
+          category: sessionCategory(x.time.updated),
           footer: Locale.time(x.time.updated),
-          gutter: isWorking ? <Spinner /> : undefined,
+          gutter: status?.type === "busy" ? <Spinner /> : undefined,
         }
-      })
-  })
+      }),
+  )
 
   onMount(() => {
     dialog.setSize("large")
   })
+
+  async function handleSessionDelete(sessionID: string): Promise<void> {
+    if (toDelete() !== sessionID) {
+      setToDelete(sessionID)
+      return
+    }
+    const deleted = await sdk.client.session.delete({ sessionID }).then(() => true).catch(() => false)
+    setToDelete(undefined)
+    if (!deleted) {
+      toast.show({ message: "Failed to delete session", variant: "error" })
+      return
+    }
+    if (props.workspaceID) {
+      listedActions.mutate((sessions) => sessions?.filter((session) => session.id !== sessionID))
+      return
+    }
+    sync.set("session", sync.data.session.filter((session) => session.id !== sessionID))
+  }
 
   return (
     <DialogSelect
@@ -109,34 +134,7 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
         {
           keybind: keybind.all.session_delete?.[0],
           title: "delete",
-          onTrigger: async (option) => {
-            if (toDelete() === option.value) {
-              const deleted = await sdk.client.session
-                .delete({
-                  sessionID: option.value,
-                })
-                .then(() => true)
-                .catch(() => false)
-              setToDelete(undefined)
-              if (!deleted) {
-                toast.show({
-                  message: "Failed to delete session",
-                  variant: "error",
-                })
-                return
-              }
-              if (props.workspaceID) {
-                listedActions.mutate((sessions) => sessions?.filter((session) => session.id !== option.value))
-                return
-              }
-              sync.set(
-                "session",
-                sync.data.session.filter((session) => session.id !== option.value),
-              )
-              return
-            }
-            setToDelete(option.value)
-          },
+          onTrigger: (option) => handleSessionDelete(option.value),
         },
         {
           keybind: keybind.all.session_rename?.[0],

@@ -11,6 +11,52 @@ import { GoogleAuth } from "google-auth-library"
 import type { AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
 import type { CustomLoader } from "./types"
 
+const US_PREFIXED_MODELS = ["nova-micro", "nova-lite", "nova-pro", "nova-premier", "nova-2", "claude", "deepseek"]
+const EU_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"]
+const EU_PREFIXED_REGIONS = ["eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1", "eu-central-1", "eu-south-1", "eu-south-2"]
+const AP_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "nova-pro"]
+const AP_AUSTRALIA_MODELS = ["anthropic.claude-sonnet-4-5", "anthropic.claude-haiku"]
+const CROSS_REGION_PREFIXES = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
+
+function applyUsPrefix(modelID: string, region: string): string {
+  const modelRequiresPrefix = US_PREFIXED_MODELS.some((m) => modelID.includes(m))
+  const isGovCloud = region.startsWith("us-gov")
+  return modelRequiresPrefix && !isGovCloud ? `us.${modelID}` : modelID
+}
+
+function applyEuPrefix(modelID: string, region: string): string {
+  const regionRequiresPrefix = EU_PREFIXED_REGIONS.some((r) => region.includes(r))
+  const modelRequiresPrefix = EU_PREFIXED_MODELS.some((m) => modelID.includes(m))
+  return regionRequiresPrefix && modelRequiresPrefix ? `eu.${modelID}` : modelID
+}
+
+function applyApPrefix(modelID: string, region: string): string {
+  const isAustraliaRegion = ["ap-southeast-2", "ap-southeast-4"].includes(region)
+  const isTokyoRegion = region === "ap-northeast-1"
+
+  if (isAustraliaRegion && AP_AUSTRALIA_MODELS.some((m) => modelID.includes(m))) {
+    return `au.${modelID}`
+  }
+  if (isTokyoRegion && AP_PREFIXED_MODELS.some((m) => modelID.includes(m))) {
+    return `jp.${modelID}`
+  }
+  if (AP_PREFIXED_MODELS.some((m) => modelID.includes(m))) {
+    return `apac.${modelID}`
+  }
+  return modelID
+}
+
+function applyBedrockRegionPrefix(modelID: string, region: string): string {
+  if (CROSS_REGION_PREFIXES.some((prefix) => modelID.startsWith(prefix))) return modelID
+  const regionPrefix = region.split("-")[0]
+  switch (regionPrefix) {
+    case "us": return applyUsPrefix(modelID, region)
+    case "eu": return applyEuPrefix(modelID, region)
+    case "ap": return applyApPrefix(modelID, region)
+    default: return modelID
+  }
+}
+
 export const amazonBedrock: CustomLoader = async () => {
   const config = await Config.get()
   const providerConfig = config.provider?.["amazon-bedrock"]
@@ -63,81 +109,9 @@ export const amazonBedrock: CustomLoader = async () => {
   return {
     autoload: true,
     options: providerOptions,
-    async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
-      const crossRegionPrefixes = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
-      if (crossRegionPrefixes.some((prefix) => modelID.startsWith(prefix))) {
-        return sdk.languageModel(modelID)
-      }
-
-      const region = options?.region ?? defaultRegion
-      let regionPrefix = region.split("-")[0]
-
-      switch (regionPrefix) {
-        case "us": {
-          const modelRequiresPrefix = [
-            "nova-micro",
-            "nova-lite",
-            "nova-pro",
-            "nova-premier",
-            "nova-2",
-            "claude",
-            "deepseek",
-          ].some((m) => modelID.includes(m))
-          const isGovCloud = region.startsWith("us-gov")
-          if (modelRequiresPrefix && !isGovCloud) {
-            modelID = `${regionPrefix}.${modelID}`
-          }
-          break
-        }
-        case "eu": {
-          const regionRequiresPrefix = [
-            "eu-west-1",
-            "eu-west-2",
-            "eu-west-3",
-            "eu-north-1",
-            "eu-central-1",
-            "eu-south-1",
-            "eu-south-2",
-          ].some((r) => region.includes(r))
-          const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"].some((m) =>
-            modelID.includes(m),
-          )
-          if (regionRequiresPrefix && modelRequiresPrefix) {
-            modelID = `${regionPrefix}.${modelID}`
-          }
-          break
-        }
-        case "ap": {
-          const isAustraliaRegion = ["ap-southeast-2", "ap-southeast-4"].includes(region)
-          const isTokyoRegion = region === "ap-northeast-1"
-          if (
-            isAustraliaRegion &&
-            ["anthropic.claude-sonnet-4-5", "anthropic.claude-haiku"].some((m) => modelID.includes(m))
-          ) {
-            regionPrefix = "au"
-            modelID = `${regionPrefix}.${modelID}`
-          } else if (isTokyoRegion) {
-            const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "nova-pro"].some((m) =>
-              modelID.includes(m),
-            )
-            if (modelRequiresPrefix) {
-              regionPrefix = "jp"
-              modelID = `${regionPrefix}.${modelID}`
-            }
-          } else {
-            const modelRequiresPrefix = ["claude", "nova-lite", "nova-micro", "nova-pro"].some((m) =>
-              modelID.includes(m),
-            )
-            if (modelRequiresPrefix) {
-              regionPrefix = "apac"
-              modelID = `${regionPrefix}.${modelID}`
-            }
-          }
-          break
-        }
-      }
-
-      return sdk.languageModel(modelID)
+    async getModel(sdk: unknown, modelID: string, options?: Record<string, unknown>) {
+      const prefixedModelID = applyBedrockRegionPrefix(modelID, options?.region as string | undefined ?? defaultRegion)
+      return (sdk as { languageModel: (id: string) => unknown }).languageModel(prefixedModelID)
     },
   }
 }

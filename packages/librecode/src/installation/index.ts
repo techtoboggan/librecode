@@ -161,66 +161,51 @@ export namespace Installation {
     return "librecode"
   }
 
-  export async function upgrade(method: Method, target: string) {
-    let result: Awaited<ReturnType<typeof upgradeCurl>> | undefined
+  type RunResult = Awaited<ReturnType<typeof upgradeCurl>>
+
+  async function upgradeBrew(env: NodeJS.ProcessEnv): Promise<RunResult> {
+    const formula = await getBrewFormula()
+    if (formula.includes("/")) {
+      const tap = await Process.run(["brew", "tap", "anomalyco/tap"], { env, nothrow: true })
+      if (tap.code !== 0) return tap
+      const repo = await Process.text(["brew", "--repo", "anomalyco/tap"], { env, nothrow: true })
+      if (repo.code !== 0) return repo
+      const dir = repo.text.trim()
+      if (dir) {
+        const pull = await Process.run(["git", "pull", "--ff-only"], { cwd: dir, env, nothrow: true })
+        if (pull.code !== 0) return pull
+      }
+    }
+    return Process.run(["brew", "upgrade", formula], { env, nothrow: true })
+  }
+
+  async function runUpgrade(method: Method, target: string): Promise<RunResult> {
     switch (method) {
       case "curl":
-        result = await upgradeCurl(target)
-        break
+        return upgradeCurl(target)
       case "npm":
-        result = await Process.run(["npm", "install", "-g", `librecode@${target}`], { nothrow: true })
-        break
+        return Process.run(["npm", "install", "-g", `librecode@${target}`], { nothrow: true })
       case "pnpm":
-        result = await Process.run(["pnpm", "install", "-g", `librecode@${target}`], { nothrow: true })
-        break
+        return Process.run(["pnpm", "install", "-g", `librecode@${target}`], { nothrow: true })
       case "bun":
-        result = await Process.run(["bun", "install", "-g", `librecode@${target}`], { nothrow: true })
-        break
-      case "brew": {
-        const formula = await getBrewFormula()
-        const env = {
-          HOMEBREW_NO_AUTO_UPDATE: "1",
-          ...process.env,
-        }
-        if (formula.includes("/")) {
-          const tap = await Process.run(["brew", "tap", "anomalyco/tap"], { env, nothrow: true })
-          if (tap.code !== 0) {
-            result = tap
-            break
-          }
-          const repo = await Process.text(["brew", "--repo", "anomalyco/tap"], { env, nothrow: true })
-          if (repo.code !== 0) {
-            result = repo
-            break
-          }
-          const dir = repo.text.trim()
-          if (dir) {
-            const pull = await Process.run(["git", "pull", "--ff-only"], { cwd: dir, env, nothrow: true })
-            if (pull.code !== 0) {
-              result = pull
-              break
-            }
-          }
-        }
-        result = await Process.run(["brew", "upgrade", formula], { env, nothrow: true })
-        break
-      }
-
+        return Process.run(["bun", "install", "-g", `librecode@${target}`], { nothrow: true })
+      case "brew":
+        return upgradeBrew({ HOMEBREW_NO_AUTO_UPDATE: "1", ...process.env })
       case "choco":
-        result = await Process.run(["choco", "upgrade", "librecode", `--version=${target}`, "-y"], { nothrow: true })
-        break
+        return Process.run(["choco", "upgrade", "librecode", `--version=${target}`, "-y"], { nothrow: true })
       case "scoop":
-        result = await Process.run(["scoop", "install", `librecode@${target}`], { nothrow: true })
-        break
+        return Process.run(["scoop", "install", `librecode@${target}`], { nothrow: true })
       default:
         throw new Error(`Unknown method: ${method}`)
     }
+  }
+
+  export async function upgrade(method: Method, target: string): Promise<void> {
+    const result = await runUpgrade(method, target)
     if (!result || result.code !== 0) {
       const stderr =
         method === "choco" ? "not running from an elevated command shell" : result?.stderr.toString("utf8") || ""
-      throw new UpgradeFailedError({
-        stderr: stderr,
-      })
+      throw new UpgradeFailedError({ stderr })
     }
     log.info("upgraded", {
       method,

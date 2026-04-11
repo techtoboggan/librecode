@@ -244,72 +244,63 @@ interface PendingOAuth {
 let oauthServer: ReturnType<typeof Bun.serve> | undefined
 let pendingOAuth: PendingOAuth | undefined
 
+function rejectPendingOAuth(error: Error): void {
+  pendingOAuth?.reject(error)
+  pendingOAuth = undefined
+}
+
+function handleOAuthError(error: string, errorDescription: string | null): Response {
+  const errorMsg = errorDescription || error
+  rejectPendingOAuth(new Error(errorMsg))
+  return new Response(HTML_ERROR(errorMsg), { headers: { "Content-Type": "text/html" } })
+}
+
+function handleMissingCode(): Response {
+  const errorMsg = "Missing authorization code"
+  rejectPendingOAuth(new Error(errorMsg))
+  return new Response(HTML_ERROR(errorMsg), { status: 400, headers: { "Content-Type": "text/html" } })
+}
+
+function handleInvalidState(): Response {
+  const errorMsg = "Invalid state - potential CSRF attack"
+  rejectPendingOAuth(new Error(errorMsg))
+  return new Response(HTML_ERROR(errorMsg), { status: 400, headers: { "Content-Type": "text/html" } })
+}
+
+function handleAuthCallback(url: URL): Response {
+  const code = url.searchParams.get("code")
+  const state = url.searchParams.get("state")
+  const error = url.searchParams.get("error")
+  const errorDescription = url.searchParams.get("error_description")
+
+  if (error) return handleOAuthError(error, errorDescription)
+  if (!code) return handleMissingCode()
+  if (!pendingOAuth || state !== pendingOAuth.state) return handleInvalidState()
+
+  const current = pendingOAuth
+  pendingOAuth = undefined
+  exchangeCodeForTokens(code, `http://localhost:${OAUTH_PORT}/auth/callback`, current.pkce)
+    .then((tokens) => current.resolve(tokens))
+    .catch((err) => current.reject(err))
+  return new Response(HTML_SUCCESS, { headers: { "Content-Type": "text/html" } })
+}
+
+function handleOAuthRequest(req: Request): Response {
+  const url = new URL(req.url)
+  if (url.pathname === "/auth/callback") return handleAuthCallback(url)
+  if (url.pathname === "/cancel") {
+    rejectPendingOAuth(new Error("Login cancelled"))
+    return new Response("Login cancelled", { status: 200 })
+  }
+  return new Response("Not found", { status: 404 })
+}
+
 async function startOAuthServer(): Promise<{ port: number; redirectUri: string }> {
   if (oauthServer) {
     return { port: OAUTH_PORT, redirectUri: `http://localhost:${OAUTH_PORT}/auth/callback` }
   }
 
-  oauthServer = Bun.serve({
-    port: OAUTH_PORT,
-    fetch(req) {
-      const url = new URL(req.url)
-
-      if (url.pathname === "/auth/callback") {
-        const code = url.searchParams.get("code")
-        const state = url.searchParams.get("state")
-        const error = url.searchParams.get("error")
-        const errorDescription = url.searchParams.get("error_description")
-
-        if (error) {
-          const errorMsg = errorDescription || error
-          pendingOAuth?.reject(new Error(errorMsg))
-          pendingOAuth = undefined
-          return new Response(HTML_ERROR(errorMsg), {
-            headers: { "Content-Type": "text/html" },
-          })
-        }
-
-        if (!code) {
-          const errorMsg = "Missing authorization code"
-          pendingOAuth?.reject(new Error(errorMsg))
-          pendingOAuth = undefined
-          return new Response(HTML_ERROR(errorMsg), {
-            status: 400,
-            headers: { "Content-Type": "text/html" },
-          })
-        }
-
-        if (!pendingOAuth || state !== pendingOAuth.state) {
-          const errorMsg = "Invalid state - potential CSRF attack"
-          pendingOAuth?.reject(new Error(errorMsg))
-          pendingOAuth = undefined
-          return new Response(HTML_ERROR(errorMsg), {
-            status: 400,
-            headers: { "Content-Type": "text/html" },
-          })
-        }
-
-        const current = pendingOAuth
-        pendingOAuth = undefined
-
-        exchangeCodeForTokens(code, `http://localhost:${OAUTH_PORT}/auth/callback`, current.pkce)
-          .then((tokens) => current.resolve(tokens))
-          .catch((err) => current.reject(err))
-
-        return new Response(HTML_SUCCESS, {
-          headers: { "Content-Type": "text/html" },
-        })
-      }
-
-      if (url.pathname === "/cancel") {
-        pendingOAuth?.reject(new Error("Login cancelled"))
-        pendingOAuth = undefined
-        return new Response("Login cancelled", { status: 200 })
-      }
-
-      return new Response("Not found", { status: 404 })
-    },
-  })
+  oauthServer = Bun.serve({ port: OAUTH_PORT, fetch: handleOAuthRequest })
 
   log.info("codex oauth server started", { port: OAUTH_PORT })
   return { port: OAUTH_PORT, redirectUri: `http://localhost:${OAUTH_PORT}/auth/callback` }
@@ -350,6 +341,185 @@ function waitForOAuthCallback(pkce: PkceCodes, state: string): Promise<TokenResp
   })
 }
 
+// Remove the dummy API key authorization header that the AI SDK injects
+function stripAuthorizationHeader(init: RequestInit | undefined): void {
+  if (!init?.headers) return
+  if (init.headers instanceof Headers) {
+    init.headers.delete("authorization")
+    init.headers.delete("Authorization")
+  } else if (Array.isArray(init.headers)) {
+    init.headers = (init.headers as Array<[string, string]>).filter(([key]) => key.toLowerCase() !== "authorization")
+  } else {
+    delete (init.headers as Record<string, string>)["authorization"]
+    delete (init.headers as Record<string, string>)["Authorization"]
+  }
+}
+
+function copyArrayHeaders(headers: Array<[string, string | undefined]>, dest: Headers): void {
+  for (const [key, value] of headers) {
+    if (value !== undefined) dest.set(key, String(value))
+  }
+}
+
+function copyObjectHeaders(headers: Record<string, string | undefined>, dest: Headers): void {
+  for (const [key, value] of Object.entries(headers)) {
+    if (value !== undefined) dest.set(key, String(value))
+  }
+}
+
+function copyInitHeaders(init: RequestInit | undefined, dest: Headers): void {
+  if (!init?.headers) return
+  if (init.headers instanceof Headers) {
+    init.headers.forEach((value, key) => dest.set(key, value))
+  } else if (Array.isArray(init.headers)) {
+    copyArrayHeaders(init.headers as Array<[string, string | undefined]>, dest)
+  } else {
+    copyObjectHeaders(init.headers as Record<string, string | undefined>, dest)
+  }
+}
+
+function buildRequestHeaders(init: RequestInit | undefined, accessToken: string, accountId?: string): Headers {
+  const headers = new Headers()
+  copyInitHeaders(init, headers)
+  headers.set("authorization", `Bearer ${accessToken}`)
+  if (accountId) headers.set("ChatGPT-Account-Id", accountId)
+  return headers
+}
+
+function resolveCodexUrl(requestInput: RequestInfo | URL): URL {
+  const parsed =
+    requestInput instanceof URL
+      ? requestInput
+      : new URL(typeof requestInput === "string" ? requestInput : (requestInput as Request).url)
+  return parsed.pathname.includes("/v1/responses") || parsed.pathname.includes("/chat/completions")
+    ? new URL(CODEX_API_ENDPOINT)
+    : parsed
+}
+
+type CodexAuthClient = { set: (args: { path: { id: string }; body: Record<string, unknown> }) => Promise<unknown> }
+type OAuthAuth = { type: "oauth"; access?: string; expires: number; refresh: string; accountId?: string }
+
+async function maybeRefreshCodexToken(
+  currentAuth: OAuthAuth,
+  authWithAccount: OAuthAuth & { accountId?: string },
+  authClient: CodexAuthClient,
+): Promise<void> {
+  if (currentAuth.access && currentAuth.expires >= Date.now()) return
+  log.info("refreshing codex access token")
+  const tokens = await refreshAccessToken(currentAuth.refresh)
+  const newAccountId = extractAccountId(tokens) || authWithAccount.accountId
+  await authClient.set({
+    path: { id: "openai" },
+    body: {
+      type: "oauth",
+      refresh: tokens.refresh_token,
+      access: tokens.access_token,
+      expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+      ...(newAccountId && { accountId: newAccountId }),
+    },
+  })
+  currentAuth.access = tokens.access_token
+  authWithAccount.accountId = newAccountId
+}
+
+async function exchangeDeviceAuthCode(authorizationCode: string, codeVerifier: string): Promise<TokenResponse> {
+  const tokenResponse = await fetch(`${ISSUER}/oauth/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code: authorizationCode,
+      redirect_uri: `${ISSUER}/deviceauth/callback`,
+      client_id: CLIENT_ID,
+      code_verifier: codeVerifier,
+    }).toString(),
+  })
+  if (!tokenResponse.ok) throw new Error(`Token exchange failed: ${tokenResponse.status}`)
+  return tokenResponse.json()
+}
+
+async function pollForCodexDeviceToken(
+  deviceAuthId: string,
+  userCode: string,
+  interval: number,
+): Promise<{ type: "success"; refresh: string; access: string; expires: number; accountId: string | undefined } | { type: "failed" }> {
+  while (true) {
+    const response = await fetch(`${ISSUER}/api/accounts/deviceauth/token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": `librecode/${Installation.VERSION}` },
+      body: JSON.stringify({ device_auth_id: deviceAuthId, user_code: userCode }),
+    })
+
+    if (response.ok) {
+      const data = (await response.json()) as { authorization_code: string; code_verifier: string }
+      const tokens = await exchangeDeviceAuthCode(data.authorization_code, data.code_verifier)
+      return {
+        type: "success" as const,
+        refresh: tokens.refresh_token,
+        access: tokens.access_token,
+        expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
+        accountId: extractAccountId(tokens),
+      }
+    }
+
+    if (response.status !== 403 && response.status !== 404) return { type: "failed" as const }
+    await sleep(interval + OAUTH_POLLING_SAFETY_MARGIN_MS)
+  }
+}
+
+const CODEX_ALLOWED_MODELS = new Set([
+  "gpt-5.1-codex-max",
+  "gpt-5.1-codex-mini",
+  "gpt-5.2",
+  "gpt-5.4",
+  "gpt-5.2-codex",
+  "gpt-5.3-codex",
+  "gpt-5.1-codex",
+])
+
+function filterCodexModels(models: Record<string, unknown>): void {
+  for (const modelId of Object.keys(models)) {
+    if (modelId.includes("codex")) continue
+    if (CODEX_ALLOWED_MODELS.has(modelId)) continue
+    delete models[modelId]
+  }
+}
+
+function ensureDefaultCodexModel(provider: { models: Record<string, unknown> }): void {
+  if (provider.models["gpt-5.3-codex"]) return
+  const model = {
+    id: ModelID.make("gpt-5.3-codex"),
+    providerID: ProviderID.openai,
+    api: { id: "gpt-5.3-codex", url: "https://chatgpt.com/backend-api/codex", npm: "@ai-sdk/openai" },
+    name: "GPT-5.3 Codex",
+    capabilities: {
+      temperature: false,
+      reasoning: true,
+      attachment: true,
+      toolcall: true,
+      input: { text: true, audio: false, image: true, video: false, pdf: false },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: 400_000, input: 272_000, output: 128_000 },
+    status: "active" as const,
+    options: {},
+    headers: {},
+    release_date: "2026-02-05",
+    variants: {} as Record<string, Record<string, unknown>>,
+    family: "gpt-codex",
+  }
+  model.variants = ProviderTransform.variants(model)
+  provider.models["gpt-5.3-codex"] = model
+}
+
+function zeroOutModelCosts(models: Record<string, { cost: { input: number; output: number; cache: { read: number; write: number } } }>): void {
+  for (const model of Object.values(models)) {
+    model.cost = { input: 0, output: 0, cache: { read: 0, write: 0 } }
+  }
+}
+
 export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
   return {
     auth: {
@@ -358,142 +528,25 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
         const auth = await getAuth()
         if (auth.type !== "oauth") return {}
 
-        // Filter models to only allowed Codex models for OAuth
-        const allowedModels = new Set([
-          "gpt-5.1-codex-max",
-          "gpt-5.1-codex-mini",
-          "gpt-5.2",
-          "gpt-5.4",
-          "gpt-5.2-codex",
-          "gpt-5.3-codex",
-          "gpt-5.1-codex",
-        ])
-        for (const modelId of Object.keys(provider.models)) {
-          if (modelId.includes("codex")) continue
-          if (allowedModels.has(modelId)) continue
-          delete provider.models[modelId]
-        }
-
-        if (!provider.models["gpt-5.3-codex"]) {
-          const model = {
-            id: ModelID.make("gpt-5.3-codex"),
-            providerID: ProviderID.openai,
-            api: {
-              id: "gpt-5.3-codex",
-              url: "https://chatgpt.com/backend-api/codex",
-              npm: "@ai-sdk/openai",
-            },
-            name: "GPT-5.3 Codex",
-            capabilities: {
-              temperature: false,
-              reasoning: true,
-              attachment: true,
-              toolcall: true,
-              input: { text: true, audio: false, image: true, video: false, pdf: false },
-              output: { text: true, audio: false, image: false, video: false, pdf: false },
-              interleaved: false,
-            },
-            cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-            limit: { context: 400_000, input: 272_000, output: 128_000 },
-            status: "active" as const,
-            options: {},
-            headers: {},
-            release_date: "2026-02-05",
-            variants: {} as Record<string, Record<string, any>>,
-            family: "gpt-codex",
-          }
-          model.variants = ProviderTransform.variants(model)
-          provider.models["gpt-5.3-codex"] = model
-        }
-
-        // Zero out costs for Codex (included with ChatGPT subscription)
-        for (const model of Object.values(provider.models)) {
-          model.cost = {
-            input: 0,
-            output: 0,
-            cache: { read: 0, write: 0 },
-          }
-        }
+        filterCodexModels(provider.models as Record<string, unknown>)
+        ensureDefaultCodexModel(provider as { models: Record<string, unknown> })
+        zeroOutModelCosts(provider.models as Parameters<typeof zeroOutModelCosts>[0])
 
         return {
           apiKey: OAUTH_DUMMY_KEY,
           async fetch(requestInput: RequestInfo | URL, init?: RequestInit) {
-            // Remove dummy API key authorization header
-            if (init?.headers) {
-              if (init.headers instanceof Headers) {
-                init.headers.delete("authorization")
-                init.headers.delete("Authorization")
-              } else if (Array.isArray(init.headers)) {
-                init.headers = init.headers.filter(([key]) => key.toLowerCase() !== "authorization")
-              } else {
-                delete init.headers["authorization"]
-                delete init.headers["Authorization"]
-              }
-            }
+            stripAuthorizationHeader(init)
 
             const currentAuth = await getAuth()
             if (currentAuth.type !== "oauth") return fetch(requestInput, init)
 
-            // Cast to include accountId field
             const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
+            await maybeRefreshCodexToken(currentAuth, authWithAccount, input.client.auth)
 
-            // Check if token needs refresh
-            if (!currentAuth.access || currentAuth.expires < Date.now()) {
-              log.info("refreshing codex access token")
-              const tokens = await refreshAccessToken(currentAuth.refresh)
-              const newAccountId = extractAccountId(tokens) || authWithAccount.accountId
-              await input.client.auth.set({
-                path: { id: "openai" },
-                body: {
-                  type: "oauth",
-                  refresh: tokens.refresh_token,
-                  access: tokens.access_token,
-                  expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
-                  ...(newAccountId && { accountId: newAccountId }),
-                },
-              })
-              currentAuth.access = tokens.access_token
-              authWithAccount.accountId = newAccountId
-            }
+            const headers = buildRequestHeaders(init, currentAuth.access!, authWithAccount.accountId)
+            const url = resolveCodexUrl(requestInput)
 
-            // Build headers
-            const headers = new Headers()
-            if (init?.headers) {
-              if (init.headers instanceof Headers) {
-                init.headers.forEach((value, key) => headers.set(key, value))
-              } else if (Array.isArray(init.headers)) {
-                for (const [key, value] of init.headers) {
-                  if (value !== undefined) headers.set(key, String(value))
-                }
-              } else {
-                for (const [key, value] of Object.entries(init.headers)) {
-                  if (value !== undefined) headers.set(key, String(value))
-                }
-              }
-            }
-
-            // Set authorization header with access token
-            headers.set("authorization", `Bearer ${currentAuth.access}`)
-
-            // Set ChatGPT-Account-Id header for organization subscriptions
-            if (authWithAccount.accountId) {
-              headers.set("ChatGPT-Account-Id", authWithAccount.accountId)
-            }
-
-            // Rewrite URL to Codex endpoint
-            const parsed =
-              requestInput instanceof URL
-                ? requestInput
-                : new URL(typeof requestInput === "string" ? requestInput : requestInput.url)
-            const url =
-              parsed.pathname.includes("/v1/responses") || parsed.pathname.includes("/chat/completions")
-                ? new URL(CODEX_API_ENDPOINT)
-                : parsed
-
-            return fetch(url, {
-              ...init,
-              headers,
-            })
+            return fetch(url, { ...init, headers })
           },
         }
       },
@@ -554,60 +607,8 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
               url: `${ISSUER}/codex/device`,
               instructions: `Enter code: ${deviceData.user_code}`,
               method: "auto" as const,
-              async callback() {
-                while (true) {
-                  const response = await fetch(`${ISSUER}/api/accounts/deviceauth/token`, {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "User-Agent": `librecode/${Installation.VERSION}`,
-                    },
-                    body: JSON.stringify({
-                      device_auth_id: deviceData.device_auth_id,
-                      user_code: deviceData.user_code,
-                    }),
-                  })
-
-                  if (response.ok) {
-                    const data = (await response.json()) as {
-                      authorization_code: string
-                      code_verifier: string
-                    }
-
-                    const tokenResponse = await fetch(`${ISSUER}/oauth/token`, {
-                      method: "POST",
-                      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                      body: new URLSearchParams({
-                        grant_type: "authorization_code",
-                        code: data.authorization_code,
-                        redirect_uri: `${ISSUER}/deviceauth/callback`,
-                        client_id: CLIENT_ID,
-                        code_verifier: data.code_verifier,
-                      }).toString(),
-                    })
-
-                    if (!tokenResponse.ok) {
-                      throw new Error(`Token exchange failed: ${tokenResponse.status}`)
-                    }
-
-                    const tokens: TokenResponse = await tokenResponse.json()
-
-                    return {
-                      type: "success" as const,
-                      refresh: tokens.refresh_token,
-                      access: tokens.access_token,
-                      expires: Date.now() + (tokens.expires_in ?? 3600) * 1000,
-                      accountId: extractAccountId(tokens),
-                    }
-                  }
-
-                  if (response.status !== 403 && response.status !== 404) {
-                    return { type: "failed" as const }
-                  }
-
-                  await sleep(interval + OAUTH_POLLING_SAFETY_MARGIN_MS)
-                }
-              },
+              callback: () =>
+                pollForCodexDeviceToken(deviceData.device_auth_id, deviceData.user_code, interval),
             }
           },
         },

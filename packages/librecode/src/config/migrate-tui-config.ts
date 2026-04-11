@@ -31,6 +31,71 @@ interface MigrateInput {
   managed: string
 }
 
+interface ExtractedTuiKeys {
+  theme: unknown
+  keybinds: Record<string, unknown> | undefined
+  tui: Record<string, unknown> | undefined
+}
+
+function extractTuiKeys(data: Record<string, unknown>): ExtractedTuiKeys {
+  const theme = LegacyTheme.safeParse("theme" in data ? data.theme : undefined)
+  const keybinds = LegacyRecord.safeParse("keybinds" in data ? data.keybinds : undefined)
+  const legacyTui = LegacyRecord.safeParse("tui" in data ? data.tui : undefined)
+  return {
+    theme: theme.success ? theme.data : undefined,
+    keybinds: keybinds.success ? keybinds.data : undefined,
+    tui: legacyTui.success ? legacyTui.data : undefined,
+  }
+}
+
+function buildTuiPayload(extracted: ExtractedTuiKeys, tui: ReturnType<typeof normalizeTui>): Record<string, unknown> {
+  const payload: Record<string, unknown> = { $schema: TUI_SCHEMA_URL }
+  if (extracted.theme !== undefined) payload.theme = extracted.theme
+  if (extracted.keybinds !== undefined) payload.keybinds = extracted.keybinds
+  if (tui) Object.assign(payload, tui)
+  return payload
+}
+
+async function writeTuiTarget(file: string, target: string, payload: Record<string, unknown>): Promise<boolean> {
+  return Filesystem.write(target, JSON.stringify(payload, null, 2))
+    .then(() => true)
+    .catch((error) => {
+      log.warn("failed to write tui migration target", { from: file, to: target, error })
+      return false
+    })
+}
+
+async function migrateSingleFile(file: string) {
+  const source = await Filesystem.readText(file).catch((error) => {
+    log.warn("failed to read config for tui migration", { path: file, error })
+    return undefined
+  })
+  if (!source) return
+
+  const errors: JsoncParseError[] = []
+  const data = parseJsonc(source, errors, { allowTrailingComma: true })
+  if (errors.length || !data || typeof data !== "object" || Array.isArray(data)) return
+
+  const extracted = extractTuiKeys(data as Record<string, unknown>)
+  const tui = extracted.tui ? normalizeTui(extracted.tui) : undefined
+  if (extracted.theme === undefined && extracted.keybinds === undefined && !tui) return
+
+  const target = path.join(path.dirname(file), "tui.json")
+  const targetExists = await Filesystem.exists(target)
+  if (targetExists) return
+
+  const payload = buildTuiPayload(extracted, tui)
+  const wrote = await writeTuiTarget(file, target, payload)
+  if (!wrote) return
+
+  const stripped = await backupAndStripLegacy(file, source)
+  if (!stripped) {
+    log.warn("tui config migrated but source file was not stripped", { from: file, to: target })
+    return
+  }
+  log.info("migrated tui config", { from: file, to: target })
+}
+
 /**
  * Migrates tui-specific keys (theme, keybinds, tui) from librecode.json files
  * into dedicated tui.json files. Migration is performed per-directory and
@@ -39,51 +104,7 @@ interface MigrateInput {
 export async function migrateTuiConfig(input: MigrateInput) {
   const librecode = await librecodeFiles(input)
   for (const file of librecode) {
-    const source = await Filesystem.readText(file).catch((error) => {
-      log.warn("failed to read config for tui migration", { path: file, error })
-      return undefined
-    })
-    if (!source) continue
-    const errors: JsoncParseError[] = []
-    const data = parseJsonc(source, errors, { allowTrailingComma: true })
-    if (errors.length || !data || typeof data !== "object" || Array.isArray(data)) continue
-
-    const theme = LegacyTheme.safeParse("theme" in data ? data.theme : undefined)
-    const keybinds = LegacyRecord.safeParse("keybinds" in data ? data.keybinds : undefined)
-    const legacyTui = LegacyRecord.safeParse("tui" in data ? data.tui : undefined)
-    const extracted = {
-      theme: theme.success ? theme.data : undefined,
-      keybinds: keybinds.success ? keybinds.data : undefined,
-      tui: legacyTui.success ? legacyTui.data : undefined,
-    }
-    const tui = extracted.tui ? normalizeTui(extracted.tui) : undefined
-    if (extracted.theme === undefined && extracted.keybinds === undefined && !tui) continue
-
-    const target = path.join(path.dirname(file), "tui.json")
-    const targetExists = await Filesystem.exists(target)
-    if (targetExists) continue
-
-    const payload: Record<string, unknown> = {
-      $schema: TUI_SCHEMA_URL,
-    }
-    if (extracted.theme !== undefined) payload.theme = extracted.theme
-    if (extracted.keybinds !== undefined) payload.keybinds = extracted.keybinds
-    if (tui) Object.assign(payload, tui)
-
-    const wrote = await Filesystem.write(target, JSON.stringify(payload, null, 2))
-      .then(() => true)
-      .catch((error) => {
-        log.warn("failed to write tui migration target", { from: file, to: target, error })
-        return false
-      })
-    if (!wrote) continue
-
-    const stripped = await backupAndStripLegacy(file, source)
-    if (!stripped) {
-      log.warn("tui config migrated but source file was not stripped", { from: file, to: target })
-      continue
-    }
-    log.info("migrated tui config", { from: file, to: target })
+    await migrateSingleFile(file)
   }
 }
 

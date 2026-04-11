@@ -1,12 +1,23 @@
 import { createMemo, onMount } from "solid-js"
 import { useSync } from "@tui/context/sync"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
-import type { TextPart } from "@librecode/sdk/v2"
+import type { TextPart, Part } from "@librecode/sdk/v2"
 import { Locale } from "@/util/locale"
 import { useSDK } from "@tui/context/sdk"
 import { useRoute } from "@tui/context/route"
 import { useDialog } from "../../ui/dialog"
 import type { PromptInfo } from "@tui/component/prompt/history"
+
+function buildInitialPrompt(parts: Part[]): PromptInfo {
+  return parts.reduce(
+    (agg, part) => {
+      if (part.type === "text" && !part.synthetic) agg.input += part.text
+      if (part.type === "file") agg.parts.push(part)
+      return agg
+    },
+    { input: "", parts: [] as PromptInfo["parts"] },
+  )
+}
 
 export function DialogForkFromTimeline(props: { sessionID: string; onMove: (messageID: string) => void }) {
   const sync = useSync()
@@ -36,22 +47,8 @@ export function DialogForkFromTimeline(props: { sessionID: string; onMove: (mess
             sessionID: props.sessionID,
             messageID: message.id,
           })
-          const parts = sync.data.part[message.id] ?? []
-          const initialPrompt = parts.reduce(
-            (agg, part) => {
-              if (part.type === "text") {
-                if (!part.synthetic) agg.input += part.text
-              }
-              if (part.type === "file") agg.parts.push(part)
-              return agg
-            },
-            { input: "", parts: [] as PromptInfo["parts"] },
-          )
-          route.navigate({
-            sessionID: forked.data!.id,
-            type: "session",
-            initialPrompt,
-          })
+          const initialPrompt = buildInitialPrompt(sync.data.part[message.id] ?? [])
+          route.navigate({ sessionID: forked.data!.id, type: "session", initialPrompt })
           dialog.clear()
         },
       })

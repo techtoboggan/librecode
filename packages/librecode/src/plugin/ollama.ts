@@ -15,40 +15,63 @@ const log = Log.create({ service: "plugin.ollama" })
 const DEFAULT_BASE_URL = "http://localhost:11434"
 const CONNECT_TIMEOUT_MS = 5000
 
-async function fetchModelsFromOllama(
-  baseURL: string,
-): Promise<Array<{ id: string }>> {
+function parseOllamaResponse(data: Record<string, unknown>): Array<{ id: string }> {
+  // OpenAI-compatible format: { data: [{ id }] }
+  if (Array.isArray(data.data)) {
+    return (data.data as Array<{ id: string }>).filter((m) => m.id)
+  }
+  // Ollama native format: { models: [{ name, model }] }
+  if (Array.isArray(data.models)) {
+    return (data.models as Array<{ name?: string; model?: string }>)
+      .filter((m) => m.name || m.model)
+      .map((m) => ({ id: (m.name ?? m.model)! }))
+  }
+  return []
+}
+
+async function tryOllamaEndpoint(endpoint: string): Promise<Array<{ id: string }>> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)
+  try {
+    const response = await fetch(endpoint, { signal: controller.signal })
+    clearTimeout(timeout)
+    if (!response.ok) return []
+    return parseOllamaResponse((await response.json()) as Record<string, unknown>)
+  } catch {
+    return []
+  }
+}
+
+async function fetchModelsFromOllama(baseURL: string): Promise<Array<{ id: string }>> {
   const url = baseURL.replace(/\/+$/, "")
+  const models = await tryOllamaEndpoint(`${url}/v1/models`)
+  return models.length > 0 ? models : tryOllamaEndpoint(`${url}/api/tags`)
+}
 
-  async function tryEndpoint(endpoint: string): Promise<Array<{ id: string }>> {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)
-    try {
-      const response = await fetch(endpoint, { signal: controller.signal })
-      clearTimeout(timeout)
-      if (!response.ok) return []
-      const data = (await response.json()) as Record<string, unknown>
-      // OpenAI-compatible format: { data: [{ id }] }
-      if (Array.isArray(data.data)) {
-        return (data.data as Array<{ id: string }>).filter((m) => m.id)
-      }
-      // Ollama native format: { models: [{ name, model }] }
-      if (Array.isArray(data.models)) {
-        return (data.models as Array<{ name?: string; model?: string }>)
-          .filter((m) => m.name || m.model)
-          .map((m) => ({ id: (m.name ?? m.model)! }))
-      }
-      return []
-    } catch {
-      return []
-    }
+function injectOllamaModel(models: Record<string, unknown>, id: string, baseURL: string): void {
+  if (models[id]) return
+  models[id] = {
+    id,
+    providerID: "ollama",
+    name: id,
+    api: { id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
+    status: "active",
+    headers: {},
+    options: {},
+    cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
+    limit: { context: 128000, output: 4096 },
+    capabilities: {
+      temperature: true,
+      reasoning: false,
+      attachment: false,
+      toolcall: true,
+      input: { text: true, audio: false, image: false, video: false, pdf: false },
+      output: { text: true, audio: false, image: false, video: false, pdf: false },
+      interleaved: false,
+    },
+    release_date: new Date().toISOString().split("T")[0],
+    variants: {},
   }
-
-  let models = await tryEndpoint(`${url}/v1/models`)
-  if (models.length === 0) {
-    models = await tryEndpoint(`${url}/api/tags`)
-  }
-  return models
 }
 
 export async function OllamaAuthPlugin(_input: PluginInput): Promise<Hooks> {
@@ -57,46 +80,15 @@ export async function OllamaAuthPlugin(_input: PluginInput): Promise<Hooks> {
       provider: "ollama",
       async loader(getAuth, provider) {
         const auth = await getAuth()
-
-        let baseURL = DEFAULT_BASE_URL
-        if (auth.type === "api" && auth.key) {
-          baseURL = auth.key || DEFAULT_BASE_URL
-        }
+        const baseURL = auth.type === "api" && auth.key ? auth.key : DEFAULT_BASE_URL
 
         const models = await fetchModelsFromOllama(baseURL)
         if (models.length > 0) {
           log.info("ollama models discovered", { count: models.length, baseURL })
-          for (const m of models) {
-            if (!provider.models[m.id]) {
-              provider.models[m.id] = {
-                id: m.id as any,
-                providerID: "ollama" as any,
-                name: m.id,
-                api: { id: m.id, url: `${baseURL}/v1`, npm: "@ai-sdk/openai-compatible" },
-                status: "active" as const,
-                headers: {},
-                options: {},
-                cost: { input: 0, output: 0, cache: { read: 0, write: 0 } },
-                limit: { context: 128000, output: 4096 },
-                capabilities: {
-                  temperature: true,
-                  reasoning: false,
-                  attachment: false,
-                  toolcall: true,
-                  input: { text: true, audio: false, image: false, video: false, pdf: false },
-                  output: { text: true, audio: false, image: false, video: false, pdf: false },
-                  interleaved: false,
-                },
-                release_date: new Date().toISOString().split("T")[0],
-                variants: {},
-              } as any
-            }
-          }
+          for (const m of models) injectOllamaModel(provider.models as Record<string, unknown>, m.id, baseURL)
         }
 
-        return {
-          baseURL: `${baseURL}/v1`,
-        }
+        return { baseURL: `${baseURL}/v1` }
       },
       methods: [
         {

@@ -7,7 +7,19 @@ import { Flag } from "../../flag/flag"
 import { bootstrap } from "../bootstrap"
 import { EOL } from "os"
 import { Filesystem } from "../../util/filesystem"
-import { createOpencodeClient, type Message, type OpencodeClient, type ToolPart } from "@librecode/sdk/v2"
+import {
+  createOpencodeClient,
+  type Event,
+  type EventMessagePartUpdated,
+  type EventMessageUpdated,
+  type EventPermissionAsked,
+  type EventSessionError,
+  type Message,
+  type OpencodeClient,
+  type ReasoningPart,
+  type TextPart,
+  type ToolPart,
+} from "@librecode/sdk/v2"
 import { Server } from "../../server/server"
 import { Provider } from "../../provider/provider"
 import { Agent } from "../../agent/agent"
@@ -218,6 +230,307 @@ function normalizePath(input?: string) {
   return input
 }
 
+const TOOL_DISPATCH: Record<string, (part: ToolPart) => void> = {
+  bash: (part) => bash(props<typeof BashTool>(part)),
+  glob: (part) => glob(props<typeof GlobTool>(part)),
+  grep: (part) => grep(props<typeof GrepTool>(part)),
+  list: (part) => list(props<typeof ListTool>(part)),
+  read: (part) => read(props<typeof ReadTool>(part)),
+  write: (part) => write(props<typeof WriteTool>(part)),
+  webfetch: (part) => webfetch(props<typeof WebFetchTool>(part)),
+  edit: (part) => edit(props<typeof EditTool>(part)),
+  codesearch: (part) => codesearch(props<typeof CodeSearchTool>(part)),
+  websearch: (part) => websearch(props<typeof WebSearchTool>(part)),
+  task: (part) => task(props<typeof TaskTool>(part)),
+  todowrite: (part) => todo(props<typeof TodoWriteTool>(part)),
+  skill: (part) => skill(props<typeof SkillTool>(part)),
+}
+
+function dispatchTool(part: ToolPart): void {
+  try {
+    const handler = TOOL_DISPATCH[part.tool]
+    if (handler) handler(part)
+    else fallback(part)
+  } catch {
+    fallback(part)
+  }
+}
+
+function warnAgent(msg: string): void {
+  UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL, msg)
+}
+
+async function resolveAgentRemote(agentName: string, attachURL: string, sdk: OpencodeClient): Promise<string | undefined> {
+  const modes = await sdk.app
+    .agents(undefined, { throwOnError: true })
+    .then((x) => x.data ?? [])
+    .catch(() => undefined)
+
+  if (!modes) {
+    warnAgent(`failed to list agents from ${attachURL}. Falling back to default agent`)
+    return undefined
+  }
+
+  const found = modes.find((a) => a.name === agentName)
+  if (!found) {
+    warnAgent(`agent "${agentName}" not found. Falling back to default agent`)
+    return undefined
+  }
+
+  if (found.mode === "subagent") {
+    warnAgent(`agent "${agentName}" is a subagent, not a primary agent. Falling back to default agent`)
+    return undefined
+  }
+
+  return agentName
+}
+
+async function resolveAgent(
+  agentName: string | undefined,
+  attachURL: string | undefined,
+  sdk: OpencodeClient,
+): Promise<string | undefined> {
+  if (!agentName) return undefined
+  if (attachURL) return resolveAgentRemote(agentName, attachURL, sdk)
+
+  const entry = await Agent.get(agentName)
+  if (!entry) {
+    warnAgent(`agent "${agentName}" not found. Falling back to default agent`)
+    return undefined
+  }
+  if (entry.mode === "subagent") {
+    warnAgent(`agent "${agentName}" is a subagent, not a primary agent. Falling back to default agent`)
+    return undefined
+  }
+  return agentName
+}
+
+type FileAttachment = { type: "file"; url: string; filename: string; mime: string }
+
+async function buildFileAttachments(filePaths: string[]): Promise<FileAttachment[]> {
+  const files: FileAttachment[] = []
+  for (const filePath of filePaths) {
+    const resolvedPath = path.resolve(process.cwd(), filePath)
+    if (!(await Filesystem.exists(resolvedPath))) {
+      UI.error(`File not found: ${filePath}`)
+      process.exit(1)
+    }
+    const mime = (await Filesystem.isDir(resolvedPath)) ? "application/x-directory" : "text/plain"
+    files.push({ type: "file", url: pathToFileURL(resolvedPath).href, filename: path.basename(resolvedPath), mime })
+  }
+  return files
+}
+
+function resolveDirectory(dir: string | undefined, attach: string | undefined): string | undefined {
+  if (!dir) return undefined
+  if (attach) return dir
+  try {
+    process.chdir(dir)
+    return process.cwd()
+  } catch {
+    UI.error("Failed to change directory to " + dir)
+    process.exit(1)
+  }
+}
+
+function buildAuthHeaders(
+  password: string | undefined,
+): Record<string, string> | undefined {
+  const pw = password ?? process.env.LIBRECODE_SERVER_PASSWORD
+  if (!pw) return undefined
+  const username = process.env.LIBRECODE_SERVER_USERNAME ?? "librecode"
+  const auth = `Basic ${Buffer.from(`${username}:${pw}`).toString("base64")}`
+  return { Authorization: auth }
+}
+
+type EventEmitter = (type: string, data: Record<string, unknown>) => boolean
+
+type EventLoopCtx = {
+  sdk: OpencodeClient
+  sessionID: string
+  format: string
+  thinking: boolean
+}
+
+function makeEmitter(ctx: EventLoopCtx): EventEmitter {
+  return (type, data) => {
+    if (ctx.format !== "json") return false
+    process.stdout.write(
+      JSON.stringify({ type, timestamp: Date.now(), sessionID: ctx.sessionID, ...data }) + EOL,
+    )
+    return true
+  }
+}
+
+function handleToolPart(
+  part: ToolPart,
+  toggles: Map<string, boolean>,
+  emit: EventEmitter,
+  format: string,
+): "continue" | "skip" {
+  if (part.state.status === "completed" || part.state.status === "error") {
+    if (emit("tool_use", { part })) return "continue"
+    if (part.state.status === "completed") {
+      dispatchTool(part)
+      return "continue"
+    }
+    inline({ icon: "✗", title: `${part.tool} failed` })
+    UI.error(part.state.error)
+    return "skip"
+  }
+  if (part.tool === "task" && part.state.status === "running" && format !== "json") {
+    if (toggles.get(part.id) === true) return "continue"
+    task(props<typeof TaskTool>(part))
+    toggles.set(part.id, true)
+  }
+  return "skip"
+}
+
+function handleTextPart(part: TextPart, emit: EventEmitter): "continue" | "skip" {
+  if (!part.time?.end) return "skip"
+  if (emit("text", { part })) return "continue"
+  const text = part.text.trim()
+  if (!text) return "continue"
+  if (!process.stdout.isTTY) {
+    process.stdout.write(text + EOL)
+    return "continue"
+  }
+  UI.empty()
+  UI.println(text)
+  UI.empty()
+  return "continue"
+}
+
+function handleReasoningPart(
+  part: ReasoningPart,
+  emit: EventEmitter,
+  thinking: boolean,
+): "continue" | "skip" {
+  if (!part.time?.end || !thinking) return "skip"
+  if (emit("reasoning", { part })) return "continue"
+  const text = part.text.trim()
+  if (!text) return "continue"
+  const line = `Thinking: ${text}`
+  if (process.stdout.isTTY) {
+    UI.empty()
+    UI.println(`${UI.Style.TEXT_DIM}\u001b[3m${line}\u001b[0m${UI.Style.TEXT_NORMAL}`)
+    UI.empty()
+    return "continue"
+  }
+  process.stdout.write(line + EOL)
+  return "continue"
+}
+
+async function handlePermissionAsked(
+  permission: { sessionID: string; id: string; permission: string; patterns: string[] },
+  sessionID: string,
+  sdk: OpencodeClient,
+): Promise<void> {
+  if (permission.sessionID !== sessionID) return
+  UI.println(
+    UI.Style.TEXT_WARNING_BOLD + "!",
+    UI.Style.TEXT_NORMAL +
+      `permission requested: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
+  )
+  await sdk.permission.reply({ requestID: permission.id, reply: "reject" })
+}
+
+function handleMessagePartUpdated(
+  event: EventMessagePartUpdated,
+  ctx: EventLoopCtx,
+  emit: EventEmitter,
+  toggles: Map<string, boolean>,
+): "continue" | "skip" {
+  const part = event.properties.part
+  if (part.sessionID !== ctx.sessionID) return "continue"
+  if (part.type === "tool") {
+    if (handleToolPart(part, toggles, emit, ctx.format) === "continue") return "continue"
+  }
+  if (part.type === "step-start" && emit("step_start", { part })) return "continue"
+  if (part.type === "step-finish" && emit("step_finish", { part })) return "continue"
+  if (part.type === "text" && handleTextPart(part, emit) === "continue") return "continue"
+  if (part.type === "reasoning" && handleReasoningPart(part, emit, ctx.thinking) === "continue") return "continue"
+  return "skip"
+}
+
+function handleSessionError(
+  event: EventSessionError,
+  ctx: EventLoopCtx,
+  emit: EventEmitter,
+  errorRef: { value: string | undefined },
+): "continue" | "skip" {
+  const evtProps = event.properties
+  if (evtProps.sessionID !== ctx.sessionID || !evtProps.error) return "continue"
+  let err = String(evtProps.error.name)
+  if ("data" in evtProps.error && evtProps.error.data && "message" in evtProps.error.data) {
+    err = String(evtProps.error.data.message)
+  }
+  errorRef.value = errorRef.value ? errorRef.value + EOL + err : err
+  if (emit("error", { error: evtProps.error })) return "continue"
+  UI.error(err)
+  return "skip"
+}
+
+type LoopState = {
+  ctx: EventLoopCtx
+  emit: EventEmitter
+  toggles: Map<string, boolean>
+  errorRef: { value: string | undefined }
+}
+
+function handleMessageUpdated(event: EventMessageUpdated, state: LoopState): void {
+  const { ctx, toggles } = state
+  if (
+    event.properties.info.role === "assistant" &&
+    ctx.format !== "json" &&
+    toggles.get("start") !== true
+  ) {
+    UI.empty()
+    UI.println(`> ${event.properties.info.agent} · ${event.properties.info.modelID}`)
+    UI.empty()
+    toggles.set("start", true)
+  }
+}
+
+async function dispatchEvent(event: Event, state: LoopState): Promise<"break" | "continue" | "skip"> {
+  if (event.type === "message.updated") {
+    handleMessageUpdated(event, state)
+    return "skip"
+  }
+  if (event.type === "message.part.updated") {
+    return handleMessagePartUpdated(event, state.ctx, state.emit, state.toggles)
+  }
+  if (event.type === "session.error") {
+    return handleSessionError(event, state.ctx, state.emit, state.errorRef)
+  }
+  if (
+    event.type === "session.status" &&
+    event.properties.sessionID === state.ctx.sessionID &&
+    event.properties.status.type === "idle"
+  ) {
+    return "break"
+  }
+  if (event.type === "permission.asked") {
+    await handlePermissionAsked(event.properties, state.ctx.sessionID, state.ctx.sdk)
+  }
+  return "skip"
+}
+
+async function runEventLoop(ctx: EventLoopCtx): Promise<void> {
+  const events = await ctx.sdk.event.subscribe()
+  const state: LoopState = {
+    ctx,
+    emit: makeEmitter(ctx),
+    toggles: new Map<string, boolean>(),
+    errorRef: { value: undefined },
+  }
+
+  for await (const event of events.stream) {
+    const result = await dispatchEvent(event, state)
+    if (result === "break") break
+  }
+}
+
 export const RunCommand = cmd({
   command: "run [message..]",
   describe: "run librecode with a message",
@@ -308,39 +621,9 @@ export const RunCommand = cmd({
       .map((arg) => (arg.includes(" ") ? `"${arg.replace(/"/g, '\\"')}"` : arg))
       .join(" ")
 
-    const directory = (() => {
-      if (!args.dir) return undefined
-      if (args.attach) return args.dir
-      try {
-        process.chdir(args.dir)
-        return process.cwd()
-      } catch {
-        UI.error("Failed to change directory to " + args.dir)
-        process.exit(1)
-      }
-    })()
-
-    const files: { type: "file"; url: string; filename: string; mime: string }[] = []
-    if (args.file) {
-      const list = Array.isArray(args.file) ? args.file : [args.file]
-
-      for (const filePath of list) {
-        const resolvedPath = path.resolve(process.cwd(), filePath)
-        if (!(await Filesystem.exists(resolvedPath))) {
-          UI.error(`File not found: ${filePath}`)
-          process.exit(1)
-        }
-
-        const mime = (await Filesystem.isDir(resolvedPath)) ? "application/x-directory" : "text/plain"
-
-        files.push({
-          type: "file",
-          url: pathToFileURL(resolvedPath).href,
-          filename: path.basename(resolvedPath),
-          mime,
-        })
-      }
-    }
+    const directory = resolveDirectory(args.dir, args.attach)
+    const filePaths = args.file ? (Array.isArray(args.file) ? args.file : [args.file]) : []
+    const files = await buildFileAttachments(filePaths)
 
     if (!process.stdin.isTTY) message += "\n" + (await Bun.stdin.text())
 
@@ -408,217 +691,8 @@ export const RunCommand = cmd({
       }
     }
 
-    async function execute(sdk: OpencodeClient) {
-      function tool(part: ToolPart) {
-        try {
-          if (part.tool === "bash") return bash(props<typeof BashTool>(part))
-          if (part.tool === "glob") return glob(props<typeof GlobTool>(part))
-          if (part.tool === "grep") return grep(props<typeof GrepTool>(part))
-          if (part.tool === "list") return list(props<typeof ListTool>(part))
-          if (part.tool === "read") return read(props<typeof ReadTool>(part))
-          if (part.tool === "write") return write(props<typeof WriteTool>(part))
-          if (part.tool === "webfetch") return webfetch(props<typeof WebFetchTool>(part))
-          if (part.tool === "edit") return edit(props<typeof EditTool>(part))
-          if (part.tool === "codesearch") return codesearch(props<typeof CodeSearchTool>(part))
-          if (part.tool === "websearch") return websearch(props<typeof WebSearchTool>(part))
-          if (part.tool === "task") return task(props<typeof TaskTool>(part))
-          if (part.tool === "todowrite") return todo(props<typeof TodoWriteTool>(part))
-          if (part.tool === "skill") return skill(props<typeof SkillTool>(part))
-          return fallback(part)
-        } catch {
-          return fallback(part)
-        }
-      }
-
-      function emit(type: string, data: Record<string, unknown>) {
-        if (args.format === "json") {
-          process.stdout.write(JSON.stringify({ type, timestamp: Date.now(), sessionID, ...data }) + EOL)
-          return true
-        }
-        return false
-      }
-
-      const events = await sdk.event.subscribe()
-      let error: string | undefined
-
-      async function loop() {
-        const toggles = new Map<string, boolean>()
-
-        for await (const event of events.stream) {
-          if (
-            event.type === "message.updated" &&
-            event.properties.info.role === "assistant" &&
-            args.format !== "json" &&
-            toggles.get("start") !== true
-          ) {
-            UI.empty()
-            UI.println(`> ${event.properties.info.agent} · ${event.properties.info.modelID}`)
-            UI.empty()
-            toggles.set("start", true)
-          }
-
-          if (event.type === "message.part.updated") {
-            const part = event.properties.part
-            if (part.sessionID !== sessionID) continue
-
-            if (part.type === "tool" && (part.state.status === "completed" || part.state.status === "error")) {
-              if (emit("tool_use", { part })) continue
-              if (part.state.status === "completed") {
-                tool(part)
-                continue
-              }
-              inline({
-                icon: "✗",
-                title: `${part.tool} failed`,
-              })
-              UI.error(part.state.error)
-            }
-
-            if (
-              part.type === "tool" &&
-              part.tool === "task" &&
-              part.state.status === "running" &&
-              args.format !== "json"
-            ) {
-              if (toggles.get(part.id) === true) continue
-              task(props<typeof TaskTool>(part))
-              toggles.set(part.id, true)
-            }
-
-            if (part.type === "step-start") {
-              if (emit("step_start", { part })) continue
-            }
-
-            if (part.type === "step-finish") {
-              if (emit("step_finish", { part })) continue
-            }
-
-            if (part.type === "text" && part.time?.end) {
-              if (emit("text", { part })) continue
-              const text = part.text.trim()
-              if (!text) continue
-              if (!process.stdout.isTTY) {
-                process.stdout.write(text + EOL)
-                continue
-              }
-              UI.empty()
-              UI.println(text)
-              UI.empty()
-            }
-
-            if (part.type === "reasoning" && part.time?.end && args.thinking) {
-              if (emit("reasoning", { part })) continue
-              const text = part.text.trim()
-              if (!text) continue
-              const line = `Thinking: ${text}`
-              if (process.stdout.isTTY) {
-                UI.empty()
-                UI.println(`${UI.Style.TEXT_DIM}\u001b[3m${line}\u001b[0m${UI.Style.TEXT_NORMAL}`)
-                UI.empty()
-                continue
-              }
-              process.stdout.write(line + EOL)
-            }
-          }
-
-          if (event.type === "session.error") {
-            const props = event.properties
-            if (props.sessionID !== sessionID || !props.error) continue
-            let err = String(props.error.name)
-            if ("data" in props.error && props.error.data && "message" in props.error.data) {
-              err = String(props.error.data.message)
-            }
-            error = error ? error + EOL + err : err
-            if (emit("error", { error: props.error })) continue
-            UI.error(err)
-          }
-
-          if (
-            event.type === "session.status" &&
-            event.properties.sessionID === sessionID &&
-            event.properties.status.type === "idle"
-          ) {
-            break
-          }
-
-          if (event.type === "permission.asked") {
-            const permission = event.properties
-            if (permission.sessionID !== sessionID) continue
-            UI.println(
-              UI.Style.TEXT_WARNING_BOLD + "!",
-              UI.Style.TEXT_NORMAL +
-                `permission requested: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
-            )
-            await sdk.permission.reply({
-              requestID: permission.id,
-              reply: "reject",
-            })
-          }
-        }
-      }
-
-      // Validate agent if specified
-      const agent = await (async () => {
-        if (!args.agent) return undefined
-
-        // When attaching, validate against the running server instead of local Instance state.
-        if (args.attach) {
-          const modes = await sdk.app
-            .agents(undefined, { throwOnError: true })
-            .then((x) => x.data ?? [])
-            .catch(() => undefined)
-
-          if (!modes) {
-            UI.println(
-              UI.Style.TEXT_WARNING_BOLD + "!",
-              UI.Style.TEXT_NORMAL,
-              `failed to list agents from ${args.attach}. Falling back to default agent`,
-            )
-            return undefined
-          }
-
-          const agent = modes.find((a) => a.name === args.agent)
-          if (!agent) {
-            UI.println(
-              UI.Style.TEXT_WARNING_BOLD + "!",
-              UI.Style.TEXT_NORMAL,
-              `agent "${args.agent}" not found. Falling back to default agent`,
-            )
-            return undefined
-          }
-
-          if (agent.mode === "subagent") {
-            UI.println(
-              UI.Style.TEXT_WARNING_BOLD + "!",
-              UI.Style.TEXT_NORMAL,
-              `agent "${args.agent}" is a subagent, not a primary agent. Falling back to default agent`,
-            )
-            return undefined
-          }
-
-          return args.agent
-        }
-
-        const entry = await Agent.get(args.agent)
-        if (!entry) {
-          UI.println(
-            UI.Style.TEXT_WARNING_BOLD + "!",
-            UI.Style.TEXT_NORMAL,
-            `agent "${args.agent}" not found. Falling back to default agent`,
-          )
-          return undefined
-        }
-        if (entry.mode === "subagent") {
-          UI.println(
-            UI.Style.TEXT_WARNING_BOLD + "!",
-            UI.Style.TEXT_NORMAL,
-            `agent "${args.agent}" is a subagent, not a primary agent. Falling back to default agent`,
-          )
-          return undefined
-        }
-        return args.agent
-      })()
-
+    async function execute(sdk: OpencodeClient): Promise<void> {
+      const agent = await resolveAgent(args.agent, args.attach, sdk)
       const sessionID = await session(sdk)
       if (!sessionID) {
         UI.error("Session not found")
@@ -626,7 +700,13 @@ export const RunCommand = cmd({
       }
       await share(sdk, sessionID)
 
-      loop().catch((e) => {
+      const ctx: EventLoopCtx = {
+        sdk,
+        sessionID,
+        format: args.format as string,
+        thinking: args.thinking as boolean,
+      }
+      runEventLoop(ctx).catch((e) => {
         console.error(e)
         process.exit(1)
       })
@@ -653,13 +733,7 @@ export const RunCommand = cmd({
     }
 
     if (args.attach) {
-      const headers = (() => {
-        const password = args.password ?? process.env.LIBRECODE_SERVER_PASSWORD
-        if (!password) return undefined
-        const username = process.env.LIBRECODE_SERVER_USERNAME ?? "librecode"
-        const auth = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
-        return { Authorization: auth }
-      })()
+      const headers = buildAuthHeaders(args.password)
       const sdk = createOpencodeClient({ baseUrl: args.attach, directory, headers })
       return await execute(sdk)
     }

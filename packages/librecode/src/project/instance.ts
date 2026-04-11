@@ -60,6 +60,34 @@ function track(directory: string, next: Promise<Context>) {
   return task
 }
 
+async function disposeOneInstance(key: string, value: Promise<Context>): Promise<void> {
+  if (cache.get(key) !== value) return
+
+  const ctx = await value.catch((error) => {
+    Log.Default.warn("instance dispose failed", { key, error })
+    return undefined
+  })
+
+  if (!ctx) {
+    if (cache.get(key) === value) cache.delete(key)
+    return
+  }
+
+  if (cache.get(key) !== value) return
+
+  await context.provide(ctx, async () => {
+    await Instance.dispose()
+  })
+}
+
+async function disposeAllInstances(): Promise<void> {
+  Log.Default.info("disposing all instances")
+  const entries = [...cache.entries()]
+  for (const [key, value] of entries) {
+    await disposeOneInstance(key, value)
+  }
+}
+
 export const Instance = {
   async provide<R>(input: { directory: string; init?: () => Promise<any>; fn: () => R }): Promise<R> {
     const directory = Filesystem.resolve(input.directory)
@@ -120,33 +148,9 @@ export const Instance = {
   },
   async disposeAll() {
     if (disposal.all) return disposal.all
-
-    disposal.all = iife(async () => {
-      Log.Default.info("disposing all instances")
-      const entries = [...cache.entries()]
-      for (const [key, value] of entries) {
-        if (cache.get(key) !== value) continue
-
-        const ctx = await value.catch((error) => {
-          Log.Default.warn("instance dispose failed", { key, error })
-          return undefined
-        })
-
-        if (!ctx) {
-          if (cache.get(key) === value) cache.delete(key)
-          continue
-        }
-
-        if (cache.get(key) !== value) continue
-
-        await context.provide(ctx, async () => {
-          await Instance.dispose()
-        })
-      }
-    }).finally(() => {
+    disposal.all = disposeAllInstances().finally(() => {
       disposal.all = undefined
     })
-
     return disposal.all
   },
 }

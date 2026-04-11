@@ -172,48 +172,40 @@ export namespace Snapshot {
     for (const item of patches) {
       for (const file of item.files) {
         if (files.has(file)) continue
-        log.info("reverting", { file, hash: item.hash })
-        const result = await Process.run(
-          [
-            "git",
-            "-c",
-            "core.longpaths=true",
-            "-c",
-            "core.symlinks=true",
-            ...args(git, ["checkout", item.hash, "--", file]),
-          ],
-          {
-            cwd: Instance.worktree,
-            nothrow: true,
-          },
-        )
-        if (result.code !== 0) {
-          const relativePath = path.relative(Instance.worktree, file)
-          const checkTree = await Process.text(
-            [
-              "git",
-              "-c",
-              "core.longpaths=true",
-              "-c",
-              "core.symlinks=true",
-              ...args(git, ["ls-tree", item.hash, "--", relativePath]),
-            ],
-            {
-              cwd: Instance.worktree,
-              nothrow: true,
-            },
-          )
-          if (checkTree.code === 0 && checkTree.text.trim()) {
-            log.info("file existed in snapshot but checkout failed, keeping", {
-              file,
-            })
-          } else {
-            log.info("file did not exist in snapshot, deleting", { file })
-            await fs.unlink(file).catch(() => {})
-          }
-        }
+        await revertFile(git, file, item.hash)
         files.add(file)
       }
+    }
+  }
+
+  async function revertFile(git: string, file: string, hash: string): Promise<void> {
+    log.info("reverting", { file, hash })
+    const result = await Process.run(
+      ["git", "-c", "core.longpaths=true", "-c", "core.symlinks=true", ...args(git, ["checkout", hash, "--", file])],
+      { cwd: Instance.worktree, nothrow: true },
+    )
+    if (result.code === 0) return
+    await handleRevertFailure(git, file, hash)
+  }
+
+  async function handleRevertFailure(git: string, file: string, hash: string): Promise<void> {
+    const relativePath = path.relative(Instance.worktree, file)
+    const checkTree = await Process.text(
+      [
+        "git",
+        "-c",
+        "core.longpaths=true",
+        "-c",
+        "core.symlinks=true",
+        ...args(git, ["ls-tree", hash, "--", relativePath]),
+      ],
+      { cwd: Instance.worktree, nothrow: true },
+    )
+    if (checkTree.code === 0 && checkTree.text.trim()) {
+      log.info("file existed in snapshot but checkout failed, keeping", { file })
+    } else {
+      log.info("file did not exist in snapshot, deleting", { file })
+      await fs.unlink(file).catch(() => {})
     }
   }
 
@@ -265,11 +257,13 @@ export namespace Snapshot {
       ref: "FileDiff",
     })
   export type FileDiff = z.infer<typeof FileDiff>
-  export async function diffFull(from: string, to: string): Promise<FileDiff[]> {
-    const git = gitdir()
-    const result: FileDiff[] = []
-    const status = new Map<string, "added" | "deleted" | "modified">()
 
+  async function fetchFileStatusMap(
+    git: string,
+    from: string,
+    to: string,
+  ): Promise<Map<string, "added" | "deleted" | "modified">> {
+    const status = new Map<string, "added" | "deleted" | "modified">()
     const statuses = await Process.text(
       [
         "git",
@@ -283,10 +277,7 @@ export namespace Snapshot {
         "core.quotepath=false",
         ...args(git, ["diff", "--no-ext-diff", "--name-status", "--no-renames", from, to, "--", "."]),
       ],
-      {
-        cwd: Instance.directory,
-        nothrow: true,
-      },
+      { cwd: Instance.directory, nothrow: true },
     ).then((x) => x.text)
 
     for (const line of statuses.trim().split("\n")) {
@@ -296,8 +287,54 @@ export namespace Snapshot {
       const kind = code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified"
       status.set(file, kind)
     }
+    return status
+  }
 
-    for (const line of await Process.lines(
+  async function fetchFileContent(git: string, ref: string, file: string): Promise<string> {
+    return Process.text(
+      [
+        "git",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.longpaths=true",
+        "-c",
+        "core.symlinks=true",
+        ...args(git, ["show", `${ref}:${file}`]),
+      ],
+      { nothrow: true },
+    ).then((x) => x.text)
+  }
+
+  async function buildFileDiff(
+    git: string,
+    line: string,
+    from: string,
+    to: string,
+    status: Map<string, "added" | "deleted" | "modified">,
+  ): Promise<FileDiff | undefined> {
+    if (!line) return undefined
+    const [additions, deletions, file] = line.split("\t")
+    if (!file) return undefined
+    const isBinary = additions === "-" && deletions === "-"
+    const before = isBinary ? "" : await fetchFileContent(git, from, file)
+    const after = isBinary ? "" : await fetchFileContent(git, to, file)
+    const added = isBinary ? 0 : parseInt(additions)
+    const deleted = isBinary ? 0 : parseInt(deletions)
+    return {
+      file,
+      before,
+      after,
+      additions: Number.isFinite(added) ? added : 0,
+      deletions: Number.isFinite(deleted) ? deleted : 0,
+      status: status.get(file) ?? "modified",
+    }
+  }
+
+  export async function diffFull(from: string, to: string): Promise<FileDiff[]> {
+    const git = gitdir()
+    const status = await fetchFileStatusMap(git, from, to)
+    const numstatLines = await Process.lines(
       [
         "git",
         "-c",
@@ -310,54 +347,12 @@ export namespace Snapshot {
         "core.quotepath=false",
         ...args(git, ["diff", "--no-ext-diff", "--no-renames", "--numstat", from, to, "--", "."]),
       ],
-      {
-        cwd: Instance.directory,
-        nothrow: true,
-      },
-    )) {
-      if (!line) continue
-      const [additions, deletions, file] = line.split("\t")
-      const isBinaryFile = additions === "-" && deletions === "-"
-      const before = isBinaryFile
-        ? ""
-        : await Process.text(
-            [
-              "git",
-              "-c",
-              "core.autocrlf=false",
-              "-c",
-              "core.longpaths=true",
-              "-c",
-              "core.symlinks=true",
-              ...args(git, ["show", `${from}:${file}`]),
-            ],
-            { nothrow: true },
-          ).then((x) => x.text)
-      const after = isBinaryFile
-        ? ""
-        : await Process.text(
-            [
-              "git",
-              "-c",
-              "core.autocrlf=false",
-              "-c",
-              "core.longpaths=true",
-              "-c",
-              "core.symlinks=true",
-              ...args(git, ["show", `${to}:${file}`]),
-            ],
-            { nothrow: true },
-          ).then((x) => x.text)
-      const added = isBinaryFile ? 0 : parseInt(additions)
-      const deleted = isBinaryFile ? 0 : parseInt(deletions)
-      result.push({
-        file,
-        before,
-        after,
-        additions: Number.isFinite(added) ? added : 0,
-        deletions: Number.isFinite(deleted) ? deleted : 0,
-        status: status.get(file) ?? "modified",
-      })
+      { cwd: Instance.directory, nothrow: true },
+    )
+    const result: FileDiff[] = []
+    for (const line of numstatLines) {
+      const entry = await buildFileDiff(git, line, from, to, status)
+      if (entry) result.push(entry)
     }
     return result
   }

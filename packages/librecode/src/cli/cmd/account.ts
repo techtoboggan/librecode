@@ -5,6 +5,26 @@ import { AccountService } from "@/account/service"
 import { AccountID, OrgID, PollExpired, type PollResult } from "@/account/schema"
 import open from "open"
 
+function handlePollResult(result: PollResult, spinner: ReturnType<typeof prompts.spinner>): void {
+  switch (result._tag) {
+    case "PollSuccess":
+      spinner.stop("Logged in as " + result.email)
+      prompts.outro("Done")
+      break
+    case "PollExpired":
+      spinner.stop("Device code expired", 1)
+      break
+    case "PollDenied":
+      spinner.stop("Authorization denied", 1)
+      break
+    case "PollError":
+      spinner.stop("Error: " + String(result.cause), 1)
+      break
+    default:
+      spinner.stop("Unexpected state", 1)
+  }
+}
+
 async function login(url: string) {
   prompts.intro("Log in")
   const loginResult = await AccountService.login(url)
@@ -24,32 +44,9 @@ async function login(url: string) {
     return result
   }
 
-  const expiryMs = loginResult.expiry
-  const intervalMs = loginResult.interval
-
-  const timeout = new Promise<PollResult>((resolve) => setTimeout(() => resolve(new PollExpired()), expiryMs))
-
-  const result = await Promise.race([poll(intervalMs), timeout])
-
-  switch (result._tag) {
-    case "PollSuccess":
-      s.stop("Logged in as " + result.email)
-      prompts.outro("Done")
-      break
-    case "PollExpired":
-      s.stop("Device code expired", 1)
-      break
-    case "PollDenied":
-      s.stop("Authorization denied", 1)
-      break
-    case "PollError":
-      s.stop("Error: " + String(result.cause), 1)
-      break
-    case "PollPending":
-    case "PollSlow":
-      s.stop("Unexpected state", 1)
-      break
-  }
+  const timeout = new Promise<PollResult>((resolve) => setTimeout(() => resolve(new PollExpired()), loginResult.expiry))
+  const result = await Promise.race([poll(loginResult.interval), timeout])
+  handlePollResult(result, s)
 }
 
 async function logout(email?: string) {
@@ -120,22 +117,25 @@ async function switchOrg() {
   prompts.outro("Switched to " + choice.label)
 }
 
+function formatOrgLine(
+  org: { name: string; id: string },
+  email: string,
+  isActive: boolean | "" | undefined,
+): string {
+  const dot = isActive ? UI.Style.TEXT_SUCCESS + "\u25CF" + UI.Style.TEXT_NORMAL : " "
+  const name = isActive ? UI.Style.TEXT_HIGHLIGHT_BOLD + org.name + UI.Style.TEXT_NORMAL : org.name
+  return `  ${dot} ${name}  ${UI.Style.TEXT_DIM}${email}${UI.Style.TEXT_NORMAL}  ${UI.Style.TEXT_DIM}${org.id}${UI.Style.TEXT_NORMAL}`
+}
+
 async function listOrgs() {
   const groups = await AccountService.orgsByAccount()
   if (groups.length === 0) return UI.println("No accounts found")
   if (!groups.some((group) => group.orgs.length > 0)) return UI.println("No orgs found")
 
-  const active = AccountService.active()
-  const activeOrgID = active?.active_org_id ?? undefined
-
+  const activeOrgID = AccountService.active()?.active_org_id
   for (const group of groups) {
     for (const org of group.orgs) {
-      const isActive = activeOrgID && activeOrgID === org.id
-      const dot = isActive ? UI.Style.TEXT_SUCCESS + "\u25CF" + UI.Style.TEXT_NORMAL : " "
-      const name = isActive ? UI.Style.TEXT_HIGHLIGHT_BOLD + org.name + UI.Style.TEXT_NORMAL : org.name
-      const email = UI.Style.TEXT_DIM + group.account.email + UI.Style.TEXT_NORMAL
-      const id = UI.Style.TEXT_DIM + org.id + UI.Style.TEXT_NORMAL
-      UI.println(`  ${dot} ${name}  ${email}  ${id}`)
+      UI.println(formatOrgLine(org, group.account.email, activeOrgID && activeOrgID === org.id))
     }
   }
 }

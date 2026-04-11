@@ -4,18 +4,31 @@ import { MCP } from "../mcp"
 import { Provider } from "../provider/provider"
 import { UI } from "./ui"
 
+function formatModelNotFoundError(input: unknown): string | undefined {
+  if (!Provider.ModelNotFoundError.isInstance(input)) return undefined
+  const { providerID, modelID, suggestions } = input.data
+  return [
+    `Model not found: ${providerID}/${modelID}`,
+    ...(Array.isArray(suggestions) && suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
+    `Try: \`librecode models\` to list available models`,
+    `Or check your config (librecode.json) provider/model names`,
+  ].join("\n")
+}
+
+function formatConfigInvalidError(input: unknown): string | undefined {
+  if (!Config.InvalidError.isInstance(input)) return undefined
+  const prefix = `Configuration is invalid${input.data.path && input.data.path !== "config" ? ` at ${input.data.path}` : ""}`
+  return [
+    prefix + (input.data.message ? `: ${input.data.message}` : ""),
+    ...(input.data.issues?.map((issue) => "↳ " + issue.message + " " + issue.path.join(".")) ?? []),
+  ].join("\n")
+}
+
 export function FormatError(input: unknown) {
   if (MCP.Failed.isInstance(input))
     return `MCP server "${input.data.name}" failed. Note, librecode does not support MCP authentication yet.`
-  if (Provider.ModelNotFoundError.isInstance(input)) {
-    const { providerID, modelID, suggestions } = input.data
-    return [
-      `Model not found: ${providerID}/${modelID}`,
-      ...(Array.isArray(suggestions) && suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
-      `Try: \`librecode models\` to list available models`,
-      `Or check your config (librecode.json) provider/model names`,
-    ].join("\n")
-  }
+  const modelNotFound = formatModelNotFoundError(input)
+  if (modelNotFound !== undefined) return modelNotFound
   if (Provider.InitError.isInstance(input)) {
     return `Failed to initialize provider "${input.data.providerID}". Check credentials and configuration.`
   }
@@ -30,13 +43,8 @@ export function FormatError(input: unknown) {
   if (ConfigMarkdown.FrontmatterError.isInstance(input)) {
     return input.data.message
   }
-  if (Config.InvalidError.isInstance(input))
-    return [
-      `Configuration is invalid${input.data.path && input.data.path !== "config" ? ` at ${input.data.path}` : ""}` +
-        (input.data.message ? `: ${input.data.message}` : ""),
-      ...(input.data.issues?.map((issue) => "↳ " + issue.message + " " + issue.path.join(".")) ?? []),
-    ].join("\n")
-
+  const configInvalid = formatConfigInvalidError(input)
+  if (configInvalid !== undefined) return configInvalid
   if (UI.CancelledError.isInstance(input)) return ""
 }
 

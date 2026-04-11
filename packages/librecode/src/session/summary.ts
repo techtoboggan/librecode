@@ -11,7 +11,43 @@ import { Storage } from "@/storage/storage"
 import { Bus } from "@/bus"
 
 export namespace SessionSummary {
-  function unquoteGitPath(input: string) {
+  function unquoteOctalEscape(body: string, i: number): { byte: number; advance: number } {
+    const chunk = body.slice(i + 1, i + 4)
+    const match = chunk.match(/^[0-7]{1,3}/)
+    if (!match) return { byte: body[i + 1]!.charCodeAt(0), advance: 1 }
+    return { byte: parseInt(match[0], 8), advance: match[0].length }
+  }
+
+  function unquoteSimpleEscape(next: string): string | undefined {
+    if (next === "n") return "\n"
+    if (next === "r") return "\r"
+    if (next === "t") return "\t"
+    if (next === "b") return "\b"
+    if (next === "f") return "\f"
+    if (next === "v") return "\v"
+    if (next === "\\" || next === '"') return next
+    return undefined
+  }
+
+  function processBackslashEscape(body: string, i: number, bytes: number[]): number {
+    const next = body[i + 1]
+    if (!next) {
+      bytes.push("\\".charCodeAt(0))
+      return i
+    }
+
+    if (next >= "0" && next <= "7") {
+      const { byte, advance } = unquoteOctalEscape(body, i)
+      bytes.push(byte)
+      return i + advance
+    }
+
+    const escaped = unquoteSimpleEscape(next)
+    bytes.push((escaped ?? next).charCodeAt(0))
+    return i + 1
+  }
+
+  function unquoteGitPath(input: string): string {
     if (!input.startsWith('"')) return input
     if (!input.endsWith('"')) return input
     const body = input.slice(1, -1)
@@ -23,45 +59,7 @@ export namespace SessionSummary {
         bytes.push(char.charCodeAt(0))
         continue
       }
-
-      const next = body[i + 1]
-      if (!next) {
-        bytes.push("\\".charCodeAt(0))
-        continue
-      }
-
-      if (next >= "0" && next <= "7") {
-        const chunk = body.slice(i + 1, i + 4)
-        const match = chunk.match(/^[0-7]{1,3}/)
-        if (!match) {
-          bytes.push(next.charCodeAt(0))
-          i++
-          continue
-        }
-        bytes.push(parseInt(match[0], 8))
-        i += match[0].length
-        continue
-      }
-
-      const escaped =
-        next === "n"
-          ? "\n"
-          : next === "r"
-            ? "\r"
-            : next === "t"
-              ? "\t"
-              : next === "b"
-                ? "\b"
-                : next === "f"
-                  ? "\f"
-                  : next === "v"
-                    ? "\v"
-                    : next === "\\" || next === '"'
-                      ? next
-                      : undefined
-
-      bytes.push((escaped ?? next).charCodeAt(0))
-      i++
+      i = processBackslashEscape(body, i, bytes)
     }
 
     return Buffer.from(bytes).toString()
@@ -133,29 +131,30 @@ export namespace SessionSummary {
     },
   )
 
-  export async function computeDiff(input: { messages: MessageV2.WithParts[] }) {
-    let from: string | undefined
-    let to: string | undefined
-
-    // scan assistant messages to find earliest from and latest to
-    // snapshot
-    for (const item of input.messages) {
-      if (!from) {
-        for (const part of item.parts) {
-          if (part.type === "step-start" && part.snapshot) {
-            from = part.snapshot
-            break
-          }
-        }
+  function findSnapshotFrom(messages: MessageV2.WithParts[]): string | undefined {
+    for (const item of messages) {
+      for (const part of item.parts) {
+        if (part.type === "step-start" && part.snapshot) return part.snapshot
       }
+    }
+    return undefined
+  }
 
+  function findSnapshotTo(messages: MessageV2.WithParts[]): string | undefined {
+    let to: string | undefined
+    for (const item of messages) {
       for (const part of item.parts) {
         if (part.type === "step-finish" && part.snapshot) {
           to = part.snapshot
         }
       }
     }
+    return to
+  }
 
+  export async function computeDiff(input: { messages: MessageV2.WithParts[] }): Promise<Snapshot.FileDiff[]> {
+    const from = findSnapshotFrom(input.messages)
+    const to = findSnapshotTo(input.messages)
     if (from && to) return Snapshot.diffFull(from, to)
     return []
   }

@@ -141,11 +141,12 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
   }
 }
 
-async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
-  const spinner = prompts.spinner()
-  const errors: string[] = []
-
-  for (const dir of targets.directories) {
+async function removeDirectories(
+  dirs: RemovalTargets["directories"],
+  spinner: ReturnType<typeof prompts.spinner>,
+  errors: string[],
+) {
+  for (const dir of dirs) {
     if (dir.keep) {
       prompts.log.step(`Skipping ${dir.label} (--keep-${dir.label.toLowerCase()})`)
       continue
@@ -166,6 +167,59 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
     }
     spinner.stop(`Removed ${dir.label}`)
   }
+}
+
+const PACKAGE_MANAGER_CMDS: Record<string, string[]> = {
+  npm: ["npm", "uninstall", "-g", "librecode"],
+  pnpm: ["pnpm", "uninstall", "-g", "librecode"],
+  bun: ["bun", "remove", "-g", "librecode"],
+  yarn: ["yarn", "global", "remove", "librecode"],
+  brew: ["brew", "uninstall", "librecode"],
+  choco: ["choco", "uninstall", "librecode"],
+  scoop: ["scoop", "uninstall", "librecode"],
+}
+
+async function runPackageManagerUninstall(
+  method: Installation.Method,
+  spinner: ReturnType<typeof prompts.spinner>,
+  errors: string[],
+) {
+  const cmd = PACKAGE_MANAGER_CMDS[method]
+  if (!cmd) return
+
+  spinner.start(`Running ${cmd.join(" ")}...`)
+  const actual = method === "choco" ? ["choco", "uninstall", "librecode", "-y", "-r"] : cmd
+  const result = await Process.run(actual, { nothrow: true })
+  if (result.code !== 0) {
+    spinner.stop(`Package manager uninstall failed: exit code ${result.code}`, 1)
+    const text = `${result.stdout.toString("utf8")}\n${result.stderr.toString("utf8")}`
+    if (method === "choco" && text.includes("not running from an elevated command shell")) {
+      prompts.log.warn(`You may need to run '${cmd.join(" ")}' from an elevated command shell`)
+    } else {
+      prompts.log.warn(`You may need to run manually: ${cmd.join(" ")}`)
+    }
+    errors.push(`Package manager: exit code ${result.code}`)
+    return
+  }
+  spinner.stop("Package removed")
+}
+
+function printCurlBinaryInstructions(binary: string) {
+  UI.empty()
+  prompts.log.message("To finish removing the binary, run:")
+  prompts.log.info(`  rm "${binary}"`)
+
+  const binDir = path.dirname(binary)
+  if (binDir.includes(".librecode")) {
+    prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
+  }
+}
+
+async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
+  const spinner = prompts.spinner()
+  const errors: string[] = []
+
+  await removeDirectories(targets.directories, spinner, errors)
 
   if (targets.shellConfig) {
     spinner.start("Cleaning shell config...")
@@ -179,45 +233,11 @@ async function executeUninstall(method: Installation.Method, targets: RemovalTar
   }
 
   if (method !== "curl" && method !== "unknown") {
-    const cmds: Record<string, string[]> = {
-      npm: ["npm", "uninstall", "-g", "librecode"],
-      pnpm: ["pnpm", "uninstall", "-g", "librecode"],
-      bun: ["bun", "remove", "-g", "librecode"],
-      yarn: ["yarn", "global", "remove", "librecode"],
-      brew: ["brew", "uninstall", "librecode"],
-      choco: ["choco", "uninstall", "librecode"],
-      scoop: ["scoop", "uninstall", "librecode"],
-    }
-
-    const cmd = cmds[method]
-    if (cmd) {
-      spinner.start(`Running ${cmd.join(" ")}...`)
-      const result = await Process.run(method === "choco" ? ["choco", "uninstall", "librecode", "-y", "-r"] : cmd, {
-        nothrow: true,
-      })
-      if (result.code !== 0) {
-        spinner.stop(`Package manager uninstall failed: exit code ${result.code}`, 1)
-        const text = `${result.stdout.toString("utf8")}\n${result.stderr.toString("utf8")}`
-        if (method === "choco" && text.includes("not running from an elevated command shell")) {
-          prompts.log.warn(`You may need to run '${cmd.join(" ")}' from an elevated command shell`)
-        } else {
-          prompts.log.warn(`You may need to run manually: ${cmd.join(" ")}`)
-        }
-      } else {
-        spinner.stop("Package removed")
-      }
-    }
+    await runPackageManagerUninstall(method, spinner, errors)
   }
 
   if (method === "curl" && targets.binary) {
-    UI.empty()
-    prompts.log.message("To finish removing the binary, run:")
-    prompts.log.info(`  rm "${targets.binary}"`)
-
-    const binDir = path.dirname(targets.binary)
-    if (binDir.includes(".librecode")) {
-      prompts.log.info(`  rmdir "${binDir}" 2>/dev/null`)
-    }
+    printCurlBinaryInstructions(targets.binary)
   }
 
   if (errors.length > 0) {
@@ -274,37 +294,44 @@ async function getShellConfigFile(): Promise<string | null> {
   return null
 }
 
-async function cleanShellConfig(file: string) {
-  const content = await Filesystem.readText(file)
-  const lines = content.split("\n")
+function isLibrecodePath(trimmed: string): boolean {
+  return (
+    (trimmed.startsWith("export PATH=") && trimmed.includes(".librecode/bin")) ||
+    (trimmed.startsWith("fish_add_path") && trimmed.includes(".librecode"))
+  )
+}
 
-  const filtered: string[] = []
-  let skip = false
+function filterShellLines(lines: string[]): string[] {
+  const result: string[] = []
+  let skipNext = false
 
   for (const line of lines) {
     const trimmed = line.trim()
 
     if (trimmed === "# librecode") {
-      skip = true
+      skipNext = true
       continue
     }
 
-    if (skip) {
-      skip = false
+    if (skipNext) {
+      skipNext = false
       if (trimmed.includes(".librecode/bin") || trimmed.includes("fish_add_path")) {
         continue
       }
     }
 
-    if (
-      (trimmed.startsWith("export PATH=") && trimmed.includes(".librecode/bin")) ||
-      (trimmed.startsWith("fish_add_path") && trimmed.includes(".librecode"))
-    ) {
-      continue
-    }
+    if (isLibrecodePath(trimmed)) continue
 
-    filtered.push(line)
+    result.push(line)
   }
+
+  return result
+}
+
+async function cleanShellConfig(file: string) {
+  const content = await Filesystem.readText(file)
+  const lines = content.split("\n")
+  const filtered = filterShellLines(lines)
 
   while (filtered.length > 0 && filtered[filtered.length - 1].trim() === "") {
     filtered.pop()

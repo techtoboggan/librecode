@@ -23,6 +23,84 @@ import { Flag } from "@/flag/flag"
 import { PermissionNext } from "@/permission/next"
 import { Auth } from "@/auth"
 
+// ---------------------------------------------------------------------------
+// Module-level helpers (extracted to reduce stream() complexity)
+// ---------------------------------------------------------------------------
+
+async function buildSystemPrompt(
+  input: Pick<LLM.StreamInput, "sessionID" | "model" | "agent" | "user" | "system">,
+  isCodex: boolean,
+): Promise<string[]> {
+  const system: string[] = []
+  system.push(
+    [
+      ...(input.agent.prompt ? [input.agent.prompt] : isCodex ? [] : SystemPrompt.provider(input.model)),
+      ...input.system,
+      ...(input.user.system ? [input.user.system] : []),
+    ]
+      .filter((x) => x)
+      .join("\n"),
+  )
+
+  const header = system[0]
+  await Plugin.trigger(
+    "experimental.chat.system.transform",
+    { sessionID: input.sessionID, model: input.model },
+    { system },
+  )
+  // rejoin to maintain 2-part structure for caching if header unchanged
+  if (system.length > 2 && system[0] === header) {
+    const rest = system.slice(1)
+    system.length = 0
+    system.push(header, rest.join("\n"))
+  }
+  return system
+}
+
+type ProviderInfo = Awaited<ReturnType<typeof Provider.getProvider>>
+
+function buildModelOptions(
+  input: Pick<LLM.StreamInput, "sessionID" | "model" | "agent" | "user" | "small">,
+  provider: ProviderInfo,
+  isCodex: boolean,
+): Record<string, unknown> {
+  const variant =
+    !input.small && input.model.variants && input.user.variant ? input.model.variants[input.user.variant] : {}
+  const base = input.small
+    ? ProviderTransform.smallOptions(input.model)
+    : ProviderTransform.options({ model: input.model, sessionID: input.sessionID, providerOptions: provider.options })
+  const options: Record<string, unknown> = pipe(
+    base,
+    mergeDeep(input.model.options),
+    mergeDeep(input.agent.options),
+    mergeDeep(variant),
+  )
+  if (isCodex) options.instructions = SystemPrompt.instructions()
+  return options
+}
+
+function injectLiteLLMNoop(
+  provider: ProviderInfo,
+  input: Pick<LLM.StreamInput, "model" | "messages">,
+  tools: Record<string, Tool>,
+): void {
+  const isLiteLLMProxy =
+    provider.options?.["litellmProxy"] === true ||
+    input.model.providerID.toLowerCase().includes("litellm") ||
+    input.model.api.id.toLowerCase().includes("litellm")
+
+  if (!isLiteLLMProxy || Object.keys(tools).length !== 0 || !LLM.hasToolCalls(input.messages)) return
+
+  // LiteLLM and some Anthropic proxies require the tools parameter to be present
+  // when message history contains tool calls, even if no tools are being used.
+  tools["_noop"] = tool({
+    description:
+      "Placeholder for LiteLLM/Anthropic proxy compatibility - required when message history contains tool calls but no active tools are needed",
+    inputSchema: jsonSchema({ type: "object", properties: {} }),
+    execute: async () => ({ output: "", title: "", metadata: {} }),
+  })
+}
+
 export namespace LLM {
   const log = Log.create({ service: "llm" })
   export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
@@ -43,7 +121,7 @@ export namespace LLM {
 
   export type StreamOutput = StreamTextResult<ToolSet, unknown>
 
-  export async function stream(input: StreamInput) {
+  export async function stream(input: StreamInput): Promise<StreamOutput> {
     const l = log
       .clone()
       .tag("providerID", input.model.providerID)
@@ -52,10 +130,8 @@ export namespace LLM {
       .tag("small", (input.small ?? false).toString())
       .tag("agent", input.agent.name)
       .tag("mode", input.agent.mode)
-    l.info("stream", {
-      modelID: input.model.id,
-      providerID: input.model.providerID,
-    })
+    l.info("stream", { modelID: input.model.id, providerID: input.model.providerID })
+
     const [language, cfg, provider, auth] = await Promise.all([
       Provider.getLanguage(input.model),
       Config.get(),
@@ -64,62 +140,12 @@ export namespace LLM {
     ])
     const isCodex = provider.id === "openai" && auth?.type === "oauth"
 
-    const system = []
-    system.push(
-      [
-        // use agent prompt otherwise provider prompt
-        // For Codex sessions, skip SystemPrompt.provider() since it's sent via options.instructions
-        ...(input.agent.prompt ? [input.agent.prompt] : isCodex ? [] : SystemPrompt.provider(input.model)),
-        // any custom prompt passed into this call
-        ...input.system,
-        // any custom prompt from last user message
-        ...(input.user.system ? [input.user.system] : []),
-      ]
-        .filter((x) => x)
-        .join("\n"),
-    )
-
-    const header = system[0]
-    await Plugin.trigger(
-      "experimental.chat.system.transform",
-      { sessionID: input.sessionID, model: input.model },
-      { system },
-    )
-    // rejoin to maintain 2-part structure for caching if header unchanged
-    if (system.length > 2 && system[0] === header) {
-      const rest = system.slice(1)
-      system.length = 0
-      system.push(header, rest.join("\n"))
-    }
-
-    const variant =
-      !input.small && input.model.variants && input.user.variant ? input.model.variants[input.user.variant] : {}
-    const base = input.small
-      ? ProviderTransform.smallOptions(input.model)
-      : ProviderTransform.options({
-          model: input.model,
-          sessionID: input.sessionID,
-          providerOptions: provider.options,
-        })
-    const options: Record<string, any> = pipe(
-      base,
-      mergeDeep(input.model.options),
-      mergeDeep(input.agent.options),
-      mergeDeep(variant),
-    )
-    if (isCodex) {
-      options.instructions = SystemPrompt.instructions()
-    }
+    const system = await buildSystemPrompt(input, isCodex)
+    const options = buildModelOptions(input, provider, isCodex)
 
     const params = await Plugin.trigger(
       "chat.params",
-      {
-        sessionID: input.sessionID,
-        agent: input.agent,
-        model: input.model,
-        provider,
-        message: input.user,
-      },
+      { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
       {
         temperature: input.model.capabilities.temperature
           ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
@@ -132,67 +158,29 @@ export namespace LLM {
 
     const { headers } = await Plugin.trigger(
       "chat.headers",
-      {
-        sessionID: input.sessionID,
-        agent: input.agent,
-        model: input.model,
-        provider,
-        message: input.user,
-      },
-      {
-        headers: {},
-      },
+      { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
+      { headers: {} },
     )
 
     const maxOutputTokens =
       isCodex || provider.id.includes("github-copilot") ? undefined : ProviderTransform.maxOutputTokens(input.model)
 
     const tools = await resolveTools(input)
-
-    // LiteLLM and some Anthropic proxies require the tools parameter to be present
-    // when message history contains tool calls, even if no tools are being used.
-    // Add a dummy tool that is never called to satisfy this validation.
-    // This is enabled for:
-    // 1. Providers with "litellm" in their ID or API ID (auto-detected)
-    // 2. Providers with explicit "litellmProxy: true" option (opt-in for custom gateways)
-    const isLiteLLMProxy =
-      provider.options?.["litellmProxy"] === true ||
-      input.model.providerID.toLowerCase().includes("litellm") ||
-      input.model.api.id.toLowerCase().includes("litellm")
-
-    if (isLiteLLMProxy && Object.keys(tools).length === 0 && hasToolCalls(input.messages)) {
-      tools["_noop"] = tool({
-        description:
-          "Placeholder for LiteLLM/Anthropic proxy compatibility - required when message history contains tool calls but no active tools are needed",
-        inputSchema: jsonSchema({ type: "object", properties: {} }),
-        execute: async () => ({ output: "", title: "", metadata: {} }),
-      })
-    }
+    injectLiteLLMNoop(provider, input, tools)
 
     return streamText({
       onError(error) {
-        l.error("stream error", {
-          error,
-        })
+        l.error("stream error", { error })
       },
       async experimental_repairToolCall(failed) {
         const lower = failed.toolCall.toolName.toLowerCase()
         if (lower !== failed.toolCall.toolName && tools[lower]) {
-          l.info("repairing tool call", {
-            tool: failed.toolCall.toolName,
-            repaired: lower,
-          })
-          return {
-            ...failed.toolCall,
-            toolName: lower,
-          }
+          l.info("repairing tool call", { tool: failed.toolCall.toolName, repaired: lower })
+          return { ...failed.toolCall, toolName: lower }
         }
         return {
           ...failed.toolCall,
-          input: JSON.stringify({
-            tool: failed.toolCall.toolName,
-            error: failed.error.message,
-          }),
+          input: JSON.stringify({ tool: failed.toolCall.toolName, error: failed.error.message }),
           toolName: "invalid",
         }
       },
@@ -206,22 +194,13 @@ export namespace LLM {
       maxOutputTokens,
       abortSignal: input.abort,
       headers: {
-        ...(input.model.providerID !== "anthropic"
-          ? {
-              "User-Agent": `librecode/${Installation.VERSION}`,
-            }
-          : undefined),
+        ...(input.model.providerID !== "anthropic" ? { "User-Agent": `librecode/${Installation.VERSION}` } : undefined),
         ...input.model.headers,
         ...headers,
       },
       maxRetries: input.retries ?? 0,
       messages: [
-        ...system.map(
-          (x): ModelMessage => ({
-            role: "system",
-            content: x,
-          }),
-        ),
+        ...system.map((x): ModelMessage => ({ role: "system", content: x })),
         ...input.messages,
       ],
       model: wrapLanguageModel({
@@ -240,10 +219,7 @@ export namespace LLM {
       }),
       experimental_telemetry: {
         isEnabled: cfg.experimental?.openTelemetry,
-        metadata: {
-          userId: cfg.username ?? "unknown",
-          sessionId: input.sessionID,
-        },
+        metadata: { userId: cfg.username ?? "unknown", sessionId: input.sessionID },
       },
     })
   }

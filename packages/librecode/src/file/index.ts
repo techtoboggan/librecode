@@ -332,78 +332,88 @@ export namespace File {
     ),
   }
 
-  const state = Instance.state(async () => {
-    type Entry = { files: string[]; dirs: string[] }
-    let cache: Entry = { files: [], dirs: [] }
-    let fetching = false
+  type FileEntry = { files: string[]; dirs: string[] }
 
+  interface ScanState {
+    cache: FileEntry
+    fetching: boolean
+  }
+
+  const NESTED_IGNORE = new Set(["node_modules", "dist", "build", "target", "vendor"])
+
+  function shouldIgnoreNested(name: string): boolean {
+    return name.startsWith(".") || NESTED_IGNORE.has(name)
+  }
+
+  async function scanGlobalHomeChildren(
+    entryName: string,
+    dirs: Set<string>,
+    shouldIgnore: (name: string) => boolean,
+  ): Promise<void> {
+    if (shouldIgnore(entryName)) return
+    dirs.add(entryName + "/")
+    const base = path.join(Instance.directory, entryName)
+    const children = await fs.promises.readdir(base, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
+    for (const child of children) {
+      if (!child.isDirectory()) continue
+      if (shouldIgnoreNested(child.name)) continue
+      dirs.add(entryName + "/" + child.name + "/")
+    }
+  }
+
+  async function scanGlobalHome(result: FileEntry): Promise<void> {
+    const dirs = new Set<string>()
+    const protectedNames = Protected.names()
+    const shouldIgnore = (name: string) => name.startsWith(".") || protectedNames.has(name)
+
+    const top = await fs.promises.readdir(Instance.directory, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
+    for (const entry of top) {
+      if (!entry.isDirectory()) continue
+      await scanGlobalHomeChildren(entry.name, dirs, shouldIgnore)
+    }
+    result.dirs = Array.from(dirs).toSorted()
+  }
+
+  async function scanRegularProject(result: FileEntry): Promise<void> {
+    const seen = new Set<string>()
+    for await (const file of Ripgrep.files({ cwd: Instance.directory })) {
+      result.files.push(file)
+      let current = file
+      while (true) {
+        const dir = path.dirname(current)
+        if (dir === "." || dir === current) break
+        current = dir
+        if (seen.has(dir)) continue
+        seen.add(dir)
+        result.dirs.push(dir + "/")
+      }
+    }
+  }
+
+  async function runScan(ctx: ScanState, result: FileEntry, isGlobalHome: boolean): Promise<void> {
+    if (Instance.directory === path.parse(Instance.directory).root) return
+    ctx.fetching = true
+    if (isGlobalHome) {
+      await scanGlobalHome(result)
+    } else {
+      await scanRegularProject(result)
+    }
+    ctx.cache = result
+    ctx.fetching = false
+  }
+
+  const state = Instance.state(async () => {
+    const ctx: ScanState = { cache: { files: [], dirs: [] }, fetching: false }
     const isGlobalHome = Instance.directory === Global.Path.home && Instance.project.id === "global"
 
-    const fn = async (result: Entry) => {
-      // Disable scanning if in root of file system
-      if (Instance.directory === path.parse(Instance.directory).root) return
-      fetching = true
-
-      if (isGlobalHome) {
-        const dirs = new Set<string>()
-        const ignore = Protected.names()
-
-        const ignoreNested = new Set(["node_modules", "dist", "build", "target", "vendor"])
-        const shouldIgnore = (name: string) => name.startsWith(".") || ignore.has(name)
-        const shouldIgnoreNested = (name: string) => name.startsWith(".") || ignoreNested.has(name)
-
-        const top = await fs.promises
-          .readdir(Instance.directory, { withFileTypes: true })
-          .catch(() => [] as fs.Dirent[])
-
-        for (const entry of top) {
-          if (!entry.isDirectory()) continue
-          if (shouldIgnore(entry.name)) continue
-          dirs.add(entry.name + "/")
-
-          const base = path.join(Instance.directory, entry.name)
-          const children = await fs.promises.readdir(base, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
-          for (const child of children) {
-            if (!child.isDirectory()) continue
-            if (shouldIgnoreNested(child.name)) continue
-            dirs.add(entry.name + "/" + child.name + "/")
-          }
-        }
-
-        result.dirs = Array.from(dirs).toSorted()
-        cache = result
-        fetching = false
-        return
-      }
-
-      const set = new Set<string>()
-      for await (const file of Ripgrep.files({ cwd: Instance.directory })) {
-        result.files.push(file)
-        let current = file
-        while (true) {
-          const dir = path.dirname(current)
-          if (dir === ".") break
-          if (dir === current) break
-          current = dir
-          if (set.has(dir)) continue
-          set.add(dir)
-          result.dirs.push(dir + "/")
-        }
-      }
-      cache = result
-      fetching = false
-    }
-    fn(cache)
+    void runScan(ctx, ctx.cache, isGlobalHome)
 
     return {
       async files() {
-        if (!fetching) {
-          fn({
-            files: [],
-            dirs: [],
-          })
+        if (!ctx.fetching) {
+          void runScan(ctx, { files: [], dirs: [] }, isGlobalHome)
         }
-        return cache
+        return ctx.cache
       },
     }
   })
@@ -412,87 +422,97 @@ export namespace File {
     state()
   }
 
-  export async function status() {
-    const project = Instance.project
-    if (project.vcs !== "git") return []
-
+  async function collectModifiedFiles(): Promise<Info[]> {
     const diffOutput = (
       await git(["-c", "core.fsmonitor=false", "-c", "core.quotepath=false", "diff", "--numstat", "HEAD"], {
         cwd: Instance.directory,
       })
     ).text()
-
-    const changedFiles: Info[] = []
-
-    if (diffOutput.trim()) {
-      const lines = diffOutput.trim().split("\n")
-      for (const line of lines) {
+    if (!diffOutput.trim()) return []
+    return diffOutput
+      .trim()
+      .split("\n")
+      .map((line) => {
         const [added, removed, filepath] = line.split("\t")
-        changedFiles.push({
+        return {
           path: filepath,
           added: added === "-" ? 0 : parseInt(added, 10),
           removed: removed === "-" ? 0 : parseInt(removed, 10),
-          status: "modified",
-        })
-      }
-    }
+          status: "modified" as const,
+        }
+      })
+  }
 
+  async function collectAddedFiles(): Promise<Info[]> {
     const untrackedOutput = (
       await git(
         ["-c", "core.fsmonitor=false", "-c", "core.quotepath=false", "ls-files", "--others", "--exclude-standard"],
-        {
-          cwd: Instance.directory,
-        },
+        { cwd: Instance.directory },
       )
     ).text()
-
-    if (untrackedOutput.trim()) {
-      const untrackedFiles = untrackedOutput.trim().split("\n")
-      for (const filepath of untrackedFiles) {
-        try {
-          const content = await Filesystem.readText(path.join(Instance.directory, filepath))
-          const lines = content.split("\n").length
-          changedFiles.push({
-            path: filepath,
-            added: lines,
-            removed: 0,
-            status: "added",
-          })
-        } catch {
-          continue
-        }
+    if (!untrackedOutput.trim()) return []
+    const results: Info[] = []
+    for (const filepath of untrackedOutput.trim().split("\n")) {
+      try {
+        const content = await Filesystem.readText(path.join(Instance.directory, filepath))
+        results.push({ path: filepath, added: content.split("\n").length, removed: 0, status: "added" })
+      } catch {
+        continue
       }
     }
+    return results
+  }
 
-    // Get deleted files
+  async function collectDeletedFiles(): Promise<Info[]> {
     const deletedOutput = (
       await git(
         ["-c", "core.fsmonitor=false", "-c", "core.quotepath=false", "diff", "--name-only", "--diff-filter=D", "HEAD"],
-        {
-          cwd: Instance.directory,
-        },
+        { cwd: Instance.directory },
       )
     ).text()
+    if (!deletedOutput.trim()) return []
+    return deletedOutput
+      .trim()
+      .split("\n")
+      .map((filepath) => ({ path: filepath, added: 0, removed: 0, status: "deleted" as const }))
+  }
 
-    if (deletedOutput.trim()) {
-      const deletedFiles = deletedOutput.trim().split("\n")
-      for (const filepath of deletedFiles) {
-        changedFiles.push({
-          path: filepath,
-          added: 0,
-          removed: 0, // Could get original line count but would require another git command
-          status: "deleted",
-        })
-      }
-    }
+  export async function status(): Promise<Info[]> {
+    if (Instance.project.vcs !== "git") return []
+
+    const [modified, added, deleted] = await Promise.all([
+      collectModifiedFiles(),
+      collectAddedFiles(),
+      collectDeletedFiles(),
+    ])
+    const changedFiles = [...modified, ...added, ...deleted]
 
     return changedFiles.map((x) => {
       const full = path.isAbsolute(x.path) ? x.path : path.join(Instance.directory, x.path)
-      return {
-        ...x,
-        path: path.relative(Instance.directory, full),
-      }
+      return { ...x, path: path.relative(Instance.directory, full) }
     })
+  }
+
+  async function readImageFile(file: string, full: string): Promise<Content> {
+    if (!(await Filesystem.exists(full))) return { type: "text", content: "" }
+    const buffer = await Filesystem.readBytes(full).catch(() => Buffer.from([]))
+    return { type: "text", content: buffer.toString("base64"), mimeType: getImageMimeType(file), encoding: "base64" }
+  }
+
+  async function readTextWithDiff(file: string, full: string, content: string): Promise<Content> {
+    let diff = (await git(["-c", "core.fsmonitor=false", "diff", "--", file], { cwd: Instance.directory })).text()
+    if (!diff.trim()) {
+      diff = (
+        await git(["-c", "core.fsmonitor=false", "diff", "--staged", "--", file], { cwd: Instance.directory })
+      ).text()
+    }
+    if (!diff.trim()) return { type: "text", content }
+    const original = (await git(["show", `HEAD:${file}`], { cwd: Instance.directory })).text()
+    const patch = structuredPatch(file, file, original, content, "old", "new", {
+      context: Infinity,
+      ignoreWhitespace: true,
+    })
+    return { type: "text", content, patch, diff: formatPatch(patch) }
   }
 
   export async function read(file: string): Promise<Content> {
@@ -506,78 +526,47 @@ export namespace File {
       throw new Error(`Access denied: path escapes project directory`)
     }
 
-    // Fast path: check extension before any filesystem operations
-    if (isImageByExtension(file)) {
-      if (await Filesystem.exists(full)) {
-        const buffer = await Filesystem.readBytes(full).catch(() => Buffer.from([]))
-        const content = buffer.toString("base64")
-        const mimeType = getImageMimeType(file)
-        return { type: "text", content, mimeType, encoding: "base64" }
-      }
-      return { type: "text", content: "" }
-    }
+    if (isImageByExtension(file)) return readImageFile(file, full)
 
-    const text = isTextByExtension(file) || isTextByName(file)
-
-    if (isBinaryByExtension(file) && !text) {
-      return { type: "binary", content: "" }
-    }
-
-    if (!(await Filesystem.exists(full))) {
-      return { type: "text", content: "" }
-    }
+    const isText = isTextByExtension(file) || isTextByName(file)
+    if (isBinaryByExtension(file) && !isText) return { type: "binary", content: "" }
+    if (!(await Filesystem.exists(full))) return { type: "text", content: "" }
 
     const mimeType = Filesystem.mimeType(full)
-    const encode = text ? false : await shouldEncode(mimeType)
+    const encode = isText ? false : await shouldEncode(mimeType)
 
-    if (encode && !isImage(mimeType)) {
-      return { type: "binary", content: "", mimeType }
-    }
-
+    if (encode && !isImage(mimeType)) return { type: "binary", content: "", mimeType }
     if (encode) {
       const buffer = await Filesystem.readBytes(full).catch(() => Buffer.from([]))
-      const content = buffer.toString("base64")
-      return { type: "text", content, mimeType, encoding: "base64" }
+      return { type: "text", content: buffer.toString("base64"), mimeType, encoding: "base64" }
     }
 
     const content = (await Filesystem.readText(full).catch(() => "")).trim()
-
-    if (project.vcs === "git") {
-      let diff = (await git(["-c", "core.fsmonitor=false", "diff", "--", file], { cwd: Instance.directory })).text()
-      if (!diff.trim()) {
-        diff = (
-          await git(["-c", "core.fsmonitor=false", "diff", "--staged", "--", file], { cwd: Instance.directory })
-        ).text()
-      }
-      if (diff.trim()) {
-        const original = (await git(["show", `HEAD:${file}`], { cwd: Instance.directory })).text()
-        const patch = structuredPatch(file, file, original, content, "old", "new", {
-          context: Infinity,
-          ignoreWhitespace: true,
-        })
-        const diff = formatPatch(patch)
-        return { type: "text", content, patch, diff }
-      }
-    }
+    if (project.vcs === "git") return readTextWithDiff(file, full, content)
     return { type: "text", content }
   }
 
-  export async function list(dir?: string) {
-    const exclude = [".git", ".DS_Store"]
-    const project = Instance.project
-    let ignored = (_: string) => false
-    if (project.vcs === "git") {
-      const ig = ignore()
-      const gitignorePath = path.join(Instance.worktree, ".gitignore")
-      if (await Filesystem.exists(gitignorePath)) {
-        ig.add(await Filesystem.readText(gitignorePath))
-      }
-      const ignorePath = path.join(Instance.worktree, ".ignore")
-      if (await Filesystem.exists(ignorePath)) {
-        ig.add(await Filesystem.readText(ignorePath))
-      }
-      ignored = ig.ignores.bind(ig)
+  async function buildIgnoreFn(): Promise<(p: string) => boolean> {
+    const ig = ignore()
+    const gitignorePath = path.join(Instance.worktree, ".gitignore")
+    if (await Filesystem.exists(gitignorePath)) {
+      ig.add(await Filesystem.readText(gitignorePath))
     }
+    const ignorePath = path.join(Instance.worktree, ".ignore")
+    if (await Filesystem.exists(ignorePath)) {
+      ig.add(await Filesystem.readText(ignorePath))
+    }
+    return ig.ignores.bind(ig)
+  }
+
+  function nodeSortComparator(a: Node, b: Node): number {
+    if (a.type !== b.type) return a.type === "directory" ? -1 : 1
+    return a.name.localeCompare(b.name)
+  }
+
+  export async function list(dir?: string): Promise<Node[]> {
+    const exclude = [".git", ".DS_Store"]
+    const ignored = Instance.project.vcs === "git" ? await buildIgnoreFn() : (_: string) => false
     const resolved = dir ? path.join(Instance.directory, dir) : Instance.directory
 
     // TODO: Filesystem.contains is lexical only - symlinks inside the project can escape.
@@ -587,11 +576,7 @@ export namespace File {
     }
 
     const nodes: Node[] = []
-    for (const entry of await fs.promises
-      .readdir(resolved, {
-        withFileTypes: true,
-      })
-      .catch(() => [])) {
+    for (const entry of await fs.promises.readdir(resolved, { withFileTypes: true }).catch(() => [])) {
       if (exclude.includes(entry.name)) continue
       const fullPath = path.join(resolved, entry.name)
       const relativePath = path.relative(Instance.directory, fullPath)
@@ -604,50 +589,60 @@ export namespace File {
         ignored: ignored(type === "directory" ? relativePath + "/" : relativePath),
       })
     }
-    return nodes.sort((a, b) => {
-      if (a.type !== b.type) {
-        return a.type === "directory" ? -1 : 1
-      }
-      return a.name.localeCompare(b.name)
-    })
+    return nodes.sort(nodeSortComparator)
   }
 
-  export async function search(input: { query: string; limit?: number; dirs?: boolean; type?: "file" | "directory" }) {
+  function isHiddenPath(item: string): boolean {
+    const normalized = item.replaceAll("\\", "/").replace(/\/+$/, "")
+    return normalized.split("/").some((p) => p.startsWith(".") && p.length > 1)
+  }
+
+  function partitionHiddenLast(items: string[], preferHidden: boolean): string[] {
+    if (preferHidden) return items
+    const visible: string[] = []
+    const hidden: string[] = []
+    for (const item of items) {
+      if (isHiddenPath(item)) hidden.push(item)
+      else visible.push(item)
+    }
+    return [...visible, ...hidden]
+  }
+
+  type SearchKind = "file" | "directory" | "all"
+
+  function getSearchItems(result: FileEntry, kind: SearchKind): string[] {
+    if (kind === "file") return result.files
+    if (kind === "directory") return result.dirs
+    return [...result.files, ...result.dirs]
+  }
+
+  function searchByQuery(items: string[], query: string, kind: SearchKind, limit: number, preferHidden: boolean): string[] {
+    const searchLimit = kind === "directory" && !preferHidden ? limit * 20 : limit
+    const sorted = fuzzysort.go(query, items, { limit: searchLimit }).map((r) => r.target)
+    if (kind !== "directory") return sorted
+    return partitionHiddenLast(sorted, preferHidden).slice(0, limit)
+  }
+
+  export async function search(input: {
+    query: string
+    limit?: number
+    dirs?: boolean
+    type?: "file" | "directory"
+  }): Promise<string[]> {
     const query = input.query.trim()
     const limit = input.limit ?? 100
-    const kind = input.type ?? (input.dirs === false ? "file" : "all")
+    const kind: SearchKind = input.type ?? (input.dirs === false ? "file" : "all")
     log.info("search", { query, kind })
 
     const result = await state().then((x) => x.files())
-
-    const hidden = (item: string) => {
-      const normalized = item.replaceAll("\\", "/").replace(/\/+$/, "")
-      return normalized.split("/").some((p) => p.startsWith(".") && p.length > 1)
-    }
     const preferHidden = query.startsWith(".") || query.includes("/.")
-    const sortHiddenLast = (items: string[]) => {
-      if (preferHidden) return items
-      const visible: string[] = []
-      const hiddenItems: string[] = []
-      for (const item of items) {
-        const isHidden = hidden(item)
-        if (isHidden) hiddenItems.push(item)
-        if (!isHidden) visible.push(item)
-      }
-      return [...visible, ...hiddenItems]
-    }
+
     if (!query) {
       if (kind === "file") return result.files.slice(0, limit)
-      return sortHiddenLast(result.dirs.toSorted()).slice(0, limit)
+      return partitionHiddenLast(result.dirs.toSorted(), preferHidden).slice(0, limit)
     }
 
-    const items =
-      kind === "file" ? result.files : kind === "directory" ? result.dirs : [...result.files, ...result.dirs]
-
-    const searchLimit = kind === "directory" && !preferHidden ? limit * 20 : limit
-    const sorted = fuzzysort.go(query, items, { limit: searchLimit }).map((r) => r.target)
-    const output = kind === "directory" ? sortHiddenLast(sorted).slice(0, limit) : sorted
-
+    const output = searchByQuery(getSearchItems(result, kind), query, kind, limit, preferHidden)
     log.info("search", { query, kind, results: output.length })
     return output
   }

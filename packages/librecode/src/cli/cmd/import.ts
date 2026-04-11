@@ -19,6 +19,8 @@ export type ShareData =
   | { type: "session_diff"; data: unknown }
   | { type: "model"; data: unknown }
 
+type ExportData = { info: SDKSession; messages: Array<{ info: Message; parts: Part[] }> }
+
 /** Extract share ID from a share URL like https://opncd.ai/share/abc123 */
 export function parseShareUrl(url: string): string | null {
   const match = url.match(/^https?:\/\/[^/]+\/share\/([a-zA-Z0-9_-]+)$/)
@@ -33,18 +35,7 @@ export function shouldAttachShareAuthHeaders(shareUrl: string, accountBaseUrl: s
   }
 }
 
-/**
- * Transform ShareNext API response (flat array) into the nested structure for local file storage.
- *
- * The API returns a flat array: [session, message, message, part, part, ...]
- * Local storage expects: { info: session, messages: [{ info: message, parts: [part, ...] }, ...] }
- *
- * This groups parts by their messageID to reconstruct the hierarchy before writing to disk.
- */
-export function transformShareData(shareData: ShareData[]): {
-  info: SDKSession
-  messages: Array<{ info: Message; parts: Part[] }>
-} | null {
+export function transformShareData(shareData: ShareData[]): ExportData | null {
   const sessionItem = shareData.find((d) => d.type === "session")
   if (!sessionItem) return null
 
@@ -55,21 +46,69 @@ export function transformShareData(shareData: ShareData[]): {
     if (item.type === "message") {
       messageMap.set(item.data.id, item.data)
     } else if (item.type === "part") {
-      if (!partMap.has(item.data.messageID)) {
-        partMap.set(item.data.messageID, [])
-      }
+      if (!partMap.has(item.data.messageID)) partMap.set(item.data.messageID, [])
       partMap.get(item.data.messageID)!.push(item.data)
     }
   }
 
   if (messageMap.size === 0) return null
-
   return {
     info: sessionItem.data,
-    messages: Array.from(messageMap.values()).map((msg) => ({
-      info: msg,
-      parts: partMap.get(msg.id) ?? [],
-    })),
+    messages: Array.from(messageMap.values()).map((msg) => ({ info: msg, parts: partMap.get(msg.id) ?? [] })),
+  }
+}
+
+async function importFromUrl(url: string): Promise<ExportData | null> {
+  const slug = parseShareUrl(url)
+  if (!slug) {
+    const baseUrl = await ShareNext.url()
+    process.stdout.write(`Invalid URL format. Expected: ${baseUrl}/share/<slug>` + EOL)
+    return null
+  }
+  const parsed = new URL(url)
+  const req = await ShareNext.request()
+  const headers = shouldAttachShareAuthHeaders(url, req.baseUrl) ? req.headers : {}
+  const dataPath = req.api.data(slug)
+  let response = await fetch(`${parsed.origin}${dataPath}`, { headers })
+  if (!response.ok && dataPath !== `/api/share/${slug}/data`) {
+    response = await fetch(`${parsed.origin}/api/share/${slug}/data`, { headers })
+  }
+  if (!response.ok) {
+    process.stdout.write(`Failed to fetch share data: ${response.statusText}` + EOL)
+    return null
+  }
+  const shareData: ShareData[] = await response.json()
+  const transformed = transformShareData(shareData)
+  if (!transformed) {
+    process.stdout.write(`Share not found or empty: ${slug}` + EOL)
+    return null
+  }
+  return transformed
+}
+
+function saveSessionToDb(exportData: ExportData): void {
+  const info = Session.Info.parse({ ...exportData.info, projectID: Instance.project.id })
+  const row = Session.toRow(info)
+  Database.use((db) =>
+    db.insert(SessionTable).values(row)
+      .onConflictDoUpdate({ target: SessionTable.id, set: { project_id: row.project_id } })
+      .run(),
+  )
+  for (const msg of exportData.messages) {
+    const msgInfo = MessageV2.Info.parse(msg.info)
+    const { id, sessionID: _, ...msgData } = msgInfo
+    Database.use((db) =>
+      db.insert(MessageTable).values({ id, session_id: row.id, time_created: msgInfo.time?.created ?? Date.now(), data: msgData })
+        .onConflictDoNothing().run(),
+    )
+    for (const part of msg.parts) {
+      const partInfo = MessageV2.Part.parse(part)
+      const { id: partId, sessionID: _s, messageID, ...partData } = partInfo
+      Database.use((db) =>
+        db.insert(PartTable).values({ id: partId, message_id: messageID, session_id: row.id, data: partData })
+          .onConflictDoNothing().run(),
+      )
+    }
   }
 }
 
@@ -85,123 +124,23 @@ export const ImportCommand = cmd({
   },
   handler: async (args) => {
     await bootstrap(process.cwd(), async () => {
-      let exportData:
-        | {
-            info: SDKSession
-            messages: Array<{
-              info: Message
-              parts: Part[]
-            }>
-          }
-        | undefined
-
       const isUrl = args.file.startsWith("http://") || args.file.startsWith("https://")
+      let exportData: ExportData | undefined
 
       if (isUrl) {
-        const slug = parseShareUrl(args.file)
-        if (!slug) {
-          const baseUrl = await ShareNext.url()
-          process.stdout.write(`Invalid URL format. Expected: ${baseUrl}/share/<slug>`)
-          process.stdout.write(EOL)
-          return
-        }
-
-        const parsed = new URL(args.file)
-        const baseUrl = parsed.origin
-        const req = await ShareNext.request()
-        const headers = shouldAttachShareAuthHeaders(args.file, req.baseUrl) ? req.headers : {}
-
-        const dataPath = req.api.data(slug)
-        let response = await fetch(`${baseUrl}${dataPath}`, {
-          headers,
-        })
-
-        if (!response.ok && dataPath !== `/api/share/${slug}/data`) {
-          response = await fetch(`${baseUrl}/api/share/${slug}/data`, {
-            headers,
-          })
-        }
-
-        if (!response.ok) {
-          process.stdout.write(`Failed to fetch share data: ${response.statusText}`)
-          process.stdout.write(EOL)
-          return
-        }
-
-        const shareData: ShareData[] = await response.json()
-        const transformed = transformShareData(shareData)
-
-        if (!transformed) {
-          process.stdout.write(`Share not found or empty: ${slug}`)
-          process.stdout.write(EOL)
-          return
-        }
-
-        exportData = transformed
+        exportData = (await importFromUrl(args.file)) ?? undefined
       } else {
-        exportData = await Filesystem.readJson<NonNullable<typeof exportData>>(args.file).catch(() => undefined)
+        exportData = await Filesystem.readJson<ExportData>(args.file).catch(() => undefined)
         if (!exportData) {
-          process.stdout.write(`File not found: ${args.file}`)
-          process.stdout.write(EOL)
+          process.stdout.write(`File not found: ${args.file}` + EOL)
           return
         }
       }
 
-      if (!exportData) {
-        process.stdout.write(`Failed to read session data`)
-        process.stdout.write(EOL)
-        return
-      }
+      if (!exportData) return
 
-      const info = Session.Info.parse({
-        ...exportData.info,
-        projectID: Instance.project.id,
-      })
-      const row = Session.toRow(info)
-      Database.use((db) =>
-        db
-          .insert(SessionTable)
-          .values(row)
-          .onConflictDoUpdate({ target: SessionTable.id, set: { project_id: row.project_id } })
-          .run(),
-      )
-
-      for (const msg of exportData.messages) {
-        const msgInfo = MessageV2.Info.parse(msg.info)
-        const { id, sessionID: _, ...msgData } = msgInfo
-        Database.use((db) =>
-          db
-            .insert(MessageTable)
-            .values({
-              id,
-              session_id: row.id,
-              time_created: msgInfo.time?.created ?? Date.now(),
-              data: msgData,
-            })
-            .onConflictDoNothing()
-            .run(),
-        )
-
-        for (const part of msg.parts) {
-          const partInfo = MessageV2.Part.parse(part)
-          const { id: partId, sessionID: _s, messageID, ...partData } = partInfo
-          Database.use((db) =>
-            db
-              .insert(PartTable)
-              .values({
-                id: partId,
-                message_id: messageID,
-                session_id: row.id,
-                data: partData,
-              })
-              .onConflictDoNothing()
-              .run(),
-          )
-        }
-      }
-
-      process.stdout.write(`Imported session: ${exportData.info.id}`)
-      process.stdout.write(EOL)
+      saveSessionToDb(exportData)
+      process.stdout.write(`Imported session: ${exportData.info.id}` + EOL)
     })
   },
 })

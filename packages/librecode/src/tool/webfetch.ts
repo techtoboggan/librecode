@@ -36,62 +36,19 @@ export const WebFetchTool = Tool.define("webfetch", {
     })
 
     const timeout = Math.min((params.timeout ?? DEFAULT_TIMEOUT / 1000) * 1000, MAX_TIMEOUT)
-
     const { signal, clearTimeout } = abortAfterAny(timeout, ctx.abort)
-
-    // Build Accept header based on requested format with q parameters for fallbacks
-    let acceptHeader = "*/*"
-    switch (params.format) {
-      case "markdown":
-        acceptHeader = "text/markdown;q=1.0, text/x-markdown;q=0.9, text/plain;q=0.8, text/html;q=0.7, */*;q=0.1"
-        break
-      case "text":
-        acceptHeader = "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1"
-        break
-      case "html":
-        acceptHeader = "text/html;q=1.0, application/xhtml+xml;q=0.9, text/plain;q=0.8, text/markdown;q=0.7, */*;q=0.1"
-        break
-      default:
-        acceptHeader =
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
-    }
-    const headers = {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
-      Accept: acceptHeader,
-      "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    const initial = await fetch(params.url, { signal, headers })
-
-    // Retry with honest UA if blocked by Cloudflare bot detection (TLS fingerprint mismatch)
-    const response =
-      initial.status === 403 && initial.headers.get("cf-mitigated") === "challenge"
-        ? await fetch(params.url, { signal, headers: { ...headers, "User-Agent": "librecode" } })
-        : initial
-
+    const headers = buildFetchHeaders(params.format)
+    const response = await fetchWithCloudflareRetry(params.url, signal, headers)
     clearTimeout()
 
     if (!response.ok) {
       throw new Error(`Request failed with status code: ${response.status}`)
     }
 
-    // Check content length
-    const contentLength = response.headers.get("content-length")
-    if (contentLength && parseInt(contentLength) > MAX_RESPONSE_SIZE) {
-      throw new Error("Response too large (exceeds 5MB limit)")
-    }
-
-    const arrayBuffer = await response.arrayBuffer()
-    if (arrayBuffer.byteLength > MAX_RESPONSE_SIZE) {
-      throw new Error("Response too large (exceeds 5MB limit)")
-    }
-
+    const arrayBuffer = await readResponseBody(response)
     const contentType = response.headers.get("content-type") || ""
     const mime = contentType.split(";")[0]?.trim().toLowerCase() || ""
     const title = `${params.url} (${contentType})`
-
-    // Check if response is an image
     const isImage = mime.startsWith("image/") && mime !== "image/svg+xml" && mime !== "image/vnd.fastbidsheet"
 
     if (isImage) {
@@ -100,66 +57,75 @@ export const WebFetchTool = Tool.define("webfetch", {
         title,
         output: "Image fetched successfully",
         metadata: {},
-        attachments: [
-          {
-            type: "file",
-            mime,
-            url: `data:${mime};base64,${base64Content}`,
-          },
-        ],
+        attachments: [{ type: "file", mime, url: `data:${mime};base64,${base64Content}` }],
       }
     }
 
     const content = new TextDecoder().decode(arrayBuffer)
-
-    // Handle content based on requested format and actual content type
-    switch (params.format) {
-      case "markdown":
-        if (contentType.includes("text/html")) {
-          const markdown = convertHTMLToMarkdown(content)
-          return {
-            output: markdown,
-            title,
-            metadata: {},
-          }
-        }
-        return {
-          output: content,
-          title,
-          metadata: {},
-        }
-
-      case "text":
-        if (contentType.includes("text/html")) {
-          const text = await extractTextFromHTML(content)
-          return {
-            output: text,
-            title,
-            metadata: {},
-          }
-        }
-        return {
-          output: content,
-          title,
-          metadata: {},
-        }
-
-      case "html":
-        return {
-          output: content,
-          title,
-          metadata: {},
-        }
-
-      default:
-        return {
-          output: content,
-          title,
-          metadata: {},
-        }
-    }
+    return formatResponse(content, contentType, params.format, title)
   },
 })
+
+function buildAcceptHeader(format: "markdown" | "text" | "html" | string): string {
+  switch (format) {
+    case "markdown":
+      return "text/markdown;q=1.0, text/x-markdown;q=0.9, text/plain;q=0.8, text/html;q=0.7, */*;q=0.1"
+    case "text":
+      return "text/plain;q=1.0, text/markdown;q=0.9, text/html;q=0.8, */*;q=0.1"
+    case "html":
+      return "text/html;q=1.0, application/xhtml+xml;q=0.9, text/plain;q=0.8, text/markdown;q=0.7, */*;q=0.1"
+    default:
+      return "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"
+  }
+}
+
+function buildFetchHeaders(format: string): Record<string, string> {
+  return {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    Accept: buildAcceptHeader(format),
+    "Accept-Language": "en-US,en;q=0.9",
+  }
+}
+
+async function fetchWithCloudflareRetry(
+  url: string,
+  signal: AbortSignal,
+  headers: Record<string, string>,
+): Promise<Response> {
+  const initial = await fetch(url, { signal, headers })
+  if (initial.status === 403 && initial.headers.get("cf-mitigated") === "challenge") {
+    return fetch(url, { signal, headers: { ...headers, "User-Agent": "librecode" } })
+  }
+  return initial
+}
+
+async function readResponseBody(response: Response): Promise<ArrayBuffer> {
+  const contentLength = response.headers.get("content-length")
+  if (contentLength && parseInt(contentLength) > MAX_RESPONSE_SIZE) {
+    throw new Error("Response too large (exceeds 5MB limit)")
+  }
+  const arrayBuffer = await response.arrayBuffer()
+  if (arrayBuffer.byteLength > MAX_RESPONSE_SIZE) {
+    throw new Error("Response too large (exceeds 5MB limit)")
+  }
+  return arrayBuffer
+}
+
+async function formatResponse(
+  content: string,
+  contentType: string,
+  format: string,
+  title: string,
+): Promise<{ output: string; title: string; metadata: Record<string, never> }> {
+  if (format === "markdown" && contentType.includes("text/html")) {
+    return { output: convertHTMLToMarkdown(content), title, metadata: {} }
+  }
+  if (format === "text" && contentType.includes("text/html")) {
+    return { output: await extractTextFromHTML(content), title, metadata: {} }
+  }
+  return { output: content, title, metadata: {} }
+}
 
 async function extractTextFromHTML(html: string) {
   let text = ""

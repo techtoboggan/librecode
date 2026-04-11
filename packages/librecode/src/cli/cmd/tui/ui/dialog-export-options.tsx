@@ -21,6 +21,43 @@ export type DialogExportOptionsProps = {
   onCancel?: () => void
 }
 
+type ExportOptionField = "filename" | "thinking" | "toolDetails" | "assistantMetadata" | "openWithoutSaving"
+
+const EXPORT_OPTION_ORDER: ExportOptionField[] = [
+  "filename",
+  "thinking",
+  "toolDetails",
+  "assistantMetadata",
+  "openWithoutSaving",
+]
+
+const TOGGLEABLE_FIELDS = new Set<ExportOptionField>(["thinking", "toolDetails", "assistantMetadata", "openWithoutSaving"])
+
+type CheckboxRowProps = {
+  field: ExportOptionField
+  checked: boolean
+  active: ExportOptionField
+  label: string
+  onActivate: (field: ExportOptionField) => void
+}
+
+function CheckboxRow(props: CheckboxRowProps): JSX.Element {
+  const { theme } = useTheme()
+  const isActive = () => props.active === props.field
+  return (
+    <box
+      flexDirection="row"
+      gap={2}
+      paddingLeft={1}
+      backgroundColor={isActive() ? theme.backgroundElement : undefined}
+      onMouseUp={() => props.onActivate(props.field)}
+    >
+      <text fg={isActive() ? theme.primary : theme.textMuted}>{props.checked ? "[x]" : "[ ]"}</text>
+      <text fg={isActive() ? theme.primary : theme.text}>{props.label}</text>
+    </box>
+  )
+}
+
 export function DialogExportOptions(props: DialogExportOptionsProps) {
   const dialog = useDialog()
   const { theme } = useTheme()
@@ -30,39 +67,36 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
     toolDetails: props.defaultToolDetails,
     assistantMetadata: props.defaultAssistantMetadata,
     openWithoutSaving: props.defaultOpenWithoutSaving,
-    active: "filename" as "filename" | "thinking" | "toolDetails" | "assistantMetadata" | "openWithoutSaving",
+    active: "filename" as ExportOptionField,
   })
 
+  function buildConfirmOptions() {
+    return {
+      filename: textarea.plainText,
+      thinking: store.thinking,
+      toolDetails: store.toolDetails,
+      assistantMetadata: store.assistantMetadata,
+      openWithoutSaving: store.openWithoutSaving,
+    }
+  }
+
+  function handleTabKey(evt: { preventDefault: () => void }) {
+    const currentIndex = EXPORT_OPTION_ORDER.indexOf(store.active)
+    const nextIndex = (currentIndex + 1) % EXPORT_OPTION_ORDER.length
+    setStore("active", EXPORT_OPTION_ORDER[nextIndex])
+    evt.preventDefault()
+  }
+
+  function handleSpaceKey(evt: { preventDefault: () => void }) {
+    if (!TOGGLEABLE_FIELDS.has(store.active)) return
+    setStore(store.active as Exclude<ExportOptionField, "filename">, (prev: boolean) => !prev)
+    evt.preventDefault()
+  }
+
   useKeyboard((evt) => {
-    if (evt.name === "return") {
-      props.onConfirm?.({
-        filename: textarea.plainText,
-        thinking: store.thinking,
-        toolDetails: store.toolDetails,
-        assistantMetadata: store.assistantMetadata,
-        openWithoutSaving: store.openWithoutSaving,
-      })
-    }
-    if (evt.name === "tab") {
-      const order: Array<"filename" | "thinking" | "toolDetails" | "assistantMetadata" | "openWithoutSaving"> = [
-        "filename",
-        "thinking",
-        "toolDetails",
-        "assistantMetadata",
-        "openWithoutSaving",
-      ]
-      const currentIndex = order.indexOf(store.active)
-      const nextIndex = (currentIndex + 1) % order.length
-      setStore("active", order[nextIndex])
-      evt.preventDefault()
-    }
-    if (evt.name === "space" || evt.name === " ") {
-      if (store.active === "thinking") setStore("thinking", !store.thinking)
-      if (store.active === "toolDetails") setStore("toolDetails", !store.toolDetails)
-      if (store.active === "assistantMetadata") setStore("assistantMetadata", !store.assistantMetadata)
-      if (store.active === "openWithoutSaving") setStore("openWithoutSaving", !store.openWithoutSaving)
-      evt.preventDefault()
-    }
+    if (evt.name === "return") props.onConfirm?.(buildConfirmOptions())
+    if (evt.name === "tab") handleTabKey(evt)
+    if (evt.name === "space" || evt.name === " ") handleSpaceKey(evt)
   })
 
   onMount(() => {
@@ -89,15 +123,7 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
           <text fg={theme.text}>Filename:</text>
         </box>
         <textarea
-          onSubmit={() => {
-            props.onConfirm?.({
-              filename: textarea.plainText,
-              thinking: store.thinking,
-              toolDetails: store.toolDetails,
-              assistantMetadata: store.assistantMetadata,
-              openWithoutSaving: store.openWithoutSaving,
-            })
-          }}
+          onSubmit={() => props.onConfirm?.(buildConfirmOptions())}
           height={3}
           keyBindings={[{ name: "return", action: "submit" }]}
           ref={(val: TextareaRenderable) => (textarea = val)}
@@ -109,54 +135,10 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
         />
       </box>
       <box flexDirection="column">
-        <box
-          flexDirection="row"
-          gap={2}
-          paddingLeft={1}
-          backgroundColor={store.active === "thinking" ? theme.backgroundElement : undefined}
-          onMouseUp={() => setStore("active", "thinking")}
-        >
-          <text fg={store.active === "thinking" ? theme.primary : theme.textMuted}>
-            {store.thinking ? "[x]" : "[ ]"}
-          </text>
-          <text fg={store.active === "thinking" ? theme.primary : theme.text}>Include thinking</text>
-        </box>
-        <box
-          flexDirection="row"
-          gap={2}
-          paddingLeft={1}
-          backgroundColor={store.active === "toolDetails" ? theme.backgroundElement : undefined}
-          onMouseUp={() => setStore("active", "toolDetails")}
-        >
-          <text fg={store.active === "toolDetails" ? theme.primary : theme.textMuted}>
-            {store.toolDetails ? "[x]" : "[ ]"}
-          </text>
-          <text fg={store.active === "toolDetails" ? theme.primary : theme.text}>Include tool details</text>
-        </box>
-        <box
-          flexDirection="row"
-          gap={2}
-          paddingLeft={1}
-          backgroundColor={store.active === "assistantMetadata" ? theme.backgroundElement : undefined}
-          onMouseUp={() => setStore("active", "assistantMetadata")}
-        >
-          <text fg={store.active === "assistantMetadata" ? theme.primary : theme.textMuted}>
-            {store.assistantMetadata ? "[x]" : "[ ]"}
-          </text>
-          <text fg={store.active === "assistantMetadata" ? theme.primary : theme.text}>Include assistant metadata</text>
-        </box>
-        <box
-          flexDirection="row"
-          gap={2}
-          paddingLeft={1}
-          backgroundColor={store.active === "openWithoutSaving" ? theme.backgroundElement : undefined}
-          onMouseUp={() => setStore("active", "openWithoutSaving")}
-        >
-          <text fg={store.active === "openWithoutSaving" ? theme.primary : theme.textMuted}>
-            {store.openWithoutSaving ? "[x]" : "[ ]"}
-          </text>
-          <text fg={store.active === "openWithoutSaving" ? theme.primary : theme.text}>Open without saving</text>
-        </box>
+        <CheckboxRow field="thinking" checked={store.thinking} active={store.active} label="Include thinking" onActivate={(f) => setStore("active", f)} />
+        <CheckboxRow field="toolDetails" checked={store.toolDetails} active={store.active} label="Include tool details" onActivate={(f) => setStore("active", f)} />
+        <CheckboxRow field="assistantMetadata" checked={store.assistantMetadata} active={store.active} label="Include assistant metadata" onActivate={(f) => setStore("active", f)} />
+        <CheckboxRow field="openWithoutSaving" checked={store.openWithoutSaving} active={store.active} label="Open without saving" onActivate={(f) => setStore("active", f)} />
       </box>
       <Show when={store.active !== "filename"}>
         <text fg={theme.textMuted} paddingBottom={1}>

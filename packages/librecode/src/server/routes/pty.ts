@@ -8,6 +8,27 @@ import { NotFoundError } from "../../storage/db"
 import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 
+type RawSocket = {
+  readyState: number
+  send: (data: string | Uint8Array | ArrayBuffer) => void
+  close: (code?: number, reason?: string) => void
+}
+
+function isRawSocket(value: unknown): value is RawSocket {
+  if (!value || typeof value !== "object") return false
+  if (!("readyState" in value) || typeof (value as { readyState?: unknown }).readyState !== "number") return false
+  if (!("send" in value) || typeof (value as { send?: unknown }).send !== "function") return false
+  if (!("close" in value) || typeof (value as { close?: unknown }).close !== "function") return false
+  return true
+}
+
+function parseCursorParam(value: string | undefined): number | undefined {
+  if (!value) return undefined
+  const parsed = Number(value)
+  if (!Number.isSafeInteger(parsed) || parsed < -1) return undefined
+  return parsed
+}
+
 export const PtyRoutes = lazy(() =>
   new Hono()
     .get(
@@ -152,34 +173,14 @@ export const PtyRoutes = lazy(() =>
       validator("param", z.object({ ptyID: PtyID.zod })),
       upgradeWebSocket((c) => {
         const id = PtyID.zod.parse(c.req.param("ptyID"))
-        const cursor = (() => {
-          const value = c.req.query("cursor")
-          if (!value) return
-          const parsed = Number(value)
-          if (!Number.isSafeInteger(parsed) || parsed < -1) return
-          return parsed
-        })()
+        const cursor = parseCursorParam(c.req.query("cursor"))
         let handler: ReturnType<typeof Pty.connect>
         if (!Pty.get(id)) throw new Error("Session not found")
-
-        type Socket = {
-          readyState: number
-          send: (data: string | Uint8Array | ArrayBuffer) => void
-          close: (code?: number, reason?: string) => void
-        }
-
-        const isSocket = (value: unknown): value is Socket => {
-          if (!value || typeof value !== "object") return false
-          if (!("readyState" in value)) return false
-          if (!("send" in value) || typeof (value as { send?: unknown }).send !== "function") return false
-          if (!("close" in value) || typeof (value as { close?: unknown }).close !== "function") return false
-          return typeof (value as { readyState?: unknown }).readyState === "number"
-        }
 
         return {
           onOpen(_event, ws) {
             const socket = ws.raw
-            if (!isSocket(socket)) {
+            if (!isRawSocket(socket)) {
               ws.close()
               return
             }

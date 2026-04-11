@@ -9,76 +9,84 @@ import { logo, marks } from "@/cli/logo"
 // ~ = shadow top only (▀ with fg=shadow)
 const SHADOW_MARKER = new RegExp(`[${marks}]`)
 
-export function Logo() {
-  const { theme } = useTheme()
+type RenderOpts = { fg: RGBA; shadow: RGBA; attrs: number | undefined }
 
-  const renderLine = (line: string, fg: RGBA, bold: boolean): JSX.Element[] => {
-    const shadow = tint(theme.background, fg, 0.25)
-    const attrs = bold ? TextAttributes.BOLD : undefined
-    const elements: JSX.Element[] = []
-    let i = 0
+function renderMarker(marker: string, opts: RenderOpts): JSX.Element | null {
+  const { fg, shadow, attrs } = opts
+  if (marker === "_") {
+    return (
+      <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
+        {" "}
+      </text>
+    )
+  }
+  if (marker === "^") {
+    return (
+      <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
+        ▀
+      </text>
+    )
+  }
+  if (marker === "~") {
+    return (
+      <text fg={shadow} attributes={attrs} selectable={false}>
+        ▀
+      </text>
+    )
+  }
+  return null
+}
 
-    while (i < line.length) {
-      const rest = line.slice(i)
-      const markerIndex = rest.search(SHADOW_MARKER)
+function renderLine(line: string, fg: RGBA, shadow: RGBA, attrs: number | undefined): JSX.Element[] {
+  const opts: RenderOpts = { fg, shadow, attrs }
+  const elements: JSX.Element[] = []
+  let i = 0
 
-      if (markerIndex === -1) {
-        elements.push(
-          <text fg={fg} attributes={attrs} selectable={false}>
-            {rest}
-          </text>,
-        )
-        break
-      }
+  while (i < line.length) {
+    const rest = line.slice(i)
+    const markerIndex = rest.search(SHADOW_MARKER)
 
-      if (markerIndex > 0) {
-        elements.push(
-          <text fg={fg} attributes={attrs} selectable={false}>
-            {rest.slice(0, markerIndex)}
-          </text>,
-        )
-      }
-
-      const marker = rest[markerIndex]
-      switch (marker) {
-        case "_":
-          elements.push(
-            <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
-              {" "}
-            </text>,
-          )
-          break
-        case "^":
-          elements.push(
-            <text fg={fg} bg={shadow} attributes={attrs} selectable={false}>
-              ▀
-            </text>,
-          )
-          break
-        case "~":
-          elements.push(
-            <text fg={shadow} attributes={attrs} selectable={false}>
-              ▀
-            </text>,
-          )
-          break
-      }
-
-      i += markerIndex + 1
+    if (markerIndex === -1) {
+      elements.push(
+        <text fg={fg} attributes={attrs} selectable={false}>
+          {rest}
+        </text>,
+      )
+      break
     }
 
-    return elements
+    if (markerIndex > 0) {
+      elements.push(
+        <text fg={fg} attributes={attrs} selectable={false}>
+          {rest.slice(0, markerIndex)}
+        </text>,
+      )
+    }
+
+    const elem = renderMarker(rest[markerIndex], opts)
+    if (elem) elements.push(elem)
+    i += markerIndex + 1
   }
+
+  return elements
+}
+
+export function Logo() {
+  const { theme } = useTheme()
 
   return (
     <box>
       <For each={logo.left}>
-        {(line, index) => (
-          <box flexDirection="row" gap={1}>
-            <box flexDirection="row">{renderLine(line, theme.textMuted, false)}</box>
-            <box flexDirection="row">{renderLine(logo.right[index()], theme.text, true)}</box>
-          </box>
-        )}
+        {(line, index) => {
+          const shadowMuted = tint(theme.background, theme.textMuted, 0.25)
+          const shadowText = tint(theme.background, theme.text, 0.25)
+          return (
+            <box flexDirection="row" gap={1}>
+              <box flexDirection="row">{renderLine(line, theme.textMuted, shadowMuted, undefined)}</box>
+              <box flexDirection="row">{renderLine(logo.right[index()], theme.text, shadowText, TextAttributes.BOLD)}</box>
+            </box>
+          )
+        }}
       </For>
     </box>
   )

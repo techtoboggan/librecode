@@ -30,7 +30,7 @@ export interface DialogSelectProps<T> {
   current?: T
 }
 
-export interface DialogSelectOption<T = any> {
+export interface DialogSelectOption<T = unknown> {
   title: string
   value: T
   description?: string
@@ -45,6 +45,138 @@ export interface DialogSelectOption<T = any> {
 export type DialogSelectRef<T> = {
   filter: string
   filtered: DialogSelectOption<T>[]
+}
+
+type KeybindItem = {
+  keybind?: Keybind.Info
+  title: string
+  disabled?: boolean
+  onTrigger: (option: DialogSelectOption<unknown>) => void
+}
+
+type KeyboardEvent = Parameters<Parameters<typeof useKeyboard>[0]>[0]
+
+function scrollIntoView(
+  scroll: ScrollBoxRenderable,
+  y: number,
+  flat: () => DialogSelectOption<unknown>[],
+  selected: () => DialogSelectOption<unknown> | undefined,
+) {
+  if (y >= scroll.height) {
+    scroll.scrollBy(y - scroll.height + 1)
+  }
+  if (y < 0) {
+    scroll.scrollBy(y)
+    if (isDeepEqual(flat()[0].value, selected()?.value)) {
+      scroll.scrollTo(0)
+    }
+  }
+}
+
+function handleNavigationKeys(
+  evt: KeyboardEvent,
+  move: (dir: number) => void,
+  moveTo: (next: number) => void,
+  flat: () => DialogSelectOption<unknown>[],
+) {
+  if (evt.name === "up" || (evt.ctrl && evt.name === "p")) move(-1)
+  if (evt.name === "down" || (evt.ctrl && evt.name === "n")) move(1)
+  if (evt.name === "pageup") move(-10)
+  if (evt.name === "pagedown") move(10)
+  if (evt.name === "home") moveTo(0)
+  if (evt.name === "end") moveTo(flat().length - 1)
+}
+
+function handleReturnKey(
+  evt: KeyboardEvent,
+  selected: () => DialogSelectOption<unknown> | undefined,
+  dialog: DialogContext,
+  onSelect: ((option: DialogSelectOption<unknown>) => void) | undefined,
+) {
+  if (evt.name !== "return") return
+  const option = selected()
+  if (!option) return
+  evt.preventDefault()
+  evt.stopPropagation()
+  if (option.onSelect) option.onSelect(dialog)
+  onSelect?.(option)
+}
+
+function handleCustomKeybinds(
+  evt: KeyboardEvent,
+  keybindItems: KeybindItem[] | undefined,
+  keybind: ReturnType<typeof useKeybind>,
+  selected: () => DialogSelectOption<unknown> | undefined,
+) {
+  for (const item of keybindItems ?? []) {
+    if (item.disabled || !item.keybind) continue
+    if (!Keybind.match(item.keybind, keybind.parse(evt))) continue
+    const s = selected()
+    if (s) {
+      evt.preventDefault()
+      item.onTrigger(s)
+    }
+  }
+}
+
+interface OptionRowProps<T> {
+  option: DialogSelectOption<T>
+  category: string
+  active: () => boolean
+  current: () => boolean
+  flatten: () => boolean | undefined
+  theme: ReturnType<typeof useTheme>["theme"]
+  dialog: DialogContext
+  inputMode: () => "keyboard" | "mouse"
+  onMouseModeSwitch: () => void
+  onSelect: ((option: DialogSelectOption<T>) => void) | undefined
+  onMoveTo: (index: number) => void
+  flatFindIndex: (value: T) => number
+}
+
+function OptionRow<T>(props: OptionRowProps<T>) {
+  const handleMouseOver = () => {
+    if (props.inputMode() !== "mouse") return
+    const index = props.flatFindIndex(props.option.value)
+    if (index === -1) return
+    props.onMoveTo(index)
+  }
+
+  const handleMouseDown = () => {
+    const index = props.flatFindIndex(props.option.value)
+    if (index === -1) return
+    props.onMoveTo(index)
+  }
+
+  const footer = () => props.flatten() ? (props.option.category ?? props.option.footer) : props.option.footer
+  const description = () => props.option.description !== props.category ? props.option.description : undefined
+
+  return (
+    <box
+      id={JSON.stringify(props.option.value)}
+      flexDirection="row"
+      onMouseMove={props.onMouseModeSwitch}
+      onMouseUp={() => {
+        props.option.onSelect?.(props.dialog)
+        props.onSelect?.(props.option)
+      }}
+      onMouseOver={handleMouseOver}
+      onMouseDown={handleMouseDown}
+      backgroundColor={props.active() ? (props.option.bg ?? props.theme.primary) : RGBA.fromInts(0, 0, 0, 0)}
+      paddingLeft={props.current() || props.option.gutter ? 1 : 3}
+      paddingRight={3}
+      gap={1}
+    >
+      <Option
+        title={props.option.title}
+        footer={footer()}
+        description={description()}
+        active={props.active()}
+        current={props.current()}
+        gutter={props.option.gutter}
+      />
+    </box>
+  )
 }
 
 export function DialogSelect<T>(props: DialogSelectProps<T>) {
@@ -171,49 +303,16 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       const centerOffset = Math.floor(scroll.height / 2)
       scroll.scrollBy(y - centerOffset)
     } else {
-      if (y >= scroll.height) {
-        scroll.scrollBy(y - scroll.height + 1)
-      }
-      if (y < 0) {
-        scroll.scrollBy(y)
-        if (isDeepEqual(flat()[0].value, selected()?.value)) {
-          scroll.scrollTo(0)
-        }
-      }
+      scrollIntoView(scroll, y, flat as () => DialogSelectOption<unknown>[], selected as () => DialogSelectOption<unknown> | undefined)
     }
   }
 
   const keybind = useKeybind()
   useKeyboard((evt) => {
     setStore("input", "keyboard")
-
-    if (evt.name === "up" || (evt.ctrl && evt.name === "p")) move(-1)
-    if (evt.name === "down" || (evt.ctrl && evt.name === "n")) move(1)
-    if (evt.name === "pageup") move(-10)
-    if (evt.name === "pagedown") move(10)
-    if (evt.name === "home") moveTo(0)
-    if (evt.name === "end") moveTo(flat().length - 1)
-
-    if (evt.name === "return") {
-      const option = selected()
-      if (option) {
-        evt.preventDefault()
-        evt.stopPropagation()
-        if (option.onSelect) option.onSelect(dialog)
-        props.onSelect?.(option)
-      }
-    }
-
-    for (const item of props.keybind ?? []) {
-      if (item.disabled || !item.keybind) continue
-      if (Keybind.match(item.keybind, keybind.parse(evt))) {
-        const s = selected()
-        if (s) {
-          evt.preventDefault()
-          item.onTrigger(s)
-        }
-      }
-    }
+    handleNavigationKeys(evt, move, moveTo, flat as () => DialogSelectOption<unknown>[])
+    handleReturnKey(evt, selected as () => DialogSelectOption<unknown> | undefined, dialog, props.onSelect as ((option: DialogSelectOption<unknown>) => void) | undefined)
+    handleCustomKeybinds(evt, props.keybind as KeybindItem[] | undefined, keybind, selected as () => DialogSelectOption<unknown> | undefined)
   })
 
   let scroll: ScrollBoxRenderable | undefined
@@ -293,41 +392,20 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
                     const active = createMemo(() => isDeepEqual(option.value, selected()?.value))
                     const current = createMemo(() => isDeepEqual(option.value, props.current))
                     return (
-                      <box
-                        id={JSON.stringify(option.value)}
-                        flexDirection="row"
-                        onMouseMove={() => {
-                          setStore("input", "mouse")
-                        }}
-                        onMouseUp={() => {
-                          option.onSelect?.(dialog)
-                          props.onSelect?.(option)
-                        }}
-                        onMouseOver={() => {
-                          if (store.input !== "mouse") return
-                          const index = flat().findIndex((x) => isDeepEqual(x.value, option.value))
-                          if (index === -1) return
-                          moveTo(index)
-                        }}
-                        onMouseDown={() => {
-                          const index = flat().findIndex((x) => isDeepEqual(x.value, option.value))
-                          if (index === -1) return
-                          moveTo(index)
-                        }}
-                        backgroundColor={active() ? (option.bg ?? theme.primary) : RGBA.fromInts(0, 0, 0, 0)}
-                        paddingLeft={current() || option.gutter ? 1 : 3}
-                        paddingRight={3}
-                        gap={1}
-                      >
-                        <Option
-                          title={option.title}
-                          footer={flatten() ? (option.category ?? option.footer) : option.footer}
-                          description={option.description !== category ? option.description : undefined}
-                          active={active()}
-                          current={current()}
-                          gutter={option.gutter}
-                        />
-                      </box>
+                      <OptionRow
+                        option={option}
+                        category={category}
+                        active={active}
+                        current={current}
+                        flatten={flatten}
+                        theme={theme}
+                        dialog={dialog}
+                        inputMode={() => store.input}
+                        onMouseModeSwitch={() => setStore("input", "mouse")}
+                        onSelect={props.onSelect}
+                        onMoveTo={(i) => moveTo(i)}
+                        flatFindIndex={(value) => flat().findIndex((x) => isDeepEqual(x.value, value))}
+                      />
                     )
                   }}
                 </For>

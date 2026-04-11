@@ -8,6 +8,36 @@ import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
 import { useKeybind } from "../context/keybind"
 import * as fuzzysort from "fuzzysort"
 
+type ModelRef = { providerID: string; modelID: string }
+
+function isInList(list: ModelRef[], providerID: string, modelID: string): boolean {
+  return list.some((item) => item.providerID === providerID && item.modelID === modelID)
+}
+
+function isNotInFavoritesOrRecents(
+  x: { value: ModelRef },
+  favorites: ModelRef[],
+  recents: ModelRef[],
+): boolean {
+  if (isInList(favorites, x.value.providerID, x.value.modelID)) return false
+  if (isInList(recents, x.value.providerID, x.value.modelID)) return false
+  return true
+}
+
+type ModelInfo = { name?: string; status?: string; cost?: { input?: number }; providerID?: string }
+
+function modelDescription(favorites: ModelRef[], providerID: string, modelID: string): string | undefined {
+  return isInList(favorites, providerID, modelID) ? "(Favorite)" : undefined
+}
+
+function modelFooter(info: ModelInfo, providerID: string): string | undefined {
+  return info.cost?.input === 0 && providerID === "librecode" ? "Free" : undefined
+}
+
+function isModelDisabled(providerID: string, modelID: string): boolean {
+  return providerID === "librecode" && modelID.includes("-nano")
+}
+
 export function useConnected() {
   const sync = useSync()
   return createMemo(() => sync.data.provider.length > 0)
@@ -76,25 +106,16 @@ export function DialogModel(props: { providerID?: string }) {
           map(([model, info]) => ({
             value: { providerID: provider.id, modelID: model },
             title: info.name ?? model,
-            description: favorites.some((item) => item.providerID === provider.id && item.modelID === model)
-              ? "(Favorite)"
-              : undefined,
+            description: modelDescription(favorites, provider.id, model),
             category: connected() ? provider.name : undefined,
-            disabled: provider.id === "librecode" && model.includes("-nano"),
-            footer: info.cost?.input === 0 && provider.id === "librecode" ? "Free" : undefined,
+            disabled: isModelDisabled(provider.id, model),
+            footer: modelFooter(info, provider.id),
             onSelect() {
               dialog.clear()
               local.model.set({ providerID: provider.id, modelID: model }, { recent: true })
             },
           })),
-          filter((x) => {
-            if (!showSections) return true
-            if (favorites.some((item) => item.providerID === x.value.providerID && item.modelID === x.value.modelID))
-              return false
-            if (recents.some((item) => item.providerID === x.value.providerID && item.modelID === x.value.modelID))
-              return false
-            return true
-          }),
+          filter((x) => !showSections || isNotInFavoritesOrRecents(x, favorites, recents)),
           sortBy((x) => x.title),
         ),
       ),

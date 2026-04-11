@@ -160,32 +160,31 @@ export namespace ProviderAuthService {
     }
   }
 
+  async function tryCustomAuthorize(
+    providerID: ProviderID,
+    inputs: Record<string, string>,
+  ): Promise<boolean> {
+    const s = await state()
+    const hook = s.methods[providerID]
+    if (!hook) return false
+    const methodIndex = hook.methods.findIndex((m) => m.type === "api")
+    if (methodIndex < 0) return false
+    const method = hook.methods[methodIndex] as Extract<(typeof hook.methods)[number], { type: "api" }>
+    if (!method.authorize) return false
+    const result = await method.authorize(inputs)
+    if (result.type === "failed") throw new Error("Authorization failed")
+    await Auth.set(result.provider ?? providerID, { type: "api", key: result.key })
+    return true
+  }
+
   export async function api(input: {
     providerID: ProviderID
     key: string
     inputs?: Record<string, string>
   }): Promise<void> {
-    // If inputs are provided, look for a custom authorize function on the plugin
     if (input.inputs) {
-      const s = await state()
-      const hook = s.methods[input.providerID]
-      if (hook) {
-        const methodIndex = hook.methods.findIndex((m) => m.type === "api")
-        if (methodIndex >= 0) {
-          const method = hook.methods[methodIndex] as Extract<(typeof hook.methods)[number], { type: "api" }>
-          if (method.authorize) {
-            const result = await method.authorize(input.inputs)
-            if (result.type === "failed") {
-              throw new Error("Authorization failed")
-            }
-            await Auth.set(result.provider ?? input.providerID, {
-              type: "api",
-              key: result.key,
-            })
-            return
-          }
-        }
-      }
+      const handled = await tryCustomAuthorize(input.providerID, input.inputs)
+      if (handled) return
     }
 
     await Auth.set(input.providerID, {

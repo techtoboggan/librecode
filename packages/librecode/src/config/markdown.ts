@@ -3,6 +3,26 @@ import matter from "gray-matter"
 import { z } from "zod"
 import { Filesystem } from "../util/filesystem"
 
+function sanitizeFrontmatterLine(line: string): string[] {
+  const trimmed = line.trim()
+  // pass through comments, empty lines, and indented continuations unchanged
+  if (trimmed.startsWith("#") || trimmed === "" || line.match(/^\s+/)) return [line]
+
+  const kvMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.*)$/)
+  if (!kvMatch) return [line]
+
+  const key = kvMatch[1]
+  const value = kvMatch[2].trim()
+
+  // pass through if value is empty, already quoted, or uses block scalar
+  if (value === "" || value === ">" || value === "|" || value.startsWith('"') || value.startsWith("'")) return [line]
+
+  // if value contains a colon, convert to block scalar to avoid YAML parse errors
+  if (value.includes(":")) return [`${key}: |-`, `  ${value}`]
+
+  return [line]
+}
+
 export namespace ConfigMarkdown {
   export const FILE_REGEX = /(?<![\w`])@(\.?[^\s`,.]*(?:\.[^\s`,.]+)*)/g
   export const SHELL_REGEX = /!`([^`]+)`/g
@@ -23,48 +43,7 @@ export namespace ConfigMarkdown {
 
     const frontmatter = match[1]
     const lines = frontmatter.split(/\r?\n/)
-    const result: string[] = []
-
-    for (const line of lines) {
-      // skip comments and empty lines
-      if (line.trim().startsWith("#") || line.trim() === "") {
-        result.push(line)
-        continue
-      }
-
-      // skip lines that are continuations (indented)
-      if (line.match(/^\s+/)) {
-        result.push(line)
-        continue
-      }
-
-      // match key: value pattern
-      const kvMatch = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*(.*)$/)
-      if (!kvMatch) {
-        result.push(line)
-        continue
-      }
-
-      const key = kvMatch[1]
-      const value = kvMatch[2].trim()
-
-      // skip if value is empty, already quoted, or uses block scalar
-      if (value === "" || value === ">" || value === "|" || value.startsWith('"') || value.startsWith("'")) {
-        result.push(line)
-        continue
-      }
-
-      // if value contains a colon, convert to block scalar
-      if (value.includes(":")) {
-        result.push(`${key}: |-`)
-        result.push(`  ${value}`)
-        continue
-      }
-
-      result.push(line)
-    }
-
-    const processed = result.join("\n")
+    const processed = lines.flatMap(sanitizeFrontmatterLine).join("\n")
     return content.replace(frontmatter, () => processed)
   }
 

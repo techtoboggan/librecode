@@ -18,6 +18,144 @@ function getUrls(domain: string) {
   }
 }
 
+interface CopilotRequestFlags {
+  isVision: boolean
+  isAgent: boolean
+}
+
+function parseCompletionsFlags(body: { messages: Array<{ role?: string; content?: unknown }>; }, url: string): CopilotRequestFlags | null {
+  if (!body?.messages || !url.includes("completions")) return null
+  const last = body.messages[body.messages.length - 1]
+  return {
+    isVision: body.messages.some(
+      (msg) => Array.isArray(msg.content) && (msg.content as Array<{ type: string }>).some((part) => part.type === "image_url"),
+    ),
+    isAgent: last?.role !== "user",
+  }
+}
+
+function parseResponsesFlags(body: { input: Array<{ role?: string; content?: unknown }> }): CopilotRequestFlags | null {
+  if (!body?.input) return null
+  const last = body.input[body.input.length - 1]
+  return {
+    isVision: body.input.some(
+      (item) => Array.isArray(item?.content) && (item.content as Array<{ type: string }>).some((part) => part.type === "input_image"),
+    ),
+    isAgent: (last as { role?: string })?.role !== "user",
+  }
+}
+
+function parseMessagesFlags(body: { messages: Array<{ role?: string; content?: unknown }> }): CopilotRequestFlags {
+  const last = body.messages[body.messages.length - 1]
+  const hasNonToolCalls =
+    Array.isArray(last?.content) && (last.content as Array<{ type: string }>).some((part) => part?.type !== "tool_result")
+  return {
+    isVision: body.messages.some(
+      (item) =>
+        Array.isArray(item?.content) &&
+        (item.content as Array<{ type: string; content?: Array<{ type: string }> }>).some(
+          (part) =>
+            part?.type === "image" ||
+            (part?.type === "tool_result" && Array.isArray(part?.content) && part.content.some((n) => n?.type === "image")),
+        ),
+    ),
+    isAgent: !(last?.role === "user" && hasNonToolCalls),
+  }
+}
+
+function parseCopilotRequestFlags(url: string, init: RequestInit | undefined): CopilotRequestFlags {
+  try {
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body
+    const completions = parseCompletionsFlags(body, url)
+    if (completions) return completions
+    const responses = parseResponsesFlags(body)
+    if (responses) return responses
+    if (body?.messages) return parseMessagesFlags(body)
+  } catch {}
+  return { isVision: false, isAgent: false }
+}
+
+interface CopilotSuccessResult {
+  type: "success"
+  refresh: string
+  access: string
+  expires: number
+  provider?: string
+  enterpriseUrl?: string
+}
+
+function computeSlowDownInterval(serverInterval: number | undefined, baseInterval: number): number {
+  if (serverInterval && typeof serverInterval === "number" && serverInterval > 0) return serverInterval * 1000
+  return (baseInterval + 5) * 1000
+}
+
+function buildSuccessResult(
+  accessToken: string,
+  actualProvider: string,
+  domain: string,
+): CopilotSuccessResult {
+  const result: CopilotSuccessResult = { type: "success", refresh: accessToken, access: accessToken, expires: 0 }
+  if (actualProvider === "github-copilot-enterprise") {
+    result.provider = "github-copilot-enterprise"
+    result.enterpriseUrl = domain
+  }
+  return result
+}
+
+type PollAction = { action: "return"; result: CopilotSuccessResult | { type: "failed" } } | { action: "sleep"; ms: number }
+
+function interpretPollResponse(
+  data: { access_token?: string; error?: string; interval?: number },
+  baseInterval: number,
+  actualProvider: string,
+  domain: string,
+): PollAction {
+  if (data.access_token) {
+    return { action: "return", result: buildSuccessResult(data.access_token, actualProvider, domain) }
+  }
+  if (data.error === "authorization_pending") {
+    return { action: "sleep", ms: baseInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS }
+  }
+  if (data.error === "slow_down") {
+    // Based on the RFC spec, we must add 5 seconds to our current polling interval.
+    // (See https://www.rfc-editor.org/rfc/rfc8628#section-3.5)
+    return { action: "sleep", ms: computeSlowDownInterval(data.interval, baseInterval) + OAUTH_POLLING_SAFETY_MARGIN_MS }
+  }
+  if (data.error) return { action: "return", result: { type: "failed" as const } }
+  return { action: "sleep", ms: baseInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS }
+}
+
+async function pollForCopilotToken(
+  accessTokenUrl: string,
+  deviceCode: string,
+  baseInterval: number,
+  actualProvider: string,
+  domain: string,
+): Promise<CopilotSuccessResult | { type: "failed" }> {
+  while (true) {
+    const response = await fetch(accessTokenUrl, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": `librecode/${Installation.VERSION}`,
+      },
+      body: JSON.stringify({
+        client_id: CLIENT_ID,
+        device_code: deviceCode,
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+      }),
+    })
+
+    if (!response.ok) return { type: "failed" as const }
+
+    const data = (await response.json()) as { access_token?: string; error?: string; interval?: number }
+    const action = interpretPollResponse(data, baseInterval, actualProvider, domain)
+    if (action.action === "return") return action.result
+    await sleep(action.ms)
+  }
+}
+
 export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
   const sdk = input.client
   return {
@@ -66,58 +204,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (info.type !== "oauth") return fetch(request, init)
 
             const url = request instanceof URL ? request.href : request.toString()
-            const { isVision, isAgent } = iife(() => {
-              try {
-                const body = typeof init?.body === "string" ? JSON.parse(init.body) : init?.body
-
-                // Completions API
-                if (body?.messages && url.includes("completions")) {
-                  const last = body.messages[body.messages.length - 1]
-                  return {
-                    isVision: body.messages.some(
-                      (msg: any) =>
-                        Array.isArray(msg.content) && msg.content.some((part: any) => part.type === "image_url"),
-                    ),
-                    isAgent: last?.role !== "user",
-                  }
-                }
-
-                // Responses API
-                if (body?.input) {
-                  const last = body.input[body.input.length - 1]
-                  return {
-                    isVision: body.input.some(
-                      (item: any) =>
-                        Array.isArray(item?.content) && item.content.some((part: any) => part.type === "input_image"),
-                    ),
-                    isAgent: last?.role !== "user",
-                  }
-                }
-
-                // Messages API
-                if (body?.messages) {
-                  const last = body.messages[body.messages.length - 1]
-                  const hasNonToolCalls =
-                    Array.isArray(last?.content) && last.content.some((part: any) => part?.type !== "tool_result")
-                  return {
-                    isVision: body.messages.some(
-                      (item: any) =>
-                        Array.isArray(item?.content) &&
-                        item.content.some(
-                          (part: any) =>
-                            part?.type === "image" ||
-                            // images can be nested inside tool_result content
-                            (part?.type === "tool_result" &&
-                              Array.isArray(part?.content) &&
-                              part.content.some((nested: any) => nested?.type === "image")),
-                        ),
-                    ),
-                    isAgent: !(last?.role === "user" && hasNonToolCalls),
-                  }
-                }
-              } catch {}
-              return { isVision: false, isAgent: false }
-            })
+            const { isVision, isAgent } = parseCopilotRequestFlags(url, init)
 
             const headers: Record<string, string> = {
               "x-initiator": isAgent ? "agent" : "user",
@@ -127,17 +214,11 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               "Openai-Intent": "conversation-edits",
             }
 
-            if (isVision) {
-              headers["Copilot-Vision-Request"] = "true"
-            }
-
+            if (isVision) headers["Copilot-Vision-Request"] = "true"
             delete headers["x-api-key"]
             delete headers["authorization"]
 
-            return fetch(request, {
-              ...init,
-              headers,
-            })
+            return fetch(request, { ...init, headers })
           },
         }
       },
@@ -223,80 +304,8 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               url: deviceData.verification_uri,
               instructions: `Enter code: ${deviceData.user_code}`,
               method: "auto" as const,
-              async callback() {
-                while (true) {
-                  const response = await fetch(urls.ACCESS_TOKEN_URL, {
-                    method: "POST",
-                    headers: {
-                      Accept: "application/json",
-                      "Content-Type": "application/json",
-                      "User-Agent": `librecode/${Installation.VERSION}`,
-                    },
-                    body: JSON.stringify({
-                      client_id: CLIENT_ID,
-                      device_code: deviceData.device_code,
-                      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-                    }),
-                  })
-
-                  if (!response.ok) return { type: "failed" as const }
-
-                  const data = (await response.json()) as {
-                    access_token?: string
-                    error?: string
-                    interval?: number
-                  }
-
-                  if (data.access_token) {
-                    const result: {
-                      type: "success"
-                      refresh: string
-                      access: string
-                      expires: number
-                      provider?: string
-                      enterpriseUrl?: string
-                    } = {
-                      type: "success",
-                      refresh: data.access_token,
-                      access: data.access_token,
-                      expires: 0,
-                    }
-
-                    if (actualProvider === "github-copilot-enterprise") {
-                      result.provider = "github-copilot-enterprise"
-                      result.enterpriseUrl = domain
-                    }
-
-                    return result
-                  }
-
-                  if (data.error === "authorization_pending") {
-                    await sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
-                    continue
-                  }
-
-                  if (data.error === "slow_down") {
-                    // Based on the RFC spec, we must add 5 seconds to our current polling interval.
-                    // (See https://www.rfc-editor.org/rfc/rfc8628#section-3.5)
-                    let newInterval = (deviceData.interval + 5) * 1000
-
-                    // GitHub OAuth API may return the new interval in seconds in the response.
-                    // We should try to use that if provided with safety margin.
-                    const serverInterval = data.interval
-                    if (serverInterval && typeof serverInterval === "number" && serverInterval > 0) {
-                      newInterval = serverInterval * 1000
-                    }
-
-                    await sleep(newInterval + OAUTH_POLLING_SAFETY_MARGIN_MS)
-                    continue
-                  }
-
-                  if (data.error) return { type: "failed" as const }
-
-                  await sleep(deviceData.interval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS)
-                  continue
-                }
-              },
+              callback: () =>
+                pollForCopilotToken(urls.ACCESS_TOKEN_URL, deviceData.device_code, deviceData.interval, actualProvider, domain),
             }
           },
         },

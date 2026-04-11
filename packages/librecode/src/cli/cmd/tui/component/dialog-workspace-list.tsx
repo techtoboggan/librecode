@@ -164,24 +164,21 @@ export function DialogWorkspaceList() {
       forceCreate,
     })
 
-  async function selectWorkspace(workspaceID: string) {
-    if (workspaceID === "__local__") {
-      if (localCount() > 0) {
-        dialog.replace(() => <DialogSessionList localOnly={true} />)
-        return
-      }
-      route.navigate({
-        type: "home",
-      })
-      dialog.clear()
+  function selectLocalWorkspace(): void {
+    if (localCount() > 0) {
+      dialog.replace(() => <DialogSessionList localOnly={true} />)
       return
     }
+    route.navigate({ type: "home" })
+    dialog.clear()
+  }
+
+  async function selectRemoteWorkspace(workspaceID: string): Promise<void> {
     const count = counts()[workspaceID]
     if (count && count > 0) {
       dialog.replace(() => <DialogSessionList workspaceID={workspaceID} />)
       return
     }
-
     if (count === 0) {
       await open(workspaceID)
       return
@@ -198,6 +195,14 @@ export function DialogWorkspaceList() {
       return
     }
     await open(workspaceID)
+  }
+
+  async function selectWorkspace(workspaceID: string): Promise<void> {
+    if (workspaceID === "__local__") {
+      selectLocalWorkspace()
+      return
+    }
+    await selectRemoteWorkspace(workspaceID)
   }
 
   const currentWorkspaceID = createMemo(() => {
@@ -237,6 +242,35 @@ export function DialogWorkspaceList() {
     })
   })
 
+  async function handleWorkspaceDelete(workspaceID: string): Promise<void> {
+    if (workspaceID === "__create__" || workspaceID === "__local__") return
+    if (toDelete() !== workspaceID) {
+      setToDelete(workspaceID)
+      return
+    }
+    const result = await sdk.client.experimental.workspace.remove({ id: workspaceID }).catch(() => undefined)
+    setToDelete(undefined)
+    if (result?.error) {
+      toast.show({ message: "Failed to delete workspace", variant: "error" })
+      return
+    }
+    if (currentWorkspaceID() === workspaceID) {
+      route.navigate({ type: "home" })
+    }
+    await sync.workspace.sync()
+  }
+
+  function workspaceFooter(count: number | null | undefined): string {
+    if (count === undefined) return "Loading sessions..."
+    if (count === null) return "Sessions unavailable"
+    return `${count} session${count === 1 ? "" : "s"}`
+  }
+
+  function workspaceTitle(workspaceID: string): string {
+    if (toDelete() === workspaceID) return `Delete ${workspaceID}? Press ${keybind.print("session_delete")} again`
+    return workspaceID
+  }
+
   const options = createMemo(() => [
     {
       title: "Local",
@@ -245,24 +279,13 @@ export function DialogWorkspaceList() {
       description: "Use the local machine",
       footer: `${localCount()} session${localCount() === 1 ? "" : "s"}`,
     },
-    ...sync.data.workspaceList.map((workspace) => {
-      const count = counts()[workspace.id]
-      return {
-        title:
-          toDelete() === workspace.id
-            ? `Delete ${workspace.id}? Press ${keybind.print("session_delete")} again`
-            : workspace.id,
-        value: workspace.id,
-        category: workspace.type,
-        description: workspace.branch ? `Branch ${workspace.branch}` : undefined,
-        footer:
-          count === undefined
-            ? "Loading sessions..."
-            : count === null
-              ? "Sessions unavailable"
-              : `${count} session${count === 1 ? "" : "s"}`,
-      }
-    }),
+    ...sync.data.workspaceList.map((workspace) => ({
+      title: workspaceTitle(workspace.id),
+      value: workspace.id,
+      category: workspace.type,
+      description: workspace.branch ? `Branch ${workspace.branch}` : undefined,
+      footer: workspaceFooter(counts()[workspace.id]),
+    })),
     {
       title: "+ New workspace",
       value: "__create__",
@@ -297,28 +320,7 @@ export function DialogWorkspaceList() {
         {
           keybind: keybind.all.session_delete?.[0],
           title: "delete",
-          onTrigger: async (option) => {
-            if (option.value === "__create__" || option.value === "__local__") return
-            if (toDelete() !== option.value) {
-              setToDelete(option.value)
-              return
-            }
-            const result = await sdk.client.experimental.workspace.remove({ id: option.value }).catch(() => undefined)
-            setToDelete(undefined)
-            if (result?.error) {
-              toast.show({
-                message: "Failed to delete workspace",
-                variant: "error",
-              })
-              return
-            }
-            if (currentWorkspaceID() === option.value) {
-              route.navigate({
-                type: "home",
-              })
-            }
-            await sync.workspace.sync()
-          },
+          onTrigger: (option) => handleWorkspaceDelete(option.value),
         },
       ]}
     />

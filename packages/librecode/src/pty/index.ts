@@ -9,6 +9,71 @@ import { Shell } from "@/shell/shell"
 import { Plugin } from "@/plugin"
 import { PtyID } from "./schema"
 
+// ---------------------------------------------------------------------------
+// Module-level helpers
+// ---------------------------------------------------------------------------
+
+interface ActiveSessionShape {
+  cursor: number
+  subscribers: Map<unknown, { readyState: number; data?: unknown; send: (d: string | Uint8Array | ArrayBuffer) => void; close: (code?: number, reason?: string) => void }>
+  buffer: string
+  bufferCursor: number
+}
+
+function handlePtyData(session: ActiveSessionShape & { buffer: string; bufferCursor: number }, chunk: string): void {
+  const BUFFER_LIMIT = 1024 * 1024 * 2
+  session.cursor += chunk.length
+
+  for (const [key, ws] of session.subscribers.entries()) {
+    if (ws.readyState !== 1 || ws.data !== key) {
+      session.subscribers.delete(key)
+      continue
+    }
+    try {
+      ws.send(chunk)
+    } catch {
+      session.subscribers.delete(key)
+    }
+  }
+
+  session.buffer += chunk
+  if (session.buffer.length <= BUFFER_LIMIT) return
+  const excess = session.buffer.length - BUFFER_LIMIT
+  session.buffer = session.buffer.slice(excess)
+  session.bufferCursor += excess
+}
+
+function sliceBufferedData(session: ActiveSessionShape, from: number): string {
+  if (!session.buffer) return ""
+  const end = session.cursor
+  if (from >= end) return ""
+  const offset = Math.max(0, from - session.bufferCursor)
+  if (offset >= session.buffer.length) return ""
+  return session.buffer.slice(offset)
+}
+
+function resolveCursorFrom(cursor: number | undefined, end: number): number {
+  if (cursor === -1) return end
+  if (typeof cursor === "number" && Number.isSafeInteger(cursor)) return Math.max(0, cursor)
+  return 0
+}
+
+function sendBufferedData(
+  ws: { send: (d: string | Uint8Array | ArrayBuffer) => void; close: (code?: number, reason?: string) => void },
+  data: string,
+  chunkSize: number,
+  cleanup: () => void,
+): boolean {
+  try {
+    for (let i = 0; i < data.length; i += chunkSize) ws.send(data.slice(i, i + chunkSize))
+    return true
+  } catch {
+    cleanup()
+    ws.close()
+    return false
+  }
+}
+
 export namespace Pty {
   const log = Log.create({ service: "pty" })
 
@@ -167,33 +232,7 @@ export namespace Pty {
       subscribers: new Map(),
     }
     state().set(id, session)
-    ptyProcess.onData((chunk) => {
-      session.cursor += chunk.length
-
-      for (const [key, ws] of session.subscribers.entries()) {
-        if (ws.readyState !== 1) {
-          session.subscribers.delete(key)
-          continue
-        }
-
-        if (ws.data !== key) {
-          session.subscribers.delete(key)
-          continue
-        }
-
-        try {
-          ws.send(chunk)
-        } catch {
-          session.subscribers.delete(key)
-        }
-      }
-
-      session.buffer += chunk
-      if (session.buffer.length <= BUFFER_LIMIT) return
-      const excess = session.buffer.length - BUFFER_LIMIT
-      session.buffer = session.buffer.slice(excess)
-      session.bufferCursor += excess
-    })
+    ptyProcess.onData((chunk) => handlePtyData(session, chunk))
     ptyProcess.onExit(({ exitCode }) => {
       if (session.info.status === "exited") return
       log.info("session exited", { id, exitCode })
@@ -262,8 +301,6 @@ export namespace Pty {
     // Use ws.data as the unique key for this connection lifecycle.
     // If ws.data is undefined, fallback to ws object.
     const connectionKey = ws.data && typeof ws.data === "object" ? ws.data : ws
-
-    // Optionally cleanup if the key somehow exists
     session.subscribers.delete(connectionKey)
     session.subscribers.set(connectionKey, ws)
 
@@ -271,31 +308,11 @@ export namespace Pty {
       session.subscribers.delete(connectionKey)
     }
 
-    const start = session.bufferCursor
     const end = session.cursor
+    const from = resolveCursorFrom(cursor, end)
+    const data = sliceBufferedData(session, from)
 
-    const from =
-      cursor === -1 ? end : typeof cursor === "number" && Number.isSafeInteger(cursor) ? Math.max(0, cursor) : 0
-
-    const data = (() => {
-      if (!session.buffer) return ""
-      if (from >= end) return ""
-      const offset = Math.max(0, from - start)
-      if (offset >= session.buffer.length) return ""
-      return session.buffer.slice(offset)
-    })()
-
-    if (data) {
-      try {
-        for (let i = 0; i < data.length; i += BUFFER_CHUNK) {
-          ws.send(data.slice(i, i + BUFFER_CHUNK))
-        }
-      } catch {
-        cleanup()
-        ws.close()
-        return
-      }
-    }
+    if (data && !sendBufferedData(ws, data, BUFFER_CHUNK, cleanup)) return
 
     try {
       ws.send(meta(end))
@@ -304,6 +321,7 @@ export namespace Pty {
       ws.close()
       return
     }
+
     return {
       onMessage: (message: string | ArrayBuffer) => {
         session.process.write(String(message))

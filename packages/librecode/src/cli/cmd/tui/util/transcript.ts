@@ -67,31 +67,32 @@ export function formatAssistantHeader(msg: AssistantMessage, includeMetadata: bo
   return `## Assistant (${Locale.titlecase(msg.agent)} · ${msg.modelID}${duration ? ` · ${duration}` : ""})\n\n`
 }
 
+function formatToolPart(part: Extract<Part, { type: "tool" }>, options: TranscriptOptions): string {
+  let result = `**Tool: ${part.tool}**\n`
+  if (options.toolDetails && part.state.input) {
+    result += `\n**Input:**\n\`\`\`json\n${JSON.stringify(part.state.input, null, 2)}\n\`\`\`\n`
+  }
+  if (options.toolDetails && part.state.status === "completed" && part.state.output) {
+    result += `\n**Output:**\n\`\`\`\n${part.state.output}\n\`\`\`\n`
+  }
+  if (options.toolDetails && part.state.status === "error" && part.state.error) {
+    result += `\n**Error:**\n\`\`\`\n${part.state.error}\n\`\`\`\n`
+  }
+  result += `\n`
+  return result
+}
+
 export function formatPart(part: Part, options: TranscriptOptions): string {
   if (part.type === "text" && !part.synthetic) {
     return `${part.text}\n\n`
   }
 
   if (part.type === "reasoning") {
-    if (options.thinking) {
-      return `_Thinking:_\n\n${part.text}\n\n`
-    }
-    return ""
+    return options.thinking ? `_Thinking:_\n\n${part.text}\n\n` : ""
   }
 
   if (part.type === "tool") {
-    let result = `**Tool: ${part.tool}**\n`
-    if (options.toolDetails && part.state.input) {
-      result += `\n**Input:**\n\`\`\`json\n${JSON.stringify(part.state.input, null, 2)}\n\`\`\`\n`
-    }
-    if (options.toolDetails && part.state.status === "completed" && part.state.output) {
-      result += `\n**Output:**\n\`\`\`\n${part.state.output}\n\`\`\`\n`
-    }
-    if (options.toolDetails && part.state.status === "error" && part.state.error) {
-      result += `\n**Error:**\n\`\`\`\n${part.state.error}\n\`\`\`\n`
-    }
-    result += `\n`
-    return result
+    return formatToolPart(part, options)
   }
 
   return ""
