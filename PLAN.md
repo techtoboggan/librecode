@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-11 | ~165 commits | Tests: 1385 pass, 0 fail | v0.2.0
+> Last updated: 2026-04-11 | ~170 commits | Tests: 1385 pass, 0 fail | v0.3.1
 
 ---
 
@@ -132,6 +132,16 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 
 ---
 
+### Phase 11: i18n Extraction ✅
+
+| Item | Description | Status |
+|------|-------------|--------|
+| **`@librecode/i18n` npm package** | New repo `techtoboggan/librecode-i18n`, 3 sub-paths (app/ui/desktop), 17 locales | ✅ Published |
+| **Monorepo migration** | Removed 19,037 lines of duplicated locale files from app/ui/desktop packages | ✅ Done |
+| **CI publish** | `npm-publish.yml` publishes `@librecode/i18n` on every `v*` tag from main repo workflow | ✅ Done |
+
+---
+
 ## v0.3.x Roadmap
 
 ### Nice to Have
@@ -139,8 +149,7 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 | Item | Description | Effort | Priority |
 |------|-------------|--------|----------|
 | **Flatpak full build** | Fill SHA256 hashes for release tarball + Bun binaries; generate cargo-sources.json; submit to Flathub beta | Medium | Medium |
-| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package | Medium | Low |
-| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low |
+| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready; need actual generation via GenAI tools | Small | Medium |
 | **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low |
 
 ---
@@ -157,6 +166,6 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 | Source files over 1000 lines | 0 |
 | Lint warnings total | ~40 (down from 1,244) |
 | ADRs | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) |
-| npm packages | 6 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle) |
+| npm packages | 7 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle, i18n) |
 | Sister repos | librecode-3rdparty-providers, librecode-i18n |
 | Core providers | LiteLLM, Ollama, Amazon Bedrock, Azure |
