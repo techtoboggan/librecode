@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-11 | 122 commits | Tests: 1385 pass, 0 fail
+> Last updated: 2026-04-11 | ~165 commits | Tests: 1385 pass, 0 fail | v0.2.0
 
 ---
 
@@ -87,103 +87,61 @@ All MVP blockers resolved. npm ecosystem fully published with provenance.
 
 ---
 
-## v0.1.x Fast-follows
+## v0.1.x Fast-follows ✅
 
-### Phase 9: Ollama Auth + Wizard Cleanup
+### Phase 9: Ollama Auth + Wizard Cleanup ✅
 
 | Item | Description | Effort | Status |
 |------|-------------|--------|--------|
-| **OllamaAuthPlugin** | Already exists and complete in `packages/librecode/src/plugin/ollama.ts` — URL prompt, connection validation, model injection. | Medium | ✅ Done (was already done) |
-| **Rename litellm-wizard → local-server-wizard** | `LiteLLMWizard` misnamed; handles ALL local servers (Ollama, vLLM, llama.cpp, LocalAI) with network scan + selective model import. Renamed to `LocalServerWizard`, shim left for any stragglers. Provider IDs changed from `litellm-<url>` → `local-<url>`. | Small | ✅ Done |
+| **OllamaAuthPlugin** | Already exists and complete in `packages/librecode/src/plugin/ollama.ts` — URL prompt, connection validation, model injection. | Medium | ✅ Done |
+| **Rename litellm-wizard → local-server-wizard** | Renamed to `LocalServerWizard`, provider IDs changed from `litellm-<url>` → `local-<url>`. | Small | ✅ Done |
 
 ### Code Quality Cleanup ✅
 
-**Complexity target achieved:** 0 violations (was 100+, baseline underestimated scope).
-Every function in the codebase is now under the max complexity score of 12.
-
-Completed in one commit (92): extracted 300+ module-level helper functions across 128 files.
-CLI commands decomposed into subdirectory modules (providers/, stats/, mcp/, agent/, pr/).
-1358/1358 tests pass.
-
-**File size target (partially complete):** Several files remain over 1000 lines due to complexity
-fixes requiring helper extraction that adds lines. These are tracked below.
-
-| File | Current Lines | Status |
-|------|-------------:|--------|
-| `provider/provider.ts` | ~1,081 | Over — flagged for future split |
-| `session/prompt.ts` | ~1,869 | Over — complex, pending split |
-| `lsp/server.ts` | ~2,097 | Over — many LSP servers, pending split |
-| `cli/cmd/github.ts` | ~1,647 | Over — pending split into github/ dir |
-| `acp/agent.ts` | ~1,729 | Over — pending split |
-| `config/config.ts` | ~1,459 | Over — pending split |
-| `session/message-v2.ts` | ~1,062 | Over — pending split |
-| `server/routes/session.ts` | ~1,023 | Over — pending split |
-
-File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
+**Complexity target achieved:** 0 violations. Every function under complexity 12.
+**File size target achieved:** 0 source files over 1000 lines.
+- 18 files split into focused modules (session/prompt, lsp/server, acp/agent, github, config, etc.)
+- 1385/1385 tests pass.
 
 ### Phase 10: Bug Fixes + Security Hardening ✅
 
-Runtime bugs and security issues identified via OWASP analysis and production log review.
-
 | Item | File | Status |
 |------|------|--------|
-| **Rust unused imports** | `desktop/src-tauri/src/lib.rs` — removed `PathBuf` and `sleep` | ✅ Done |
-| **GTK main thread panic** | `windows.rs:set_window_icon()` called from tokio worker — wrapped `gtk::Window::set_default_icon_name()` in `app.run_on_main_thread()` | ✅ Done |
-| **Dev channel plugin version** | `config.ts:installDependencies()` — `0.0.0-main-{datetime}` versions don't exist on npm; fall back to `"latest"` when version matches `0.0.0-*` | ✅ Done |
-| **npm package name injection** | `plugin/index.ts` — validate plugin names against safe regex before `bun add` | ✅ Done |
-| **SSRF in /provider/scan** | `routes/provider.ts` — reject `169.254.x.x`, loopback, metadata endpoints; validate host format | ✅ Done |
-| **console.log → structured logging** | `routes/provider.ts` scan functions — replaced 10x `console.log` with `log.debug/info/warn` | ✅ Done |
-| **Partial access token in logs** | `mcp/helpers.ts:printDebugTokenInfo()` — was logging first 20 chars of token; now logs only "present" | ✅ Done |
+| **Rust unused imports** | `desktop/src-tauri/src/lib.rs` | ✅ Done |
+| **GTK main thread panic** | `windows.rs:set_window_icon()` | ✅ Done |
+| **Dev channel plugin version** | `config.ts:installDependencies()` | ✅ Done |
+| **npm package name injection** | `plugin/index.ts` | ✅ Done |
+| **SSRF in /provider/scan** | `routes/provider.ts` | ✅ Done |
+| **console.log → structured logging** | `routes/provider.ts` | ✅ Done |
+| **Partial access token in logs** | `mcp/helpers.ts` | ✅ Done |
 
-### Nice to Have (v0.2+)
+---
 
-| Item | Description | Effort | Priority | Status |
-|------|-------------|--------|----------|--------|
-| **AppImage packaging** | Added `"appimage"` to `bundle.targets`; `libfuse2` CI dep; `APPIMAGE_EXTRACT_AND_RUN=1` | Small | Medium | ✅ Done |
-| **Structured credential storage** | `provider_credentials` Drizzle table; LiteLLM/Ollama use separate URL+key columns; backward-compat fallback | Medium | High | ✅ Done |
-| **Provider capability detection** | `detectCapabilitiesFromId()` heuristic fills `input.image`, `toolcall`, `reasoning` from model name patterns | Medium | Medium | ✅ Done |
-| **Flatpak packaging** | Create `com.librecode.LibreCode.yml` manifest; update appstream.metainfo.xml; Flathub submission workflow | Medium | Medium | Planned |
-| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package | Medium | Low | Planned |
-| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low | Planned |
-| **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low | Planned |
-| **File-size splits** | 8 files over 1000 lines — no behavior impact, low urgency | Large | Low | Planned |
+## v0.2.0 ✅ SHIPPED
 
-#### Structured Credential Storage — Implementation Plan
+All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source files over 1000 lines.
 
-1. **Migration** — `migration/{timestamp}_provider_credentials/migration.sql`:
-   ```sql
-   CREATE TABLE provider_credentials (
-     provider_id TEXT PRIMARY KEY,
-     url TEXT,
-     api_key TEXT,
-     metadata TEXT DEFAULT '{}'
-   );
-   ```
-2. **Schema** — `src/provider/credentials.ts`: Zod schema + Drizzle table def
-3. **Auth module** — update `ProviderAuth.get/set()` to read/write new table;
-   keep `auth.json` reader as fallback for migration
-4. **Parser removal** — drop `url|key` split logic from `litellm.ts`, `ollama.ts`, all loaders
-5. **Tests** — migration round-trip test, backward-compat test for legacy `url|key` format
+| Item | Status |
+|------|--------|
+| AppImage packaging | ✅ |
+| Structured credential storage (`provider_credentials` table) | ✅ |
+| Provider capability detection (`detectCapabilitiesFromId`) | ✅ |
+| Flatpak manifest scaffold (`com.librecode.desktop.yml`) | ✅ |
+| Local server wizard: removed from manage-models, collapsed in add-providers | ✅ |
+| Code quality: 0 complexity violations, 0 source files over 1000 lines | ✅ |
 
-#### Provider Capability Detection — Implementation Plan
+---
 
-1. **Types** — extend `ModelInfo` in `src/provider/schema.ts`:
-   ```typescript
-   capabilities?: { vision?: boolean; tools?: boolean; streaming?: boolean }
-   ```
-2. **Detector** — `src/provider/detect-capabilities.ts`:
-   - For OpenAI-compat: parse `/v1/models` response for model name patterns
-   - For Ollama: parse `/api/show` model details
-   - Timeout 2s, fail-open (unknown = undefined)
-3. **Wire-in** — call `detectCapabilities(models)` in `LiteLLMAuthPlugin.loader()` and `OllamaAuthPlugin.loader()`
-4. **UI** — model selector shows capability badges (👁 vision, 🔧 tools)
+## v0.3.x Roadmap
 
-#### Flatpak Packaging — Implementation Plan
+### Nice to Have
 
-1. Create `packages/desktop/flatpak/com.librecode.LibreCode.yml`
-2. Update `packages/desktop/src-tauri/icons/com.librecode.LibreCode.appstream.metainfo.xml` with `<bundle type="flatpak">` tag
-3. Add GitHub Actions workflow `workflows/flatpak.yml` building on `ubuntu-latest` with `flatpak-builder`
-4. Submit to Flathub beta queue (separate PR to flathub/flathub repo)
+| Item | Description | Effort | Priority |
+|------|-------------|--------|----------|
+| **Flatpak full build** | Fill SHA256 hashes for release tarball + Bun binaries; generate cargo-sources.json; submit to Flathub beta | Medium | Medium |
+| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package | Medium | Low |
+| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low |
+| **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low |
 
 ---
 
@@ -191,12 +149,12 @@ Runtime bugs and security issues identified via OWASP analysis and production lo
 
 | Metric | Value |
 |--------|-------|
-| Total commits | 122 |
+| Total commits | ~165 |
 | Tests passing | 1,385 |
 | Tests failing | 0 |
-| Test files | 111 |
-| Complexity violations | 20 (all CLI/TUI, 0 core) |
-| Files over 1000 lines | 12 |
+| Test files | 113 |
+| Complexity violations | 0 |
+| Source files over 1000 lines | 0 |
 | Lint warnings total | ~40 (down from 1,244) |
 | ADRs | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) |
 | npm packages | 6 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle) |
