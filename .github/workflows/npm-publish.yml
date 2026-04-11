@@ -83,8 +83,11 @@ jobs:
         run: |
           node -e "
           const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
-          const rootPkg = JSON.parse(require('fs').readFileSync('../../package.json', 'utf8'));
-          const catalog = rootPkg.catalog || {};
+          // Catalog is defined in bun.lock (JSONC with trailing commas), not package.json
+          const lockText = require('fs').readFileSync('../../bun.lock', 'utf8');
+          const lockJson = lockText.replace(/,(\s*[}\]])/g, '$1');
+          const lock = JSON.parse(lockJson);
+          const catalog = lock.catalog || {};
 
           for (const [key, value] of Object.entries(pkg.exports)) {
             if (typeof value === 'string') {
