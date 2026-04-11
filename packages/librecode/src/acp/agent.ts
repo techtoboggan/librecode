@@ -13,124 +13,46 @@ import {
   type ListSessionsResponse,
   type LoadSessionRequest,
   type NewSessionRequest,
-  type PermissionOption,
-  type PlanEntry,
   type PromptRequest,
   type ResumeSessionRequest,
   type ResumeSessionResponse,
-  type Role,
   type SessionInfo,
   type SetSessionModelRequest,
   type SetSessionModeRequest,
   type SetSessionModeResponse,
-  type ToolCallContent,
-  type ToolKind,
   type Usage,
 } from "@agentclientprotocol/sdk"
 
 import { Log } from "../util/log"
-import { pathToFileURL } from "url"
-import { Filesystem } from "../util/filesystem"
-import { Hash } from "../util/hash"
 import { ACPSessionManager } from "./session"
 import type { ACPConfig } from "./types"
-import { Provider } from "../provider/provider"
-import { ModelID, ProviderID } from "../provider/schema"
 import { Agent as AgentModule } from "../agent/agent"
 import { Installation } from "@/installation"
 import { MessageV2 } from "@/session/message-v2"
 import { Config } from "@/config/config"
-import { Todo } from "@/session/todo"
-import { z } from "zod"
 import { LoadAPIKeyError } from "ai"
-import type {
-  AssistantMessage,
-  Event,
-  OpencodeClient,
-  SessionMessageResponse,
-  ToolPart,
-  ToolStateCompleted,
-  ToolStateError,
-} from "@librecode/sdk/v2"
-import { applyPatch } from "diff"
+import type { AssistantMessage, Event, OpencodeClient } from "@librecode/sdk/v2"
+import { ProviderID } from "../provider/schema"
+import { ModelID } from "../provider/schema"
+import {
+  defaultModel,
+  sortProvidersByName,
+  modelVariantsFromProviders,
+  buildAvailableModels,
+  formatModelIdWithVariant,
+  buildVariantMeta,
+  parseModelSelection,
+  buildPromptParts,
+  PERMISSION_OPTIONS,
+} from "./agent-types"
+import { AgentHandlers, sendUsageUpdate } from "./agent-handlers"
+
+const log = Log.create({ service: "acp-agent" })
 
 type ModeOption = { id: string; name: string; description?: string }
 type ModelOption = { modelId: string; name: string }
 
-const DEFAULT_VARIANT_VALUE = "default"
-
 export namespace ACP {
-  const log = Log.create({ service: "acp-agent" })
-
-  async function getContextLimit(
-    sdk: OpencodeClient,
-    providerID: ProviderID,
-    modelID: ModelID,
-    directory: string,
-  ): Promise<number | null> {
-    const providers = await sdk.config
-      .providers({ directory })
-      .then((x) => x.data?.providers ?? [])
-      .catch((error) => {
-        log.error("failed to get providers for context limit", { error })
-        return []
-      })
-
-    const provider = providers.find((p) => p.id === providerID)
-    const model = provider?.models[modelID]
-    return model?.limit.context ?? null
-  }
-
-  async function sendUsageUpdate(
-    connection: AgentSideConnection,
-    sdk: OpencodeClient,
-    sessionID: string,
-    directory: string,
-  ): Promise<void> {
-    const messages = await sdk.session
-      .messages({ sessionID, directory }, { throwOnError: true })
-      .then((x) => x.data)
-      .catch((error) => {
-        log.error("failed to fetch messages for usage update", { error })
-        return undefined
-      })
-
-    if (!messages) return
-
-    const assistantMessages = messages.filter(
-      (m): m is { info: AssistantMessage; parts: SessionMessageResponse["parts"] } => m.info.role === "assistant",
-    )
-
-    const lastAssistant = assistantMessages[assistantMessages.length - 1]
-    if (!lastAssistant) return
-
-    const msg = lastAssistant.info
-    if (!msg.providerID || !msg.modelID) return
-    const size = await getContextLimit(sdk, ProviderID.make(msg.providerID), ModelID.make(msg.modelID), directory)
-
-    if (!size) {
-      // Cannot calculate usage without known context size
-      return
-    }
-
-    const used = msg.tokens.input + (msg.tokens.cache?.read ?? 0)
-    const totalCost = assistantMessages.reduce((sum, m) => sum + m.info.cost, 0)
-
-    await connection
-      .sessionUpdate({
-        sessionId: sessionID,
-        update: {
-          sessionUpdate: "usage_update",
-          used,
-          size,
-          cost: { amount: totalCost, currency: "USD" },
-        },
-      })
-      .catch((error) => {
-        log.error("failed to send usage update", { error })
-      })
-  }
-
   export async function init({ sdk: _sdk }: { sdk: OpencodeClient }) {
     return {
       create: (connection: AgentSideConnection, fullConfig: ACPConfig) => {
@@ -149,21 +71,26 @@ export namespace ACP {
     private bashSnapshots = new Map<string, string>()
     private toolStarts = new Set<string>()
     private permissionQueues = new Map<string, Promise<void>>()
-    private permissionOptions: PermissionOption[] = [
-      { optionId: "once", kind: "allow_once", name: "Allow once" },
-      { optionId: "always", kind: "allow_always", name: "Always allow" },
-      { optionId: "reject", kind: "reject_once", name: "Reject" },
-    ]
+    private handlers: AgentHandlers
 
     constructor(connection: AgentSideConnection, config: ACPConfig) {
       this.connection = connection
       this.config = config
       this.sdk = config.sdk
       this.sessionManager = new ACPSessionManager(this.sdk)
+      this.handlers = new AgentHandlers(
+        connection,
+        this.sdk,
+        PERMISSION_OPTIONS,
+        this.bashSnapshots,
+        this.toolStarts,
+        this.permissionQueues,
+        (sessionID) => this.sessionManager.tryGet(sessionID),
+      )
       this.startEventSubscription()
     }
 
-    private startEventSubscription() {
+    private startEventSubscription(): void {
       if (this.eventStarted) return
       this.eventStarted = true
       this.runEventSubscription().catch((error) => {
@@ -172,7 +99,7 @@ export namespace ACP {
       })
     }
 
-    private async runEventSubscription() {
+    private async runEventSubscription(): Promise<void> {
       while (true) {
         if (this.eventAbort.signal.aborted) return
         const events = await this.sdk.global.event({
@@ -180,289 +107,12 @@ export namespace ACP {
         })
         for await (const event of events.stream) {
           if (this.eventAbort.signal.aborted) return
-          const payload = (event as any)?.payload
+          const payload = (event as unknown as { payload?: Event })?.payload
           if (!payload) continue
-          await this.handleEvent(payload as Event).catch((error) => {
+          await this.handlers.handleEvent(payload).catch((error) => {
             log.error("failed to handle event", { error, type: payload.type })
           })
         }
-      }
-    }
-
-    private async handleEvent(event: Event) {
-      switch (event.type) {
-        case "permission.asked":
-          return this.handlePermissionAsked(event)
-        case "message.part.updated":
-          return this.handleMessagePartUpdated(event)
-        case "message.part.delta":
-          return this.handleMessagePartDelta(event)
-      }
-    }
-
-    private async handlePermissionAsked(event: Extract<Event, { type: "permission.asked" }>) {
-      const permission = event.properties
-      const session = this.sessionManager.tryGet(permission.sessionID)
-      if (!session) return
-
-      const prev = this.permissionQueues.get(permission.sessionID) ?? Promise.resolve()
-      const next = prev
-        .then(() => this.processPermissionRequest(permission, session))
-        .catch((error) => {
-          log.error("failed to handle permission", { error, permissionID: permission.id })
-        })
-        .finally(() => {
-          if (this.permissionQueues.get(permission.sessionID) === next) {
-            this.permissionQueues.delete(permission.sessionID)
-          }
-        })
-      this.permissionQueues.set(permission.sessionID, next)
-    }
-
-    private async processPermissionRequest(
-      permission: Extract<Event, { type: "permission.asked" }>["properties"],
-      session: { id: string; cwd: string },
-    ) {
-      const directory = session.cwd
-      const res = await this.requestPermissionFromACP(permission, directory)
-
-      if (!res) return
-      if (res.outcome.outcome !== "selected") {
-        await this.sdk.permission.reply({ requestID: permission.id, reply: "reject", directory })
-        return
-      }
-
-      if (res.outcome.optionId !== "reject" && permission.permission == "edit") {
-        await this.applyEditPreview(session.id, permission.metadata || {})
-      }
-
-      await this.sdk.permission.reply({
-        requestID: permission.id,
-        reply: res.outcome.optionId as "once" | "always" | "reject",
-        directory,
-      })
-    }
-
-    private async requestPermissionFromACP(
-      permission: Extract<Event, { type: "permission.asked" }>["properties"],
-      directory: string,
-    ) {
-      return this.connection
-        .requestPermission({
-          sessionId: permission.sessionID,
-          toolCall: {
-            toolCallId: permission.tool?.callID ?? permission.id,
-            status: "pending",
-            title: permission.permission,
-            rawInput: permission.metadata,
-            kind: toToolKind(permission.permission),
-            locations: toLocations(permission.permission, permission.metadata),
-          },
-          options: this.permissionOptions,
-        })
-        .catch(async (error) => {
-          log.error("failed to request permission from ACP", {
-            error,
-            permissionID: permission.id,
-            sessionID: permission.sessionID,
-          })
-          await this.sdk.permission.reply({ requestID: permission.id, reply: "reject", directory })
-          return undefined
-        })
-    }
-
-    private async applyEditPreview(sessionId: string, metadata: Record<string, unknown>) {
-      const filepath = typeof metadata["filepath"] === "string" ? metadata["filepath"] : ""
-      const diff = typeof metadata["diff"] === "string" ? metadata["diff"] : ""
-      const content = (await Filesystem.exists(filepath)) ? await Filesystem.readText(filepath) : ""
-      const newContent = getNewContent(content, diff)
-      if (newContent) {
-        this.connection.writeTextFile({ sessionId, path: filepath, content: newContent })
-      }
-    }
-
-    private async handleMessagePartUpdated(event: Extract<Event, { type: "message.part.updated" }>) {
-      log.info("message part updated", { event: event.properties })
-      const props = event.properties
-      const part = props.part
-      const session = this.sessionManager.tryGet(part.sessionID)
-      if (!session) return
-      const sessionId = session.id
-
-      if (part.type !== "tool") return
-
-      await this.toolStart(sessionId, part)
-
-      switch (part.state.status) {
-        case "pending":
-          this.bashSnapshots.delete(part.callID)
-          return
-        case "running":
-          return this.handleEventToolPartRunning(sessionId, part)
-        case "completed":
-          return this.handleEventToolPartCompleted(sessionId, part, part.state)
-        case "error":
-          return this.handleEventToolPartError(sessionId, part, part.state)
-      }
-    }
-
-    private async handleEventToolPartRunning(
-      sessionId: string,
-      part: Extract<Extract<Event, { type: "message.part.updated" }>["properties"]["part"], { type: "tool" }>,
-    ) {
-      const output = this.bashOutput(part)
-      const content: ToolCallContent[] = []
-      if (output) {
-        const hash = Hash.fast(output)
-        if (part.tool === "bash") {
-          if (this.bashSnapshots.get(part.callID) === hash) {
-            await this.connection
-              .sessionUpdate({
-                sessionId,
-                update: {
-                  sessionUpdate: "tool_call_update",
-                  toolCallId: part.callID,
-                  status: "in_progress",
-                  kind: toToolKind(part.tool),
-                  title: part.tool,
-                  locations: toLocations(part.tool, part.state.input),
-                  rawInput: part.state.input,
-                },
-              })
-              .catch((error) => {
-                log.error("failed to send tool in_progress to ACP", { error })
-              })
-            return
-          }
-          this.bashSnapshots.set(part.callID, hash)
-        }
-        content.push({ type: "content", content: { type: "text", text: output } })
-      }
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: "tool_call_update",
-            toolCallId: part.callID,
-            status: "in_progress",
-            kind: toToolKind(part.tool),
-            title: part.tool,
-            locations: toLocations(part.tool, part.state.input),
-            rawInput: part.state.input,
-            ...(content.length > 0 && { content }),
-          },
-        })
-        .catch((error) => {
-          log.error("failed to send tool in_progress to ACP", { error })
-        })
-    }
-
-    private async handleEventToolPartCompleted(
-      sessionId: string,
-      part: Extract<Extract<Event, { type: "message.part.updated" }>["properties"]["part"], { type: "tool" }>,
-      state: ToolStateCompleted,
-    ) {
-      this.toolStarts.delete(part.callID)
-      this.bashSnapshots.delete(part.callID)
-      const kind = toToolKind(part.tool)
-      const content: ToolCallContent[] = [{ type: "content", content: { type: "text", text: state.output } }]
-
-      if (kind === "edit") {
-        content.push(buildEditDiffContent(state.input))
-      }
-
-      if (part.tool === "todowrite") {
-        await this.sendTodoUpdate(sessionId, state.output)
-      }
-
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: "tool_call_update",
-            toolCallId: part.callID,
-            status: "completed",
-            kind,
-            content,
-            title: state.title,
-            rawInput: state.input,
-            rawOutput: { output: state.output, metadata: state.metadata },
-          },
-        })
-        .catch((error) => {
-          log.error("failed to send tool completed to ACP", { error })
-        })
-    }
-
-    private async handleEventToolPartError(
-      sessionId: string,
-      part: Extract<Extract<Event, { type: "message.part.updated" }>["properties"]["part"], { type: "tool" }>,
-      state: ToolStateError,
-    ) {
-      this.toolStarts.delete(part.callID)
-      this.bashSnapshots.delete(part.callID)
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: "tool_call_update",
-            toolCallId: part.callID,
-            status: "failed",
-            kind: toToolKind(part.tool),
-            title: part.tool,
-            rawInput: state.input,
-            content: [{ type: "content", content: { type: "text", text: state.error } }],
-            rawOutput: { error: state.error, metadata: state.metadata },
-          },
-        })
-        .catch((error) => {
-          log.error("failed to send tool error to ACP", { error })
-        })
-    }
-
-    private async handleMessagePartDelta(event: Extract<Event, { type: "message.part.delta" }>) {
-      const props = event.properties
-      const session = this.sessionManager.tryGet(props.sessionID)
-      if (!session) return
-      const sessionId = session.id
-
-      const message = await this.sdk.session
-        .message(
-          { sessionID: props.sessionID, messageID: props.messageID, directory: session.cwd },
-          { throwOnError: true },
-        )
-        .then((x) => x.data)
-        .catch((error) => {
-          log.error("unexpected error when fetching message", { error })
-          return undefined
-        })
-
-      if (!message || message.info.role !== "assistant") return
-
-      const part = message.parts.find((p) => p.id === props.partID)
-      if (!part) return
-
-      if (part.type === "text" && props.field === "text" && part.ignored !== true) {
-        await this.connection
-          .sessionUpdate({
-            sessionId,
-            update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: props.delta } },
-          })
-          .catch((error) => {
-            log.error("failed to send text delta to ACP", { error })
-          })
-        return
-      }
-
-      if (part.type === "reasoning" && props.field === "text") {
-        await this.connection
-          .sessionUpdate({
-            sessionId,
-            update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: props.delta } },
-          })
-          .catch((error) => {
-            log.error("failed to send reasoning delta to ACP", { error })
-          })
       }
     }
 
@@ -512,7 +162,7 @@ export namespace ACP {
       }
     }
 
-    async authenticate(_params: AuthenticateRequest) {
+    async authenticate(_params: AuthenticateRequest): Promise<never> {
       throw new Error("Authentication not implemented")
     }
 
@@ -598,7 +248,7 @@ export namespace ACP {
 
         for (const msg of messages ?? []) {
           log.debug("replay message", msg)
-          await this.processMessage(msg)
+          await this.handlers.processMessage(msg)
         }
 
         await sendUsageUpdate(this.connection, this.sdk, sessionId, directory)
@@ -708,7 +358,7 @@ export namespace ACP {
 
         for (const msg of messages ?? []) {
           log.debug("replay message", msg)
-          await this.processMessage(msg)
+          await this.handlers.processMessage(msg)
         }
 
         await sendUsageUpdate(this.connection, this.sdk, sessionId, directory)
@@ -754,272 +404,6 @@ export namespace ACP {
         }
         throw e
       }
-    }
-
-    private async processMessage(message: SessionMessageResponse) {
-      log.debug("process message", message)
-      if (message.info.role !== "assistant" && message.info.role !== "user") return
-      const sessionId = message.info.sessionID
-
-      for (const part of message.parts) {
-        if (part.type === "tool") {
-          await this.processToolPart(sessionId, part)
-        } else if (part.type === "text") {
-          await this.processTextPart(sessionId, part, message)
-        } else if (part.type === "file") {
-          await this.processFilePart(sessionId, part, message)
-        } else if (part.type === "reasoning") {
-          await this.processReasoningPart(sessionId, part)
-        }
-      }
-    }
-
-    private async processToolPart(sessionId: string, part: ToolPart) {
-      await this.toolStart(sessionId, part)
-      switch (part.state.status) {
-        case "pending":
-          this.bashSnapshots.delete(part.callID)
-          break
-        case "running": {
-          const output = this.bashOutput(part)
-          const runningContent: ToolCallContent[] = []
-          if (output) {
-            runningContent.push({ type: "content", content: { type: "text", text: output } })
-          }
-          await this.connection
-            .sessionUpdate({
-              sessionId,
-              update: {
-                sessionUpdate: "tool_call_update",
-                toolCallId: part.callID,
-                status: "in_progress",
-                kind: toToolKind(part.tool),
-                title: part.tool,
-                locations: toLocations(part.tool, part.state.input),
-                rawInput: part.state.input,
-                ...(runningContent.length > 0 && { content: runningContent }),
-              },
-            })
-            .catch((err) => {
-              log.error("failed to send tool in_progress to ACP", { error: err })
-            })
-          break
-        }
-        case "completed":
-          await this.processCompletedToolPart(sessionId, part, part.state)
-          break
-        case "error":
-          this.toolStarts.delete(part.callID)
-          this.bashSnapshots.delete(part.callID)
-          await this.connection
-            .sessionUpdate({
-              sessionId,
-              update: {
-                sessionUpdate: "tool_call_update",
-                toolCallId: part.callID,
-                status: "failed",
-                kind: toToolKind(part.tool),
-                title: part.tool,
-                rawInput: part.state.input,
-                content: [{ type: "content", content: { type: "text", text: part.state.error } }],
-                rawOutput: { error: part.state.error, metadata: part.state.metadata },
-              },
-            })
-            .catch((err) => {
-              log.error("failed to send tool error to ACP", { error: err })
-            })
-          break
-      }
-    }
-
-    private async processCompletedToolPart(sessionId: string, part: ToolPart, state: ToolStateCompleted) {
-      this.toolStarts.delete(part.callID)
-      this.bashSnapshots.delete(part.callID)
-      const kind = toToolKind(part.tool)
-      const content: ToolCallContent[] = [{ type: "content", content: { type: "text", text: state.output } }]
-
-      if (kind === "edit") {
-        content.push(buildEditDiffContent(state.input))
-      }
-
-      if (part.tool === "todowrite") {
-        await this.sendTodoUpdate(sessionId, state.output)
-      }
-
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: "tool_call_update",
-            toolCallId: part.callID,
-            status: "completed",
-            kind,
-            content,
-            title: state.title,
-            rawInput: state.input,
-            rawOutput: { output: state.output, metadata: state.metadata },
-          },
-        })
-        .catch((err) => {
-          log.error("failed to send tool completed to ACP", { error: err })
-        })
-    }
-
-    private async sendTodoUpdate(sessionId: string, rawOutput: string) {
-      const parsedTodos = z.array(Todo.Info).safeParse(JSON.parse(rawOutput))
-      if (parsedTodos.success) {
-        await this.connection
-          .sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: "plan",
-              entries: parsedTodos.data.map((todo) => {
-                const status: PlanEntry["status"] =
-                  todo.status === "cancelled" ? "completed" : (todo.status as PlanEntry["status"])
-                return { priority: "medium", status, content: todo.content }
-              }),
-            },
-          })
-          .catch((err) => {
-            log.error("failed to send session update for todo", { error: err })
-          })
-      } else {
-        log.error("failed to parse todo output", { error: parsedTodos.error })
-      }
-    }
-
-    private async processTextPart(
-      sessionId: string,
-      part: Extract<SessionMessageResponse["parts"][number], { type: "text" }>,
-      message: SessionMessageResponse,
-    ) {
-      if (!part.text) return
-      const audience: Role[] | undefined = part.synthetic ? ["assistant"] : part.ignored ? ["user"] : undefined
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: message.info.role === "user" ? "user_message_chunk" : "agent_message_chunk",
-            content: {
-              type: "text",
-              text: part.text,
-              ...(audience && { annotations: { audience } }),
-            },
-          },
-        })
-        .catch((err) => {
-          log.error("failed to send text to ACP", { error: err })
-        })
-    }
-
-    private async processFilePart(
-      sessionId: string,
-      part: Extract<SessionMessageResponse["parts"][number], { type: "file" }>,
-      message: SessionMessageResponse,
-    ) {
-      // Replay file attachments as appropriate ACP content blocks.
-      // LibreCode stores files internally as { type: "file", url, filename, mime }.
-      // We convert these back to ACP blocks based on the URL scheme and MIME type:
-      // - file:// URLs → resource_link
-      // - data: URLs with image/* → image block
-      // - data: URLs with text/* or application/json → resource with text
-      // - data: URLs with other types → resource with blob
-      const url = part.url
-      const filename = part.filename ?? "file"
-      const mime = part.mime || "application/octet-stream"
-      const messageChunk = message.info.role === "user" ? "user_message_chunk" : "agent_message_chunk"
-
-      if (url.startsWith("file://")) {
-        await this.connection
-          .sessionUpdate({
-            sessionId,
-            update: { sessionUpdate: messageChunk, content: { type: "resource_link", uri: url, name: filename, mimeType: mime } },
-          })
-          .catch((err) => {
-            log.error("failed to send resource_link to ACP", { error: err })
-          })
-        return
-      }
-
-      if (!url.startsWith("data:")) return
-      // URLs that don't match file:// or data: are skipped (unsupported)
-
-      const base64Match = url.match(/^data:([^;]+);base64,(.*)$/)
-      const dataMime = base64Match?.[1]
-      const base64Data = base64Match?.[2] ?? ""
-      const effectiveMime = dataMime || mime
-
-      if (effectiveMime.startsWith("image/")) {
-        await this.connection
-          .sessionUpdate({
-            sessionId,
-            update: {
-              sessionUpdate: messageChunk,
-              content: { type: "image", mimeType: effectiveMime, data: base64Data, uri: pathToFileURL(filename).href },
-            },
-          })
-          .catch((err) => {
-            log.error("failed to send image to ACP", { error: err })
-          })
-        return
-      }
-
-      // Non-image: text types get decoded, binary types stay as blob
-      const isText = effectiveMime.startsWith("text/") || effectiveMime === "application/json"
-      const fileUri = pathToFileURL(filename).href
-      const resource = isText
-        ? { uri: fileUri, mimeType: effectiveMime, text: Buffer.from(base64Data, "base64").toString("utf-8") }
-        : { uri: fileUri, mimeType: effectiveMime, blob: base64Data }
-
-      await this.connection
-        .sessionUpdate({ sessionId, update: { sessionUpdate: messageChunk, content: { type: "resource", resource } } })
-        .catch((err) => {
-          log.error("failed to send resource to ACP", { error: err })
-        })
-    }
-
-    private async processReasoningPart(
-      sessionId: string,
-      part: Extract<SessionMessageResponse["parts"][number], { type: "reasoning" }>,
-    ) {
-      if (!part.text) return
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: part.text } },
-        })
-        .catch((err) => {
-          log.error("failed to send reasoning to ACP", { error: err })
-        })
-    }
-
-    private bashOutput(part: ToolPart) {
-      if (part.tool !== "bash") return
-      if (!("metadata" in part.state) || !part.state.metadata || typeof part.state.metadata !== "object") return
-      const output = part.state.metadata["output"]
-      if (typeof output !== "string") return
-      return output
-    }
-
-    private async toolStart(sessionId: string, part: ToolPart) {
-      if (this.toolStarts.has(part.callID)) return
-      this.toolStarts.add(part.callID)
-      await this.connection
-        .sessionUpdate({
-          sessionId,
-          update: {
-            sessionUpdate: "tool_call",
-            toolCallId: part.callID,
-            title: part.tool,
-            kind: toToolKind(part.tool),
-            status: "pending",
-            locations: [],
-            rawInput: {},
-          },
-        })
-        .catch((error) => {
-          log.error("failed to send tool pending to ACP", { error })
-        })
     }
 
     private async loadAvailableModes(directory: string): Promise<ModeOption[]> {
@@ -1309,7 +693,7 @@ export namespace ACP {
       }
     }
 
-    async cancel(params: CancelNotification) {
+    async cancel(params: CancelNotification): Promise<void> {
       const session = this.sessionManager.get(params.sessionId)
       await this.config.sdk.session.abort(
         {
@@ -1319,331 +703,5 @@ export namespace ACP {
         { throwOnError: true },
       )
     }
-  }
-
-  type PromptPart =
-    | { type: "text"; text: string; synthetic?: boolean; ignored?: boolean }
-    | { type: "file"; url: string; filename: string; mime: string }
-
-  function buildPromptParts(promptParts: PromptRequest["prompt"]): PromptPart[] {
-    return promptParts.flatMap((part) => {
-      if (part.type === "text") return convertTextPromptPart(part)
-      if (part.type === "image") return convertImagePromptPart(part)
-      if (part.type === "resource_link") return convertResourceLinkPromptPart(part)
-      if (part.type === "resource") return convertResourcePromptPart(part)
-      return []
-    })
-  }
-
-  function convertTextPromptPart(part: Extract<PromptRequest["prompt"][number], { type: "text" }>): PromptPart[] {
-    const audience = part.annotations?.audience
-    const forAssistant = audience?.length === 1 && audience[0] === "assistant"
-    const forUser = audience?.length === 1 && audience[0] === "user"
-    return [
-      {
-        type: "text" as const,
-        text: part.text,
-        ...(forAssistant && { synthetic: true }),
-        ...(forUser && { ignored: true }),
-      },
-    ]
-  }
-
-  function convertImagePromptPart(part: Extract<PromptRequest["prompt"][number], { type: "image" }>): PromptPart[] {
-    const parsed = parseUri(part.uri ?? "")
-    const filename = parsed.type === "file" ? parsed.filename : "image"
-    if (part.data) {
-      return [{ type: "file", url: `data:${part.mimeType};base64,${part.data}`, filename, mime: part.mimeType }]
-    }
-    if (part.uri && part.uri.startsWith("http:")) {
-      return [{ type: "file", url: part.uri, filename, mime: part.mimeType }]
-    }
-    return []
-  }
-
-  function convertResourceLinkPromptPart(
-    part: Extract<PromptRequest["prompt"][number], { type: "resource_link" }>,
-  ): PromptPart[] {
-    const parsed = parseUri(part.uri)
-    // Use the name from resource_link if available
-    if (part.name && parsed.type === "file") {
-      parsed.filename = part.name
-    }
-    return [parsed]
-  }
-
-  function convertResourcePromptPart(
-    part: Extract<PromptRequest["prompt"][number], { type: "resource" }>,
-  ): PromptPart[] {
-    const resource = part.resource
-    if ("text" in resource && resource.text) {
-      return [{ type: "text", text: resource.text }]
-    }
-    if ("blob" in resource && resource.blob && resource.mimeType) {
-      // Binary resource (PDFs, etc.): store as file part with data URL
-      const parsed = parseUri(resource.uri ?? "")
-      const filename = parsed.type === "file" ? parsed.filename : "file"
-      return [{ type: "file", url: `data:${resource.mimeType};base64,${resource.blob}`, filename, mime: resource.mimeType }]
-    }
-    return []
-  }
-
-  function buildEditDiffContent(input: Record<string, unknown>): Extract<ToolCallContent, { type: "diff" }> {
-    const filePath = typeof input["filePath"] === "string" ? input["filePath"] : ""
-    const oldText = typeof input["oldString"] === "string" ? input["oldString"] : ""
-    const newText =
-      typeof input["newString"] === "string"
-        ? input["newString"]
-        : typeof input["content"] === "string"
-          ? input["content"]
-          : ""
-    return { type: "diff", path: filePath, oldText, newText }
-  }
-
-  function toToolKind(toolName: string): ToolKind {
-    const tool = toolName.toLocaleLowerCase()
-    switch (tool) {
-      case "bash":
-        return "execute"
-      case "webfetch":
-        return "fetch"
-
-      case "edit":
-      case "patch":
-      case "write":
-        return "edit"
-
-      case "grep":
-      case "glob":
-      case "context7_resolve_library_id":
-      case "context7_get_library_docs":
-        return "search"
-
-      case "list":
-      case "read":
-        return "read"
-
-      default:
-        return "other"
-    }
-  }
-
-  function toLocations(toolName: string, input: Record<string, any>): { path: string }[] {
-    const tool = toolName.toLocaleLowerCase()
-    switch (tool) {
-      case "read":
-      case "edit":
-      case "write":
-        return input["filePath"] ? [{ path: input["filePath"] }] : []
-      case "glob":
-      case "grep":
-        return input["path"] ? [{ path: input["path"] }] : []
-      case "bash":
-        return []
-      case "list":
-        return input["path"] ? [{ path: input["path"] }] : []
-      default:
-        return []
-    }
-  }
-
-  async function defaultModel(config: ACPConfig, cwd?: string): Promise<{ providerID: ProviderID; modelID: ModelID }> {
-    const sdk = config.sdk
-    const configured = config.defaultModel
-    if (configured) return configured
-
-    const directory = cwd ?? process.cwd()
-
-    const specified = await sdk.config
-      .get({ directory }, { throwOnError: true })
-      .then((resp) => {
-        const cfg = resp.data
-        if (!cfg || !cfg.model) return undefined
-        return Provider.parseModel(cfg.model)
-      })
-      .catch((error) => {
-        log.error("failed to load user config for default model", { error })
-        return undefined
-      })
-
-    const providers = await sdk.config
-      .providers({ directory }, { throwOnError: true })
-      .then((x) => x.data?.providers ?? [])
-      .catch((error) => {
-        log.error("failed to list providers for default model", { error })
-        return []
-      })
-
-    if (specified && providers.length) {
-      const provider = providers.find((p) => p.id === specified.providerID)
-      if (provider && provider.models[specified.modelID]) return specified
-    }
-
-    if (specified && !providers.length) return specified
-
-    const models = providers.flatMap((p) => Object.values(p.models))
-    const [best] = Provider.sort(models)
-    if (best) {
-      return {
-        providerID: ProviderID.make(best.providerID),
-        modelID: ModelID.make(best.id),
-      }
-    }
-
-    if (specified) return specified
-
-    throw new Error("no providers found — connect a provider to get started")
-  }
-
-  function parseUri(
-    uri: string,
-  ): { type: "file"; url: string; filename: string; mime: string } | { type: "text"; text: string } {
-    try {
-      if (uri.startsWith("file://")) {
-        const path = uri.slice(7)
-        const name = path.split("/").pop() || path
-        return {
-          type: "file",
-          url: uri,
-          filename: name,
-          mime: "text/plain",
-        }
-      }
-      if (uri.startsWith("zed://")) {
-        const url = new URL(uri)
-        const path = url.searchParams.get("path")
-        if (path) {
-          const name = path.split("/").pop() || path
-          return {
-            type: "file",
-            url: pathToFileURL(path).href,
-            filename: name,
-            mime: "text/plain",
-          }
-        }
-      }
-      return {
-        type: "text",
-        text: uri,
-      }
-    } catch {
-      return {
-        type: "text",
-        text: uri,
-      }
-    }
-  }
-
-  function getNewContent(fileOriginal: string, unifiedDiff: string): string | undefined {
-    const result = applyPatch(fileOriginal, unifiedDiff)
-    if (result === false) {
-      log.error("Failed to apply unified diff (context mismatch)")
-      return undefined
-    }
-    return result
-  }
-
-  function sortProvidersByName<T extends { name: string }>(providers: T[]): T[] {
-    return [...providers].sort((a, b) => {
-      const nameA = a.name.toLowerCase()
-      const nameB = b.name.toLowerCase()
-      if (nameA < nameB) return -1
-      if (nameA > nameB) return 1
-      return 0
-    })
-  }
-
-  function modelVariantsFromProviders(
-    providers: Array<{ id: string; models: Record<string, { variants?: Record<string, any> }> }>,
-    model: { providerID: ProviderID; modelID: ModelID },
-  ): string[] {
-    const provider = providers.find((entry) => entry.id === model.providerID)
-    if (!provider) return []
-    const modelInfo = provider.models[model.modelID]
-    if (!modelInfo?.variants) return []
-    return Object.keys(modelInfo.variants)
-  }
-
-  function buildAvailableModels(
-    providers: Array<{ id: string; name: string; models: Record<string, any> }>,
-    options: { includeVariants?: boolean } = {},
-  ): ModelOption[] {
-    const includeVariants = options.includeVariants ?? false
-    return providers.flatMap((provider) => {
-      const unsorted: Array<{ id: string; name: string; variants?: Record<string, any> }> = Object.values(
-        provider.models,
-      )
-      const models = Provider.sort(unsorted)
-      return models.flatMap((model) => {
-        const base: ModelOption = {
-          modelId: `${provider.id}/${model.id}`,
-          name: `${provider.name}/${model.name}`,
-        }
-        if (!includeVariants || !model.variants) return [base]
-        const variants = Object.keys(model.variants).filter((variant) => variant !== DEFAULT_VARIANT_VALUE)
-        const variantOptions = variants.map((variant) => ({
-          modelId: `${provider.id}/${model.id}/${variant}`,
-          name: `${provider.name}/${model.name} (${variant})`,
-        }))
-        return [base, ...variantOptions]
-      })
-    })
-  }
-
-  function formatModelIdWithVariant(
-    model: { providerID: ProviderID; modelID: ModelID },
-    variant: string | undefined,
-    availableVariants: string[],
-    includeVariant: boolean,
-  ) {
-    const base = `${model.providerID}/${model.modelID}`
-    if (!includeVariant || !variant || !availableVariants.includes(variant)) return base
-    return `${base}/${variant}`
-  }
-
-  function buildVariantMeta(input: {
-    model: { providerID: ProviderID; modelID: ModelID }
-    variant?: string
-    availableVariants: string[]
-  }) {
-    return {
-      librecode: {
-        modelId: `${input.model.providerID}/${input.model.modelID}`,
-        variant: input.variant ?? null,
-        availableVariants: input.availableVariants,
-      },
-    }
-  }
-
-  function parseModelSelection(
-    modelId: string,
-    providers: Array<{ id: string; models: Record<string, { variants?: Record<string, any> }> }>,
-  ): { model: { providerID: ProviderID; modelID: ModelID }; variant?: string } {
-    const parsed = Provider.parseModel(modelId)
-    const provider = providers.find((p) => p.id === parsed.providerID)
-    if (!provider) {
-      return { model: parsed, variant: undefined }
-    }
-
-    // Check if modelID exists directly
-    if (provider.models[parsed.modelID]) {
-      return { model: parsed, variant: undefined }
-    }
-
-    // Try to extract variant from end of modelID (e.g., "claude-sonnet-4/high" -> model: "claude-sonnet-4", variant: "high")
-    const segments = parsed.modelID.split("/")
-    if (segments.length > 1) {
-      const candidateVariant = segments[segments.length - 1]
-      const baseModelId = segments.slice(0, -1).join("/")
-      const baseModelInfo = provider.models[baseModelId]
-      if (baseModelInfo?.variants && candidateVariant in baseModelInfo.variants) {
-        return {
-          model: { providerID: parsed.providerID, modelID: ModelID.make(baseModelId) },
-          variant: candidateVariant,
-        }
-      }
-    }
-
-    return { model: parsed, variant: undefined }
   }
 }
