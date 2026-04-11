@@ -93,8 +93,8 @@ All MVP blockers resolved. npm ecosystem fully published with provenance.
 
 | Item | Description | Effort | Status |
 |------|-------------|--------|--------|
-| **OllamaAuthPlugin** | Proper auth plugin for Ollama following the LiteLLM pattern — `AuthPrompts` with URL field, connection validation, stored credentials. Replaces the current hardcoded localhost assumption. | Medium | Pending |
-| **Delete litellm-wizard.tsx** | `LiteLLMWizard` is referenced in `settings-providers.tsx` and `dialog-select-model.tsx`. Once OllamaAuthPlugin lands and the standard prompts flow handles all local servers, remove the wizard and its references. | Small | Pending |
+| **OllamaAuthPlugin** | Already exists and complete in `packages/librecode/src/plugin/ollama.ts` — URL prompt, connection validation, model injection. | Medium | ✅ Done (was already done) |
+| **Rename litellm-wizard → local-server-wizard** | `LiteLLMWizard` misnamed; handles ALL local servers (Ollama, vLLM, llama.cpp, LocalAI) with network scan + selective model import. Renamed to `LocalServerWizard`, shim left for any stragglers. Provider IDs changed from `litellm-<url>` → `local-<url>`. | Small | ✅ Done |
 
 ### Code Quality Cleanup ✅
 

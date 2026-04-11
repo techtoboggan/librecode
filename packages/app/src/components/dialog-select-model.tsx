@@ -12,7 +12,7 @@ import { List } from "@librecode/ui/list"
 import { Tooltip } from "@librecode/ui/tooltip"
 import { DialogSelectProvider } from "./dialog-select-provider"
 import { DialogManageModels } from "./dialog-manage-models"
-import { LiteLLMWizard } from "./litellm-wizard"
+import { LocalServerWizard } from "./local-server-wizard"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
 
@@ -208,7 +208,7 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
     >
       <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
       <div class="px-2.5 pt-3 pb-1.5">
-        <LiteLLMWizard />
+        <LocalServerWizard />
       </div>
       <Button
         variant="ghost"

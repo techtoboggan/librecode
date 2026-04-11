@@ -7,7 +7,7 @@ import { type Component } from "solid-js"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { DialogConnectProvider } from "./dialog-connect-provider"
 import { DialogSelectProvider } from "./dialog-select-provider"
-import { LiteLLMWizard } from "./litellm-wizard"
+import { LocalServerWizard } from "./local-server-wizard"
 import { useLanguage } from "@/context/language"
 
 export const DialogSelectModelUnpaid: Component = () => {
@@ -21,7 +21,7 @@ export const DialogSelectModelUnpaid: Component = () => {
       class="overflow-y-auto [&_[data-slot=dialog-body]]:overflow-visible [&_[data-slot=dialog-body]]:flex-none"
     >
       <div class="px-2.5 pb-1.5">
-        <LiteLLMWizard />
+        <LocalServerWizard />
       </div>
       <div class="px-1.5 pb-1.5">
         <div class="w-full rounded-sm border border-border-weak-base bg-surface-raised-base">
