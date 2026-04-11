@@ -1,0 +1,145 @@
+---
+# LibreCode Flatpak manifest
+#
+# Updating for a new release:
+#   1. Update the source `url` and `sha256` for the release tarball.
+#   2. Regenerate cargo-sources.json:
+#        pip install aiohttp toml
+#        python3 flatpak-cargo-generator.py ../../../Cargo.lock -o cargo-sources.json
+#      (flatpak-cargo-generator.py is from
+#       https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo)
+#   3. Update the bun version + sha256 to match the version pinned in .bun-version
+#      or packages/librecode/package.json.
+#   4. Test locally: flatpak-builder --user --install --force-clean build-dir com.librecode.desktop.yml
+#
+# Flathub submission: https://github.com/flathub/flathub (separate PR)
+# Requires: flatpak-builder, org.gnome.Sdk//47, org.freedesktop.Sdk.Extension.rust-stable
+
+app-id: com.librecode.desktop
+runtime: org.gnome.Platform
+runtime-version: "47"
+sdk: org.gnome.Sdk
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+command: librecode-desktop
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/librecode-desktop/cargo
+    RUST_BACKTRACE: "1"
+    # Disable compositing; some compositors break WebKitGTK in a Flatpak sandbox
+    WEBKIT_DISABLE_COMPOSITING_MODE: "1"
+
+finish-args:
+  # Display
+  - --share=ipc
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+
+  # Network (LLM provider API calls + local model server scanning)
+  - --share=network
+
+  # Filesystem (read user code; write session/config data)
+  - --filesystem=home
+  - --filesystem=xdg-config/librecode:create
+
+  # Desktop integration
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  - --talk-name=org.freedesktop.secrets
+
+  # Deep-link protocol handler (librecode://)
+  - --talk-name=org.freedesktop.portal.Desktop
+  - --own-name=com.librecode.desktop
+
+  # Wayland app-id for taskbar icon matching
+  - --env=GDK_BACKEND=wayland,x11
+  - --env=WEBKIT_DISABLE_COMPOSITING_MODE=1
+
+modules:
+  # ─── Bun sidecar CLI ──────────────────────────────────────────────────────
+  # The Bun binary is a standalone executable; there is no Flatpak SDK extension.
+  # We download it as a pre-built binary and install it alongside the app.
+  # Update bun-version and sha256 when bumping the Bun pinned version.
+  - name: bun-sidecar
+    buildsystem: simple
+    sources:
+      # x86_64
+      - type: file
+        only-arches: [x86_64]
+        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-x64-baseline.zip
+        # Update sha256: sha256sum bun-linux-x64-baseline.zip
+        sha256: PLACEHOLDER_BUN_X64_SHA256
+        dest-filename: bun.zip
+      # aarch64
+      - type: file
+        only-arches: [aarch64]
+        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip
+        # Update sha256: sha256sum bun-linux-aarch64.zip
+        sha256: PLACEHOLDER_BUN_AARCH64_SHA256
+        dest-filename: bun.zip
+    build-commands:
+      - unzip -j bun.zip "*/bun" -d .
+      - install -Dm755 bun /app/lib/librecode/sidecar/bun
+
+  # ─── LibreCode desktop app ────────────────────────────────────────────────
+  - name: librecode-desktop
+    buildsystem: simple
+    build-options:
+      env:
+        # Point Cargo offline to pre-vendored sources (see cargo-sources.json)
+        CARGO_NET_OFFLINE: "true"
+    sources:
+      # Release tarball — update url + sha256 for each release
+      - type: archive
+        url: https://github.com/techtoboggan/librecode/archive/refs/tags/v0.1.0.tar.gz
+        sha256: PLACEHOLDER_RELEASE_SHA256
+        strip-components: 1
+
+      # Vendored Cargo dependencies (generated with flatpak-cargo-generator.py)
+      - cargo-sources.json
+
+    build-commands:
+      # Build the CLI sidecar (Bun single binary) using the already-installed Bun
+      - |
+        cd packages/librecode
+        /app/lib/librecode/sidecar/bun run script/build.ts --single
+        install -Dm755 dist/librecode-cli-linux-x64 /app/lib/librecode/sidecar/librecode-cli
+      # Build the Tauri desktop binary
+      - |
+        cd packages/desktop/src-tauri
+        cargo build --release --features custom-protocol
+      # Desktop entry
+      - install -Dm755 packages/desktop/src-tauri/target/release/librecode-desktop /app/bin/librecode-desktop
+      # AppStream metadata
+      - install -Dm644 packages/desktop/src-tauri/release/appstream.metainfo.xml
+          /app/share/metainfo/com.librecode.desktop.metainfo.xml
+      # Icons (multiple sizes for XDG icon theme)
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/32x32.png
+          /app/share/icons/hicolor/32x32/apps/com.librecode.desktop.png
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/64x64.png
+          /app/share/icons/hicolor/64x64/apps/com.librecode.desktop.png
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/128x128.png
+          /app/share/icons/hicolor/128x128/apps/com.librecode.desktop.png
+      - install -Dm644 packages/desktop/src-tauri/icons/prod/128x128@2x.png
+          /app/share/icons/hicolor/256x256/apps/com.librecode.desktop.png
+      # .desktop file (used by app launcher and deep-link protocol handler)
+      - |
+        cat > /app/share/applications/com.librecode.desktop.desktop << 'EOF'
+        [Desktop Entry]
+        Type=Application
+        Name=LibreCode
+        GenericName=AI Coding Assistant
+        Comment=AI-powered development tool — local models, no account required
+        Exec=librecode-desktop
+        Icon=com.librecode.desktop
+        Categories=Development;IDE;Utility;
+        Keywords=ai;coding;agent;llm;terminal;development;
+        MimeType=x-scheme-handler/librecode;
+        StartupNotify=true
+        StartupWMClass=LibreCode
+        EOF

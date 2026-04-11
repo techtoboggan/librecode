@@ -42,6 +42,19 @@ async function fetchModelsFromUrl(
   }
 }
 
+function resolveLiteLLMCredentials(
+  authKey: string | undefined,
+  structured: { url: string | undefined; apiKey: string | undefined } | undefined,
+  fallbackURL: string,
+  fallbackApiKey: string | undefined,
+): { baseURL: string; apiKey: string | undefined } {
+  if (structured) {
+    return { baseURL: structured.url || fallbackURL, apiKey: structured.apiKey || fallbackApiKey }
+  }
+  if (authKey) return parseLiteLLMCredentials(authKey, fallbackURL, fallbackApiKey)
+  return { baseURL: fallbackURL, apiKey: fallbackApiKey }
+}
+
 function parseLiteLLMCredentials(
   authKey: string,
   fallbackURL: string,
@@ -101,14 +114,8 @@ export async function LiteLLMAuthPlugin(_input: PluginInput): Promise<Hooks> {
         // Prefer structured credentials (set by tryCustomAuthorize since v0.1.1).
         // Fall back to legacy url|key encoding for credentials saved before the migration.
         const structured = ProviderCredentials.get("litellm")
-        const { baseURL, apiKey } = structured
-          ? {
-              baseURL: structured.url || fallbackURL,
-              apiKey: structured.apiKey || fallbackApiKey,
-            }
-          : auth.type === "api" && auth.key
-            ? parseLiteLLMCredentials(auth.key, fallbackURL, fallbackApiKey)
-            : { baseURL: fallbackURL, apiKey: fallbackApiKey }
+        const authKey = auth.type === "api" ? auth.key : undefined
+        const { baseURL, apiKey } = resolveLiteLLMCredentials(authKey, structured, fallbackURL, fallbackApiKey)
 
         if (!apiKey && !baseURL) return {}
 

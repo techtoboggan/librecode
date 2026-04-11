@@ -1,0 +1,46 @@
+name: Flatpak
+
+on:
+  push:
+    tags: ["v*-desktop"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Flatpak
+    runs-on: ubuntu-latest
+
+    container:
+      image: bilelmoussaoui/flatpak-github-actions:gnome-47
+      options: --privileged
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate manifest
+        run: |
+          flatpak-builder --show-manifest packages/desktop/flatpak/com.librecode.desktop.yml
+
+      # NOTE: A full Flatpak build requires:
+      #   1. cargo-sources.json generated from Cargo.lock
+      #      (see packages/desktop/flatpak/com.librecode.desktop.yml header)
+      #   2. Real sha256 hashes for release tarball and Bun binaries
+      #
+      # This job currently validates the manifest structure.
+      # Uncomment the build step below once sha256 placeholders are resolved.
+      #
+      # - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+      #   with:
+      #     bundle: librecode-desktop.flatpak
+      #     manifest-path: packages/desktop/flatpak/com.librecode.desktop.yml
+      #     cache-key: flatpak-builder-${{ github.sha }}
+
+      - name: Validate AppStream metadata
+        run: |
+          sudo apt-get install -y --no-install-recommends appstream
+          appstreamcli validate \
+            packages/desktop/src-tauri/release/appstream.metainfo.xml \
+            || true

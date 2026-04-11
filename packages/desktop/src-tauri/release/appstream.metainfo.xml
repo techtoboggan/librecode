@@ -50,6 +50,13 @@
   <url type="donation">https://github.com/sponsors/techtoboggan</url>
 
   <releases>
+    <release version="0.1.0" date="2026-04-11">
+      <description>
+        <p>v0.1.0 — first stable release. Local-first architecture with LiteLLM, Ollama,
+        Bedrock, and Azure as built-in providers. Community plugin ecosystem via npm.</p>
+      </description>
+      <url type="details">https://github.com/techtoboggan/librecode/releases/tag/v0.1.0</url>
+    </release>
     <release version="0.0.1" date="2026-04-09">
       <description>
         <p>First LibreCode release.</p>
@@ -57,4 +64,6 @@
       <url type="details">https://github.com/techtoboggan/librecode/releases/tag/v0.0.1</url>
     </release>
   </releases>
+
+  <bundle type="flatpak">com.librecode.desktop</bundle>
 </component>

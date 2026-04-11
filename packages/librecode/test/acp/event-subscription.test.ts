@@ -74,6 +74,28 @@ function toolEvent(
   return { directory: cwd, payload }
 }
 
+function awaitWaiter(
+  waiters: Array<(value: GlobalEventEnvelope | undefined) => void>,
+  signal?: AbortSignal,
+): Promise<GlobalEventEnvelope | undefined> {
+  return new Promise<GlobalEventEnvelope | undefined>((resolve) => {
+    waiters.push(resolve)
+    if (signal) signal.addEventListener("abort", () => resolve(undefined), { once: true })
+  })
+}
+
+async function nextEvent(
+  queue: GlobalEventEnvelope[],
+  waiters: Array<(value: GlobalEventEnvelope | undefined) => void>,
+  state: { closed: boolean },
+  signal?: AbortSignal,
+): Promise<GlobalEventEnvelope | undefined> {
+  if (signal?.aborted || state.closed) return undefined
+  const queued = queue.shift()
+  if (queued) return queued
+  return awaitWaiter(waiters, signal)
+}
+
 function createEventStream() {
   const queue: GlobalEventEnvelope[] = []
   const waiters: Array<(value: GlobalEventEnvelope | undefined) => void> = []
@@ -97,18 +119,7 @@ function createEventStream() {
 
   const stream = async function* (signal?: AbortSignal) {
     while (true) {
-      if (signal?.aborted) return
-      const next = queue.shift()
-      if (next) {
-        yield next
-        continue
-      }
-      if (state.closed) return
-      const value = await new Promise<GlobalEventEnvelope | undefined>((resolve) => {
-        waiters.push(resolve)
-        if (!signal) return
-        signal.addEventListener("abort", () => resolve(undefined), { once: true })
-      })
+      const value = await nextEvent(queue, waiters, state, signal)
       if (!value) return
       yield value
     }

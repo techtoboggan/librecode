@@ -153,6 +153,17 @@ describe("tool.read external_directory permission", () => {
   })
 })
 
+function applyPermissionPattern(
+  req: Omit<PermissionNext.Request, "id" | "sessionID" | "tool">,
+  pattern: (typeof req.patterns)[number],
+  agentPermission: PermissionNext.Ruleset,
+  setAskedForEnv: () => void,
+): void {
+  const rule = PermissionNext.evaluate(req.permission, pattern, agentPermission)
+  if (rule.action === "ask" && req.permission === "read") setAskedForEnv()
+  if (rule.action === "deny") throw new PermissionNext.DeniedError({ ruleset: agentPermission })
+}
+
 describe("tool.read env file permissions", () => {
   const cases: [string, boolean][] = [
     [".env", true],
@@ -178,13 +189,9 @@ describe("tool.read env file permissions", () => {
             ...ctx,
             ask: async (req: Omit<PermissionNext.Request, "id" | "sessionID" | "tool">) => {
               for (const pattern of req.patterns) {
-                const rule = PermissionNext.evaluate(req.permission, pattern, agent.permission)
-                if (rule.action === "ask" && req.permission === "read") {
+                applyPermissionPattern(req, pattern, agent.permission, () => {
                   askedForEnv = true
-                }
-                if (rule.action === "deny") {
-                  throw new PermissionNext.DeniedError({ ruleset: agent.permission })
-                }
+                })
               }
             },
           }
