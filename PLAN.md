@@ -71,27 +71,30 @@
 
 ---
 
-## What's Left for MVP
+## v0.1.0 ✅ SHIPPED
 
-### Must Have (blocks v0.1.0 release)
+All MVP blockers resolved. npm ecosystem fully published with provenance.
+
+| Item | Status |
+|------|--------|
+| Remove stale "librecode" provider refs | ✅ |
+| Fix failing test (bun install timeout) | ✅ |
+| Stale i18n strings | ✅ clean |
+| First-run experience (empty state hints) | ✅ |
+| Model selector context-sensitive empty state | ✅ |
+| npm auth + all 6 packages published | ✅ |
+| README update | ✅ |
+
+---
+
+## v0.1.x Fast-follows
+
+### Phase 9: Ollama Auth + Wizard Cleanup
 
 | Item | Description | Effort | Status |
 |------|-------------|--------|--------|
-| **Remove stale "librecode" provider refs** | `isFree()` dead code, `librecode`/`librecode-go` icon sprite entries removed | Small | ✅ Done |
-| **Fix the 1 failing test** | `tool.registry` singular dir test timed out due to `bun install` network call. Fixed with `LIBRECODE_SKIP_DEPS_INSTALL` env var | Small | ✅ Done |
-| **Stale i18n strings** | Audited — all stale keys were already removed in earlier phases | Small | ✅ Done (clean) |
-| **First-run experience** | Empty state now shows "Connect a provider below — Ollama or LiteLLM recommended" hint. No dedicated wizard yet, but the settings UI is self-guiding. | Medium | ✅ Done (basic) |
-| **Model selector "No results"** | Context-sensitive: shows actionable "connect Ollama or LiteLLM" hint when no providers, vs "No model results" for search-filtered empty | Small | ✅ Done |
-| **README update** | Updated: full provider ecosystem table, bundle install, 3rdparty repo links, architecture package list | Medium | ✅ Done |
-
-### Should Have (v0.1.x fast-follows)
-
-| Item | Description | Effort |
-|------|-------------|--------|
-| **npm auth setup** | NPM_TOKEN added to both repos. All 6 packages publishing with provenance. ✅ Done | Small |
-| **Provider extraction Phase 3-4** | All 4 `@librecode/provider-*@0.1.4` packages live on npm. BUILTIN deliberately empty. ✅ Done | — |
-| **OllamaAuthPlugin** | Proper auth plugin for Ollama (like LiteLLM) with prompts for URL | Medium |
-| **Delete litellm-wizard.tsx** | Once the standard provider auth flow handles everything, the wizard can be replaced by the prompts system | Medium |
+| **OllamaAuthPlugin** | Proper auth plugin for Ollama following the LiteLLM pattern — `AuthPrompts` with URL field, connection validation, stored credentials. Replaces the current hardcoded localhost assumption. | Medium | Pending |
+| **Delete litellm-wizard.tsx** | `LiteLLMWizard` is referenced in `settings-providers.tsx` and `dialog-select-model.tsx`. Once OllamaAuthPlugin lands and the standard prompts flow handles all local servers, remove the wizard and its references. | Small | Pending |
 
 ### Code Quality Cleanup ✅
 
@@ -135,7 +138,7 @@ File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
 
 | Metric | Value |
 |--------|-------|
-| Total commits | 95 |
+| Total commits | 116 |
 | Tests passing | 1,358 |
 | Tests failing | 0 |
 | Test files | 111 |
@@ -143,6 +146,6 @@ File-size splits are deferred to post-v0.1.0 (no behavior impact, low urgency).
 | Files over 1000 lines | 12 |
 | Lint warnings total | ~40 (down from 1,244) |
 | ADRs | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) |
-| npm packages | 2 published (@librecode/sdk, @librecode/plugin) |
+| npm packages | 6 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle) |
 | Sister repos | librecode-3rdparty-providers, librecode-i18n |
 | Core providers | LiteLLM, Ollama, Amazon Bedrock, Azure |
