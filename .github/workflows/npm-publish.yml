@@ -45,6 +45,7 @@ jobs:
           const tag = process.env.GITHUB_REF_NAME || '';
           const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
           pkg.version = version;
+          pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode.git' };
           require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           console.log('Publishing @librecode/sdk@' + version);
           "
@@ -104,6 +105,7 @@ jobs:
               if (resolved) pkg.dependencies[k] = '^' + resolved;
             }
           }
+          pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode.git' };
           require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
           console.log('Publishing @librecode/plugin@' + version);
           console.log('Dependencies:', JSON.stringify(pkg.dependencies, null, 2));
