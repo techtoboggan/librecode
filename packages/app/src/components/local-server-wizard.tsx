@@ -96,7 +96,10 @@ async function fetchModels(baseUrl: string, apiKey?: string): Promise<Array<{ id
 }
 
 function makeProviderID(url: string): string {
-  return `local-${url.replace(/[^a-z0-9]/gi, "-").replace(/-+/g, "-").toLowerCase()}`
+  return `local-${url
+    .replace(/[^a-z0-9]/gi, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase()}`
 }
 
 export function LocalServerWizard() {
@@ -297,9 +300,7 @@ export function LocalServerWizard() {
             <div class="flex flex-col gap-3 w-full">
               <Show
                 when={servers.length > 0}
-                fallback={
-                  <p class="text-13-regular text-text-weak">No local model servers detected.</p>
-                }
+                fallback={<p class="text-13-regular text-text-weak">No local model servers detected.</p>}
               >
                 <div class="flex flex-col gap-0.5 max-h-48 overflow-y-auto rounded-sm border border-border-weak-base bg-surface-base">
                   <For each={servers}>
@@ -319,7 +320,10 @@ export function LocalServerWizard() {
                             {server.connected ? " — already connected" : " available"}
                           </span>
                         </div>
-                        <Show when={server.connected} fallback={<Icon name="chevron-right" class="text-icon-weak-base size-4" />}>
+                        <Show
+                          when={server.connected}
+                          fallback={<Icon name="chevron-right" class="text-icon-weak-base size-4" />}
+                        >
                           <Icon name="check" class="text-icon-positive-base size-4" />
                         </Show>
                       </button>
@@ -446,7 +450,9 @@ export function LocalServerWizard() {
                     size="small"
                     variant="ghost"
                     onClick={() => {
-                      batch(() => { setModels([]) })
+                      batch(() => {
+                        setModels([])
+                      })
                       handleScan()
                     }}
                   >

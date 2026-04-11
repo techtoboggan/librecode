@@ -395,4 +395,3 @@ export interface ApplyPatchFile {
   deletions: number
   movePath?: string
 }
-

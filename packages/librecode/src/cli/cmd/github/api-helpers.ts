@@ -75,12 +75,7 @@ async function removeReactionForPRReview(octoRest: Octokit, owner: string, repo:
   })
 }
 
-async function removeReactionForIssueComment(
-  octoRest: Octokit,
-  owner: string,
-  repo: string,
-  triggerCommentId: number,
-) {
+async function removeReactionForIssueComment(octoRest: Octokit, owner: string, repo: string, triggerCommentId: number) {
   const reactions = await octoRest.rest.reactions.listForIssueComment({
     owner,
     repo,

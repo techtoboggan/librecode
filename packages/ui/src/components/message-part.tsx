@@ -166,9 +166,7 @@ function renderable(part: PartType, showReasoningSummaries = true) {
   if (part.type === "tool") {
     if (HIDDEN_TOOLS.has((part as ToolPart).tool)) return false
     if ((part as ToolPart).tool === "question")
-      return (
-        (part as ToolPart).state.status !== "pending" && (part as ToolPart).state.status !== "running"
-      )
+      return (part as ToolPart).state.status !== "pending" && (part as ToolPart).state.status !== "running"
     return true
   }
   if (part.type === "text") return !!(part as TextPart).text?.trim()

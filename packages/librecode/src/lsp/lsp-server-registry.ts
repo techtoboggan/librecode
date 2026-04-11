@@ -4,29 +4,10 @@
 // only server definitions.
 
 // Web / JS / TS servers
-export {
-  Deno,
-  Typescript,
-  Vue,
-  ESLint,
-  Oxlint,
-  Biome,
-  Svelte,
-  Astro,
-} from "./servers/web"
+export { Deno, Typescript, Vue, ESLint, Oxlint, Biome, Svelte, Astro } from "./servers/web"
 
 // Compiled / systems-language servers
-export {
-  Gopls,
-  Rubocop,
-  ElixirLS,
-  Zls,
-  CSharp,
-  FSharp,
-  SourceKit,
-  RustAnalyzer,
-  Clangd,
-} from "./servers/systems"
+export { Gopls, Rubocop, ElixirLS, Zls, CSharp, FSharp, SourceKit, RustAnalyzer, Clangd } from "./servers/systems"
 
 // Scripting / data / misc language servers
 export {

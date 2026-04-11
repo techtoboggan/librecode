@@ -616,7 +616,13 @@ export namespace File {
     return [...result.files, ...result.dirs]
   }
 
-  function searchByQuery(items: string[], query: string, kind: SearchKind, limit: number, preferHidden: boolean): string[] {
+  function searchByQuery(
+    items: string[],
+    query: string,
+    kind: SearchKind,
+    limit: number,
+    preferHidden: boolean,
+  ): string[] {
     const searchLimit = kind === "directory" && !preferHidden ? limit * 20 : limit
     const sorted = fuzzysort.go(query, items, { limit: searchLimit }).map((r) => r.target)
     if (kind !== "directory") return sorted

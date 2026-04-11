@@ -286,7 +286,9 @@ export const SettingsGeneral: Component = () => {
           description={
             <>
               {language.t("settings.general.row.theme.description")}{" "}
-              <Link href="https://github.com/techtoboggan/librecode/docs/themes/">{language.t("common.learnMore")}</Link>
+              <Link href="https://github.com/techtoboggan/librecode/docs/themes/">
+                {language.t("common.learnMore")}
+              </Link>
             </>
           }
         >

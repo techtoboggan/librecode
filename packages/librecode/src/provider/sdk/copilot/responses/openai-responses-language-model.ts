@@ -225,18 +225,34 @@ function applyReasoningModelAdjustments(
   if (isReasoningModel) {
     if (baseArgs.temperature != null) {
       baseArgs.temperature = undefined
-      warnings.push({ type: "unsupported-setting", setting: "temperature", details: "temperature is not supported for reasoning models" })
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "temperature",
+        details: "temperature is not supported for reasoning models",
+      })
     }
     if (baseArgs.top_p != null) {
       baseArgs.top_p = undefined
-      warnings.push({ type: "unsupported-setting", setting: "topP", details: "topP is not supported for reasoning models" })
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "topP",
+        details: "topP is not supported for reasoning models",
+      })
     }
   } else {
     if (openaiOptions?.reasoningEffort != null) {
-      warnings.push({ type: "unsupported-setting", setting: "reasoningEffort", details: "reasoningEffort is not supported for non-reasoning models" })
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "reasoningEffort",
+        details: "reasoningEffort is not supported for non-reasoning models",
+      })
     }
     if (openaiOptions?.reasoningSummary != null) {
-      warnings.push({ type: "unsupported-setting", setting: "reasoningSummary", details: "reasoningSummary is not supported for non-reasoning models" })
+      warnings.push({
+        type: "unsupported-setting",
+        setting: "reasoningSummary",
+        details: "reasoningSummary is not supported for non-reasoning models",
+      })
     }
   }
   return warnings
@@ -260,7 +276,8 @@ function applyServiceTierValidation(
     warnings.push({
       type: "unsupported-setting",
       setting: "serviceTier",
-      details: "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported",
+      details:
+        "priority processing is only available for supported models (gpt-4, gpt-5, gpt-5-mini, o3, o4-mini) and requires Enterprise access. gpt-5-nano is not supported",
     })
     delete baseArgs.service_tier
   }
@@ -287,9 +304,19 @@ function processReasoningOutputPart(
 
 type _MessageAnnotation = Extract<_GenerateOutput, { type: "message" }>["content"][number]["annotations"][number]
 
-function processAnnotation(annotation: _MessageAnnotation, content: LanguageModelV2Content[], genId: _GenerateId): void {
+function processAnnotation(
+  annotation: _MessageAnnotation,
+  content: LanguageModelV2Content[],
+  genId: _GenerateId,
+): void {
   if (annotation.type === "url_citation") {
-    content.push({ type: "source", sourceType: "url", id: genId?.() ?? generateId(), url: annotation.url, title: annotation.title })
+    content.push({
+      type: "source",
+      sourceType: "url",
+      id: genId?.() ?? generateId(),
+      url: annotation.url,
+      title: annotation.title,
+    })
   } else if (annotation.type === "file_citation") {
     content.push({
       type: "source",
@@ -330,8 +357,20 @@ function processGenerateOutputPart(
       processReasoningOutputPart(part, content)
       break
     case "image_generation_call":
-      content.push({ type: "tool-call", toolCallId: part.id, toolName: "image_generation", input: "{}", providerExecuted: true })
-      content.push({ type: "tool-result", toolCallId: part.id, toolName: "image_generation", result: { result: part.result } satisfies z.infer<typeof imageGenerationOutputSchema>, providerExecuted: true })
+      content.push({
+        type: "tool-call",
+        toolCallId: part.id,
+        toolName: "image_generation",
+        input: "{}",
+        providerExecuted: true,
+      })
+      content.push({
+        type: "tool-result",
+        toolCallId: part.id,
+        toolName: "image_generation",
+        result: { result: part.result } satisfies z.infer<typeof imageGenerationOutputSchema>,
+        providerExecuted: true,
+      })
       break
     case "local_shell_call":
       content.push({
@@ -356,35 +395,89 @@ function processGenerateOutputPart(
       })
       break
     case "web_search_call":
-      content.push({ type: "tool-call", toolCallId: part.id, toolName: ctx.webSearchToolName ?? "web_search", input: JSON.stringify({ action: part.action }), providerExecuted: true })
-      content.push({ type: "tool-result", toolCallId: part.id, toolName: ctx.webSearchToolName ?? "web_search", result: { status: part.status }, providerExecuted: true })
+      content.push({
+        type: "tool-call",
+        toolCallId: part.id,
+        toolName: ctx.webSearchToolName ?? "web_search",
+        input: JSON.stringify({ action: part.action }),
+        providerExecuted: true,
+      })
+      content.push({
+        type: "tool-result",
+        toolCallId: part.id,
+        toolName: ctx.webSearchToolName ?? "web_search",
+        result: { status: part.status },
+        providerExecuted: true,
+      })
       break
     case "computer_call":
-      content.push({ type: "tool-call", toolCallId: part.id, toolName: "computer_use", input: "", providerExecuted: true })
-      content.push({ type: "tool-result", toolCallId: part.id, toolName: "computer_use", result: { type: "computer_use_tool_result", status: part.status || "completed" }, providerExecuted: true })
+      content.push({
+        type: "tool-call",
+        toolCallId: part.id,
+        toolName: "computer_use",
+        input: "",
+        providerExecuted: true,
+      })
+      content.push({
+        type: "tool-result",
+        toolCallId: part.id,
+        toolName: "computer_use",
+        result: { type: "computer_use_tool_result", status: part.status || "completed" },
+        providerExecuted: true,
+      })
       break
     case "file_search_call":
-      content.push({ type: "tool-call", toolCallId: part.id, toolName: "file_search", input: "{}", providerExecuted: true })
+      content.push({
+        type: "tool-call",
+        toolCallId: part.id,
+        toolName: "file_search",
+        input: "{}",
+        providerExecuted: true,
+      })
       content.push({
         type: "tool-result",
         toolCallId: part.id,
         toolName: "file_search",
         result: {
           queries: part.queries,
-          results: part.results?.map((r) => ({ attributes: r.attributes, fileId: r.file_id, filename: r.filename, score: r.score, text: r.text })) ?? null,
+          results:
+            part.results?.map((r) => ({
+              attributes: r.attributes,
+              fileId: r.file_id,
+              filename: r.filename,
+              score: r.score,
+              text: r.text,
+            })) ?? null,
         } satisfies z.infer<typeof fileSearchOutputSchema>,
         providerExecuted: true,
       })
       break
     case "code_interpreter_call":
-      content.push({ type: "tool-call", toolCallId: part.id, toolName: "code_interpreter", input: JSON.stringify({ code: part.code, containerId: part.container_id } satisfies z.infer<typeof codeInterpreterInputSchema>), providerExecuted: true })
-      content.push({ type: "tool-result", toolCallId: part.id, toolName: "code_interpreter", result: { outputs: part.outputs } satisfies z.infer<typeof codeInterpreterOutputSchema>, providerExecuted: true })
+      content.push({
+        type: "tool-call",
+        toolCallId: part.id,
+        toolName: "code_interpreter",
+        input: JSON.stringify({ code: part.code, containerId: part.container_id } satisfies z.infer<
+          typeof codeInterpreterInputSchema
+        >),
+        providerExecuted: true,
+      })
+      content.push({
+        type: "tool-result",
+        toolCallId: part.id,
+        toolName: "code_interpreter",
+        result: { outputs: part.outputs } satisfies z.infer<typeof codeInterpreterOutputSchema>,
+        providerExecuted: true,
+      })
       break
   }
   return hasFunctionCall
 }
 
-type _ActiveReasoning = Record<number, { canonicalId: string; encryptedContent?: string | null; summaryParts: number[] } | undefined>
+type _ActiveReasoning = Record<
+  number,
+  { canonicalId: string; encryptedContent?: string | null; summaryParts: number[] } | undefined
+>
 
 type _OngoingToolCall = { toolName: string; toolCallId: string; codeInterpreter?: { containerId: string } } | undefined
 
@@ -424,17 +517,37 @@ function handleOutputItemAddedTool(
     return true
   }
   if (item.type === "code_interpreter_call") {
-    ongoingToolCalls[value.output_index] = { toolName: "code_interpreter", toolCallId: item.id, codeInterpreter: { containerId: item.container_id } }
+    ongoingToolCalls[value.output_index] = {
+      toolName: "code_interpreter",
+      toolCallId: item.id,
+      codeInterpreter: { containerId: item.container_id },
+    }
     controller.enqueue({ type: "tool-input-start", id: item.id, toolName: "code_interpreter" })
-    controller.enqueue({ type: "tool-input-delta", id: item.id, delta: `{"containerId":"${item.container_id}","code":"` })
+    controller.enqueue({
+      type: "tool-input-delta",
+      id: item.id,
+      delta: `{"containerId":"${item.container_id}","code":"`,
+    })
     return true
   }
   if (item.type === "file_search_call") {
-    controller.enqueue({ type: "tool-call", toolCallId: item.id, toolName: "file_search", input: "{}", providerExecuted: true })
+    controller.enqueue({
+      type: "tool-call",
+      toolCallId: item.id,
+      toolName: "file_search",
+      input: "{}",
+      providerExecuted: true,
+    })
     return true
   }
   if (item.type === "image_generation_call") {
-    controller.enqueue({ type: "tool-call", toolCallId: item.id, toolName: "image_generation", input: "{}", providerExecuted: true })
+    controller.enqueue({
+      type: "tool-call",
+      toolCallId: item.id,
+      toolName: "image_generation",
+      input: "{}",
+      providerExecuted: true,
+    })
     return true
   }
   return false
@@ -452,15 +565,25 @@ function handleOutputItemAdded(
 
   if (value.item.type === "message") {
     state.currentTextId = value.item.id
-    controller.enqueue({ type: "text-start", id: value.item.id, providerMetadata: { openai: { itemId: value.item.id } } })
+    controller.enqueue({
+      type: "text-start",
+      id: value.item.id,
+      providerMetadata: { openai: { itemId: value.item.id } },
+    })
   } else if (isResponseOutputItemAddedReasoningChunk(value)) {
     const reasoningItem = value.item
-    activeReasoning[value.output_index] = { canonicalId: reasoningItem.id, encryptedContent: reasoningItem.encrypted_content, summaryParts: [0] }
+    activeReasoning[value.output_index] = {
+      canonicalId: reasoningItem.id,
+      encryptedContent: reasoningItem.encrypted_content,
+      summaryParts: [0],
+    }
     state.currentReasoningOutputIndex = value.output_index
     controller.enqueue({
       type: "reasoning-start",
       id: `${reasoningItem.id}:0`,
-      providerMetadata: { openai: { itemId: reasoningItem.id, reasoningEncryptedContent: reasoningItem.encrypted_content ?? null } },
+      providerMetadata: {
+        openai: { itemId: reasoningItem.id, reasoningEncryptedContent: reasoningItem.encrypted_content ?? null },
+      },
     })
   }
 }
@@ -476,21 +599,51 @@ function handleOutputItemDoneToolCall(
     ongoingToolCalls[value.output_index] = undefined
     state.hasFunctionCall = true
     controller.enqueue({ type: "tool-input-end", id: item.call_id })
-    controller.enqueue({ type: "tool-call", toolCallId: item.call_id, toolName: item.name, input: item.arguments, providerMetadata: { openai: { itemId: item.id } } })
+    controller.enqueue({
+      type: "tool-call",
+      toolCallId: item.call_id,
+      toolName: item.name,
+      input: item.arguments,
+      providerMetadata: { openai: { itemId: item.id } },
+    })
     return true
   }
   if (item.type === "web_search_call") {
     ongoingToolCalls[value.output_index] = undefined
     controller.enqueue({ type: "tool-input-end", id: item.id })
-    controller.enqueue({ type: "tool-call", toolCallId: item.id, toolName: "web_search", input: JSON.stringify({ action: item.action }), providerExecuted: true })
-    controller.enqueue({ type: "tool-result", toolCallId: item.id, toolName: "web_search", result: { status: item.status }, providerExecuted: true })
+    controller.enqueue({
+      type: "tool-call",
+      toolCallId: item.id,
+      toolName: "web_search",
+      input: JSON.stringify({ action: item.action }),
+      providerExecuted: true,
+    })
+    controller.enqueue({
+      type: "tool-result",
+      toolCallId: item.id,
+      toolName: "web_search",
+      result: { status: item.status },
+      providerExecuted: true,
+    })
     return true
   }
   if (item.type === "computer_call") {
     ongoingToolCalls[value.output_index] = undefined
     controller.enqueue({ type: "tool-input-end", id: item.id })
-    controller.enqueue({ type: "tool-call", toolCallId: item.id, toolName: "computer_use", input: "", providerExecuted: true })
-    controller.enqueue({ type: "tool-result", toolCallId: item.id, toolName: "computer_use", result: { type: "computer_use_tool_result", status: item.status || "completed" }, providerExecuted: true })
+    controller.enqueue({
+      type: "tool-call",
+      toolCallId: item.id,
+      toolName: "computer_use",
+      input: "",
+      providerExecuted: true,
+    })
+    controller.enqueue({
+      type: "tool-result",
+      toolCallId: item.id,
+      toolName: "computer_use",
+      result: { type: "computer_use_tool_result", status: item.status || "completed" },
+      providerExecuted: true,
+    })
     return true
   }
   if (item.type === "file_search_call") {
@@ -499,18 +652,40 @@ function handleOutputItemDoneToolCall(
       type: "tool-result",
       toolCallId: item.id,
       toolName: "file_search",
-      result: { queries: item.queries, results: item.results?.map((r) => ({ attributes: r.attributes, fileId: r.file_id, filename: r.filename, score: r.score, text: r.text })) ?? null } satisfies z.infer<typeof fileSearchOutputSchema>,
+      result: {
+        queries: item.queries,
+        results:
+          item.results?.map((r) => ({
+            attributes: r.attributes,
+            fileId: r.file_id,
+            filename: r.filename,
+            score: r.score,
+            text: r.text,
+          })) ?? null,
+      } satisfies z.infer<typeof fileSearchOutputSchema>,
       providerExecuted: true,
     })
     return true
   }
   if (item.type === "code_interpreter_call") {
     ongoingToolCalls[value.output_index] = undefined
-    controller.enqueue({ type: "tool-result", toolCallId: item.id, toolName: "code_interpreter", result: { outputs: item.outputs } satisfies z.infer<typeof codeInterpreterOutputSchema>, providerExecuted: true })
+    controller.enqueue({
+      type: "tool-result",
+      toolCallId: item.id,
+      toolName: "code_interpreter",
+      result: { outputs: item.outputs } satisfies z.infer<typeof codeInterpreterOutputSchema>,
+      providerExecuted: true,
+    })
     return true
   }
   if (item.type === "image_generation_call") {
-    controller.enqueue({ type: "tool-result", toolCallId: item.id, toolName: "image_generation", result: { result: item.result } satisfies z.infer<typeof imageGenerationOutputSchema>, providerExecuted: true })
+    controller.enqueue({
+      type: "tool-result",
+      toolCallId: item.id,
+      toolName: "image_generation",
+      result: { result: item.result } satisfies z.infer<typeof imageGenerationOutputSchema>,
+      providerExecuted: true,
+    })
     return true
   }
   if (item.type === "local_shell_call") {
@@ -519,7 +694,16 @@ function handleOutputItemDoneToolCall(
       type: "tool-call",
       toolCallId: item.call_id,
       toolName: "local_shell",
-      input: JSON.stringify({ action: { type: "exec", command: item.action.command, timeoutMs: item.action.timeout_ms, user: item.action.user, workingDirectory: item.action.working_directory, env: item.action.env } } satisfies z.infer<typeof localShellInputSchema>),
+      input: JSON.stringify({
+        action: {
+          type: "exec",
+          command: item.action.command,
+          timeoutMs: item.action.timeout_ms,
+          user: item.action.user,
+          workingDirectory: item.action.working_directory,
+          env: item.action.env,
+        },
+      } satisfies z.infer<typeof localShellInputSchema>),
       providerMetadata: { openai: { itemId: item.id } },
     })
     return true
@@ -528,7 +712,9 @@ function handleOutputItemDoneToolCall(
 }
 
 function handleReasoningItemDone(
-  value: z.infer<typeof responseOutputItemDoneSchema> & { item: { type: "reasoning"; encrypted_content?: string | null } },
+  value: z.infer<typeof responseOutputItemDoneSchema> & {
+    item: { type: "reasoning"; encrypted_content?: string | null }
+  },
   activeReasoning: _ActiveReasoning,
   controller: TransformStreamDefaultController<LanguageModelV2StreamPart>,
   state: { currentReasoningOutputIndex: number | null },
@@ -539,7 +725,12 @@ function handleReasoningItemDone(
     controller.enqueue({
       type: "reasoning-end",
       id: `${activeReasoningPart.canonicalId}:${summaryIndex}`,
-      providerMetadata: { openai: { itemId: activeReasoningPart.canonicalId, reasoningEncryptedContent: value.item.encrypted_content ?? null } },
+      providerMetadata: {
+        openai: {
+          itemId: activeReasoningPart.canonicalId,
+          reasoningEncryptedContent: value.item.encrypted_content ?? null,
+        },
+      },
     })
   }
   delete activeReasoning[value.output_index]
@@ -575,7 +766,11 @@ function handleTextDelta(
 ): void {
   if (!state.currentTextId) {
     state.currentTextId = value.item_id
-    controller.enqueue({ type: "text-start", id: state.currentTextId, providerMetadata: { openai: { itemId: value.item_id } } })
+    controller.enqueue({
+      type: "text-start",
+      id: state.currentTextId,
+      providerMetadata: { openai: { itemId: value.item_id } },
+    })
   }
   controller.enqueue({ type: "text-delta", id: state.currentTextId, delta: value.delta })
   if (useLogprobs && value.logprobs) {
@@ -596,7 +791,9 @@ function handleReasoningSummaryPartAdded(
     controller.enqueue({
       type: "reasoning-start",
       id: `${activeItem.canonicalId}:${value.summary_index}`,
-      providerMetadata: { openai: { itemId: activeItem.canonicalId, reasoningEncryptedContent: activeItem.encryptedContent ?? null } },
+      providerMetadata: {
+        openai: { itemId: activeItem.canonicalId, reasoningEncryptedContent: activeItem.encryptedContent ?? null },
+      },
     })
   }
 }
@@ -624,7 +821,13 @@ function handleAnnotationAdded(
   genId: _GenerateId,
 ): void {
   if (value.annotation.type === "url_citation") {
-    controller.enqueue({ type: "source", sourceType: "url", id: genId?.() ?? generateId(), url: value.annotation.url, title: value.annotation.title })
+    controller.enqueue({
+      type: "source",
+      sourceType: "url",
+      id: genId?.() ?? generateId(),
+      url: value.annotation.url,
+      title: value.annotation.title,
+    })
   } else if (value.annotation.type === "file_citation") {
     controller.enqueue({
       type: "source",
@@ -648,13 +851,24 @@ function processStreamChunkToolDeltas(
     return true
   }
   if (isResponseImageGenerationCallPartialImageChunk(value)) {
-    controller.enqueue({ type: "tool-result", toolCallId: value.item_id, toolName: "image_generation", result: { result: value.partial_image_b64 } satisfies z.infer<typeof imageGenerationOutputSchema>, providerExecuted: true })
+    controller.enqueue({
+      type: "tool-result",
+      toolCallId: value.item_id,
+      toolName: "image_generation",
+      result: { result: value.partial_image_b64 } satisfies z.infer<typeof imageGenerationOutputSchema>,
+      providerExecuted: true,
+    })
     return true
   }
   if (isResponseCodeInterpreterCallCodeDeltaChunk(value)) {
     const toolCall = st.ongoingToolCalls[value.output_index]
     // The delta is code embedded in a JSON string; escape via JSON.stringify and strip outer quotes.
-    if (toolCall != null) controller.enqueue({ type: "tool-input-delta", id: toolCall.toolCallId, delta: JSON.stringify(value.delta).slice(1, -1) })
+    if (toolCall != null)
+      controller.enqueue({
+        type: "tool-input-delta",
+        id: toolCall.toolCallId,
+        delta: JSON.stringify(value.delta).slice(1, -1),
+      })
     return true
   }
   if (isResponseCodeInterpreterCallCodeDoneChunk(value)) {
@@ -662,7 +876,16 @@ function processStreamChunkToolDeltas(
     if (toolCall != null) {
       controller.enqueue({ type: "tool-input-delta", id: toolCall.toolCallId, delta: '"}' })
       controller.enqueue({ type: "tool-input-end", id: toolCall.toolCallId })
-      controller.enqueue({ type: "tool-call", toolCallId: toolCall.toolCallId, toolName: "code_interpreter", input: JSON.stringify({ code: value.code, containerId: toolCall.codeInterpreter!.containerId } satisfies z.infer<typeof codeInterpreterInputSchema>), providerExecuted: true })
+      controller.enqueue({
+        type: "tool-call",
+        toolCallId: toolCall.toolCallId,
+        toolName: "code_interpreter",
+        input: JSON.stringify({
+          code: value.code,
+          containerId: toolCall.codeInterpreter!.containerId,
+        } satisfies z.infer<typeof codeInterpreterInputSchema>),
+        providerExecuted: true,
+      })
     }
     return true
   }
@@ -679,7 +902,12 @@ function processStreamChunkDeltas(
   if (processStreamChunkToolDeltas(value, controller, st)) return
   if (isResponseCreatedChunk(value)) {
     st.responseId = value.response.id
-    controller.enqueue({ type: "response-metadata", id: value.response.id, timestamp: new Date(value.response.created_at * 1000), modelId: value.response.model })
+    controller.enqueue({
+      type: "response-metadata",
+      id: value.response.id,
+      timestamp: new Date(value.response.created_at * 1000),
+      modelId: value.response.model,
+    })
   } else if (isTextDeltaChunk(value)) {
     handleTextDelta(value, st.logprobs, controller, st, useLogprobs)
   } else if (isResponseReasoningSummaryPartAddedChunk(value)) {
@@ -687,7 +915,10 @@ function processStreamChunkDeltas(
   } else if (isResponseReasoningSummaryTextDeltaChunk(value)) {
     handleReasoningSummaryTextDelta(value, st.activeReasoning, controller, st.currentReasoningOutputIndex)
   } else if (isResponseFinishedChunk(value)) {
-    st.finishReason = mapOpenAIResponseFinishReason({ finishReason: value.response.incomplete_details?.reason, hasFunctionCall: st.hasFunctionCall })
+    st.finishReason = mapOpenAIResponseFinishReason({
+      finishReason: value.response.incomplete_details?.reason,
+      hasFunctionCall: st.hasFunctionCall,
+    })
     st.usage.inputTokens = value.response.usage.input_tokens
     st.usage.outputTokens = value.response.usage.output_tokens
     st.usage.totalTokens = value.response.usage.input_tokens + value.response.usage.output_tokens
@@ -734,7 +965,13 @@ function resolveResponseFormat(
   return {
     format:
       responseFormat.schema != null
-        ? { type: "json_schema", strict: strictJsonSchema, name: responseFormat.name ?? "response", description: responseFormat.description, schema: responseFormat.schema }
+        ? {
+            type: "json_schema",
+            strict: strictJsonSchema,
+            name: responseFormat.name ?? "response",
+            description: responseFormat.description,
+            schema: responseFormat.schema,
+          }
         : { type: "json_object" },
   }
 }
@@ -754,7 +991,19 @@ function buildBaseArgs(params: {
   include: OpenAIResponsesIncludeOptions
   modelConfig: ResponsesModelConfig
 }): Record<string, unknown> {
-  const { modelId, input, temperature, topP, maxOutputTokens, openaiOptions, strictJsonSchema, responseFormat, topLogprobs, include, modelConfig } = params
+  const {
+    modelId,
+    input,
+    temperature,
+    topP,
+    maxOutputTokens,
+    openaiOptions,
+    strictJsonSchema,
+    responseFormat,
+    topLogprobs,
+    include,
+    modelConfig,
+  } = params
   const resolvedFormat = resolveResponseFormat(responseFormat, strictJsonSchema)
 
   return {
@@ -868,14 +1117,20 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV2 {
 
     // when logprobs are requested, automatically include them:
     const topLogprobs =
-      typeof openaiOptions?.logprobs === "number" ? openaiOptions.logprobs : openaiOptions?.logprobs === true ? TOP_LOGPROBS_MAX : undefined
+      typeof openaiOptions?.logprobs === "number"
+        ? openaiOptions.logprobs
+        : openaiOptions?.logprobs === true
+          ? TOP_LOGPROBS_MAX
+          : undefined
 
     if (topLogprobs) addInclude("message.output_text.logprobs")
 
     // when a web search tool is present, automatically include the sources:
     const webSearchToolName = (
       tools?.find(
-        (tool) => tool.type === "provider-defined" && (tool.id === "openai.web_search" || tool.id === "openai.web_search_preview"),
+        (tool) =>
+          tool.type === "provider-defined" &&
+          (tool.id === "openai.web_search" || tool.id === "openai.web_search_preview"),
       ) as LanguageModelV2ProviderDefinedTool | undefined
     )?.name
 
@@ -884,14 +1139,36 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV2 {
     // when a code interpreter tool is present, automatically include the outputs:
     if (hasOpenAITool("openai.code_interpreter")) addInclude("code_interpreter_call.outputs")
 
-    const baseArgs = buildBaseArgs({ modelId: this.modelId, input, temperature, topP, maxOutputTokens, openaiOptions, strictJsonSchema, responseFormat, topLogprobs, include, modelConfig })
+    const baseArgs = buildBaseArgs({
+      modelId: this.modelId,
+      input,
+      temperature,
+      topP,
+      maxOutputTokens,
+      openaiOptions,
+      strictJsonSchema,
+      responseFormat,
+      topLogprobs,
+      include,
+      modelConfig,
+    })
 
     // remove unsupported settings for reasoning models
     // see https://platform.openai.com/docs/guides/reasoning#limitations
-    warnings.push(...applyReasoningModelAdjustments(baseArgs as { temperature?: number | null; top_p?: number | null }, openaiOptions, modelConfig.isReasoningModel))
+    warnings.push(
+      ...applyReasoningModelAdjustments(
+        baseArgs as { temperature?: number | null; top_p?: number | null },
+        openaiOptions,
+        modelConfig.isReasoningModel,
+      ),
+    )
     warnings.push(...applyServiceTierValidation(baseArgs as Record<string, unknown>, openaiOptions, modelConfig))
 
-    const { tools: openaiTools, toolChoice: openaiToolChoice, toolWarnings } = prepareResponsesTools({ tools, toolChoice, strictJsonSchema })
+    const {
+      tools: openaiTools,
+      toolChoice: openaiToolChoice,
+      toolWarnings,
+    } = prepareResponsesTools({ tools, toolChoice, strictJsonSchema })
 
     return {
       webSearchToolName,
@@ -957,7 +1234,13 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV2 {
     const useLogprobs = Boolean(options.providerOptions?.openai?.logprobs)
 
     for (const part of response.output) {
-      if (processGenerateOutputPart(part, content, logprobs, { webSearchToolName, genId: this.config.generateId, useLogprobs })) {
+      if (
+        processGenerateOutputPart(part, content, logprobs, {
+          webSearchToolName,
+          genId: this.config.generateId,
+          useLogprobs,
+        })
+      ) {
         hasFunctionCall = true
       }
     }
@@ -1046,7 +1329,15 @@ export class OpenAIResponsesLanguageModel implements LanguageModelV2 {
           },
 
           transform(chunk, controller) {
-            processStreamChunk(chunk, controller, st, webSearchToolName, genId, Boolean(options.includeRawChunks), useLogprobs)
+            processStreamChunk(
+              chunk,
+              controller,
+              st,
+              webSearchToolName,
+              genId,
+              Boolean(options.includeRawChunks),
+              useLogprobs,
+            )
           },
 
           flush(controller) {

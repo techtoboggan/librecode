@@ -1,10 +1,4 @@
-import {
-  DEFAULT_PROMPT,
-  isPromptEqual,
-  type Prompt,
-  type AgentPart,
-  type FileAttachmentPart,
-} from "@/context/prompt"
+import { DEFAULT_PROMPT, isPromptEqual, type Prompt, type AgentPart, type FileAttachmentPart } from "@/context/prompt"
 import { createTextFragment } from "./editor-dom"
 
 export function createPill(part: FileAttachmentPart | AgentPart): HTMLSpanElement {

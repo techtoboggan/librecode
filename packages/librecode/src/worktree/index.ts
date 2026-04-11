@@ -452,7 +452,10 @@ export namespace Worktree {
     }, [])
   }
 
-  async function findWorktreeByDirectory(entries: WorktreeEntry[], directory: string): Promise<WorktreeEntry | undefined> {
+  async function findWorktreeByDirectory(
+    entries: WorktreeEntry[],
+    directory: string,
+  ): Promise<WorktreeEntry | undefined> {
     for (const item of entries) {
       if (!item.path) continue
       const key = await canonical(item.path)
@@ -467,12 +470,10 @@ export namespace Worktree {
   }
 
   async function cleanWorktreeDir(target: string): Promise<void> {
-    await fs
-      .rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
-      .catch((error) => {
-        const message = error instanceof Error ? error.message : String(error)
-        throw new RemoveFailedError({ message: message || "Failed to remove git worktree directory" })
-      })
+    await fs.rm(target, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new RemoveFailedError({ message: message || "Failed to remove git worktree directory" })
+    })
   }
 
   async function removeGitWorktreeEntry(entryPath: string, directory: string): Promise<void> {

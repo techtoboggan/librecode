@@ -148,9 +148,7 @@ export function createSessionOperations(input: SessionOperationsInput) {
 
     const task = !next
       ? halt(sessionID).then(() => input.sdk.client.session.unrevert({ sessionID }))
-      : halt(sessionID).then(() =>
-          input.sdk.client.session.revert({ sessionID, messageID: next.id }),
-        )
+      : halt(sessionID).then(() => input.sdk.client.session.revert({ sessionID, messageID: next.id }))
 
     return task
       .then((result) => {
@@ -176,7 +174,8 @@ export function createSessionOperations(input: SessionOperationsInput) {
   const rolled = createMemo(() => {
     const id = revertMessageID()
     if (!id) return []
-    return input.userMessages()
+    return input
+      .userMessages()
       .filter((item) => item.id >= id)
       .map((item) => ({ id: item.id, text: line(item.id) }))
   })

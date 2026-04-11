@@ -77,9 +77,11 @@ export namespace SessionCompaction {
 
   // Collect tool parts eligible for pruning (those beyond the PRUNE_PROTECT token budget)
   // Returns { toPrune, pruned, total } from a backwards scan starting at msgIndex.
-  function collectPruneCandidates(
-    msgs: MessageV2.WithParts[],
-  ): { toPrune: MessageV2.ToolPart[]; pruned: number; total: number } {
+  function collectPruneCandidates(msgs: MessageV2.WithParts[]): {
+    toPrune: MessageV2.ToolPart[]
+    pruned: number
+    total: number
+  } {
     const state = { toPrune: [] as MessageV2.ToolPart[], total: 0, pruned: 0 }
     let turns = 0
 
@@ -227,8 +229,7 @@ When constructing the summary, try to stick to this template:
     const text =
       (overflow
         ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
-        : "") +
-      "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+        : "") + "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
     await Session.updatePart({
       id: PartID.ascending(),
       messageID: continueMsg.id,

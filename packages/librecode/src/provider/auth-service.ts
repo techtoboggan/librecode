@@ -96,18 +96,21 @@ export namespace ProviderAuthService {
     const s = await state()
     const result: Record<string, Method[]> = {}
     for (const [key, value] of Object.entries(s.methods)) {
-      result[key] = value.methods.map((m): Method => ({
-        type: m.type as "oauth" | "api",
-        label: m.label,
-        ...(m.prompts?.length
-          ? {
-              prompts: m.prompts.map((p) => {
-                if (p.type === "text") return { type: "text" as const, key: p.key, message: p.message, placeholder: p.placeholder }
-                return { type: "select" as const, key: p.key, message: p.message, options: p.options }
-              }),
-            }
-          : {}),
-      }))
+      result[key] = value.methods.map(
+        (m): Method => ({
+          type: m.type as "oauth" | "api",
+          label: m.label,
+          ...(m.prompts?.length
+            ? {
+                prompts: m.prompts.map((p) => {
+                  if (p.type === "text")
+                    return { type: "text" as const, key: p.key, message: p.message, placeholder: p.placeholder }
+                  return { type: "select" as const, key: p.key, message: p.message, options: p.options }
+                }),
+              }
+            : {}),
+        }),
+      )
     }
     return result
   }
@@ -128,11 +131,7 @@ export namespace ProviderAuthService {
     }
   }
 
-  export async function callback(input: {
-    providerID: ProviderID
-    method: number
-    code?: string
-  }): Promise<void> {
+  export async function callback(input: { providerID: ProviderID; method: number; code?: string }): Promise<void> {
     const s = await state()
     const match = s.pending.get(input.providerID)
     if (!match) throw new OauthMissing({ providerID: input.providerID })
@@ -161,10 +160,7 @@ export namespace ProviderAuthService {
     }
   }
 
-  async function tryCustomAuthorize(
-    providerID: ProviderID,
-    inputs: Record<string, string>,
-  ): Promise<boolean> {
+  async function tryCustomAuthorize(providerID: ProviderID, inputs: Record<string, string>): Promise<boolean> {
     const s = await state()
     const hook = s.methods[providerID]
     if (!hook) return false

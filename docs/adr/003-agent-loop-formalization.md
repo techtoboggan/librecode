@@ -60,31 +60,31 @@ type AgentState =
   | { type: "exit"; reason: ExitReason }
 
 type ExitReason =
-  | "complete"           // Model finished naturally
-  | "abort"              // User cancelled
-  | "error"              // Unrecoverable error
-  | "structured_output"  // JSON schema result captured
-  | "compaction_failed"  // Context still too large after compaction
-  | "blocked"            // Permission denied
+  | "complete" // Model finished naturally
+  | "abort" // User cancelled
+  | "error" // Unrecoverable error
+  | "structured_output" // JSON schema result captured
+  | "compaction_failed" // Context still too large after compaction
+  | "blocked" // Permission denied
 
 type Transition = (state: AgentState, ctx: AgentContext) => Promise<AgentState>
 ```
 
 ## Transition Table
 
-| From | To | Condition |
-|------|----|-----------|
-| initialize | route | Messages loaded, model validated |
-| initialize | exit | Abort signal, no lastUser |
-| route | subtask | Pending subtask task found |
-| route | compaction | Pending compaction task found |
-| route | process | No pending tasks |
-| route | exit | Last assistant finished (not tool-calls) and came before lastUser |
-| subtask | initialize | Task executed, continue loop |
-| compaction | initialize | Compaction succeeded |
-| compaction | exit | Compaction returned "stop" |
-| process | initialize | Processor returned "continue" or "compact" |
-| process | exit | Processor returned "stop", structured output captured, or format error |
+| From       | To         | Condition                                                              |
+| ---------- | ---------- | ---------------------------------------------------------------------- |
+| initialize | route      | Messages loaded, model validated                                       |
+| initialize | exit       | Abort signal, no lastUser                                              |
+| route      | subtask    | Pending subtask task found                                             |
+| route      | compaction | Pending compaction task found                                          |
+| route      | process    | No pending tasks                                                       |
+| route      | exit       | Last assistant finished (not tool-calls) and came before lastUser      |
+| subtask    | initialize | Task executed, continue loop                                           |
+| compaction | initialize | Compaction succeeded                                                   |
+| compaction | exit       | Compaction returned "stop"                                             |
+| process    | initialize | Processor returned "continue" or "compact"                             |
+| process    | exit       | Processor returned "stop", structured output captured, or format error |
 
 ## Implementation Approach
 
@@ -100,11 +100,13 @@ This gives us the formalization without the rewrite risk.
 ## Consequences
 
 ### Positive
+
 - Clear documentation of all states and transitions
 - State events enable debugging ("why did the agent stop?")
 - Foundation for future extensions (planning mode, review mode)
 - Testable state transitions
 
 ### Negative
+
 - The actual loop code still lives in prompt.ts (full extraction deferred)
 - Two representations (code + state machine) must stay in sync

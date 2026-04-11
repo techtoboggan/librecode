@@ -12,9 +12,16 @@ import { Instance } from "../../../project/instance"
 import { Installation } from "../../../installation"
 import { Bus } from "../../../bus"
 import {
-  isMcpConfigured, isMcpRemote, getAuthStatusIcon, getAuthStatusText,
-  selectOAuthServer, confirmReauthIfNeeded, collectOAuthConfig, resolveAddConfigPath,
-  addMcpToConfig, printDebugTokenInfo,
+  isMcpConfigured,
+  isMcpRemote,
+  getAuthStatusIcon,
+  getAuthStatusText,
+  selectOAuthServer,
+  confirmReauthIfNeeded,
+  collectOAuthConfig,
+  resolveAddConfigPath,
+  addMcpToConfig,
+  printDebugTokenInfo,
 } from "./helpers"
 
 export const McpCommand = cmd({
@@ -22,8 +29,11 @@ export const McpCommand = cmd({
   describe: "manage MCP (Model Context Protocol) servers",
   builder: (yargs) =>
     yargs
-      .command(McpAddCommand).command(McpListCommand).command(McpAuthCommand)
-      .command(McpLogoutCommand).command(McpDebugCommand)
+      .command(McpAddCommand)
+      .command(McpListCommand)
+      .command(McpAuthCommand)
+      .command(McpLogoutCommand)
+      .command(McpDebugCommand)
       .demandCommand(),
   async handler() {},
 })
@@ -59,7 +69,10 @@ export const McpListCommand = cmd({
 })
 
 function buildServerStatusLine(
-  name: string, serverConfig: Config.Mcp, status: MCP.ServerStatus | undefined, hasStoredTokens: boolean,
+  name: string,
+  serverConfig: Config.Mcp,
+  status: MCP.ServerStatus | undefined,
+  hasStoredTokens: boolean,
 ): string {
   const hasOAuth = isMcpRemote(serverConfig) && !!serverConfig.oauth
   let statusIcon = "○"
@@ -67,16 +80,23 @@ function buildServerStatusLine(
   let hint = ""
 
   if (status?.status === "connected") {
-    statusIcon = "✓"; statusText = "connected"
+    statusIcon = "✓"
+    statusText = "connected"
     if (hasOAuth && hasStoredTokens) hint = " (OAuth)"
   } else if (status?.status === "disabled") {
-    statusIcon = "○"; statusText = "disabled"
+    statusIcon = "○"
+    statusText = "disabled"
   } else if (status?.status === "needs_auth") {
-    statusIcon = "⚠"; statusText = "needs authentication"
+    statusIcon = "⚠"
+    statusText = "needs authentication"
   } else if (status?.status === "needs_client_registration") {
-    statusIcon = "✗"; statusText = "needs client registration"; hint = "\n    " + status.error
+    statusIcon = "✗"
+    statusText = "needs client registration"
+    hint = "\n    " + status.error
   } else if (status?.status === "failed") {
-    statusIcon = "✗"; statusText = "failed"; hint = "\n    " + (status as any).error
+    statusIcon = "✗"
+    statusText = "failed"
+    hint = "\n    " + (status as any).error
   }
 
   const typeHint = serverConfig.type === "remote" ? serverConfig.url : serverConfig.command.join(" ")
@@ -104,7 +124,9 @@ export const McpAuthListCommand = cmd({
         }
         for (const [name, cfg] of oauthServers) {
           const authStatus = await MCP.getAuthStatus(name)
-          prompts.log.info(`${getAuthStatusIcon(authStatus)} ${name} ${UI.Style.TEXT_DIM}${getAuthStatusText(authStatus)}\n    ${UI.Style.TEXT_DIM}${cfg.url}`)
+          prompts.log.info(
+            `${getAuthStatusIcon(authStatus)} ${name} ${UI.Style.TEXT_DIM}${getAuthStatusText(authStatus)}\n    ${UI.Style.TEXT_DIM}${cfg.url}`,
+          )
         }
         prompts.outro(`${oauthServers.length} OAuth-capable server(s)`)
       },
@@ -208,7 +230,7 @@ export const McpLogoutCommand = cmd({
           prompts.outro("Done")
           return
         }
-        const serverName = args.name ?? await selectLogoutServer(serverNames, credentials)
+        const serverName = args.name ?? (await selectLogoutServer(serverNames, credentials))
         if (!credentials[serverName]) {
           prompts.log.error(`No credentials found for: ${serverName}`)
           prompts.outro("Done")
@@ -249,7 +271,10 @@ export const McpAddCommand = cmd({
         prompts.intro("Add MCP server")
         const configPath = await resolveAddConfigPath()
 
-        const name = await prompts.text({ message: "Enter MCP server name", validate: (x) => (x && x.length > 0 ? undefined : "Required") })
+        const name = await prompts.text({
+          message: "Enter MCP server name",
+          validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+        })
         if (prompts.isCancel(name)) throw new UI.CancelledError()
 
         const type = await prompts.select({
@@ -277,7 +302,7 @@ export const McpAddCommand = cmd({
         const url = await prompts.text({
           message: "Enter MCP server URL",
           placeholder: "e.g., https://example.com/mcp",
-          validate: (x) => (!x || x.length === 0) ? "Required" : (!URL.canParse(x) ? "Invalid URL" : undefined),
+          validate: (x) => (!x || x.length === 0 ? "Required" : !URL.canParse(x) ? "Invalid URL" : undefined),
         })
         if (prompts.isCancel(url)) throw new UI.CancelledError()
 
@@ -293,7 +318,8 @@ export const McpAddCommand = cmd({
 export const McpDebugCommand = cmd({
   command: "debug <name>",
   describe: "debug OAuth connection for an MCP server",
-  builder: (yargs) => yargs.positional("name", { describe: "name of the MCP server", type: "string", demandOption: true }),
+  builder: (yargs) =>
+    yargs.positional("name", { describe: "name of the MCP server", type: "string", demandOption: true }),
   async handler(args) {
     await Instance.provide({
       directory: process.cwd(),
@@ -303,9 +329,21 @@ export const McpDebugCommand = cmd({
         const config = await Config.get()
         const serverName = args.name
         const serverConfig = config.mcp?.[serverName]
-        if (!serverConfig) { prompts.log.error(`MCP server not found: ${serverName}`); prompts.outro("Done"); return }
-        if (!isMcpRemote(serverConfig)) { prompts.log.error(`MCP server ${serverName} is not a remote server`); prompts.outro("Done"); return }
-        if (serverConfig.oauth === false) { prompts.log.warn(`MCP server ${serverName} has OAuth explicitly disabled`); prompts.outro("Done"); return }
+        if (!serverConfig) {
+          prompts.log.error(`MCP server not found: ${serverName}`)
+          prompts.outro("Done")
+          return
+        }
+        if (!isMcpRemote(serverConfig)) {
+          prompts.log.error(`MCP server ${serverName} is not a remote server`)
+          prompts.outro("Done")
+          return
+        }
+        if (serverConfig.oauth === false) {
+          prompts.log.warn(`MCP server ${serverName} has OAuth explicitly disabled`)
+          prompts.outro("Done")
+          return
+        }
 
         prompts.log.info(`Server: ${serverName}`)
         prompts.log.info(`URL: ${serverConfig.url}`)
@@ -338,7 +376,11 @@ async function debugHttpProbe(
     body: JSON.stringify({
       jsonrpc: "2.0",
       method: "initialize",
-      params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "librecode-debug", version: Installation.VERSION } },
+      params: {
+        protocolVersion: "2024-11-05",
+        capabilities: {},
+        clientInfo: { name: "librecode-debug", version: Installation.VERSION },
+      },
       id: 1,
     }),
   })
@@ -364,7 +406,8 @@ async function handleUnauthorizedDebug(
   prompts.log.warn("Server returned 401 Unauthorized")
   const oauthConfig = typeof serverConfig.oauth === "object" ? serverConfig.oauth : undefined
   const authProvider = new McpOAuthProvider(
-    serverName, serverConfig.url,
+    serverName,
+    serverConfig.url,
     { clientId: oauthConfig?.clientId, clientSecret: oauthConfig?.clientSecret, scope: oauthConfig?.scope },
     { onRedirect: async () => {} },
   )
@@ -379,7 +422,11 @@ async function handleUnauthorizedDebug(
     if (error instanceof UnauthorizedError) {
       prompts.log.info(`OAuth flow triggered: ${error.message}`)
       const clientInfo = await authProvider.clientInformation()
-      prompts.log.info(clientInfo ? `Client ID available: ${clientInfo.client_id}` : "No client ID - dynamic registration will be attempted")
+      prompts.log.info(
+        clientInfo
+          ? `Client ID available: ${clientInfo.client_id}`
+          : "No client ID - dynamic registration will be attempted",
+      )
     } else {
       prompts.log.error(`Connection error: ${error instanceof Error ? error.message : String(error)}`)
     }
@@ -392,5 +439,7 @@ async function handleSuccessDebug(response: Response): Promise<void> {
   try {
     const json = JSON.parse(body)
     if (json.result?.serverInfo) prompts.log.info(`Server info: ${JSON.stringify(json.result.serverInfo)}`)
-  } catch { /* not JSON */ }
+  } catch {
+    /* not JSON */
+  }
 }

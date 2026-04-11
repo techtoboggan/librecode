@@ -178,10 +178,7 @@ export namespace AccountService {
     return fetchOrgs(resolved.account.url, resolved.accessToken)
   }
 
-  export async function config(
-    accountID: AccountID,
-    orgID: OrgID,
-  ): Promise<Record<string, unknown> | undefined> {
+  export async function config(accountID: AccountID, orgID: OrgID): Promise<Record<string, unknown> | undefined> {
     const resolved = await resolveAccessAsync(accountID)
     if (!resolved) return undefined
 

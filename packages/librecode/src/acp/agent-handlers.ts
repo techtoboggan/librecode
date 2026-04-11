@@ -5,14 +5,15 @@ import { Filesystem } from "../util/filesystem"
 import { Hash } from "../util/hash"
 import { z } from "zod"
 import { Todo } from "@/session/todo"
-import type { Event, OpencodeClient, SessionMessageResponse, ToolPart, ToolStateCompleted, ToolStateError } from "@librecode/sdk/v2"
-import {
-  toToolKind,
-  toLocations,
-  buildEditDiffContent,
-  getNewContent,
-  getContextLimit,
-} from "./agent-types"
+import type {
+  Event,
+  OpencodeClient,
+  SessionMessageResponse,
+  ToolPart,
+  ToolStateCompleted,
+  ToolStateError,
+} from "@librecode/sdk/v2"
+import { toToolKind, toLocations, buildEditDiffContent, getNewContent, getContextLimit } from "./agent-types"
 import type { AssistantMessage } from "@librecode/sdk/v2"
 import type { ProviderID } from "../provider/schema"
 import type { ModelID } from "../provider/schema"
@@ -534,7 +535,10 @@ export class AgentHandlers {
       await this.connection
         .sessionUpdate({
           sessionId,
-          update: { sessionUpdate: messageChunk, content: { type: "resource_link", uri: url, name: filename, mimeType: mime } },
+          update: {
+            sessionUpdate: messageChunk,
+            content: { type: "resource_link", uri: url, name: filename, mimeType: mime },
+          },
         })
         .catch((err) => {
           log.error("failed to send resource_link to ACP", { error: err })

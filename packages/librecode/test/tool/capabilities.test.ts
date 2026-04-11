@@ -12,12 +12,27 @@ import { ToolProfiles } from "../../src/tool/capabilities"
 describe("TOOL_CAPABILITIES", () => {
   test("every built-in tool has capabilities declared", () => {
     const expectedTools = [
-      "read", "glob", "list", "grep", "codesearch", "lsp",
-      "edit", "write", "multiedit", "apply_patch",
+      "read",
+      "glob",
+      "list",
+      "grep",
+      "codesearch",
+      "lsp",
+      "edit",
+      "write",
+      "multiedit",
+      "apply_patch",
       "bash",
-      "webfetch", "websearch",
-      "plan_enter", "plan_exit", "question", "todowrite", "todoread", "invalid",
-      "task", "skill",
+      "webfetch",
+      "websearch",
+      "plan_enter",
+      "plan_exit",
+      "question",
+      "todowrite",
+      "todoread",
+      "invalid",
+      "task",
+      "skill",
       "batch",
     ]
     for (const tool of expectedTools) {

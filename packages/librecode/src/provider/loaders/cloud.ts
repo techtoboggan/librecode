@@ -13,7 +13,15 @@ import type { CustomLoader } from "./types"
 
 const US_PREFIXED_MODELS = ["nova-micro", "nova-lite", "nova-pro", "nova-premier", "nova-2", "claude", "deepseek"]
 const EU_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"]
-const EU_PREFIXED_REGIONS = ["eu-west-1", "eu-west-2", "eu-west-3", "eu-north-1", "eu-central-1", "eu-south-1", "eu-south-2"]
+const EU_PREFIXED_REGIONS = [
+  "eu-west-1",
+  "eu-west-2",
+  "eu-west-3",
+  "eu-north-1",
+  "eu-central-1",
+  "eu-south-1",
+  "eu-south-2",
+]
 const AP_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "nova-pro"]
 const AP_AUSTRALIA_MODELS = ["anthropic.claude-sonnet-4-5", "anthropic.claude-haiku"]
 const CROSS_REGION_PREFIXES = ["global.", "us.", "eu.", "jp.", "apac.", "au."]
@@ -50,10 +58,14 @@ function applyBedrockRegionPrefix(modelID: string, region: string): string {
   if (CROSS_REGION_PREFIXES.some((prefix) => modelID.startsWith(prefix))) return modelID
   const regionPrefix = region.split("-")[0]
   switch (regionPrefix) {
-    case "us": return applyUsPrefix(modelID, region)
-    case "eu": return applyEuPrefix(modelID, region)
-    case "ap": return applyApPrefix(modelID, region)
-    default: return modelID
+    case "us":
+      return applyUsPrefix(modelID, region)
+    case "eu":
+      return applyEuPrefix(modelID, region)
+    case "ap":
+      return applyApPrefix(modelID, region)
+    default:
+      return modelID
   }
 }
 
@@ -110,7 +122,10 @@ export const amazonBedrock: CustomLoader = async () => {
     autoload: true,
     options: providerOptions,
     async getModel(sdk: unknown, modelID: string, options?: Record<string, unknown>) {
-      const prefixedModelID = applyBedrockRegionPrefix(modelID, options?.region as string | undefined ?? defaultRegion)
+      const prefixedModelID = applyBedrockRegionPrefix(
+        modelID,
+        (options?.region as string | undefined) ?? defaultRegion,
+      )
       return (sdk as { languageModel: (id: string) => unknown }).languageModel(prefixedModelID)
     },
   }
@@ -118,10 +133,7 @@ export const amazonBedrock: CustomLoader = async () => {
 
 export const googleVertex: CustomLoader = async (provider) => {
   const project =
-    provider.options?.project ??
-    Env.get("GOOGLE_CLOUD_PROJECT") ??
-    Env.get("GCP_PROJECT") ??
-    Env.get("GCLOUD_PROJECT")
+    provider.options?.project ?? Env.get("GOOGLE_CLOUD_PROJECT") ?? Env.get("GCP_PROJECT") ?? Env.get("GCLOUD_PROJECT")
 
   const location = String(
     provider.options?.location ??

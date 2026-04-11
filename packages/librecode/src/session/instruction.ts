@@ -155,10 +155,7 @@ export namespace InstructionPrompt {
 
   function isLoadedReadPart(part: MessageV2.Part): boolean {
     return (
-      part.type === "tool" &&
-      part.tool === "read" &&
-      part.state.status === "completed" &&
-      !part.state.time.compacted
+      part.type === "tool" && part.tool === "read" && part.state.status === "completed" && !part.state.time.compacted
     )
   }
 

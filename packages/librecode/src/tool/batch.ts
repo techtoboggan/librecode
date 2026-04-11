@@ -8,7 +8,10 @@ const FILTERED_FROM_SUGGESTIONS = new Set(["invalid", "patch", ...DISALLOWED])
 
 type RegistryTool = Awaited<ReturnType<typeof import("./registry").ToolRegistry.tools>>[number]
 
-function validateBatchCall(call: { tool: string; parameters: unknown }, toolMap: Map<string, RegistryTool>): RegistryTool {
+function validateBatchCall(
+  call: { tool: string; parameters: unknown },
+  toolMap: Map<string, RegistryTool>,
+): RegistryTool {
   if (DISALLOWED.has(call.tool)) {
     throw new Error(
       `Tool '${call.tool}' is not allowed in batch. Disallowed tools: ${Array.from(DISALLOWED).join(", ")}`,

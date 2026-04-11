@@ -64,10 +64,7 @@ interface NodePermissions {
   alwaysEntry: string | null
 }
 
-async function processCommandNode(
-  node: import("web-tree-sitter").Node,
-  cwd: string,
-): Promise<NodePermissions> {
+async function processCommandNode(node: import("web-tree-sitter").Node, cwd: string): Promise<NodePermissions> {
   const commandText = node.parent?.type === "redirected_statement" ? node.parent.text : node.text
   const command = extractCommandTokens(node)
   const dirs = FILE_COMMANDS.has(command[0]) ? await collectFileCommandDirs(command, cwd) : []
@@ -130,13 +127,25 @@ async function spawnAndWait(
   let exited = false
 
   const kill = () => Shell.killTree(proc, { exited: () => exited })
-  if (abort.aborted) { aborted = true; await kill() }
+  if (abort.aborted) {
+    aborted = true
+    await kill()
+  }
 
-  const abortHandler = () => { aborted = true; void kill() }
+  const abortHandler = () => {
+    aborted = true
+    void kill()
+  }
   abort.addEventListener("abort", abortHandler, { once: true })
-  const timeoutTimer = setTimeout(() => { timedOut = true; void kill() }, timeout + 100)
+  const timeoutTimer = setTimeout(() => {
+    timedOut = true
+    void kill()
+  }, timeout + 100)
 
-  const append = (chunk: Buffer) => { output += chunk.toString(); onChunk(chunk) }
+  const append = (chunk: Buffer) => {
+    output += chunk.toString()
+    onChunk(chunk)
+  }
   proc.stdout?.on("data", append)
   proc.stderr?.on("data", append)
 
@@ -145,8 +154,16 @@ async function spawnAndWait(
       clearTimeout(timeoutTimer)
       abort.removeEventListener("abort", abortHandler)
     }
-    proc.once("exit", () => { exited = true; cleanup(); resolve() })
-    proc.once("error", (error) => { exited = true; cleanup(); reject(error) })
+    proc.once("exit", () => {
+      exited = true
+      cleanup()
+      resolve()
+    })
+    proc.once("error", (error) => {
+      exited = true
+      cleanup()
+      reject(error)
+    })
   })
 
   return { output, exitCode: proc.exitCode, timedOut, aborted }

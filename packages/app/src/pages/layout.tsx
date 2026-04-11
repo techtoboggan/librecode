@@ -1,12 +1,4 @@
-import {
-  createEffect,
-  createMemo,
-  on,
-  onCleanup,
-  onMount,
-  ParentProps,
-  Show,
-} from "solid-js"
+import { createEffect, createMemo, on, onCleanup, onMount, ParentProps, Show } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
 import { useGlobalSync } from "@/context/global-sync"
@@ -42,12 +34,7 @@ import { DebugBar } from "@/components/debug-bar"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage } from "@/context/language"
-import {
-  effectiveWorkspaceOrder,
-  errorMessage,
-  sortedRootSessions,
-  workspaceKey,
-} from "./layout/helpers"
+import { effectiveWorkspaceOrder, errorMessage, sortedRootSessions, workspaceKey } from "./layout/helpers"
 import {
   collectNewSessionDeepLinks,
   collectOpenProjectDeepLinks,
@@ -758,18 +745,60 @@ export default function Layout(props: ParentProps) {
 
   // ---- Sidebar contexts factory ----
 
-  const { sidebarProject, handleWorkspaceDragStart, handleWorkspaceDragOver, handleWorkspaceDragEnd, workspaceSidebarCtx, projectSidebarCtx, sidebarPanelCtx } =
-    createSidebarContexts({
-      params, store, setStore, globalSDK, globalSync, layout, language, notification, providers, aim,
-      currentDir, currentProject, sidebarHovering, sidebarExpanded, hoverProjectData, state,
-      setHoverSession, clearHoverProjectSoon, navigateWithSidebarReset,
-      prefetchSession: prefetch.prefetchSession,
-      archiveSession, workspaceName, renameWorkspace, renameProject, closeProject,
-      showEditProjectDialog, toggleProjectWorkspaces, createWorkspace, connectProvider, navigateToProject,
-      sortNow, InlineEditor, editorOpen, openEditor, closeEditor, setEditor, isBusy, workspaceLabel,
-      deleteWorkspace, resetWorkspace, currentSessions,
-      setScrollContainerRef: (el: HTMLDivElement | undefined, mobile?: boolean) => { if (!mobile) scrollContainerRef = el },
-    })
+  const {
+    sidebarProject,
+    handleWorkspaceDragStart,
+    handleWorkspaceDragOver,
+    handleWorkspaceDragEnd,
+    workspaceSidebarCtx,
+    projectSidebarCtx,
+    sidebarPanelCtx,
+  } = createSidebarContexts({
+    params,
+    store,
+    setStore,
+    globalSDK,
+    globalSync,
+    layout,
+    language,
+    notification,
+    providers,
+    aim,
+    currentDir,
+    currentProject,
+    sidebarHovering,
+    sidebarExpanded,
+    hoverProjectData,
+    state,
+    setHoverSession,
+    clearHoverProjectSoon,
+    navigateWithSidebarReset,
+    prefetchSession: prefetch.prefetchSession,
+    archiveSession,
+    workspaceName,
+    renameWorkspace,
+    renameProject,
+    closeProject,
+    showEditProjectDialog,
+    toggleProjectWorkspaces,
+    createWorkspace,
+    connectProvider,
+    navigateToProject,
+    sortNow,
+    InlineEditor,
+    editorOpen,
+    openEditor,
+    closeEditor,
+    setEditor,
+    isBusy,
+    workspaceLabel,
+    deleteWorkspace,
+    resetWorkspace,
+    currentSessions,
+    setScrollContainerRef: (el: HTMLDivElement | undefined, mobile?: boolean) => {
+      if (!mobile) scrollContainerRef = el
+    },
+  })
 
   // ---- Commands registration ----
 

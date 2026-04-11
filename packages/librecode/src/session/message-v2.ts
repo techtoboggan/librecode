@@ -274,10 +274,7 @@ const part = (row: typeof PartTable.$inferSelect) =>
   }) as MessageV2.Part
 
 const older = (row: Cursor) =>
-  or(
-    lt(MessageTable.time_created, row.time),
-    and(eq(MessageTable.time_created, row.time), lt(MessageTable.id, row.id)),
-  )
+  or(lt(MessageTable.time_created, row.time), and(eq(MessageTable.time_created, row.time), lt(MessageTable.id, row.id)))
 
 async function hydrate(rows: (typeof MessageTable.$inferSelect)[]) {
   const ids = rows.map((row) => row.id)
@@ -522,7 +519,10 @@ function buildMediaInjectionMessage(media: Array<{ mime: string; url: string }>)
 function shouldSkipAssistantMessage(msg: _WithParts & { info: _Assistant }): boolean {
   if (!msg.info.error) return false
   // Keep aborted messages that have content beyond step-start/reasoning
-  if (MessageV2.AbortedError.isInstance(msg.info.error) && msg.parts.some((p) => p.type !== "step-start" && p.type !== "reasoning")) {
+  if (
+    MessageV2.AbortedError.isInstance(msg.info.error) &&
+    msg.parts.some((p) => p.type !== "step-start" && p.type !== "reasoning")
+  ) {
     return false
   }
   return true
@@ -567,7 +567,14 @@ export function toModelMessages(
     if (msg.info.role === "user") {
       result.push(buildUserMessage(msg as _WithParts & { info: { role: "user"; id: string } }, options))
     } else if (msg.info.role === "assistant") {
-      processAssistantMessage(msg as _WithParts & { info: _Assistant }, model, result, toolNames, supportsMediaInToolResults, options)
+      processAssistantMessage(
+        msg as _WithParts & { info: _Assistant },
+        model,
+        result,
+        toolNames,
+        supportsMediaInToolResults,
+        options,
+      )
     }
   }
 
@@ -675,11 +682,7 @@ export async function filterCompacted(stream: AsyncIterable<MessageV2.WithParts>
   const completed = new Set<string>()
   for await (const msg of stream) {
     result.push(msg)
-    if (
-      msg.info.role === "user" &&
-      completed.has(msg.info.id) &&
-      msg.parts.some((part) => part.type === "compaction")
-    )
+    if (msg.info.role === "user" && completed.has(msg.info.id) && msg.parts.some((part) => part.type === "compaction"))
       break
     if (msg.info.role === "assistant" && msg.info.summary && msg.info.finish && !msg.info.error)
       completed.add(msg.info.parentID)

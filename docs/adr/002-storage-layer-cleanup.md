@@ -13,14 +13,14 @@ but has accumulated complexity from the opencode era:
 
 ### Current state
 
-| Component | File | Lines | Purpose |
-|-----------|------|-------|---------|
-| DB client | `storage/db.ts` | ~120 | SQLite connection, pragma config, WAL mode |
-| Schema | `storage/schema.ts` | ~50 | Re-exports table definitions |
-| Schema SQL | `storage/schema.sql.ts` | ~30 | SQL table definitions |
-| Storage | `storage/storage.ts` | ~80 | High-level storage operations |
-| JSON migration | `storage/json-migration.ts` | ~200 | One-time JSON→SQLite migration |
-| SQL migrations | `migration/*/migration.sql` | 9 dirs | Drizzle-generated schema changes |
+| Component      | File                        | Lines  | Purpose                                    |
+| -------------- | --------------------------- | ------ | ------------------------------------------ |
+| DB client      | `storage/db.ts`             | ~120   | SQLite connection, pragma config, WAL mode |
+| Schema         | `storage/schema.ts`         | ~50    | Re-exports table definitions               |
+| Schema SQL     | `storage/schema.sql.ts`     | ~30    | SQL table definitions                      |
+| Storage        | `storage/storage.ts`        | ~80    | High-level storage operations              |
+| JSON migration | `storage/json-migration.ts` | ~200   | One-time JSON→SQLite migration             |
+| SQL migrations | `migration/*/migration.sql` | 9 dirs | Drizzle-generated schema changes           |
 
 ### Problems
 
@@ -70,6 +70,7 @@ Existing timestamp-based ones are kept as-is (renaming would break existing inst
 ### 4. Unify migration loading
 
 Remove the dual-path (bundled JSON vs filesystem) in favor of:
+
 - **Production**: Migrations bundled at build time (current LIBRECODE_MIGRATIONS approach, keep)
 - **Development**: Drizzle generates migrations, same as today
 - Remove the runtime filesystem scan — it's only needed for dev, and `drizzle-kit` handles that
@@ -77,15 +78,18 @@ Remove the dual-path (bundled JSON vs filesystem) in favor of:
 ## Consequences
 
 ### Positive
+
 - Simpler startup path (no JSON migration check)
 - Queryable schema version
 - Consistent migration naming going forward
 
 ### Negative
+
 - Users upgrading from very old opencode versions (pre-SQLite) to LibreCode directly
   would lose their data. Mitigation: document upgrade path via opencode first.
 
 ### Implementation order
+
 1. Add `_schema_version` table as a new migration
 2. Remove `json-migration.ts` and startup check
 3. Document new migration naming convention

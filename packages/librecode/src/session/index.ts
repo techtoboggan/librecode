@@ -597,7 +597,7 @@ function buildGlobalListConditions(input?: {
   return conditions
 }
 
-function fetchProjectsForRows(rows: typeof SessionTable.$inferSelect[]): Map<string, _ProjectInfo> {
+function fetchProjectsForRows(rows: (typeof SessionTable.$inferSelect)[]): Map<string, _ProjectInfo> {
   const ids = [...new Set(rows.map((row) => row.project_id))]
   const projects = new Map<string, _ProjectInfo>()
   if (ids.length === 0) return projects
@@ -844,7 +844,14 @@ function extractTokenCounts(
   )
 
   return {
-    total: computeTotalTokens(model, adjustedInput, outputTokens, cacheReadInputTokens, cacheWriteInputTokens, usage.totalTokens),
+    total: computeTotalTokens(
+      model,
+      adjustedInput,
+      outputTokens,
+      cacheReadInputTokens,
+      cacheWriteInputTokens,
+      usage.totalTokens,
+    ),
     input: adjustedInput,
     output: outputTokens,
     reasoning: reasoningTokens,

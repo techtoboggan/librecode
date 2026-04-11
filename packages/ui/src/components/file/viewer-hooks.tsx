@@ -65,7 +65,10 @@ export type ViewerConfig = {
 
 export type Viewer = ReturnType<typeof useFileViewer>
 
-export type ModeAdapter = Omit<ViewerConfig, "enableLineSelection" | "selectedLines" | "commentedLines" | "onLineSelectionEnd">
+export type ModeAdapter = Omit<
+  ViewerConfig,
+  "enableLineSelection" | "selectedLines" | "commentedLines" | "onLineSelectionEnd"
+>
 
 export type ModeConfig = {
   enableLineSelection: () => boolean
@@ -455,7 +458,10 @@ export function scrollParent(el: HTMLElement): HTMLElement | undefined {
   return undefined
 }
 
-export function createLocalVirtualStrategy(host: () => HTMLDivElement | undefined, enabled: () => boolean): VirtualStrategy {
+export function createLocalVirtualStrategy(
+  host: () => HTMLDivElement | undefined,
+  enabled: () => boolean,
+): VirtualStrategy {
   let virtualizer: Virtualizer | undefined
   let root: Document | HTMLElement | undefined
 

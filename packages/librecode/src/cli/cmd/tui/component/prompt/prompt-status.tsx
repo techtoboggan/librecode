@@ -25,7 +25,8 @@ export function RetryStatusDisplay(props: RetryStatusDisplayProps) {
   const message = createMemo(() => {
     const r = retry()
     if (!r) return undefined
-    if (r.message.includes("exceeded your current quota") && r.message.includes("gemini")) return "gemini is way too hot right now"
+    if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
+      return "gemini is way too hot right now"
     if (r.message.length > 80) return r.message.slice(0, 80) + "..."
     return r.message
   })

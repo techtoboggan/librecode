@@ -327,7 +327,10 @@ export namespace MCP {
 
   type CreateResult = { mcpClient: MCPClient | undefined; status: Status }
 
-  function buildRemoteAuthProvider(key: string, mcp: Extract<Config.Mcp, { type: "remote" }>): McpOAuthProvider | undefined {
+  function buildRemoteAuthProvider(
+    key: string,
+    mcp: Extract<Config.Mcp, { type: "remote" }>,
+  ): McpOAuthProvider | undefined {
     if (mcp.oauth === false) return undefined
     const oauthConfig = typeof mcp.oauth === "object" ? mcp.oauth : undefined
     return new McpOAuthProvider(
@@ -346,7 +349,10 @@ export namespace MCP {
     )
   }
 
-  function classifyAuthError(lastError: Error, authProvider: McpOAuthProvider | undefined): "registration" | "needs_auth" | null {
+  function classifyAuthError(
+    lastError: Error,
+    authProvider: McpOAuthProvider | undefined,
+  ): "registration" | "needs_auth" | null {
     if (!authProvider) return null
     const isAuthError = lastError instanceof UnauthorizedError || lastError.message.includes("OAuth")
     if (!isAuthError) return null
@@ -403,7 +409,8 @@ export namespace MCP {
       const authClass = classifyAuthError(lastError, authProvider)
       if (authClass !== null) {
         log.info("mcp server requires authentication", { key, transport: transportName })
-        const status = authClass === "registration" ? handleRegistrationError(key) : handleNeedsAuthError(key, transport)
+        const status =
+          authClass === "registration" ? handleRegistrationError(key) : handleNeedsAuthError(key, transport)
         return { connected: false, status, stop: true }
       }
       log.debug("transport connection failed", { key, transport: transportName, url, error: lastError.message })

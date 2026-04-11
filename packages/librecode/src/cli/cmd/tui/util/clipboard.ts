@@ -112,7 +112,11 @@ export namespace Clipboard {
   }
 
   async function pipeToProc(cmd: string[], args: string[], text: string): Promise<void> {
-    const proc = Process.spawn([cmd[0], ...cmd.slice(1), ...args], { stdin: "pipe", stdout: "ignore", stderr: "ignore" })
+    const proc = Process.spawn([cmd[0], ...cmd.slice(1), ...args], {
+      stdin: "pipe",
+      stdout: "ignore",
+      stderr: "ignore",
+    })
     if (!proc.stdin) return
     proc.stdin.write(text)
     proc.stdin.end()

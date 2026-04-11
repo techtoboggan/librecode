@@ -227,14 +227,11 @@ export function createSidebarContexts(deps: SidebarContextDeps): SidebarContexts
     InlineEditor,
     isBusy,
     workspaceExpanded: (directory, local) => store.workspaceExpanded[directory] ?? local,
-    setWorkspaceExpanded: (directory, value) => setStore("workspaceExpanded" as never, directory as never, value as never),
+    setWorkspaceExpanded: (directory, value) =>
+      setStore("workspaceExpanded" as never, directory as never, value as never),
     showResetWorkspaceDialog: (root, directory) =>
       dialog.show(() => (
-        <DialogResetWorkspace
-          root={root}
-          directory={directory}
-          ctx={{ globalSDK, language, resetWorkspace }}
-        />
+        <DialogResetWorkspace root={root} directory={directory} ctx={{ globalSDK, language, resetWorkspace }} />
       )),
     showDeleteWorkspaceDialog: (root, directory) =>
       dialog.show(() => (

@@ -141,12 +141,8 @@ export function createPrefetchController(deps: PrefetchDeps): PrefetchController
               for (const message of items) {
                 const currentParts = store.part[message.info.id] ?? []
                 const mergedParts = mergeByID(
-                  currentParts.filter(
-                    (item): item is (typeof currentParts)[number] & { id: string } => !!item?.id,
-                  ),
-                  message.parts.filter(
-                    (item): item is (typeof message.parts)[number] & { id: string } => !!item?.id,
-                  ),
+                  currentParts.filter((item): item is (typeof currentParts)[number] & { id: string } => !!item?.id),
+                  message.parts.filter((item): item is (typeof message.parts)[number] & { id: string } => !!item?.id),
                 )
                 setStore("part", message.info.id, reconcile(mergedParts, { key: "id" }))
               }

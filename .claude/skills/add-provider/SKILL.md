@@ -12,32 +12,36 @@ You are adding a new LLM provider called **$ARGUMENTS** to LibreCode.
 ## Step 1: Determine Provider Type
 
 Read the provider guide for context:
+
 - `docs/providers.md` — Full guide with templates
 - `docs/adr/004-provider-auth-prompts.md` — Design decision for auth prompts
 
 Ask yourself: what kind of provider is this?
 
-| Type | When to use | Template |
-|------|------------|---------|
-| **Local Server** | Runs on localhost, has /v1/models endpoint | Template B (prompts + discovery) |
-| **Cloud API Key** | Remote API, just needs an API key | Template A (simple API key) |
-| **Cloud OAuth** | Requires browser-based login | Template C (OAuth flow) |
+| Type              | When to use                                | Template                         |
+| ----------------- | ------------------------------------------ | -------------------------------- |
+| **Local Server**  | Runs on localhost, has /v1/models endpoint | Template B (prompts + discovery) |
+| **Cloud API Key** | Remote API, just needs an API key          | Template A (simple API key)      |
+| **Cloud OAuth**   | Requires browser-based login               | Template C (OAuth flow)          |
 
 ## Step 2: Read Reference Implementations
 
 Before writing any code, read these files to understand the patterns:
 
 **For local servers (most common case):**
+
 ```
 packages/librecode/src/plugin/litellm.ts
 ```
 
 **For OAuth providers:**
+
 ```
 packages/librecode/src/plugin/codex.ts
 ```
 
 **For the type definitions:**
+
 ```
 packages/plugin/src/index.ts  (AuthHook, PluginInput, Hooks)
 ```
@@ -49,11 +53,13 @@ Create `packages/librecode/src/plugin/$ARGUMENTS.ts`
 ### For Local Servers (LiteLLM-style)
 
 The plugin MUST include:
+
 1. **`prompts`** — At minimum: Server URL field. API Key if the server supports it.
 2. **`authorize`** — Validates the connection by fetching models BEFORE saving credentials.
 3. **`loader`** — Discovers models and registers them with the provider.
 
 Key implementation details:
+
 - Use `AbortController` with a 5-second timeout for all fetch calls
 - Parse stored credentials from the key (format: `url|apiKey`)
 - Fall back to environment variables (e.g., `OLLAMA_BASE_URL`)
@@ -99,6 +105,7 @@ if (!allProviders["$ARGUMENTS"]) {
 Create `packages/librecode/test/plugin/$ARGUMENTS.test.ts`:
 
 Test that:
+
 - Plugin returns valid Hooks with auth defined
 - Provider ID is correct
 - Methods array has the right type and prompts

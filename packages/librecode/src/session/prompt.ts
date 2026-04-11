@@ -31,19 +31,8 @@ import { SessionStatus } from "./status"
 import { Shell } from "@/shell/shell"
 import { getShellArgs } from "./prompt/shell-invocations"
 import { InstructionPrompt } from "./instruction"
-import {
-  PromptInput,
-  LoopInput,
-  ShellInput,
-  CommandInput,
-  STRUCTURED_OUTPUT_DESCRIPTION,
-} from "./prompt-schema"
-import type {
-  LoopControl,
-  ScanResult,
-  NormalStepResult,
-  PartDraft,
-} from "./prompt-schema"
+import { PromptInput, LoopInput, ShellInput, CommandInput, STRUCTURED_OUTPUT_DESCRIPTION } from "./prompt-schema"
+import type { LoopControl, ScanResult, NormalStepResult, PartDraft } from "./prompt-schema"
 import {
   resolvePromptParts,
   createUserMessage,
@@ -165,19 +154,14 @@ export function cancel(sessionID: SessionID) {
 
 // ─── Scan helpers ─────────────────────────────────────────────────────────────
 
-function collectPendingTasks(
-  msg: MessageV2.WithParts,
-): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
+function collectPendingTasks(msg: MessageV2.WithParts): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
   return msg.parts.filter(
     (part): part is MessageV2.CompactionPart | MessageV2.SubtaskPart =>
       part.type === "compaction" || part.type === "subtask",
   )
 }
 
-function updateScanState(
-  msg: MessageV2.WithParts,
-  acc: Omit<ScanResult, "tasks">,
-): void {
+function updateScanState(msg: MessageV2.WithParts, acc: Omit<ScanResult, "tasks">): void {
   if (!acc.lastUser && msg.info.role === "user") acc.lastUser = msg.info as MessageV2.User
   if (!acc.lastAssistant && msg.info.role === "assistant") acc.lastAssistant = msg.info as MessageV2.Assistant
   if (!acc.lastFinished && msg.info.role === "assistant" && msg.info.finish)
@@ -432,12 +416,22 @@ async function runNormalStep(input: {
   const msgs = await insertReminders({ messages: rawMsgs, agent, session })
 
   const processor = await createAssistantProcessor(lastUser, model, agent, sessionID, abort)
-  using _clearInstruction = defer(() => { InstructionPrompt.clear(processor.message.id) })
+  using _clearInstruction = defer(() => {
+    InstructionPrompt.clear(processor.message.id)
+  })
 
   const lastUserMsg = msgs.findLast((m) => m.info.role === "user")
   const bypassAgentCheck = lastUserMsg?.parts.some((p) => p.type === "agent") ?? false
 
-  const tools = await resolveTools({ agent, session, model, tools: lastUser.tools, processor, bypassAgentCheck, messages: msgs })
+  const tools = await resolveTools({
+    agent,
+    session,
+    model,
+    tools: lastUser.tools,
+    processor,
+    bypassAgentCheck,
+    messages: msgs,
+  })
 
   const format = lastUser.format ?? { type: "text" }
 
@@ -477,16 +471,15 @@ async function runNormalStep(input: {
 
 // ─── Loop helpers ─────────────────────────────────────────────────────────────
 
-async function loadSessionModel(
-  lastUser: MessageV2.User,
-  sessionID: SessionID,
-): Promise<Provider.Model> {
+async function loadSessionModel(lastUser: MessageV2.User, sessionID: SessionID): Promise<Provider.Model> {
   return Provider.getModel(lastUser.model.providerID, lastUser.model.modelID).catch((e) => {
     if (Provider.ModelNotFoundError.isInstance(e)) {
       const hint = e.data.suggestions?.length ? ` Did you mean: ${e.data.suggestions.join(", ")}?` : ""
       Bus.publish(Session.Event.Error, {
         sessionID,
-        error: new NamedError.Unknown({ message: `Model not found: ${e.data.providerID}/${e.data.modelID}.${hint}` }).toObject(),
+        error: new NamedError.Unknown({
+          message: `Model not found: ${e.data.providerID}/${e.data.modelID}.${hint}`,
+        }).toObject(),
       })
     }
     throw e
@@ -508,7 +501,12 @@ async function dispatchLoopTask(
   }
 
   const compactResult = await SessionCompaction.process({
-    messages: msgs, parentID: lastUser.id, abort, sessionID, auto: task.auto, overflow: task.overflow,
+    messages: msgs,
+    parentID: lastUser.id,
+    abort,
+    sessionID,
+    auto: task.auto,
+    overflow: task.overflow,
   })
   return compactResult === "stop" ? "stop" : "continue"
 }
@@ -529,9 +527,7 @@ async function runLoopIteration(ctx: {
   if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
 
   const alreadyFinished =
-    lastAssistant?.finish &&
-    !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
-    lastUser.id < lastAssistant.id
+    lastAssistant?.finish && !["tool-calls", "unknown"].includes(lastAssistant.finish) && lastUser.id < lastAssistant.id
   if (alreadyFinished) {
     log.info("exiting loop", { sessionID })
     return "stop"
@@ -554,7 +550,17 @@ async function runLoopIteration(ctx: {
   const handled = await checkAndHandleOverflow({ lastFinished, sessionID, lastUser, model })
   if (handled) return "continue"
 
-  const stepResult = await runNormalStep({ lastUser, lastFinished, msgs, model, session, sessionID, abort, step, structuredOutput: ctx.structuredOutput })
+  const stepResult = await runNormalStep({
+    lastUser,
+    lastFinished,
+    msgs,
+    model,
+    session,
+    sessionID,
+    abort,
+    step,
+    structuredOutput: ctx.structuredOutput,
+  })
   return stepResult.control === "stop" || stepResult.control === "structured" ? "stop" : "continue"
 }
 

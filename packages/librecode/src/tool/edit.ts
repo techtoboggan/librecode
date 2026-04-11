@@ -21,7 +21,13 @@ import { assertExternalDirectory } from "./external-directory"
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
 function computeFileDiff(filePath: string, contentOld: string, contentNew: string): Snapshot.FileDiff {
-  const filediff: Snapshot.FileDiff = { file: filePath, before: contentOld, after: contentNew, additions: 0, deletions: 0 }
+  const filediff: Snapshot.FileDiff = {
+    file: filePath,
+    before: contentOld,
+    after: contentNew,
+    additions: 0,
+    deletions: 0,
+  }
   for (const change of diffLines(contentOld, contentNew)) {
     if (change.added) filediff.additions += change.count || 0
     if (change.removed) filediff.deletions += change.count || 0
@@ -37,7 +43,8 @@ async function buildDiagnosticsOutput(filePath: string): Promise<string> {
   const errors = (diagnostics[normalizedFilePath] ?? []).filter((item) => item.severity === 1)
   if (errors.length > 0) {
     const limited = errors.slice(0, MAX_DIAGNOSTICS_PER_FILE)
-    const suffix = errors.length > MAX_DIAGNOSTICS_PER_FILE ? `\n... and ${errors.length - MAX_DIAGNOSTICS_PER_FILE} more` : ""
+    const suffix =
+      errors.length > MAX_DIAGNOSTICS_PER_FILE ? `\n... and ${errors.length - MAX_DIAGNOSTICS_PER_FILE} more` : ""
     output += `\n\nLSP errors detected in this file, please fix:\n<diagnostics file="${filePath}">\n${limited.map(LSP.Diagnostic.pretty).join("\n")}${suffix}\n</diagnostics>`
   }
   return output
@@ -307,13 +314,7 @@ function yieldSingleCandidate(
   searchLines: string[],
   candidate: { startLine: number; endLine: number },
 ): string | undefined {
-  const similarity = computeMiddleSimilarity(
-    originalLines,
-    searchLines,
-    candidate.startLine,
-    candidate.endLine,
-    true,
-  )
+  const similarity = computeMiddleSimilarity(originalLines, searchLines, candidate.startLine, candidate.endLine, true)
   if (similarity < SINGLE_CANDIDATE_SIMILARITY_THRESHOLD) return undefined
   const start = lineStartIndex(originalLines, candidate.startLine)
   const end = blockLineEndIndex(originalLines, candidate.startLine, candidate.endLine)

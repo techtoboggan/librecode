@@ -14,7 +14,12 @@ import { useDialog } from "@librecode/ui/context/dialog"
 import { type Session } from "@librecode/sdk/v2/client"
 import { type LocalProject } from "@/context/layout"
 import { ConstrainDragXAxis } from "@/utils/solid-dnd"
-import { LocalWorkspace, SortableWorkspace, WorkspaceDragOverlay, type WorkspaceSidebarContext } from "./sidebar-workspace"
+import {
+  LocalWorkspace,
+  SortableWorkspace,
+  WorkspaceDragOverlay,
+  type WorkspaceSidebarContext,
+} from "./sidebar-workspace"
 import { workspaceKey } from "./helpers"
 import type { useLanguage } from "@/context/language"
 import type { useGlobalSDK } from "@/context/global-sdk"
@@ -104,8 +109,7 @@ export function DialogDeleteWorkspace(props: WorkspaceDialogProps): JSX.Element 
 
   const handleDelete = () => {
     const { params, currentDir, navigateWithSidebarReset, deleteWorkspace } = props.ctx
-    const leaveDeletedWorkspace =
-      !!params.dir && workspaceKey(currentDir()) === workspaceKey(props.directory)
+    const leaveDeletedWorkspace = !!params.dir && workspaceKey(currentDir()) === workspaceKey(props.directory)
     if (leaveDeletedWorkspace) {
       navigateWithSidebarReset(`/${base64Encode(props.root)}/session`)
     }
@@ -548,4 +552,3 @@ export function SidebarPanel(panelProps: SidebarPanelProps): JSX.Element {
     </div>
   )
 }
-

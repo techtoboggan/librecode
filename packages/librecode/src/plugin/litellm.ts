@@ -18,10 +18,7 @@ const log = Log.create({ service: "plugin.litellm" })
 const DEFAULT_BASE_URL = "http://localhost:4000"
 const CONNECT_TIMEOUT_MS = 5000
 
-async function fetchModelsFromUrl(
-  baseURL: string,
-  apiKey?: string,
-): Promise<{ id: string }[]> {
+async function fetchModelsFromUrl(baseURL: string, apiKey?: string): Promise<{ id: string }[]> {
   const url = baseURL.replace(/\/+$/, "")
   const headers: Record<string, string> = {}
   if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
@@ -70,11 +67,7 @@ function parseLiteLLMCredentials(
   return { baseURL: fallbackURL, apiKey: authKey }
 }
 
-function injectLiteLLMPluginModel(
-  models: Record<string, unknown>,
-  id: string,
-  baseURL: string,
-): void {
+function injectLiteLLMPluginModel(models: Record<string, unknown>, id: string, baseURL: string): void {
   if (models[id]) return
   const caps = detectCapabilitiesFromId(id)
   models[id] = {
@@ -161,9 +154,7 @@ export async function LiteLLMAuthPlugin(_input: PluginInput): Promise<Hooks> {
             // Store the URL in an env-like format so the loader can pick it up.
             // The API key is what gets persisted to auth storage.
             // We encode the URL into the key so the loader can extract it.
-            const keyPayload = apiKey
-              ? `${url}|${apiKey}`
-              : `${url}|`
+            const keyPayload = apiKey ? `${url}|${apiKey}` : `${url}|`
 
             return {
               type: "success" as const,

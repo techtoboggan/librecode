@@ -123,14 +123,7 @@ export const Vue: Info = {
     let binary = which("vue-language-server")
     const args: string[] = []
     if (!binary) {
-      const js = path.join(
-        Global.Path.bin,
-        "node_modules",
-        "@vue",
-        "language-server",
-        "bin",
-        "vue-language-server.js",
-      )
+      const js = path.join(Global.Path.bin, "node_modules", "@vue", "language-server", "bin", "vue-language-server.js")
       if (!(await Filesystem.exists(js))) {
         if (Flag.LIBRECODE_DISABLE_LSP_DOWNLOAD) return
         await Process.spawn([BunProc.which(), "install", "@vue/language-server"], {

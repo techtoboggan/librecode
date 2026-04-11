@@ -18,10 +18,7 @@ const log = Log.create({ service: "provider.litellm" })
 const DEFAULT_BASE_URL = "http://localhost:4000/v1"
 const DISCOVERY_TIMEOUT = 3000 // 3 seconds
 
-async function fetchLiteLLMModels(
-  baseURL: string,
-  apiKey: string | undefined,
-): Promise<Array<{ id: string }> | null> {
+async function fetchLiteLLMModels(baseURL: string, apiKey: string | undefined): Promise<Array<{ id: string }> | null> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT)
   const headers: Record<string, string> = {}
@@ -45,11 +42,7 @@ async function fetchLiteLLMModels(
   }
 }
 
-function injectLiteLLMModel(
-  provider: Parameters<CustomLoader>[0],
-  model: { id: string },
-  baseURL: string,
-): void {
+function injectLiteLLMModel(provider: Parameters<CustomLoader>[0], model: { id: string }, baseURL: string): void {
   if (provider.models[model.id]) return
   provider.models[model.id] = {
     id: model.id,
@@ -77,8 +70,7 @@ function injectLiteLLMModel(
 }
 
 export const litellm: CustomLoader = async (provider) => {
-  const baseURL =
-    (provider.options?.baseURL as string | undefined) ?? Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
+  const baseURL = (provider.options?.baseURL as string | undefined) ?? Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
   const apiKey = (provider.options?.apiKey as string | undefined) ?? Env.get("LITELLM_API_KEY") ?? undefined
 
   const models = await fetchLiteLLMModels(baseURL, apiKey)

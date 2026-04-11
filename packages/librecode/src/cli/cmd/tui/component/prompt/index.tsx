@@ -359,13 +359,23 @@ export function Prompt(props: PromptProps) {
     part: PromptInfo["parts"][number],
   ): { start: number; end: number; virtualText: string; styleId: number | undefined } | null {
     if (part.type === "file" && part.source?.text) {
-      return { start: part.source.text.start, end: part.source.text.end, virtualText: part.source.text.value, styleId: fileStyleId }
+      return {
+        start: part.source.text.start,
+        end: part.source.text.end,
+        virtualText: part.source.text.value,
+        styleId: fileStyleId,
+      }
     }
     if (part.type === "agent" && part.source) {
       return { start: part.source.start, end: part.source.end, virtualText: part.source.value, styleId: agentStyleId }
     }
     if (part.type === "text" && part.source?.text) {
-      return { start: part.source.text.start, end: part.source.text.end, virtualText: part.source.text.value, styleId: pasteStyleId }
+      return {
+        start: part.source.text.start,
+        end: part.source.text.end,
+        virtualText: part.source.text.value,
+        styleId: pasteStyleId,
+      }
     }
     return null
   }
@@ -518,9 +528,7 @@ export function Prompt(props: PromptProps) {
       model: `${selectedModel.providerID}/${selectedModel.modelID}`,
       messageID,
       variant,
-      parts: nonTextParts
-        .filter((x) => x.type === "file")
-        .map((x) => ({ id: PartID.ascending(), ...x })),
+      parts: nonTextParts.filter((x) => x.type === "file").map((x) => ({ id: PartID.ascending(), ...x })),
     })
   }
 
@@ -550,9 +558,7 @@ export function Prompt(props: PromptProps) {
 
   function expandInputText(): string {
     const allExtmarks = input.extmarks.getAllForTypeId(promptPartTypeId)
-    const sortedExtmarks = allExtmarks
-      .slice()
-      .sort((a: { start: number }, b: { start: number }) => b.start - a.start)
+    const sortedExtmarks = allExtmarks.slice().sort((a: { start: number }, b: { start: number }) => b.start - a.start)
     let text = store.prompt.input
     for (const extmark of sortedExtmarks) {
       const partIndex = store.extmarkToPartIndex.get(extmark.id)
@@ -677,7 +683,11 @@ export function Prompt(props: PromptProps) {
     return false
   }
 
-  function applyHistoryItem(item: PromptInfo & { mode?: "normal" | "shell" }, direction: -1 | 1, e: { preventDefault(): void }): void {
+  function applyHistoryItem(
+    item: PromptInfo & { mode?: "normal" | "shell" },
+    direction: -1 | 1,
+    e: { preventDefault(): void },
+  ): void {
     input.setText(item.input)
     setStore("prompt", item)
     setStore("mode", item.mode ?? "normal")

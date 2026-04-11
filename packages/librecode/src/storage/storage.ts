@@ -76,7 +76,12 @@ export namespace Storage {
 
   async function resolveGitRootId(worktree: string): Promise<string | undefined> {
     const result = await git(["rev-list", "--max-parents=0", "--all"], { cwd: worktree })
-    const [id] = result.text().split("\n").filter(Boolean).map((x) => x.trim()).toSorted()
+    const [id] = result
+      .text()
+      .split("\n")
+      .filter(Boolean)
+      .map((x) => x.trim())
+      .toSorted()
     return id || undefined
   }
 

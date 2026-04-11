@@ -43,36 +43,36 @@ INITIALIZE → ROUTE → { SUBTASK | COMPACTION | PROCESS } → ... → EXIT
 
 ### States
 
-| State | What happens |
-|-------|-------------|
+| State          | What happens                                                     |
+| -------------- | ---------------------------------------------------------------- |
 | **INITIALIZE** | Load message history, find latest user/assistant, validate model |
-| **ROUTE** | Check for pending subtasks or compaction, decide next state |
-| **SUBTASK** | Execute a delegated task via TaskTool (spawns sub-agent) |
-| **COMPACTION** | Compress history when context window is full |
-| **PROCESS** | Build system prompt, resolve tools, call LLM, stream response |
-| **EXIT** | Prune old outputs, return final message |
+| **ROUTE**      | Check for pending subtasks or compaction, decide next state      |
+| **SUBTASK**    | Execute a delegated task via TaskTool (spawns sub-agent)         |
+| **COMPACTION** | Compress history when context window is full                     |
+| **PROCESS**    | Build system prompt, resolve tools, call LLM, stream response    |
+| **EXIT**       | Prune old outputs, return final message                          |
 
 ### Exit Reasons
 
-| Reason | Trigger |
-|--------|---------|
-| `complete` | Model finished naturally (no more tool calls) |
-| `abort` | User cancelled |
-| `error` | Unrecoverable API error |
-| `structured_output` | JSON schema result captured |
-| `compaction_failed` | Context still too large after compaction |
-| `blocked` | Permission denied |
-| `max_steps` | Step limit reached |
+| Reason              | Trigger                                       |
+| ------------------- | --------------------------------------------- |
+| `complete`          | Model finished naturally (no more tool calls) |
+| `abort`             | User cancelled                                |
+| `error`             | Unrecoverable API error                       |
+| `structured_output` | JSON schema result captured                   |
+| `compaction_failed` | Context still too large after compaction      |
+| `blocked`           | Permission denied                             |
+| `max_steps`         | Step limit reached                            |
 
 ### Modules
 
-| Module | Role |
-|--------|------|
-| `session/prompt.ts` | Main loop orchestrator, tool resolution, user message creation |
-| `session/processor.ts` | LLM streaming, tool execution, retry logic |
-| `session/compaction.ts` | Context overflow detection, history summarization |
-| `session/agent-loop.ts` | State types, tracker, transition events |
-| `session/llm.ts` | AI SDK integration, model call |
+| Module                  | Role                                                           |
+| ----------------------- | -------------------------------------------------------------- |
+| `session/prompt.ts`     | Main loop orchestrator, tool resolution, user message creation |
+| `session/processor.ts`  | LLM streaming, tool execution, retry logic                     |
+| `session/compaction.ts` | Context overflow detection, history summarization              |
+| `session/agent-loop.ts` | State types, tracker, transition events                        |
+| `session/llm.ts`        | AI SDK integration, model call                                 |
 
 ---
 
@@ -98,7 +98,7 @@ New providers implement the `ProviderPlugin` interface:
 ```typescript
 interface ProviderPlugin {
   id: string
-  sdk?: string  // @ai-sdk/* package name
+  sdk?: string // @ai-sdk/* package name
   load(provider: ProviderInfo): Promise<ProviderLoadResult>
   getModel?(sdk, modelID, options): Promise<LanguageModelV2>
   vars?(options): Record<string, string>
@@ -107,12 +107,12 @@ interface ProviderPlugin {
 
 ### Built-in Loaders (`provider/loaders/`)
 
-| Category | Providers |
-|----------|-----------|
-| **Simple** (headers only) | Anthropic, OpenRouter, Vercel, Zenmux, Cerebras, Kilo |
-| **OpenAI-compatible** | OpenAI, GitHub Copilot, Azure, Azure Cognitive Services |
-| **Cloud platforms** | Amazon Bedrock, Google Vertex, Google Vertex Anthropic, SAP AI Core, Cloudflare Workers AI, Cloudflare AI Gateway |
-| **Platform-specific** | LibreCode built-in, GitLab Duo |
+| Category                  | Providers                                                                                                         |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **Simple** (headers only) | Anthropic, OpenRouter, Vercel, Zenmux, Cerebras, Kilo                                                             |
+| **OpenAI-compatible**     | OpenAI, GitHub Copilot, Azure, Azure Cognitive Services                                                           |
+| **Cloud platforms**       | Amazon Bedrock, Google Vertex, Google Vertex Anthropic, SAP AI Core, Cloudflare Workers AI, Cloudflare AI Gateway |
+| **Platform-specific**     | LibreCode built-in, GitLab Duo                                                                                    |
 
 ### Provider Lifecycle
 
@@ -142,32 +142,36 @@ Plugin AuthHook ──► ProviderAuthService.methods() ──► GET /provider/
 
 **Method types:**
 
-| Type | UI Rendered | Use Case |
-|------|------------|----------|
-| `"api"` (no prompts) | Single API key field | Cloud APIs |
-| `"api"` (with prompts) | Custom fields (URL, key, etc.) | Local servers |
-| `"oauth"` | Browser/device code flow | GitHub, OpenAI |
+| Type                   | UI Rendered                    | Use Case       |
+| ---------------------- | ------------------------------ | -------------- |
+| `"api"` (no prompts)   | Single API key field           | Cloud APIs     |
+| `"api"` (with prompts) | Custom fields (URL, key, etc.) | Local servers  |
+| `"oauth"`              | Browser/device code flow       | GitHub, OpenAI |
 
 **Prompts** (added in ADR-004) allow providers to define custom input fields:
 
 ```typescript
-methods: [{
-  type: "api",
-  label: "Connect to Server",
-  prompts: [
-    { type: "text", key: "url", message: "Server URL", placeholder: "http://localhost:4000" },
-    { type: "text", key: "apiKey", message: "API Key (optional)" },
-  ],
-  authorize(inputs) { /* validate connection */ },
-}]
+methods: [
+  {
+    type: "api",
+    label: "Connect to Server",
+    prompts: [
+      { type: "text", key: "url", message: "Server URL", placeholder: "http://localhost:4000" },
+      { type: "text", key: "apiKey", message: "API Key (optional)" },
+    ],
+    authorize(inputs) {
+      /* validate connection */
+    },
+  },
+]
 ```
 
 **Auth plugin implementations:**
 
-| Plugin | File | Auth Flow |
-|--------|------|-----------|
-| Codex | `plugin/codex.ts` | OAuth PKCE + device code + API key |
-| Copilot | `plugin/copilot.ts` | GitHub device code (+ Enterprise) |
+| Plugin  | File                | Auth Flow                                                 |
+| ------- | ------------------- | --------------------------------------------------------- |
+| Codex   | `plugin/codex.ts`   | OAuth PKCE + device code + API key                        |
+| Copilot | `plugin/copilot.ts` | GitHub device code (+ Enterprise)                         |
 | LiteLLM | `plugin/litellm.ts` | URL + key prompts, connection validation, model discovery |
 
 ---
@@ -196,8 +200,8 @@ Every tool declares what it can do:
 
 ```typescript
 interface ToolCapabilities {
-  reads: ReadableResource[]    // filesystem, network, process, database, clipboard
-  writes: WritableResource[]   // filesystem, network, process, git, ...
+  reads: ReadableResource[] // filesystem, network, process, database, clipboard
+  writes: WritableResource[] // filesystem, network, process, git, ...
   sideEffects: boolean
   executesCode?: boolean
   risk?: "low" | "medium" | "high"
@@ -210,15 +214,16 @@ Pre-defined profiles: `fileReader`, `fileWriter`, `shellExecutor`, `networkReade
 
 All 23 built-in tools are annotated:
 
-| Risk | Tools |
-|------|-------|
-| **Low** | read, glob, list, grep, codesearch, webfetch, websearch, plan_enter, plan_exit, question, todowrite, todoread |
-| **Medium** | edit, write, multiedit, apply_patch, batch |
-| **High** | bash, task, skill |
+| Risk       | Tools                                                                                                         |
+| ---------- | ------------------------------------------------------------------------------------------------------------- |
+| **Low**    | read, glob, list, grep, codesearch, webfetch, websearch, plan_enter, plan_exit, question, todowrite, todoread |
+| **Medium** | edit, write, multiedit, apply_patch, batch                                                                    |
+| **High**   | bash, task, skill                                                                                             |
 
 ### Tool Telemetry (`tool/telemetry.ts`)
 
 `withTelemetry()` wrapper captures per-execution metrics:
+
 - Timing (duration in ms)
 - Input/output size
 - Truncation status
@@ -252,6 +257,7 @@ evaluate(permission, pattern, ...rulesets): Rule
 ### Audit Logging (`permission/audit.ts`)
 
 All permission decisions are logged with:
+
 - Tool capabilities (risk, reads/writes, sideEffects)
 - Decision type (asked, auto_approved, replied, denied)
 - Patterns matched
@@ -270,14 +276,14 @@ breakdown for a tool, enabling smarter permission prompts.
 
 ### Priority Tiers
 
-| Tier | Priority | Source |
-|------|----------|--------|
-| **system** | 100 | Provider-specific base prompt |
-| **format** | 90 | Structured output instructions |
-| **agent** | 80 | Agent skills, mode |
-| **project** | 60 | CLAUDE.md, AGENTS.md, .librecode/ |
-| **user** | 40 | ~/.config/librecode/ |
-| **contextual** | 20 | Dynamically loaded from file reads |
+| Tier           | Priority | Source                             |
+| -------------- | -------- | ---------------------------------- |
+| **system**     | 100      | Provider-specific base prompt      |
+| **format**     | 90       | Structured output instructions     |
+| **agent**      | 80       | Agent skills, mode                 |
+| **project**    | 60       | CLAUDE.md, AGENTS.md, .librecode/  |
+| **user**       | 40       | ~/.config/librecode/               |
+| **contextual** | 20       | Dynamically loaded from file reads |
 
 ### Features
 
@@ -294,10 +300,10 @@ breakdown for a tool, enabling smarter permission prompts.
 
 ### Server Types
 
-| Type | Transport | Config |
-|------|-----------|--------|
-| **Local** | stdio (subprocess) | `command: ["npx", "server"]` |
-| **Remote** | StreamableHTTP → SSE fallback | `url: "https://..."` |
+| Type       | Transport                     | Config                       |
+| ---------- | ----------------------------- | ---------------------------- |
+| **Local**  | stdio (subprocess)            | `command: ["npx", "server"]` |
+| **Remote** | StreamableHTTP → SSE fallback | `url: "https://..."`         |
 
 ### Health Monitoring (`mcp/health.ts`)
 
@@ -310,14 +316,14 @@ breakdown for a tool, enabling smarter permission prompts.
 
 Categorizes errors with actionable suggestions:
 
-| Category | Examples |
-|----------|---------|
-| **auth** | 401, OAuth failures, dynamic registration |
-| **connection** | ECONNREFUSED, network issues |
-| **timeout** | Slow server startup |
-| **process** | ENOENT (command not found), EACCES |
-| **protocol** | Invalid JSON, method not found |
-| **config** | Invalid URL, bad config |
+| Category       | Examples                                  |
+| -------------- | ----------------------------------------- |
+| **auth**       | 401, OAuth failures, dynamic registration |
+| **connection** | ECONNREFUSED, network issues              |
+| **timeout**    | Slow server startup                       |
+| **process**    | ENOENT (command not found), EACCES        |
+| **protocol**   | Invalid JSON, method not found            |
+| **config**     | Invalid URL, bad config                   |
 
 ---
 
@@ -338,12 +344,13 @@ Fork a session at any message point:
 ```typescript
 const result = await fork({
   sessionID: "original",
-  atMessageID: "msg_123",  // optional cutoff
+  atMessageID: "msg_123", // optional cutoff
   title: "Alternative approach",
 })
 ```
 
 Features:
+
 - ID remapping (new MessageIDs/PartIDs, parentID references updated)
 - Branch listing: `branches(sessionID)`
 - Ancestry tree: `ancestry(sessionID)` returns root→leaf path
@@ -354,15 +361,15 @@ Features:
 
 SQLite via Drizzle ORM (`storage/`).
 
-| Table | Purpose |
-|-------|---------|
-| SessionTable | Session metadata, title, permissions, summary |
-| MessageTable | Conversation turns (JSON data column) |
-| PartTable | Message content pieces (JSON data column) |
-| TodoTable | Session-scoped task items |
-| PermissionTable | Per-project permission rules |
-| AccountTable | Cloud account credentials |
-| ProjectTable | Project directory tracking |
+| Table           | Purpose                                       |
+| --------------- | --------------------------------------------- |
+| SessionTable    | Session metadata, title, permissions, summary |
+| MessageTable    | Conversation turns (JSON data column)         |
+| PartTable       | Message content pieces (JSON data column)     |
+| TodoTable       | Session-scoped task items                     |
+| PermissionTable | Per-project permission rules                  |
+| AccountTable    | Cloud account credentials                     |
+| ProjectTable    | Project directory tracking                    |
 
 Migrations in `migration/` directories (YYYYMMDDHHMMSS format).
 

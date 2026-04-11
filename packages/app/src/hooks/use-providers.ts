@@ -3,12 +3,7 @@ import { decode64 } from "@/utils/base64"
 import { useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 
-export const popularProviders = [
-  "litellm",
-  "ollama",
-  "amazon-bedrock",
-  "azure",
-]
+export const popularProviders = ["litellm", "ollama", "amazon-bedrock", "azure"]
 const popularProviderSet = new Set(popularProviders)
 
 export function useProviders() {

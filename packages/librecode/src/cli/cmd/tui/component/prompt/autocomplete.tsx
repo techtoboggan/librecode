@@ -148,11 +148,7 @@ export function Autocomplete(props: {
     setStore("input", "keyboard")
   })
 
-  function applyLineRangeToUrl(
-    urlObj: URL,
-    item: string,
-    lineRange: { startLine: number; endLine?: number },
-  ): string {
+  function applyLineRangeToUrl(urlObj: URL, item: string, lineRange: { startLine: number; endLine?: number }): string {
     const filename = `${item}#${lineRange.startLine}${lineRange.endLine ? `-${lineRange.endLine}` : ""}`
     urlObj.searchParams.set("start", String(lineRange.startLine))
     if (lineRange.endLine !== undefined) {
@@ -197,7 +193,14 @@ export function Autocomplete(props: {
     const existingIndex = draft.parts.findIndex((p) => p.type === "file" && "url" in p && p.url === part.url)
     if (existingIndex === -1) return false
     const existing = draft.parts[existingIndex]
-    if (part.source?.text && existing && "source" in existing && existing.source && "text" in existing.source && existing.source.text) {
+    if (
+      part.source?.text &&
+      existing &&
+      "source" in existing &&
+      existing.source &&
+      "text" in existing.source &&
+      existing.source.text
+    ) {
       existing.source.text.start = extmarkStart
       existing.source.text.end = extmarkEnd
       existing.source.text.value = virtualText
@@ -564,15 +567,24 @@ export function Autocomplete(props: {
     const name = e.name?.toLowerCase() ?? ""
     const ctrlOnly = e.ctrl && !e.meta && !e.shift
     if (handleNavKey(e, name, ctrlOnly)) return
-    if (name === "escape") { hide(); e.preventDefault(); return }
-    if (name === "return") { select(); e.preventDefault(); return }
+    if (name === "escape") {
+      hide()
+      e.preventDefault()
+      return
+    }
+    if (name === "return") {
+      select()
+      e.preventDefault()
+      return
+    }
     if (name === "tab") handleTabKey(e)
   }
 
   function handleKeyDownHidden(e: KeyEvent): void {
     if (e.name === "@") {
       const cursorOffset = props.input().cursorOffset
-      const charBeforeCursor = cursorOffset === 0 ? undefined : props.input().getTextRange(cursorOffset - 1, cursorOffset)
+      const charBeforeCursor =
+        cursorOffset === 0 ? undefined : props.input().getTextRange(cursorOffset - 1, cursorOffset)
       const canTrigger = charBeforeCursor === undefined || charBeforeCursor === "" || /\s/.test(charBeforeCursor)
       if (canTrigger) show("@")
     }

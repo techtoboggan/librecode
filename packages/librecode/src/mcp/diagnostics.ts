@@ -20,14 +20,7 @@ export interface DiagnosticResult {
   suggestions: string[]
 
   /** Error category for programmatic handling */
-  category:
-    | "auth"
-    | "connection"
-    | "timeout"
-    | "process"
-    | "config"
-    | "protocol"
-    | "unknown"
+  category: "auth" | "connection" | "timeout" | "process" | "config" | "protocol" | "unknown"
 }
 
 type DiagnoseContext = { type?: "local" | "remote"; url?: string; command?: string[] }
@@ -157,10 +150,7 @@ function diagnoseMethodNotFound(serverName: string, message: string): Diagnostic
     summary: `Server "${serverName}" doesn't support a required MCP method`,
     detail: message,
     category: "protocol",
-    suggestions: [
-      "The server may be using an older MCP protocol version",
-      "Check for server updates",
-    ],
+    suggestions: ["The server may be using an older MCP protocol version", "Check for server updates"],
   }
 }
 

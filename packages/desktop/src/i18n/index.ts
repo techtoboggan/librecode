@@ -1,16 +1,38 @@
 import * as i18n from "@solid-primitives/i18n"
 import { Store } from "@tauri-apps/plugin-store"
 import {
-  en as desktopEn, zh as desktopZh, zht as desktopZht, ko as desktopKo,
-  de as desktopDe, es as desktopEs, fr as desktopFr, da as desktopDa,
-  ja as desktopJa, pl as desktopPl, ru as desktopRu, ar as desktopAr,
-  no as desktopNo, br as desktopBr, bs as desktopBs,
+  en as desktopEn,
+  zh as desktopZh,
+  zht as desktopZht,
+  ko as desktopKo,
+  de as desktopDe,
+  es as desktopEs,
+  fr as desktopFr,
+  da as desktopDa,
+  ja as desktopJa,
+  pl as desktopPl,
+  ru as desktopRu,
+  ar as desktopAr,
+  no as desktopNo,
+  br as desktopBr,
+  bs as desktopBs,
 } from "@librecode/i18n/desktop"
 import {
-  en as appEn, zh as appZh, zht as appZht, ko as appKo,
-  de as appDe, es as appEs, fr as appFr, da as appDa,
-  ja as appJa, pl as appPl, ru as appRu, ar as appAr,
-  no as appNo, br as appBr, bs as appBs,
+  en as appEn,
+  zh as appZh,
+  zht as appZht,
+  ko as appKo,
+  de as appDe,
+  es as appEs,
+  fr as appFr,
+  da as appDa,
+  ja as appJa,
+  pl as appPl,
+  ru as appRu,
+  ar as appAr,
+  no as appNo,
+  br as appBr,
+  bs as appBs,
 } from "@librecode/i18n/app"
 
 export type Locale =

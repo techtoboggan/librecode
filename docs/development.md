@@ -31,12 +31,15 @@ Supported distros: Fedora, Ubuntu/Debian, Arch, openSUSE, Alpine.
 ## What `--deps` Installs
 
 ### CLI deps (`--deps cli`)
+
 - bun (JS runtime)
 - ripgrep (file search)
 - pkg-config, openssl-dev, git
 
 ### Desktop deps (`--deps` or `--deps desktop`)
+
 Everything from CLI, plus:
+
 - Rust toolchain (via rustup)
 - cargo-tauri CLI
 - GTK 3 + 4, WebKit2GTK 4.1, libsoup 3
@@ -134,6 +137,7 @@ cd packages/app && bun run test:e2e   # E2E tests (Playwright)
 Nix flake is provided for packaging and CI, but is **not required** for development. The `--deps` script handles everything.
 
 If you want to use Nix:
+
 ```bash
 nix develop              # CLI shell
 nix develop .#desktop    # Desktop shell (may have glibc issues on newer distros)
@@ -147,16 +151,21 @@ nix develop .#desktop    # Desktop shell (may have glibc issues on newer distros
 ## Troubleshooting
 
 ### "No models available"
+
 Set `LIBRECODE_DISABLE_MODELS_FETCH=true` and configure a provider API key.
 
 ### "Database locked"
+
 Kill background instances: `pkill -f "bun.*librecode"`
 
 ### "ENOENT: rg not found"
+
 Install ripgrep: `sudo dnf install ripgrep` / `sudo apt install ripgrep`
 
 ### EGL/Wayland crash
+
 Force X11: `OC_FORCE_X11=1 bun run dev:desktop`
 
 ### "source scripts/dev-setup.sh" does nothing
+
 Make sure you're using `source` (not `./scripts/dev-setup.sh` which runs in a subshell).

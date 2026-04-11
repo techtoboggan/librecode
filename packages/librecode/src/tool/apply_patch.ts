@@ -41,8 +41,7 @@ function countDiffLines(oldContent: string, newContent: string): { additions: nu
 
 async function processAddHunk(hunk: Patch.Hunk & { type: "add" }, filePath: string): Promise<FileChange> {
   const oldContent = ""
-  const newContent =
-    hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`
+  const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`
   const diff = trimDiff(createTwoFilesPatch(filePath, filePath, oldContent, newContent))
   const { additions, deletions } = countDiffLines(oldContent, newContent)
   return { filePath, oldContent, newContent, type: "add", diff, additions, deletions }
@@ -117,7 +116,11 @@ async function touchLspFiles(fileChanges: FileChange[]): Promise<void> {
   }
 }
 
-async function processHunk(hunk: Patch.Hunk, filePath: string, ctx: import("./tool").Tool.Context): Promise<FileChange> {
+async function processHunk(
+  hunk: Patch.Hunk,
+  filePath: string,
+  ctx: import("./tool").Tool.Context,
+): Promise<FileChange> {
   if (hunk.type === "add") return processAddHunk(hunk as Patch.Hunk & { type: "add" }, filePath)
   if (hunk.type === "delete") return processDeleteHunk(filePath)
   if (hunk.type === "update") {
@@ -128,7 +131,9 @@ async function processHunk(hunk: Patch.Hunk, filePath: string, ctx: import("./to
   throw new Error(`apply_patch verification failed: unknown hunk type`)
 }
 
-async function applyFileChange(change: FileChange): Promise<Array<{ file: string; event: "add" | "change" | "unlink" }>> {
+async function applyFileChange(
+  change: FileChange,
+): Promise<Array<{ file: string; event: "add" | "change" | "unlink" }>> {
   const updates: Array<{ file: string; event: "add" | "change" | "unlink" }> = []
   switch (change.type) {
     case "add":

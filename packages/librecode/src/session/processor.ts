@@ -78,7 +78,15 @@ export namespace SessionProcessor {
         processorLog.info("process")
         state.needsCompaction = false
         state.shouldBreak = (await Config.get()).experimental?.continue_loop_on_deny !== true
-        return runProcessLoop(streamInput, state, input, () => attempt, (n) => { attempt = n })
+        return runProcessLoop(
+          streamInput,
+          state,
+          input,
+          () => attempt,
+          (n) => {
+            attempt = n
+          },
+        )
       },
     }
     return result
@@ -119,7 +127,14 @@ async function runStreamIteration(
     const stream = await LLM.stream(streamInput)
     await drainStream(stream.fullStream, state, input)
   } catch (e: unknown) {
-    const handled = await handleStreamError(e, input.assistantMessage, input.sessionID, input.model, getAttempt(), input.abort)
+    const handled = await handleStreamError(
+      e,
+      input.assistantMessage,
+      input.sessionID,
+      input.model,
+      getAttempt(),
+      input.abort,
+    )
     if (handled.type === "retry") {
       setAttempt(handled.attempt)
       return true
@@ -376,7 +391,10 @@ async function handleToolCall(
   return part as MessageV2.ToolPart
 }
 
-async function handleToolResult(value: ToolResultEventShape, toolcalls: Record<string, MessageV2.ToolPart>): Promise<void> {
+async function handleToolResult(
+  value: ToolResultEventShape,
+  toolcalls: Record<string, MessageV2.ToolPart>,
+): Promise<void> {
   const match = toolcalls[value.toolCallId]
   if (!match || match.state.status !== "running") return
   await Session.updatePart({
@@ -411,7 +429,10 @@ async function handleToolError(
   return value.error instanceof PermissionNext.RejectedError || value.error instanceof Question.RejectedError
 }
 
-async function handleStartStep(assistantMessage: MessageV2.Assistant, sessionID: SessionID): Promise<string | undefined> {
+async function handleStartStep(
+  assistantMessage: MessageV2.Assistant,
+  sessionID: SessionID,
+): Promise<string | undefined> {
   const snap = await Snapshot.track()
   await Session.updatePart({
     id: PartID.ascending(),
@@ -523,10 +544,7 @@ async function handleTextEnd(
   return undefined
 }
 
-type StreamErrorResult =
-  | { type: "compact" }
-  | { type: "retry"; attempt: number }
-  | { type: "error" }
+type StreamErrorResult = { type: "compact" } | { type: "retry"; attempt: number } | { type: "error" }
 
 async function handleStreamError(
   e: unknown,

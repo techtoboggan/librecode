@@ -305,9 +305,7 @@ export function QuestionPrompt(props: { request: QuestionRequest }) {
       <box onMouseOver={() => moveTo(i())} onMouseDown={() => moveTo(i())} onMouseUp={() => selectOption()}>
         <box flexDirection="row">
           <box backgroundColor={active() ? theme.backgroundElement : undefined} paddingRight={1}>
-            <text fg={active() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>
-              {`${i() + 1}.`}
-            </text>
+            <text fg={active() ? tint(theme.textMuted, theme.secondary, 0.6) : theme.textMuted}>{`${i() + 1}.`}</text>
           </box>
           <box backgroundColor={active() ? theme.backgroundElement : undefined}>
             <text fg={optionLabelFg(active, picked)}>{label()}</text>

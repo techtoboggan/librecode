@@ -15,7 +15,15 @@ import { PtyID } from "./schema"
 
 interface ActiveSessionShape {
   cursor: number
-  subscribers: Map<unknown, { readyState: number; data?: unknown; send: (d: string | Uint8Array | ArrayBuffer) => void; close: (code?: number, reason?: string) => void }>
+  subscribers: Map<
+    unknown,
+    {
+      readyState: number
+      data?: unknown
+      send: (d: string | Uint8Array | ArrayBuffer) => void
+      close: (code?: number, reason?: string) => void
+    }
+  >
   buffer: string
   bufferCursor: number
 }

@@ -49,26 +49,26 @@ const social = dir("assets/social")
 
 // ── Full logo lockups ─────────────────────────────────────────────────────────
 console.log("\n📐 Full logo lockups")
-svgToPng(`${brand}/logo-full-light.svg`, `${brand}/logo-full-light.png`,     1200)
-svgToPng(`${brand}/logo-full-light.svg`, `${brand}/logo-full-light@2x.png`,  2400)
-svgToPng(`${brand}/logo-full-dark.svg`,  `${brand}/logo-full-dark.png`,      1200)
-svgToPng(`${brand}/logo-full-dark.svg`,  `${brand}/logo-full-dark@2x.png`,   2400)
+svgToPng(`${brand}/logo-full-light.svg`, `${brand}/logo-full-light.png`, 1200)
+svgToPng(`${brand}/logo-full-light.svg`, `${brand}/logo-full-light@2x.png`, 2400)
+svgToPng(`${brand}/logo-full-dark.svg`, `${brand}/logo-full-dark.png`, 1200)
+svgToPng(`${brand}/logo-full-dark.svg`, `${brand}/logo-full-dark@2x.png`, 2400)
 
 // ── Mark (icon only) ──────────────────────────────────────────────────────────
 console.log("\n🔷 Mark variants")
 for (const size of [512, 256, 128, 64, 32, 16]) {
-  svgToPng(`${brand}/mark-dark.svg`,        `${brand}/mark-dark-${size}.png`,  size)
-  svgToPng(`${brand}/mark-light.svg`,       `${brand}/mark-light-${size}.png`, size)
-  svgToPng(`${brand}/mark-transparent.svg`, `${brand}/mark-${size}.png`,       size)
+  svgToPng(`${brand}/mark-dark.svg`, `${brand}/mark-dark-${size}.png`, size)
+  svgToPng(`${brand}/mark-light.svg`, `${brand}/mark-light-${size}.png`, size)
+  svgToPng(`${brand}/mark-transparent.svg`, `${brand}/mark-${size}.png`, size)
 }
 
 // ── Favicon set ───────────────────────────────────────────────────────────────
 console.log("\n🌐 Favicon set")
-svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-16.png`,   16)
-svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-32.png`,   32)
-svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-48.png`,   48)
-svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-192.png`,  192)
-svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-512.png`,  512)
+svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-16.png`, 16)
+svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-32.png`, 32)
+svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-48.png`, 48)
+svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-192.png`, 192)
+svgToPng(`${brand}/mark-dark.svg`, `${favicon}/favicon-512.png`, 512)
 svgToPng(`${brand}/mark-dark.svg`, `${favicon}/apple-touch-icon.png`, 180)
 
 // Composite multi-size .ico from individual PNGs using ImageMagick
@@ -84,9 +84,9 @@ try {
 const tater = dir("assets/tater")
 console.log("\n🐵 Tater mascot")
 for (const size of [1024, 512, 256]) {
-  svgToPng(`${brand}/tater-dark.svg`,        `${tater}/tater-dark-${size}.png`,  size)
-  svgToPng(`${brand}/tater-light.svg`,       `${tater}/tater-light-${size}.png`, size)
-  svgToPng(`${brand}/tater-transparent.svg`, `${tater}/tater-${size}.png`,       size)
+  svgToPng(`${brand}/tater-dark.svg`, `${tater}/tater-dark-${size}.png`, size)
+  svgToPng(`${brand}/tater-light.svg`, `${tater}/tater-light-${size}.png`, size)
+  svgToPng(`${brand}/tater-transparent.svg`, `${tater}/tater-${size}.png`, size)
 }
 // Head-only crop at smaller sizes (centered top 50% of the image — the head lives roughly y:110-278)
 const headPy = (input: string, output: string, size: number) => {
@@ -100,7 +100,10 @@ head = img.crop((${Math.round(0.22 * 2)}, ${Math.round(0.22 * 2)}, ${Math.round(
 head.save("${output}")
 `.trim()
   const r = spawnSync("python3", ["-c", py])
-  if (r.status !== 0) { console.error(`✗ ${output}\n${r.stderr?.toString()}`); return false }
+  if (r.status !== 0) {
+    console.error(`✗ ${output}\n${r.stderr?.toString()}`)
+    return false
+  }
   console.log(`✓ ${output.replace(ROOT, "")}`)
   return true
 }
@@ -109,7 +112,7 @@ headPy(`${brand}/tater-transparent.svg`, `${tater}/tater-head-128.png`, 128)
 
 // ── Open Graph / Social ───────────────────────────────────────────────────────
 console.log("\n🖼  Social images")
-svgToPng(`${brand}/logo-full-dark.svg`, `${social}/og-image.png`,     1200, 630)
+svgToPng(`${brand}/logo-full-dark.svg`, `${social}/og-image.png`, 1200, 630)
 svgToPng(`${brand}/logo-full-dark.svg`, `${social}/twitter-card.png`, 1200, 600)
 // TODO: composite Tater + logo for a richer OG image (requires PIL compositing)
 

@@ -40,7 +40,7 @@ jobs:
 
       - name: Validate AppStream metadata
         run: |
-          sudo apt-get install -y --no-install-recommends appstream
+          apt-get install -y --no-install-recommends appstream
           appstreamcli validate \
             packages/desktop/src-tauri/release/appstream.metainfo.xml \
             || true

@@ -117,11 +117,7 @@ async function switchOrg() {
   prompts.outro("Switched to " + choice.label)
 }
 
-function formatOrgLine(
-  org: { name: string; id: string },
-  email: string,
-  isActive: boolean | "" | undefined,
-): string {
+function formatOrgLine(org: { name: string; id: string }, email: string, isActive: boolean | "" | undefined): string {
   const dot = isActive ? UI.Style.TEXT_SUCCESS + "\u25CF" + UI.Style.TEXT_NORMAL : " "
   const name = isActive ? UI.Style.TEXT_HIGHLIGHT_BOLD + org.name + UI.Style.TEXT_NORMAL : org.name
   return `  ${dot} ${name}  ${UI.Style.TEXT_DIM}${email}${UI.Style.TEXT_NORMAL}  ${UI.Style.TEXT_DIM}${org.id}${UI.Style.TEXT_NORMAL}`

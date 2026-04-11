@@ -8,7 +8,11 @@ import type { SelectedLineRange } from "@/context/file"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
-import type { SessionReviewCommentActions, SessionReviewCommentDelete, SessionReviewCommentUpdate } from "@librecode/ui/session-review"
+import type {
+  SessionReviewCommentActions,
+  SessionReviewCommentDelete,
+  SessionReviewCommentUpdate,
+} from "@librecode/ui/session-review"
 
 const changesOptionsList: ("session" | "turn")[] = ["session", "turn"]
 

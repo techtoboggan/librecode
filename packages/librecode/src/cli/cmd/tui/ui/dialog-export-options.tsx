@@ -31,7 +31,12 @@ const EXPORT_OPTION_ORDER: ExportOptionField[] = [
   "openWithoutSaving",
 ]
 
-const TOGGLEABLE_FIELDS = new Set<ExportOptionField>(["thinking", "toolDetails", "assistantMetadata", "openWithoutSaving"])
+const TOGGLEABLE_FIELDS = new Set<ExportOptionField>([
+  "thinking",
+  "toolDetails",
+  "assistantMetadata",
+  "openWithoutSaving",
+])
 
 type CheckboxRowProps = {
   field: ExportOptionField
@@ -135,10 +140,34 @@ export function DialogExportOptions(props: DialogExportOptionsProps) {
         />
       </box>
       <box flexDirection="column">
-        <CheckboxRow field="thinking" checked={store.thinking} active={store.active} label="Include thinking" onActivate={(f) => setStore("active", f)} />
-        <CheckboxRow field="toolDetails" checked={store.toolDetails} active={store.active} label="Include tool details" onActivate={(f) => setStore("active", f)} />
-        <CheckboxRow field="assistantMetadata" checked={store.assistantMetadata} active={store.active} label="Include assistant metadata" onActivate={(f) => setStore("active", f)} />
-        <CheckboxRow field="openWithoutSaving" checked={store.openWithoutSaving} active={store.active} label="Open without saving" onActivate={(f) => setStore("active", f)} />
+        <CheckboxRow
+          field="thinking"
+          checked={store.thinking}
+          active={store.active}
+          label="Include thinking"
+          onActivate={(f) => setStore("active", f)}
+        />
+        <CheckboxRow
+          field="toolDetails"
+          checked={store.toolDetails}
+          active={store.active}
+          label="Include tool details"
+          onActivate={(f) => setStore("active", f)}
+        />
+        <CheckboxRow
+          field="assistantMetadata"
+          checked={store.assistantMetadata}
+          active={store.active}
+          label="Include assistant metadata"
+          onActivate={(f) => setStore("active", f)}
+        />
+        <CheckboxRow
+          field="openWithoutSaving"
+          checked={store.openWithoutSaving}
+          active={store.active}
+          label="Open without saving"
+          onActivate={(f) => setStore("active", f)}
+        />
       </box>
       <Show when={store.active !== "filename"}>
         <text fg={theme.textMuted} paddingBottom={1}>

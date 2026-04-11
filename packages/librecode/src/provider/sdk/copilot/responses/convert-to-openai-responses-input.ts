@@ -6,7 +6,11 @@ import {
 } from "@ai-sdk/provider"
 import { convertToBase64, parseProviderOptions } from "@ai-sdk/provider-utils"
 import { z } from "zod/v4"
-import type { OpenAIResponsesInput, OpenAIResponsesReasoning, OpenAIResponsesUserMessage } from "./openai-responses-api-types"
+import type {
+  OpenAIResponsesInput,
+  OpenAIResponsesReasoning,
+  OpenAIResponsesUserMessage,
+} from "./openai-responses-api-types"
 import { localShellInputSchema, localShellOutputSchema } from "./tool/local-shell"
 
 /**
@@ -22,7 +26,10 @@ type UserContentPart = LanguageModelV2Prompt[number] & { role: "user" }
 type UserFilePart = Extract<UserContentPart["content"][number], { type: "file" }>
 type UserMessageContent = OpenAIResponsesUserMessage["content"][number]
 
-function convertImageFilePart(part: UserFilePart & { mediaType: string }, fileIdPrefixes?: readonly string[]): UserMessageContent {
+function convertImageFilePart(
+  part: UserFilePart & { mediaType: string },
+  fileIdPrefixes?: readonly string[],
+): UserMessageContent {
   const mediaType = part.mediaType === "image/*" ? "image/jpeg" : part.mediaType
   if (part.data instanceof URL) {
     return { type: "input_image", image_url: part.data.toString() }
@@ -47,7 +54,11 @@ function convertPdfFilePart(part: UserFilePart, index: number, fileIdPrefixes?: 
   }
 }
 
-function convertUserContentPart(part: UserContentPart["content"][number], index: number, fileIdPrefixes?: readonly string[]): UserMessageContent {
+function convertUserContentPart(
+  part: UserContentPart["content"][number],
+  index: number,
+  fileIdPrefixes?: readonly string[],
+): UserMessageContent {
   switch (part.type) {
     case "text":
       return { type: "input_text", text: part.text }
@@ -216,11 +227,7 @@ async function handleAssistantContent(
 
 type ToolContent = (LanguageModelV2Prompt[number] & { role: "tool" })["content"]
 
-function handleToolContent(
-  content: ToolContent,
-  input: OpenAIResponsesInput,
-  hasLocalShellTool: boolean,
-): void {
+function handleToolContent(content: ToolContent, input: OpenAIResponsesInput, hasLocalShellTool: boolean): void {
   for (const part of content) {
     const output = part.output
 

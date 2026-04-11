@@ -128,18 +128,19 @@ function buildGenerateContent(
 function applyPredictionTokenMetadata(
   providerMetadata: SharedV2ProviderMetadata,
   providerOptionsName: string,
-  completionTokenDetails: {
-    accepted_prediction_tokens?: number | null
-    rejected_prediction_tokens?: number | null
-  } | null | undefined,
+  completionTokenDetails:
+    | {
+        accepted_prediction_tokens?: number | null
+        rejected_prediction_tokens?: number | null
+      }
+    | null
+    | undefined,
 ): void {
   if (completionTokenDetails?.accepted_prediction_tokens != null) {
-    providerMetadata[providerOptionsName].acceptedPredictionTokens =
-      completionTokenDetails.accepted_prediction_tokens
+    providerMetadata[providerOptionsName].acceptedPredictionTokens = completionTokenDetails.accepted_prediction_tokens
   }
   if (completionTokenDetails?.rejected_prediction_tokens != null) {
-    providerMetadata[providerOptionsName].rejectedPredictionTokens =
-      completionTokenDetails.rejected_prediction_tokens
+    providerMetadata[providerOptionsName].rejectedPredictionTokens = completionTokenDetails.rejected_prediction_tokens
   }
 }
 
@@ -183,10 +184,7 @@ type StreamChunkValue = {
 // doStream: usage accumulation helper
 // ---------------------------------------------------------------------------
 
-function accumulateStreamUsage(
-  usage: StreamUsage,
-  rawUsage: StreamChunkValue["usage"],
-): void {
+function accumulateStreamUsage(usage: StreamUsage, rawUsage: StreamChunkValue["usage"]): void {
   if (rawUsage == null) return
   const { prompt_tokens, completion_tokens, total_tokens, prompt_tokens_details, completion_tokens_details } = rawUsage
   usage.promptTokens = prompt_tokens ?? undefined
@@ -210,10 +208,7 @@ function accumulateStreamUsage(
 // doStream: reasoning delta helper
 // ---------------------------------------------------------------------------
 
-function handleReasoningOpaque(
-  delta: { reasoning_opaque?: string | null },
-  state: StreamState,
-): void {
+function handleReasoningOpaque(delta: { reasoning_opaque?: string | null }, state: StreamState): void {
   if (!delta.reasoning_opaque) return
   if (state.reasoningOpaque != null) {
     throw new InvalidResponseDataError({
@@ -331,7 +326,11 @@ function mergeExistingToolCall(
     delta: toolCallDelta.function.arguments ?? "",
   })
 
-  if (toolCall.function?.name != null && toolCall.function?.arguments != null && isParsableJson(toolCall.function.arguments)) {
+  if (
+    toolCall.function?.name != null &&
+    toolCall.function?.arguments != null &&
+    isParsableJson(toolCall.function.arguments)
+  ) {
     const opaqueMetadata = state.reasoningOpaque ? { copilot: { reasoningOpaque: state.reasoningOpaque } } : undefined
     controller.enqueue({ type: "tool-input-end", id: toolCall.id })
     controller.enqueue({

@@ -81,8 +81,22 @@ export function ViewerShell(props: {
 // Need JSX type
 import type { JSX } from "solid-js"
 
-const textKeys = ["file", "mode", "media", "class", "classList", "annotations", "selectedLines", "commentedLines",
-  "search", "onLineSelected", "onLineSelectionEnd", "onLineNumberSelectionEnd", "onRendered", "preloadedDiff"] as const
+const textKeys = [
+  "file",
+  "mode",
+  "media",
+  "class",
+  "classList",
+  "annotations",
+  "selectedLines",
+  "commentedLines",
+  "search",
+  "onLineSelected",
+  "onLineSelectionEnd",
+  "onLineNumberSelectionEnd",
+  "onRendered",
+  "preloadedDiff",
+] as const
 
 // ---------------------------------------------------------------------------
 // TextViewer

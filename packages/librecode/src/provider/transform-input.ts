@@ -114,7 +114,10 @@ export function normalizeInterleavedReasoning(msgs: ModelMessage[], field: strin
 
     // Using type cast here: AssistantContent parts include ReasoningPart which has a `text` field
     const content = msg.content as Array<{ type: string; text?: string }>
-    const reasoningText = content.filter((p) => p.type === "reasoning").map((p) => p.text ?? "").join("")
+    const reasoningText = content
+      .filter((p) => p.type === "reasoning")
+      .map((p) => p.text ?? "")
+      .join("")
     const filteredContent = content.filter((p) => p.type !== "reasoning")
 
     if (reasoningText) {
@@ -164,10 +167,7 @@ export function filterUnsupportedPart(
     if (emptyError) return emptyError
   }
 
-  const mime =
-    part.type === "image"
-      ? part.image.toString().split(";")[0].replace("data:", "")
-      : part.mediaType
+  const mime = part.type === "image" ? part.image.toString().split(";")[0].replace("data:", "") : part.mediaType
   const filename = part.type === "file" ? part.filename : undefined
   const modality = mimeToModality(mime)
   if (!modality) return part
@@ -184,11 +184,7 @@ export function filterUnsupportedPart(
 // Provider options key remapping
 // ---------------------------------------------------------------------------
 
-export function remapProviderOptionsKeys(
-  msgs: ModelMessage[],
-  fromKey: string,
-  toKey: string,
-): ModelMessage[] {
+export function remapProviderOptionsKeys(msgs: ModelMessage[], fromKey: string, toKey: string): ModelMessage[] {
   const remap = (opts: Record<string, unknown> | undefined): Record<string, unknown> | undefined => {
     if (!opts) return opts
     if (!(fromKey in opts)) return opts

@@ -148,8 +148,8 @@ function OptionRow<T>(props: OptionRowProps<T>) {
     props.onMoveTo(index)
   }
 
-  const footer = () => props.flatten() ? (props.option.category ?? props.option.footer) : props.option.footer
-  const description = () => props.option.description !== props.category ? props.option.description : undefined
+  const footer = () => (props.flatten() ? (props.option.category ?? props.option.footer) : props.option.footer)
+  const description = () => (props.option.description !== props.category ? props.option.description : undefined)
 
   return (
     <box
@@ -303,7 +303,12 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
       const centerOffset = Math.floor(scroll.height / 2)
       scroll.scrollBy(y - centerOffset)
     } else {
-      scrollIntoView(scroll, y, flat as () => DialogSelectOption<unknown>[], selected as () => DialogSelectOption<unknown> | undefined)
+      scrollIntoView(
+        scroll,
+        y,
+        flat as () => DialogSelectOption<unknown>[],
+        selected as () => DialogSelectOption<unknown> | undefined,
+      )
     }
   }
 
@@ -311,8 +316,18 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
   useKeyboard((evt) => {
     setStore("input", "keyboard")
     handleNavigationKeys(evt, move, moveTo, flat as () => DialogSelectOption<unknown>[])
-    handleReturnKey(evt, selected as () => DialogSelectOption<unknown> | undefined, dialog, props.onSelect as ((option: DialogSelectOption<unknown>) => void) | undefined)
-    handleCustomKeybinds(evt, props.keybind as KeybindItem[] | undefined, keybind, selected as () => DialogSelectOption<unknown> | undefined)
+    handleReturnKey(
+      evt,
+      selected as () => DialogSelectOption<unknown> | undefined,
+      dialog,
+      props.onSelect as ((option: DialogSelectOption<unknown>) => void) | undefined,
+    )
+    handleCustomKeybinds(
+      evt,
+      props.keybind as KeybindItem[] | undefined,
+      keybind,
+      selected as () => DialogSelectOption<unknown> | undefined,
+    )
   })
 
   let scroll: ScrollBoxRenderable | undefined

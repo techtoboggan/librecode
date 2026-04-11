@@ -10,6 +10,7 @@ LibreCode is a fork of opencode v1.2.27 — an AI-powered terminal coding agent.
 monorepo using Bun runtime, Solid.js UI, Tauri desktop. Effect-ts has been fully removed.
 
 **Key files:**
+
 - `PLAN.md` — master roadmap with phase tracking
 - `docs/adr/` — architecture decision records
 - `docs/architecture.md` — system architecture reference
@@ -97,24 +98,29 @@ cd packages/librecode && bun test test/config/  # test a directory
 ## Architecture Constraints
 
 ### Effect-ts (ADR-001: COMPLETED)
+
 - Effect-ts has been **fully removed** from the codebase.
 - All services use plain async/await. The `effect` package is not a dependency.
 - Branded types use `util/brand.ts` (pure TypeScript, no Effect Schema).
 
 ### Namespace Pattern (COMPLETED)
+
 - All 4 namespaces (MessageV2, Provider, Session, SessionPrompt) have been
   converted to barrel exports with type companion namespaces.
 - **Do NOT use `export namespace` in new code.** Use regular module exports.
 
 ### Provider System
+
 - New providers MUST implement the `ProviderPlugin` interface (`src/provider/plugin-api.ts`).
 - New provider loaders go in `src/provider/loaders/` — NOT inline in `provider.ts`.
 
 ### Tool System
+
 - New tools MUST declare capabilities using `ToolCapabilities` (`src/tool/capabilities.ts`).
 - Use `ToolProfiles` presets where applicable (fileReader, fileWriter, shellExecutor, etc.).
 
 ### Storage
+
 - All schema changes via Drizzle migrations in `migration/` directory.
 - Migration naming: `YYYYMMDDHHMMSS_description/migration.sql`
 - No direct SQLite queries outside `src/storage/` — use Drizzle ORM.
@@ -132,16 +138,19 @@ cd packages/librecode && bun test test/config/  # test a directory
 1. **Verify tests pass first**: `bun test --timeout 30000` — all 1284+ must pass.
 
 2. **Identify all exports** from the namespace:
+
    ```bash
    grep -n 'export ' src/provider/provider.ts | grep -v 'import'
    ```
 
 3. **Identify all consumers** (files that import `Provider.X`):
+
    ```bash
    grep -rl 'Provider\.' src/ test/ | grep -v node_modules
    ```
 
 4. **Convert the namespace** — change:
+
    ```typescript
    // Before
    export namespace Provider {
@@ -150,7 +159,9 @@ cd packages/librecode && bun test test/config/  # test a directory
      export async function list() { ... }
    }
    ```
+
    To:
+
    ```typescript
    // After — same file, no namespace wrapper
    export const ProviderModel = z.object({ ... })
@@ -166,10 +177,11 @@ cd packages/librecode && bun test test/config/  # test a directory
    ```
 
 5. **Update all consumers** — the barrel pattern minimizes changes:
+
    ```typescript
    // Consumer code stays the same if using barrel:
    import { Provider } from "../provider/provider"
-   Provider.list()  // still works
+   Provider.list() // still works
    ```
 
 6. **Run tests**: `bun test --timeout 30000` — verify zero regressions.
@@ -177,6 +189,7 @@ cd packages/librecode && bun test test/config/  # test a directory
 7. **Measure complexity**: Ensure no function exceeds cyclomatic complexity 12.
 
 **Order of migration** (by risk, lowest first):
+
 1. `MessageV2` — mostly type definitions, lowest consumer count
 2. `Provider` — already partially decomposed
 3. `Session` — medium complexity
@@ -191,11 +204,13 @@ cd packages/librecode && bun test test/config/  # test a directory
 **Procedure for each service** (e.g., `AccountService`):
 
 1. **Map the service interface**:
+
    ```bash
    grep 'Effect.Effect' src/account/service.ts
    ```
 
 2. **Create replacement class**:
+
    ```typescript
    // Before: Effect service
    const login = Effect.fn("AccountService.login")(
@@ -218,6 +233,7 @@ cd packages/librecode && bun test test/config/  # test a directory
 5. **Run tests**: Verify zero regressions.
 
 **Order** (by dependency, leaves first):
+
 1. `QuestionService` — simplest, no dependencies on other services
 2. `PermissionService` — depends on config only
 3. `AuthService` — HTTP client usage
@@ -233,11 +249,13 @@ cd packages/librecode && bun test test/config/  # test a directory
 **Procedure**:
 
 1. **List all tool definitions**:
+
    ```bash
    grep -rn 'Tool.define(' src/tool/
    ```
 
 2. **For each tool**, add capabilities using the pre-defined profiles:
+
    ```typescript
    import { ToolProfiles, declareCapabilities } from "./capabilities"
 
@@ -300,18 +318,19 @@ pytest tests/ -m models
 ### Playwright E2E BDD Helpers (TypeScript)
 
 BDD-style helpers in `packages/app/e2e/bdd/`:
+
 - `given.ts` — Setup helpers (app state, provider config)
 - `when.ts` — User action helpers (click, search, navigate)
 - `then.ts` — Assertion helpers (see text, not see text, dialog visible)
 
 ### Test Layers
 
-| Layer | Framework | Location | Validates |
-|-------|-----------|----------|-----------|
-| Unit | bun test | `packages/librecode/test/` | Logic, pure functions |
-| Integration | bun test | `packages/librecode/test/` | Service interactions |
-| E2E (TS) | Playwright | `packages/app/e2e/` | UI flows |
-| BDD (Python) | pytest-bdd | `tests/` | User behavior specs |
+| Layer        | Framework  | Location                   | Validates             |
+| ------------ | ---------- | -------------------------- | --------------------- |
+| Unit         | bun test   | `packages/librecode/test/` | Logic, pure functions |
+| Integration  | bun test   | `packages/librecode/test/` | Service interactions  |
+| E2E (TS)     | Playwright | `packages/app/e2e/`        | UI flows              |
+| BDD (Python) | pytest-bdd | `tests/`                   | User behavior specs   |
 
 ### When to Write Tests
 

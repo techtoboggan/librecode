@@ -25,8 +25,7 @@ function convertFilePart(
   return {
     type: "image_url",
     image_url: {
-      url:
-        part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${convertToBase64(part.data)}`,
+      url: part.data instanceof URL ? part.data.toString() : `data:${mediaType};base64,${convertToBase64(part.data)}`,
     },
     ...partMetadata,
   }
@@ -46,10 +45,7 @@ function convertUserContentPart(
   }
 }
 
-function buildSystemMessage(
-  content: string,
-  metadata: Record<string, unknown>,
-): Record<string, unknown> {
+function buildSystemMessage(content: string, metadata: Record<string, unknown>): Record<string, unknown> {
   return { role: "system", content, ...metadata }
 }
 
@@ -139,14 +135,18 @@ function resolveToolOutputContent(output: { type: string; value: unknown }): str
 function buildToolMessages(
   content: LanguageModelV2Prompt[number] & { role: "tool" } extends { content: infer C } ? C : never,
 ): Array<Record<string, unknown>> {
-  return (content as Array<{ toolCallId: string; output: { type: string; value: unknown }; providerOptions?: SharedV2ProviderMetadata }>).map(
-    (toolResponse) => ({
-      role: "tool",
-      tool_call_id: toolResponse.toolCallId,
-      content: resolveToolOutputContent(toolResponse.output),
-      ...getOpenAIMetadata(toolResponse),
-    }),
-  )
+  return (
+    content as Array<{
+      toolCallId: string
+      output: { type: string; value: unknown }
+      providerOptions?: SharedV2ProviderMetadata
+    }>
+  ).map((toolResponse) => ({
+    role: "tool",
+    tool_call_id: toolResponse.toolCallId,
+    content: resolveToolOutputContent(toolResponse.output),
+    ...getOpenAIMetadata(toolResponse),
+  }))
 }
 
 export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV2Prompt): OpenAICompatibleChatPrompt {
@@ -159,10 +159,7 @@ export function convertToOpenAICompatibleChatMessages(prompt: LanguageModelV2Pro
         break
       case "user":
         messages.push(
-          buildUserMessage(
-            content as Parameters<typeof buildUserMessage>[0],
-            metadata,
-          ) as (typeof messages)[number],
+          buildUserMessage(content as Parameters<typeof buildUserMessage>[0], metadata) as (typeof messages)[number],
         )
         break
       case "assistant":

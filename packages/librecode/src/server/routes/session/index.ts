@@ -5,8 +5,5 @@ import { SessionMessageRoutes } from "./messages"
 import { SessionActionRoutes } from "./actions"
 
 export const SessionRoutes = lazy(() =>
-  new Hono()
-    .route("/", SessionCrudRoutes)
-    .route("/", SessionActionRoutes)
-    .route("/", SessionMessageRoutes),
+  new Hono().route("/", SessionCrudRoutes).route("/", SessionActionRoutes).route("/", SessionMessageRoutes),
 )

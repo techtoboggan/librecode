@@ -40,14 +40,7 @@ import {
   pushToForkBranch,
   branchIsDirty,
 } from "./git-helpers"
-import {
-  AGENT_USERNAME,
-  assertPermissions,
-  addReaction,
-  removeReaction,
-  createComment,
-  createPR,
-} from "./api-helpers"
+import { AGENT_USERNAME, assertPermissions, addReaction, removeReaction, createComment, createPR } from "./api-helpers"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -493,7 +486,11 @@ async function getUserPrompt(
 // Session management
 // ---------------------------------------------------------------------------
 
-async function resolveShareId(share: boolean | undefined, isPrivate: boolean, sessionId: SessionID): Promise<string | undefined> {
+async function resolveShareId(
+  share: boolean | undefined,
+  isPrivate: boolean,
+  sessionId: SessionID,
+): Promise<string | undefined> {
   if (share === false) return undefined
   if (!share && isPrivate) return undefined
   await Session.share(sessionId)
@@ -655,9 +652,7 @@ async function getOidcToken(): Promise<string> {
     return await core.getIDToken("librecode-github-action")
   } catch (error) {
     console.error("Failed to get OIDC token:", error instanceof Error ? error.message : error)
-    throw new Error(
-      "Could not fetch an OIDC token. Make sure to add `id-token: write` to your workflow permissions.",
-    )
+    throw new Error("Could not fetch an OIDC token. Make sure to add `id-token: write` to your workflow permissions.")
   }
 }
 
@@ -774,7 +769,12 @@ function formatErrorMessage(e: unknown): string {
 // Event dispatching
 // ---------------------------------------------------------------------------
 
-async function dispatchEvent(ctx: RunCtx, userPrompt: string, promptFiles: PromptFile[], flags: EventFlags): Promise<void> {
+async function dispatchEvent(
+  ctx: RunCtx,
+  userPrompt: string,
+  promptFiles: PromptFile[],
+  flags: EventFlags,
+): Promise<void> {
   const isPR =
     ["pull_request", "pull_request_review_comment"].includes(ctx.eventName) || ctx.issueEvent?.issue.pull_request
   if (flags.isRepoEvent) {
@@ -856,7 +856,13 @@ async function handleLocalPREvent(
     await pushToLocalBranch(summary, uncommittedChanges, ctx.actor)
   }
   const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
-  await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${response}${buildFooter(ctx, { image: !hasShared })}`)
+  await createComment(
+    ctx.octoRest,
+    ctx.owner,
+    ctx.repo,
+    ctx.issueId!,
+    `${response}${buildFooter(ctx, { image: !hasShared })}`,
+  )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
 
@@ -880,7 +886,13 @@ async function handleForkPREvent(
     await pushToForkBranch(summary, prData, uncommittedChanges, ctx.actor)
   }
   const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
-  await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${response}${buildFooter(ctx, { image: !hasShared })}`)
+  await createComment(
+    ctx.octoRest,
+    ctx.owner,
+    ctx.repo,
+    ctx.issueId!,
+    `${response}${buildFooter(ctx, { image: !hasShared })}`,
+  )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
 
@@ -915,7 +927,13 @@ async function handleIssueEvent(
   if (switched) {
     // Agent switched branches (likely created its own branch/PR).
     // Don't push the stale infrastructure branch — just comment.
-    await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${response}${buildFooter(ctx, { image: true })}`)
+    await createComment(
+      ctx.octoRest,
+      ctx.owner,
+      ctx.repo,
+      ctx.issueId!,
+      `${response}${buildFooter(ctx, { image: true })}`,
+    )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   } else if (dirty) {
     const summary = await summarize(ctx, response)
@@ -930,13 +948,31 @@ async function handleIssueEvent(
       `${response}\n\nCloses #${ctx.issueId}${buildFooter(ctx, { image: true })}`,
     )
     if (pr) {
-      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `Created PR #${pr}${buildFooter(ctx, { image: true })}`)
+      await createComment(
+        ctx.octoRest,
+        ctx.owner,
+        ctx.repo,
+        ctx.issueId!,
+        `Created PR #${pr}${buildFooter(ctx, { image: true })}`,
+      )
     } else {
-      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${response}${buildFooter(ctx, { image: true })}`)
+      await createComment(
+        ctx.octoRest,
+        ctx.owner,
+        ctx.repo,
+        ctx.issueId!,
+        `${response}${buildFooter(ctx, { image: true })}`,
+      )
     }
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   } else {
-    await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${response}${buildFooter(ctx, { image: true })}`)
+    await createComment(
+      ctx.octoRest,
+      ctx.owner,
+      ctx.repo,
+      ctx.issueId!,
+      `${response}${buildFooter(ctx, { image: true })}`,
+    )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   }
 }

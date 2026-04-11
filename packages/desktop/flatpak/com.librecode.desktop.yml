@@ -117,16 +117,16 @@ modules:
       - install -Dm755 packages/desktop/src-tauri/target/release/librecode-desktop /app/bin/librecode-desktop
       # AppStream metadata
       - install -Dm644 packages/desktop/src-tauri/release/appstream.metainfo.xml
-          /app/share/metainfo/com.librecode.desktop.metainfo.xml
+        /app/share/metainfo/com.librecode.desktop.metainfo.xml
       # Icons (multiple sizes for XDG icon theme)
       - install -Dm644 packages/desktop/src-tauri/icons/prod/32x32.png
-          /app/share/icons/hicolor/32x32/apps/com.librecode.desktop.png
+        /app/share/icons/hicolor/32x32/apps/com.librecode.desktop.png
       - install -Dm644 packages/desktop/src-tauri/icons/prod/64x64.png
-          /app/share/icons/hicolor/64x64/apps/com.librecode.desktop.png
+        /app/share/icons/hicolor/64x64/apps/com.librecode.desktop.png
       - install -Dm644 packages/desktop/src-tauri/icons/prod/128x128.png
-          /app/share/icons/hicolor/128x128/apps/com.librecode.desktop.png
+        /app/share/icons/hicolor/128x128/apps/com.librecode.desktop.png
       - install -Dm644 packages/desktop/src-tauri/icons/prod/128x128@2x.png
-          /app/share/icons/hicolor/256x256/apps/com.librecode.desktop.png
+        /app/share/icons/hicolor/256x256/apps/com.librecode.desktop.png
       # .desktop file (used by app launcher and deep-link protocol handler)
       - |
         cat > /app/share/applications/com.librecode.desktop.desktop << 'EOF'

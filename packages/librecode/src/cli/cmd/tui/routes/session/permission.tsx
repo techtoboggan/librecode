@@ -165,7 +165,12 @@ function readPermissionInfo(ctx: PermissionContext): PermissionInfo {
   }
 }
 
-function patternPermissionInfo(permission: string, icon: string, label: string, ctx: PermissionContext): PermissionInfo {
+function patternPermissionInfo(
+  permission: string,
+  icon: string,
+  label: string,
+  ctx: PermissionContext,
+): PermissionInfo {
   const pattern = typeof ctx.data.pattern === "string" ? ctx.data.pattern : ""
   return {
     icon,
@@ -264,8 +269,7 @@ function externalDirPermissionInfo(ctx: PermissionContext): PermissionInfo {
   const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
   const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
   const pattern = ctx.request.patterns?.[0]
-  const derived =
-    typeof pattern === "string" ? (pattern.includes("*") ? path.dirname(pattern) : pattern) : undefined
+  const derived = typeof pattern === "string" ? (pattern.includes("*") ? path.dirname(pattern) : pattern) : undefined
   const raw = parent ?? filepath ?? derived
   const dir = normalizePath(raw)
   const patterns = (ctx.request.patterns ?? []).filter((p): p is string => typeof p === "string")

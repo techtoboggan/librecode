@@ -10,7 +10,10 @@ import { webSearchPreviewArgsSchema } from "./tool/web-search-preview"
 import { imageGenerationArgsSchema } from "./tool/image-generation"
 import type { OpenAIResponsesTool } from "./openai-responses-api-types"
 
-type ProviderDefinedTool = Extract<NonNullable<LanguageModelV2CallOptions["tools"]>[number], { type: "provider-defined" }>
+type ProviderDefinedTool = Extract<
+  NonNullable<LanguageModelV2CallOptions["tools"]>[number],
+  { type: "provider-defined" }
+>
 
 function prepareFileSearchTool(tool: ProviderDefinedTool): OpenAIResponsesTool {
   const args = fileSearchArgsSchema.parse(tool.args)
@@ -116,7 +119,13 @@ type PreparedToolChoice =
   | { type: "code_interpreter" }
   | { type: "image_generation" }
 
-const NAMED_TOOL_CHOICES = new Set(["code_interpreter", "file_search", "image_generation", "web_search_preview", "web_search"])
+const NAMED_TOOL_CHOICES = new Set([
+  "code_interpreter",
+  "file_search",
+  "image_generation",
+  "web_search_preview",
+  "web_search",
+])
 
 function resolveToolChoice(
   toolChoice: NonNullable<LanguageModelV2CallOptions["toolChoice"]>,

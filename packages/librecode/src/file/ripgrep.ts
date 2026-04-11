@@ -77,7 +77,10 @@ async function extractZip(archivePath: string, filepath: string, arrayBuffer: Ar
 
   const rgBlob = await rgEntry.getData(new BlobWriter())
   if (!rgBlob) {
-    throw new RipgrepExtractionFailedError({ filepath: archivePath, stderr: "Failed to extract rg.exe from zip archive" })
+    throw new RipgrepExtractionFailedError({
+      filepath: archivePath,
+      stderr: "Failed to extract rg.exe from zip archive",
+    })
   }
 
   await Filesystem.write(filepath, Buffer.from(await rgBlob.arrayBuffer()))
@@ -149,12 +152,15 @@ async function assertDirectoryExists(dir: string): Promise<void> {
   }
 }
 
-function buildFilesArgs(rgPath: string, input: {
-  glob?: string[]
-  hidden?: boolean
-  follow?: boolean
-  maxDepth?: number
-}): string[] {
+function buildFilesArgs(
+  rgPath: string,
+  input: {
+    glob?: string[]
+    hidden?: boolean
+    follow?: boolean
+    maxDepth?: number
+  },
+): string[] {
   const args = [rgPath, "--files", "--glob=!.git/*"]
   if (input.follow) args.push("--follow")
   if (input.hidden !== false) args.push("--hidden")
@@ -249,9 +255,7 @@ export namespace Ripgrep {
       lines: z.object({ text: z.string() }),
       line_number: z.number(),
       absolute_offset: z.number(),
-      submatches: z.array(
-        z.object({ match: z.object({ text: z.string() }), start: z.number(), end: z.number() }),
-      ),
+      submatches: z.array(z.object({ match: z.object({ text: z.string() }), start: z.number(), end: z.number() })),
     }),
   })
 

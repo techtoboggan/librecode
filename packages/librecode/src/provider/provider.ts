@@ -309,7 +309,8 @@ async function getSDK(model: ModelType): Promise<SDK> {
     const baseURL = resolveBaseURL(options, model.api.url, s.varsLoaders[model.providerID])
     if (baseURL !== undefined) options["baseURL"] = baseURL
     if (options["apiKey"] === undefined && provider.key) options["apiKey"] = provider.key
-    if (model.headers) options["headers"] = { ...(options["headers"] as Record<string, string> | undefined), ...model.headers }
+    if (model.headers)
+      options["headers"] = { ...(options["headers"] as Record<string, string> | undefined), ...model.headers }
 
     const key = Hash.fast(JSON.stringify({ providerID: model.providerID, npm: model.api.npm, options }))
     const existing = s.sdk.get(key)
@@ -442,10 +443,7 @@ function buildSmallModelPriority(providerID: ProviderID): string[] {
   return base
 }
 
-async function findSmallModelInProvider(
-  providerID: ProviderID,
-  provider: InfoType,
-): Promise<ModelType | undefined> {
+async function findSmallModelInProvider(providerID: ProviderID, provider: InfoType): Promise<ModelType | undefined> {
   const priorityList = buildSmallModelPriority(providerID)
   for (const item of priorityList) {
     if (providerID === ProviderID.amazonBedrock) {

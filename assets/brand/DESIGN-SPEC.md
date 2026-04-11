@@ -8,20 +8,20 @@
 
 ## Master Color Palette (exact-match from reference)
 
-| Swatch | Hex | Usage |
-|--------|-----|-------|
+| Swatch      | Hex       | Usage                                      |
+| ----------- | --------- | ------------------------------------------ |
 | Bright teal | `#2DD4A8` | Gradient start, highlights, LC top strokes |
-| Mid teal | `#0D9488` | Primary brand, LC body, code symbols |
-| Deep teal | `#0A7E76` | LC shadow strokes, depth |
-| Slate blue | `#1E6CA0` | Gradient end, C letterform lower half |
-| Navy | `#15476C` | Darkest gradient stop, bird silhouettes |
-| Dark navy | `#0F3451` | Deep accents, hover states |
-| Cream bg | `#F5F0E8` | Light mode background (from reference) |
-| Warm white | `#FAFAF7` | Card surfaces on light mode |
-| Near black | `#0A0B0D` | Dark mode background |
-| Card dark | `#12141A` | Dark mode card surfaces |
-| Gold amber | `#D4A017` | Mascot fur, warm accents |
-| Light gold | `#FBBF24` | Mascot highlights, badges |
+| Mid teal    | `#0D9488` | Primary brand, LC body, code symbols       |
+| Deep teal   | `#0A7E76` | LC shadow strokes, depth                   |
+| Slate blue  | `#1E6CA0` | Gradient end, C letterform lower half      |
+| Navy        | `#15476C` | Darkest gradient stop, bird silhouettes    |
+| Dark navy   | `#0F3451` | Deep accents, hover states                 |
+| Cream bg    | `#F5F0E8` | Light mode background (from reference)     |
+| Warm white  | `#FAFAF7` | Card surfaces on light mode                |
+| Near black  | `#0A0B0D` | Dark mode background                       |
+| Card dark   | `#12141A` | Dark mode card surfaces                    |
+| Gold amber  | `#D4A017` | Mascot fur, warm accents                   |
+| Light gold  | `#FBBF24` | Mascot highlights, badges                  |
 
 ### Gradient definitions
 
@@ -40,11 +40,11 @@ Text gradient:      135deg, #5FE0C0 → #3B82B8 (lighter, for headings on dark b
 
 ### Variants needed
 
-| Variant | Background | Format | Sizes |
-|---------|-----------|--------|-------|
-| `logo-full-light` | Cream `#F5F0E8` | SVG + PNG | 1200w, 600w, 300w |
-| `logo-full-dark` | Near black `#0A0B0D` | SVG + PNG | 1200w, 600w, 300w |
-| `logo-full-transparent` | Transparent | SVG + PNG | 1200w, 600w |
+| Variant                 | Background           | Format    | Sizes             |
+| ----------------------- | -------------------- | --------- | ----------------- |
+| `logo-full-light`       | Cream `#F5F0E8`      | SVG + PNG | 1200w, 600w, 300w |
+| `logo-full-dark`        | Near black `#0A0B0D` | SVG + PNG | 1200w, 600w, 300w |
+| `logo-full-transparent` | Transparent          | SVG + PNG | 1200w, 600w       |
 
 ### Style spec
 
@@ -91,11 +91,11 @@ Settings: 1024x512 (2:1), CFG 7-8, steps 35-40, sampler DPM++ 2M Karras
 
 ### Variants needed
 
-| Variant | Background | Format | Sizes |
-|---------|-----------|--------|-------|
-| `mark-transparent` | Transparent | SVG + PNG | 512, 256, 128, 64, 32, 16 |
-| `mark-dark` | `#0A0B0D` rounded rect | SVG + PNG | 512, 256, 128 |
-| `mark-light` | `#F5F0E8` rounded rect | SVG + PNG | 512, 256, 128 |
+| Variant            | Background             | Format    | Sizes                     |
+| ------------------ | ---------------------- | --------- | ------------------------- |
+| `mark-transparent` | Transparent            | SVG + PNG | 512, 256, 128, 64, 32, 16 |
+| `mark-dark`        | `#0A0B0D` rounded rect | SVG + PNG | 512, 256, 128             |
+| `mark-light`       | `#F5F0E8` rounded rect | SVG + PNG | 512, 256, 128             |
 
 ### Style spec
 
@@ -135,12 +135,12 @@ Settings: 1024x1024, CFG 7, steps 30
 
 ### Variants needed
 
-| Variant | Background | Format | Sizes |
-|---------|-----------|--------|-------|
-| `tater-dark` | Near black `#0A0B0D` | PNG | 1024, 512, 256 |
-| `tater-light` | Cream `#F5F0E8` | PNG | 1024, 512, 256 |
-| `tater-transparent` | Transparent | PNG | 1024, 512, 256 |
-| `tater-head` | Transparent | PNG | 256, 128 (head only, for small contexts) |
+| Variant             | Background           | Format | Sizes                                    |
+| ------------------- | -------------------- | ------ | ---------------------------------------- |
+| `tater-dark`        | Near black `#0A0B0D` | PNG    | 1024, 512, 256                           |
+| `tater-light`       | Cream `#F5F0E8`      | PNG    | 1024, 512, 256                           |
+| `tater-transparent` | Transparent          | PNG    | 1024, 512, 256                           |
+| `tater-head`        | Transparent          | PNG    | 256, 128 (head only, for small contexts) |
 
 ### SDXL / Flux prompt
 
@@ -175,13 +175,13 @@ Generate on solid green (#00FF00) background, then remove background in post.
 
 **What it is:** The LC mark optimized for tiny sizes.
 
-| File | Size | Format |
-|------|------|--------|
-| `favicon.ico` | 16x16, 32x32, 48x48 | ICO (multi-size) |
-| `favicon.svg` | Scalable | SVG |
-| `apple-touch-icon.png` | 180x180 | PNG |
-| `favicon-192.png` | 192x192 | PNG |
-| `favicon-512.png` | 512x512 | PNG |
+| File                   | Size                | Format           |
+| ---------------------- | ------------------- | ---------------- |
+| `favicon.ico`          | 16x16, 32x32, 48x48 | ICO (multi-size) |
+| `favicon.svg`          | Scalable            | SVG              |
+| `apple-touch-icon.png` | 180x180             | PNG              |
+| `favicon-192.png`      | 192x192             | PNG              |
+| `favicon-512.png`      | 512x512             | PNG              |
 
 Use `mark-dark` (LC on `#0A0B0D` rounded rect) as the source.
 
@@ -189,9 +189,9 @@ Use `mark-dark` (LC on `#0A0B0D` rounded rect) as the source.
 
 ## Asset 5: Open Graph / Social
 
-| File | Size | Usage |
-|------|------|-------|
-| `og-image.png` | 1200x630 | Link previews |
+| File               | Size     | Usage           |
+| ------------------ | -------- | --------------- |
+| `og-image.png`     | 1200x630 | Link previews   |
 | `twitter-card.png` | 1200x600 | Twitter/X cards |
 
 ### Layout spec

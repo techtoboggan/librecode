@@ -389,9 +389,18 @@ export default function Page() {
     const list = globalSync.data.project
     sync.set("project", next.id)
     const idx = list.findIndex((item) => item.id === next.id)
-    if (idx >= 0) { globalSync.set("project", list.map((item, i) => (i === idx ? { ...item, ...next } : item))); return }
+    if (idx >= 0) {
+      globalSync.set(
+        "project",
+        list.map((item, i) => (i === idx ? { ...item, ...next } : item)),
+      )
+      return
+    }
     const at = list.findIndex((item) => item.id > next.id)
-    if (at >= 0) { globalSync.set("project", [...list.slice(0, at), next, ...list.slice(at)]); return }
+    if (at >= 0) {
+      globalSync.set("project", [...list.slice(0, at), next, ...list.slice(at)])
+      return
+    }
     globalSync.set("project", [...list, next])
   }
 

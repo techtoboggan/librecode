@@ -136,12 +136,7 @@ function parseOpenAIModels(data: unknown): Array<{ id: string; name: string }> |
 }
 
 function parseOllamaModels(data: unknown): Array<{ id: string; name: string }> | undefined {
-  if (
-    data &&
-    typeof data === "object" &&
-    "models" in data &&
-    Array.isArray((data as Record<string, unknown>).models)
-  ) {
+  if (data && typeof data === "object" && "models" in data && Array.isArray((data as Record<string, unknown>).models)) {
     const items = (data as Record<string, unknown>).models as unknown[]
     return items
       .filter((m): m is Record<string, unknown> => !!m && typeof m === "object")
@@ -195,7 +190,11 @@ async function probe(host: string, port: number, name: string): Promise<ScanServ
   return { url: baseUrl, serverName: name, modelCount: models.length, models }
 }
 
-async function scanPorts(host: string, ports: { port: number; name: string }[], seen: Set<string>): Promise<ScanServer[]> {
+async function scanPorts(
+  host: string,
+  ports: { port: number; name: string }[],
+  seen: Set<string>,
+): Promise<ScanServer[]> {
   const results: ScanServer[] = []
   await Promise.allSettled(
     ports.map(async (entry) => {

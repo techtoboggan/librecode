@@ -10,17 +10,18 @@
 
 The codebase inherited from opencode v1.2.27 uses Effect-ts in a narrow, hybrid pattern:
 
-| Metric | Value |
-|--------|-------|
-| Total src files | 332 |
-| Files using Effect patterns | 23 (7%) |
-| Core Effect service definitions | 6 |
-| Facade wrapper files (Effect→Promise bridge) | 5 |
-| Tests using Effect | 3 of 109 (3%) |
-| Lines in Effect service files | ~1,066 (~2% of src) |
-| `InstanceState` usages (scoped cache) | 27 |
+| Metric                                       | Value               |
+| -------------------------------------------- | ------------------- |
+| Total src files                              | 332                 |
+| Files using Effect patterns                  | 23 (7%)             |
+| Core Effect service definitions              | 6                   |
+| Facade wrapper files (Effect→Promise bridge) | 5                   |
+| Tests using Effect                           | 3 of 109 (3%)       |
+| Lines in Effect service files                | ~1,066 (~2% of src) |
+| `InstanceState` usages (scoped cache)        | 27                  |
 
 Effect is used as a **DI container** for 4 services (Account, Auth, Permission, Question) and for **scoped resource caching** (`InstanceState`). It is NOT used for:
+
 - Core data flow (sessions, providers, tools all use plain async)
 - Error handling strategy (Zod + NamedError pattern is dominant)
 - Streaming/reactive patterns
@@ -60,6 +61,7 @@ The hybrid approach creates friction:
 ### Phase A: Replace facades with plain classes
 
 Convert each service from:
+
 ```typescript
 // Effect pattern (current)
 const AccountService = ServiceMap.Service<typeof AccountService, AccountService.Service>()
@@ -74,6 +76,7 @@ export namespace Account {
 ```
 
 To:
+
 ```typescript
 // Plain class
 class AccountServiceImpl {
@@ -94,6 +97,7 @@ export const Account = {
 ### Phase B: Replace InstanceState with Promise-based cache
 
 Create a simple `ScopedCache<K, V>` utility:
+
 ```typescript
 class ScopedCache<K, V> {
   private cache = new Map<K, V>()
@@ -119,6 +123,7 @@ Phase A → Phase B → Phase C, each as a separate PR. Phase A is safe to do fi
 ## Consequences
 
 ### Positive
+
 - Single async paradigm across the entire codebase
 - No facade boilerplate (5 files removed)
 - Lower barrier for contributors
@@ -126,11 +131,13 @@ Phase A → Phase B → Phase C, each as a separate PR. Phase A is safe to do fi
 - Reduced bundle size (effect package removed)
 
 ### Negative
+
 - Lose Effect's tracing/span names (low impact — not used in production monitoring)
 - Lose typed error channels (mitigated by existing NamedError pattern)
 - Must manually handle scoped resource cleanup (mitigated by ScopedCache utility)
 - Migration effort (~27 InstanceState usages + 11 service/facade files)
 
 ### Neutral
+
 - HTTP client composition moves to a thin wrapper or uses fetch directly
 - DI becomes constructor injection (already the pattern in 99% of code)

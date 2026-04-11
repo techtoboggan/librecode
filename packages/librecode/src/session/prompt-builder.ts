@@ -53,10 +53,7 @@ async function lastModelForBuilder(sessionID: SessionID) {
 
 // ─── MCP content parsing ─────────────────────────────────────────────────────
 
-export function parseMcpResourceContent(
-  resource: McpToolContent & { type: "resource" },
-  out: McpParsedOutput,
-): void {
+export function parseMcpResourceContent(resource: McpToolContent & { type: "resource" }, out: McpParsedOutput): void {
   if (resource.resource.text) out.textParts.push(resource.resource.text)
   if (resource.resource.blob) {
     out.attachments.push({
@@ -166,10 +163,7 @@ export function wrapTextPart(part: MessageV2.Part): void {
   ].join("\n")
 }
 
-export function wrapQueuedUserMessages(
-  msgs: MessageV2.WithParts[],
-  lastFinished: MessageV2.Assistant,
-): void {
+export function wrapQueuedUserMessages(msgs: MessageV2.WithParts[], lastFinished: MessageV2.Assistant): void {
   for (const msg of msgs) {
     if (msg.info.role !== "user" || msg.info.id <= lastFinished.id) continue
     msg.parts.forEach(wrapTextPart)
@@ -436,11 +430,7 @@ export async function finalizeSubtaskResult(
     messageID: assistantMessage.id,
   }))
 
-  await Plugin.trigger(
-    "tool.execute.after",
-    { tool: "task", sessionID, callID: part.id, args: taskArgs },
-    result,
-  )
+  await Plugin.trigger("tool.execute.after", { tool: "task", sessionID, callID: part.id, args: taskArgs }, result)
 
   assistantMessage.finish = "tool-calls"
   assistantMessage.time.completed = Date.now()
@@ -479,10 +469,7 @@ export async function finalizeSubtaskResult(
   }
 }
 
-export async function addSubtaskSummaryMessage(
-  lastUser: MessageV2.User,
-  sessionID: SessionID,
-): Promise<void> {
+export async function addSubtaskSummaryMessage(lastUser: MessageV2.User, sessionID: SessionID): Promise<void> {
   // Add synthetic user message to prevent certain reasoning models from erroring
   // If we create assistant messages w/ out user ones following mid loop thinking signatures
   // will be missing and it can cause errors for models like gemini for example

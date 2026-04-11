@@ -27,11 +27,11 @@ Plugin definition ──► AuthHook ──► DialogConnectProvider (UI)
 
 ### Provider Types
 
-| Type | Auth Method | Examples |
-|------|------------|---------|
-| **Cloud API** | Simple API key | Anthropic, OpenRouter, Cerebras |
-| **Cloud OAuth** | Browser/device code | OpenAI Codex, GitHub Copilot |
-| **Local Server** | URL + optional key + discovery | LiteLLM, Ollama, vLLM |
+| Type             | Auth Method                    | Examples                        |
+| ---------------- | ------------------------------ | ------------------------------- |
+| **Cloud API**    | Simple API key                 | Anthropic, OpenRouter, Cerebras |
+| **Cloud OAuth**  | Browser/device code            | OpenAI Codex, GitHub Copilot    |
+| **Local Server** | URL + optional key + discovery | LiteLLM, Ollama, vLLM           |
 
 ---
 
@@ -178,6 +178,7 @@ export async function MyLocalProviderPlugin(_input: PluginInput): Promise<Hooks>
 ```
 
 The UI renders URL and API Key fields. On submit:
+
 1. `authorize()` validates the connection by fetching models
 2. If successful, credentials are saved
 3. `loader()` runs and discovers all available models
@@ -247,6 +248,7 @@ packages/librecode/src/plugin/<provider-name>.ts
 ```
 
 Follow Template B above. Key decisions:
+
 - Default URL and port
 - Whether API key is required or optional
 - How to discover models (most use `/v1/models` OpenAI-compatible endpoint)
@@ -263,7 +265,7 @@ const INTERNAL_PLUGINS: PluginInstance[] = [
   CodexAuthPlugin,
   CopilotAuthPlugin,
   LiteLLMAuthPlugin,
-  MyProviderPlugin,  // add here
+  MyProviderPlugin, // add here
 ]
 ```
 
@@ -318,34 +320,36 @@ bun run typecheck                 # No type errors
 
 Simple API key authentication. Renders a text field in the UI.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"api"` | Yes | Method type |
-| `label` | `string` | Yes | Display name in method selection |
-| `prompts` | `MethodPrompt[]` | No | Custom input fields (see below) |
-| `authorize` | `(inputs?) => Promise<Result>` | No | Custom validation before saving |
+| Field       | Type                           | Required | Description                      |
+| ----------- | ------------------------------ | -------- | -------------------------------- |
+| `type`      | `"api"`                        | Yes      | Method type                      |
+| `label`     | `string`                       | Yes      | Display name in method selection |
+| `prompts`   | `MethodPrompt[]`               | No       | Custom input fields (see below)  |
+| `authorize` | `(inputs?) => Promise<Result>` | No       | Custom validation before saving  |
 
 ### Method Type: `"oauth"`
 
 Browser-based OAuth flow. Opens a URL and waits for callback.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `type` | `"oauth"` | Yes | Method type |
-| `label` | `string` | Yes | Display name |
-| `prompts` | `MethodPrompt[]` | No | Pre-auth input collection |
-| `authorize` | `(inputs?) => Promise<AuthOuathResult>` | Yes | Returns URL + callback |
+| Field       | Type                                    | Required | Description               |
+| ----------- | --------------------------------------- | -------- | ------------------------- |
+| `type`      | `"oauth"`                               | Yes      | Method type               |
+| `label`     | `string`                                | Yes      | Display name              |
+| `prompts`   | `MethodPrompt[]`                        | No       | Pre-auth input collection |
+| `authorize` | `(inputs?) => Promise<AuthOuathResult>` | Yes      | Returns URL + callback    |
 
 ### Prompt Types
 
 Prompts define custom input fields rendered in the connect dialog.
 
 **Text prompt:**
+
 ```typescript
 { type: "text", key: "url", message: "Server URL", placeholder: "http://..." }
 ```
 
 **Select prompt:**
+
 ```typescript
 {
   type: "select",
@@ -392,12 +396,12 @@ async loader(
 
 ## Reference Implementations
 
-| Provider | File | Auth | Key Features |
-|----------|------|------|-------------|
-| **Codex** | `src/plugin/codex.ts` | OAuth (PKCE + device code) + API key | Token refresh, model filtering, custom fetch wrapper |
-| **Copilot** | `src/plugin/copilot.ts` | OAuth (device code) | GitHub Enterprise domain support, vision headers |
-| **LiteLLM** | `src/plugin/litellm.ts` | API + prompts | URL config, connection validation, model discovery |
-| **Ollama** | `src/plugin/ollama.ts` | API + prompts | URL config, `/v1/models` + `/api/tags` dual-format probe |
+| Provider    | File                    | Auth                                 | Key Features                                             |
+| ----------- | ----------------------- | ------------------------------------ | -------------------------------------------------------- |
+| **Codex**   | `src/plugin/codex.ts`   | OAuth (PKCE + device code) + API key | Token refresh, model filtering, custom fetch wrapper     |
+| **Copilot** | `src/plugin/copilot.ts` | OAuth (device code)                  | GitHub Enterprise domain support, vision headers         |
+| **LiteLLM** | `src/plugin/litellm.ts` | API + prompts                        | URL config, connection validation, model discovery       |
+| **Ollama**  | `src/plugin/ollama.ts`  | API + prompts                        | URL config, `/v1/models` + `/api/tags` dual-format probe |
 
 ### Full pipeline for LiteLLM (local server):
 

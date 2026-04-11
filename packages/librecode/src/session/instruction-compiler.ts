@@ -28,14 +28,7 @@ const log = Log.create({ service: "instruction-compiler" })
 
 // ── Priority tiers ──
 
-export const InstructionTier = z.enum([
-  "system",
-  "agent",
-  "project",
-  "user",
-  "contextual",
-  "format",
-])
+export const InstructionTier = z.enum(["system", "agent", "project", "user", "contextual", "format"])
 export type InstructionTier = z.infer<typeof InstructionTier>
 
 /** Numeric priority — higher number = higher priority in conflict resolution */

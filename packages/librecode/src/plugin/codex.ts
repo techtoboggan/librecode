@@ -442,7 +442,10 @@ async function pollForCodexDeviceToken(
   deviceAuthId: string,
   userCode: string,
   interval: number,
-): Promise<{ type: "success"; refresh: string; access: string; expires: number; accountId: string | undefined } | { type: "failed" }> {
+): Promise<
+  | { type: "success"; refresh: string; access: string; expires: number; accountId: string | undefined }
+  | { type: "failed" }
+> {
   while (true) {
     const response = await fetch(`${ISSUER}/api/accounts/deviceauth/token`, {
       method: "POST",
@@ -514,7 +517,9 @@ function ensureDefaultCodexModel(provider: { models: Record<string, unknown> }):
   provider.models["gpt-5.3-codex"] = model
 }
 
-function zeroOutModelCosts(models: Record<string, { cost: { input: number; output: number; cache: { read: number; write: number } } }>): void {
+function zeroOutModelCosts(
+  models: Record<string, { cost: { input: number; output: number; cache: { read: number; write: number } } }>,
+): void {
   for (const model of Object.values(models)) {
     model.cost = { input: 0, output: 0, cache: { read: 0, write: 0 } }
   }
@@ -607,8 +612,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
               url: `${ISSUER}/codex/device`,
               instructions: `Enter code: ${deviceData.user_code}`,
               method: "auto" as const,
-              callback: () =>
-                pollForCodexDeviceToken(deviceData.device_auth_id, deviceData.user_code, interval),
+              callback: () => pollForCodexDeviceToken(deviceData.device_auth_id, deviceData.user_code, interval),
             }
           },
         },
@@ -621,7 +625,8 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
     "chat.headers": async (input, output) => {
       if (input.model.providerID !== "openai") return
       output.headers.originator = "librecode"
-      output.headers["User-Agent"] = `librecode/${Installation.VERSION} (${os.platform()} ${os.release()}; ${os.arch()})`
+      output.headers["User-Agent"] =
+        `librecode/${Installation.VERSION} (${os.platform()} ${os.release()}; ${os.arch()})`
       output.headers.session_id = input.sessionID
     },
   }

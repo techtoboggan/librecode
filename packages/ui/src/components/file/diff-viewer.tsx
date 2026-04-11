@@ -36,9 +36,23 @@ import { ViewerShell } from "./text-viewer"
 import type { FileMediaOptions } from "../file-media"
 import { FileMedia } from "../file-media"
 
-const diffKeys = ["before", "after", "mode", "media", "class", "classList", "annotations", "selectedLines",
-  "commentedLines", "search", "onLineSelected", "onLineSelectionEnd", "onLineNumberSelectionEnd", "onRendered",
-  "preloadedDiff"] as const
+const diffKeys = [
+  "before",
+  "after",
+  "mode",
+  "media",
+  "class",
+  "classList",
+  "annotations",
+  "selectedLines",
+  "commentedLines",
+  "search",
+  "onLineSelected",
+  "onLineSelectionEnd",
+  "onLineNumberSelectionEnd",
+  "onRendered",
+  "preloadedDiff",
+] as const
 
 export function DiffViewer<T>(props: DiffFileProps<T>): JSX.Element {
   let instance: FileDiff<T> | undefined

@@ -123,7 +123,11 @@ export function modelVariantsFromProviders(
 }
 
 export function buildAvailableModels(
-  providers: Array<{ id: string; name: string; models: Record<string, { id: string; name: string; variants?: Record<string, unknown> }> }>,
+  providers: Array<{
+    id: string
+    name: string
+    models: Record<string, { id: string; name: string; variants?: Record<string, unknown> }>
+  }>,
   options: { includeVariants?: boolean } = {},
 ): ModelOption[] {
   const includeVariants = options.includeVariants ?? false
@@ -322,9 +326,7 @@ function convertResourceLinkPromptPart(
   return [parsed]
 }
 
-function convertResourcePromptPart(
-  part: Extract<PromptRequest["prompt"][number], { type: "resource" }>,
-): PromptPart[] {
+function convertResourcePromptPart(part: Extract<PromptRequest["prompt"][number], { type: "resource" }>): PromptPart[] {
   const resource = part.resource
   if ("text" in resource && resource.text) {
     return [{ type: "text", text: resource.text }]
@@ -333,7 +335,9 @@ function convertResourcePromptPart(
     // Binary resource (PDFs, etc.): store as file part with data URL
     const parsed = parseUri(resource.uri ?? "")
     const filename = parsed.type === "file" ? parsed.filename : "file"
-    return [{ type: "file", url: `data:${resource.mimeType};base64,${resource.blob}`, filename, mime: resource.mimeType }]
+    return [
+      { type: "file", url: `data:${resource.mimeType};base64,${resource.blob}`, filename, mime: resource.mimeType },
+    ]
   }
   return []
 }

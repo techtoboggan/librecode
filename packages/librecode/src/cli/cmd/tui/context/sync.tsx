@@ -118,7 +118,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       if (!requests) return
       const match = Binary.search(requests, props.requestID, (r) => r.id)
       if (!match.found) return
-      setStore("permission", props.sessionID, produce((draft) => { draft.splice(match.index, 1) }))
+      setStore(
+        "permission",
+        props.sessionID,
+        produce((draft) => {
+          draft.splice(match.index, 1)
+        }),
+      )
     }
 
     function handlePermissionAsked(request: PermissionRequest): void {
@@ -132,7 +138,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         setStore("permission", request.sessionID, match.index, reconcile(request))
         return
       }
-      setStore("permission", request.sessionID, produce((draft) => { draft.splice(match.index, 0, request) }))
+      setStore(
+        "permission",
+        request.sessionID,
+        produce((draft) => {
+          draft.splice(match.index, 0, request)
+        }),
+      )
     }
 
     function handleQuestionRemoved(props: { sessionID: string; requestID: string }): void {
@@ -140,7 +152,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       if (!requests) return
       const match = Binary.search(requests, props.requestID, (r) => r.id)
       if (!match.found) return
-      setStore("question", props.sessionID, produce((draft) => { draft.splice(match.index, 1) }))
+      setStore(
+        "question",
+        props.sessionID,
+        produce((draft) => {
+          draft.splice(match.index, 1)
+        }),
+      )
     }
 
     function handleQuestionAsked(request: QuestionRequest): void {
@@ -154,13 +172,24 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         setStore("question", request.sessionID, match.index, reconcile(request))
         return
       }
-      setStore("question", request.sessionID, produce((draft) => { draft.splice(match.index, 0, request) }))
+      setStore(
+        "question",
+        request.sessionID,
+        produce((draft) => {
+          draft.splice(match.index, 0, request)
+        }),
+      )
     }
 
     function handleSessionDeleted(info: Session): void {
       const result = Binary.search(store.session, info.id, (s) => s.id)
       if (result.found) {
-        setStore("session", produce((draft) => { draft.splice(result.index, 1) }))
+        setStore(
+          "session",
+          produce((draft) => {
+            draft.splice(result.index, 1)
+          }),
+        )
       }
     }
 
@@ -170,7 +199,12 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         setStore("session", result.index, reconcile(info))
         return
       }
-      setStore("session", produce((draft) => { draft.splice(result.index, 0, info) }))
+      setStore(
+        "session",
+        produce((draft) => {
+          draft.splice(result.index, 0, info)
+        }),
+      )
     }
 
     function handleMessageUpdated(info: Message): void {
@@ -184,13 +218,30 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         setStore("message", info.sessionID, result.index, reconcile(info))
         return
       }
-      setStore("message", info.sessionID, produce((draft) => { draft.splice(result.index, 0, info) }))
+      setStore(
+        "message",
+        info.sessionID,
+        produce((draft) => {
+          draft.splice(result.index, 0, info)
+        }),
+      )
       const updated = store.message[info.sessionID]
       if (updated.length > 100) {
         const oldest = updated[0]
         batch(() => {
-          setStore("message", info.sessionID, produce((draft) => { draft.shift() }))
-          setStore("part", produce((draft) => { delete draft[oldest.id] }))
+          setStore(
+            "message",
+            info.sessionID,
+            produce((draft) => {
+              draft.shift()
+            }),
+          )
+          setStore(
+            "part",
+            produce((draft) => {
+              delete draft[oldest.id]
+            }),
+          )
         })
       }
     }
@@ -199,7 +250,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       const messages = store.message[props.sessionID]
       const result = Binary.search(messages, props.messageID, (m) => m.id)
       if (result.found) {
-        setStore("message", props.sessionID, produce((draft) => { draft.splice(result.index, 1) }))
+        setStore(
+          "message",
+          props.sessionID,
+          produce((draft) => {
+            draft.splice(result.index, 1)
+          }),
+        )
       }
     }
 
@@ -214,7 +271,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         setStore("part", part.messageID, result.index, reconcile(part))
         return
       }
-      setStore("part", part.messageID, produce((draft) => { draft.splice(result.index, 0, part) }))
+      setStore(
+        "part",
+        part.messageID,
+        produce((draft) => {
+          draft.splice(result.index, 0, part)
+        }),
+      )
     }
 
     function handlePartDelta(props: { messageID: string; partID: string; field: string; delta: string }): void {
@@ -222,19 +285,29 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
       if (!parts) return
       const result = Binary.search(parts, props.partID, (p) => p.id)
       if (!result.found) return
-      setStore("part", props.messageID, produce((draft) => {
-        const part = draft[result.index]
-        const field = props.field as keyof typeof part
-        const existing = part[field] as string | undefined
-        ;(part[field] as string) = (existing ?? "") + props.delta
-      }))
+      setStore(
+        "part",
+        props.messageID,
+        produce((draft) => {
+          const part = draft[result.index]
+          const field = props.field as keyof typeof part
+          const existing = part[field] as string | undefined
+          ;(part[field] as string) = (existing ?? "") + props.delta
+        }),
+      )
     }
 
     function handlePartRemoved(props: { messageID: string; partID: string }): void {
       const parts = store.part[props.messageID]
       const result = Binary.search(parts, props.partID, (p) => p.id)
       if (result.found) {
-        setStore("part", props.messageID, produce((draft) => { draft.splice(result.index, 1) }))
+        setStore(
+          "part",
+          props.messageID,
+          produce((draft) => {
+            draft.splice(result.index, 1)
+          }),
+        )
       }
     }
 

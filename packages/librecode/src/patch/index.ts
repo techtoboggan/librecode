@@ -391,7 +391,12 @@ export namespace Patch {
   }
 
   // Advance lineIndex for context-based seeking; throws if context not found
-  function advanceContextIndex(originalLines: string[], chunk: UpdateFileChunk, lineIndex: number, filePath: string): number {
+  function advanceContextIndex(
+    originalLines: string[],
+    chunk: UpdateFileChunk,
+    lineIndex: number,
+    filePath: string,
+  ): number {
     if (!chunk.change_context) return lineIndex
     const contextIdx = seekSequence(originalLines, [chunk.change_context], lineIndex)
     if (contextIdx === -1) {
@@ -628,10 +633,7 @@ export namespace Patch {
   async function buildDeleteChange(
     hunk: Extract<Hunk, { type: "delete" }>,
     effectiveCwd: string,
-  ): Promise<
-    | { ok: true; resolvedPath: string; change: ApplyPatchFileChange }
-    | { ok: false; error: Error }
-  > {
+  ): Promise<{ ok: true; resolvedPath: string; change: ApplyPatchFileChange } | { ok: false; error: Error }> {
     const deletePath = path.resolve(effectiveCwd, hunk.path)
     try {
       const content = await fs.readFile(deletePath, "utf-8")
@@ -665,14 +667,16 @@ export namespace Patch {
     }
   }
 
-  type HunkChangeResult =
-    | { ok: true; resolvedPath: string; change: ApplyPatchFileChange }
-    | { ok: false; error: Error }
+  type HunkChangeResult = { ok: true; resolvedPath: string; change: ApplyPatchFileChange } | { ok: false; error: Error }
 
   // Resolve a single hunk to a (path, change) entry or an error
   async function resolveHunkChange(hunk: Hunk, effectiveCwd: string): Promise<HunkChangeResult> {
     if (hunk.type === "add") {
-      return { ok: true, resolvedPath: path.resolve(effectiveCwd, hunk.path), change: { type: "add", content: hunk.contents } }
+      return {
+        ok: true,
+        resolvedPath: path.resolve(effectiveCwd, hunk.path),
+        change: { type: "add", content: hunk.contents },
+      }
     }
     if (hunk.type === "delete") return buildDeleteChange(hunk, effectiveCwd)
     return buildUpdateChange(hunk, effectiveCwd)
@@ -682,10 +686,7 @@ export namespace Patch {
   async function buildChangesMap(
     hunks: Hunk[],
     effectiveCwd: string,
-  ): Promise<
-    | { ok: true; changes: Map<string, ApplyPatchFileChange> }
-    | { ok: false; error: Error }
-  > {
+  ): Promise<{ ok: true; changes: Map<string, ApplyPatchFileChange> } | { ok: false; error: Error }> {
     const changes = new Map<string, ApplyPatchFileChange>()
 
     for (const hunk of hunks) {

@@ -70,12 +70,12 @@ LibreCode is a fork of [opencode v1.2.27](https://github.com/anomalyco/opencode/
 
 LibreCode ships with built-in support for local model servers and enterprise providers:
 
-| Provider | Type | Default Port |
-|----------|------|-------------|
-| **Ollama** | Local | 11434 |
-| **LiteLLM** | Local proxy | 4000 |
-| **Amazon Bedrock** | Enterprise | &mdash; |
-| **Azure OpenAI** | Enterprise | &mdash; |
+| Provider           | Type        | Default Port |
+| ------------------ | ----------- | ------------ |
+| **Ollama**         | Local       | 11434        |
+| **LiteLLM**        | Local proxy | 4000         |
+| **Amazon Bedrock** | Enterprise  | &mdash;      |
+| **Azure OpenAI**   | Enterprise  | &mdash;      |
 
 Cloud providers (Anthropic, OpenAI, OpenRouter, etc.) are available as community plugins. Add them to `.librecode/librecode.json`:
 
@@ -95,12 +95,12 @@ Or install the bundle for all cloud providers at once:
 
 **Available provider plugins:**
 
-| Package | Provider |
-|---------|----------|
-| [`@librecode/provider-anthropic`](https://www.npmjs.com/package/@librecode/provider-anthropic) | Anthropic (Claude) |
-| [`@librecode/provider-openai`](https://www.npmjs.com/package/@librecode/provider-openai) | OpenAI |
-| [`@librecode/provider-openrouter`](https://www.npmjs.com/package/@librecode/provider-openrouter) | OpenRouter |
-| [`@librecode/provider-bundle`](https://www.npmjs.com/package/@librecode/provider-bundle) | All of the above |
+| Package                                                                                          | Provider           |
+| ------------------------------------------------------------------------------------------------ | ------------------ |
+| [`@librecode/provider-anthropic`](https://www.npmjs.com/package/@librecode/provider-anthropic)   | Anthropic (Claude) |
+| [`@librecode/provider-openai`](https://www.npmjs.com/package/@librecode/provider-openai)         | OpenAI             |
+| [`@librecode/provider-openrouter`](https://www.npmjs.com/package/@librecode/provider-openrouter) | OpenRouter         |
+| [`@librecode/provider-bundle`](https://www.npmjs.com/package/@librecode/provider-bundle)         | All of the above   |
 
 See the [Provider Guide](docs/providers.md) for adding new providers or writing your own.
 

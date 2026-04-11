@@ -131,14 +131,8 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
               aria-hidden="true"
             >
               <Show when={props.slot.show}>
-                <div
-                  class="transition-opacity duration-200 ease-out"
-                  classList={{ "opacity-0": props.slot.fade }}
-                >
-                  <Spinner
-                    class="size-4"
-                    style={{ color: props.tint() ?? "var(--icon-interactive-base)" }}
-                  />
+                <div class="transition-opacity duration-200 ease-out" classList={{ "opacity-0": props.slot.fade }}>
+                  <Spinner class="size-4" style={{ color: props.tint() ?? "var(--icon-interactive-base)" }} />
                 </div>
               </Show>
             </div>
@@ -223,18 +217,14 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
                     </DropdownMenu.Item>
                     <Show when={props.shareEnabled()}>
                       <DropdownMenu.Item onSelect={props.onSelectShare}>
-                        <DropdownMenu.ItemLabel>
-                          {language.t("session.share.action.share")}
-                        </DropdownMenu.ItemLabel>
+                        <DropdownMenu.ItemLabel>{language.t("session.share.action.share")}</DropdownMenu.ItemLabel>
                       </DropdownMenu.Item>
                     </Show>
                     <DropdownMenu.Item onSelect={() => props.onArchiveSession(id())}>
                       <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
                     <DropdownMenu.Separator />
-                    <DropdownMenu.Item
-                      onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id()} />)}
-                    >
+                    <DropdownMenu.Item onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id()} />)}>
                       <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
                   </DropdownMenu.Content>
@@ -264,9 +254,7 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
                   >
                     <div class="flex flex-col p-3">
                       <div class="flex flex-col gap-1">
-                        <div class="text-13-medium text-text-strong">
-                          {language.t("session.share.popover.title")}
-                        </div>
+                        <div class="text-13-medium text-text-strong">{language.t("session.share.popover.title")}</div>
                         <div class="text-12-regular text-text-weak">
                           {props.shareUrl()
                             ? language.t("session.share.popover.description.shared")

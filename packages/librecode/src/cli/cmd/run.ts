@@ -260,7 +260,11 @@ function warnAgent(msg: string): void {
   UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL, msg)
 }
 
-async function resolveAgentRemote(agentName: string, attachURL: string, sdk: OpencodeClient): Promise<string | undefined> {
+async function resolveAgentRemote(
+  agentName: string,
+  attachURL: string,
+  sdk: OpencodeClient,
+): Promise<string | undefined> {
   const modes = await sdk.app
     .agents(undefined, { throwOnError: true })
     .then((x) => x.data ?? [])
@@ -333,9 +337,7 @@ function resolveDirectory(dir: string | undefined, attach: string | undefined): 
   }
 }
 
-function buildAuthHeaders(
-  password: string | undefined,
-): Record<string, string> | undefined {
+function buildAuthHeaders(password: string | undefined): Record<string, string> | undefined {
   const pw = password ?? process.env.LIBRECODE_SERVER_PASSWORD
   if (!pw) return undefined
   const username = process.env.LIBRECODE_SERVER_USERNAME ?? "librecode"
@@ -355,9 +357,7 @@ type EventLoopCtx = {
 function makeEmitter(ctx: EventLoopCtx): EventEmitter {
   return (type, data) => {
     if (ctx.format !== "json") return false
-    process.stdout.write(
-      JSON.stringify({ type, timestamp: Date.now(), sessionID: ctx.sessionID, ...data }) + EOL,
-    )
+    process.stdout.write(JSON.stringify({ type, timestamp: Date.now(), sessionID: ctx.sessionID, ...data }) + EOL)
     return true
   }
 }
@@ -401,11 +401,7 @@ function handleTextPart(part: TextPart, emit: EventEmitter): "continue" | "skip"
   return "continue"
 }
 
-function handleReasoningPart(
-  part: ReasoningPart,
-  emit: EventEmitter,
-  thinking: boolean,
-): "continue" | "skip" {
+function handleReasoningPart(part: ReasoningPart, emit: EventEmitter, thinking: boolean): "continue" | "skip" {
   if (!part.time?.end || !thinking) return "skip"
   if (emit("reasoning", { part })) return "continue"
   const text = part.text.trim()
@@ -480,11 +476,7 @@ type LoopState = {
 
 function handleMessageUpdated(event: EventMessageUpdated, state: LoopState): void {
   const { ctx, toggles } = state
-  if (
-    event.properties.info.role === "assistant" &&
-    ctx.format !== "json" &&
-    toggles.get("start") !== true
-  ) {
+  if (event.properties.info.role === "assistant" && ctx.format !== "json" && toggles.get("start") !== true) {
     UI.empty()
     UI.println(`> ${event.properties.info.agent} · ${event.properties.info.modelID}`)
     UI.empty()

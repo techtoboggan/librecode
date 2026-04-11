@@ -1,784 +1,939 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LibreCode - Free Software. Modern Code.</title>
-  <meta name="description" content="LibreCode is an open-source AI-powered development tool. Proper Linux packaging, formalized agentic SDLC, community-driven.">
-  <link rel="icon" type="image/png" href="/logo-mark.svg">
-  <meta property="og:title" content="LibreCode - Free Software. Modern Code.">
-  <meta property="og:description" content="AI-powered development tool with proper Linux packaging, a formalized agentic SDLC pattern, and community-driven development.">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="https://librecode.io">
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-
-  <style>
-    /* ── Tokens ── */
-    :root {
-      --teal-300: #5FE0C0;
-      --teal-400: #2DD4A8;
-      --teal-500: #0D9488;
-      --teal-600: #0A7E76;
-      --teal-700: #086864;
-      --blue-400: #3B82B8;
-      --blue-500: #1E6CA0;
-      --blue-700: #15476C;
-      --blue-900: #0A2239;
-      --amber-400: #FBBF24;
-      --amber-500: #D4A017;
-      --bg-dark: #0A0B0D;
-      --bg-darker: #060708;
-      --bg-card: #12141A;
-      --bg-card-hover: #1A1D26;
-      --bg-light: #F5F0E8;
-      --text-primary: #F0F0F0;
-      --text-secondary: #A0A0A8;
-      --text-muted: #6B7280;
-      --gradient-brand: linear-gradient(135deg, var(--teal-500), var(--blue-500));
-      --gradient-hero: linear-gradient(135deg, var(--teal-400), var(--blue-700));
-      --gradient-warm: linear-gradient(135deg, var(--amber-500), var(--teal-500));
-      --font-display: 'Inter', -apple-system, system-ui, sans-serif;
-      --font-mono: 'JetBrains Mono', ui-monospace, monospace;
-    }
-
-    /* ── Reset ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      font-family: var(--font-display);
-      background: var(--bg-dark);
-      color: var(--text-primary);
-      line-height: 1.6;
-      overflow-x: hidden;
-    }
-
-    a { color: var(--teal-400); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-
-    /* ── Nav ── */
-    nav {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      background: rgba(10, 11, 13, 0.85);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      padding: 0 2rem;
-    }
-
-    nav .nav-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      height: 60px;
-    }
-
-    nav .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 700;
-      font-size: 1.1rem;
-      color: var(--text-primary);
-      text-decoration: none;
-    }
-
-    nav .nav-brand img {
-      height: 28px;
-      width: auto;
-    }
-
-    nav .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 2rem;
-      list-style: none;
-    }
-
-    nav .nav-links a {
-      color: var(--text-secondary);
-      font-size: 0.9rem;
-      font-weight: 500;
-      text-decoration: none;
-      transition: color 0.15s;
-    }
-
-    nav .nav-links a:hover { color: var(--text-primary); }
-
-    nav .nav-cta {
-      background: var(--gradient-brand);
-      color: white !important;
-      padding: 0.4rem 1rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 0.85rem;
-      transition: opacity 0.15s;
-    }
-
-    nav .nav-cta:hover { opacity: 0.9; text-decoration: none; }
-
-    /* ── Hero ── */
-    .hero {
-      padding: 10rem 2rem 6rem;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: -200px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 800px;
-      height: 800px;
-      background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, transparent 60%);
-      pointer-events: none;
-    }
-
-    .hero-content {
-      max-width: 750px;
-      margin: 0 auto;
-      position: relative;
-      z-index: 1;
-    }
-
-    .hero h1 {
-      font-size: 3.5rem;
-      font-weight: 800;
-      line-height: 1.1;
-      margin-bottom: 1.25rem;
-    }
-
-    .hero h1 .gradient-text {
-      background: var(--gradient-hero);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero .subtitle {
-      font-size: 1.25rem;
-      color: var(--text-secondary);
-      max-width: 550px;
-      margin: 0 auto 2rem;
-    }
-
-    .hero-actions {
-      display: flex;
-      gap: 1rem;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .btn-primary {
-      background: var(--gradient-brand);
-      color: white;
-      padding: 0.75rem 2rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 1rem;
-      border: none;
-      cursor: pointer;
-      transition: all 0.15s;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); text-decoration: none; }
-
-    .btn-secondary {
-      background: var(--bg-card);
-      color: var(--text-primary);
-      padding: 0.75rem 2rem;
-      border-radius: 9999px;
-      font-weight: 600;
-      font-size: 1rem;
-      border: 1px solid rgba(255,255,255,0.1);
-      cursor: pointer;
-      transition: all 0.15s;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .btn-secondary:hover { border-color: var(--teal-500); text-decoration: none; }
-
-    .hero-terminal {
-      margin-top: 3rem;
-      background: var(--bg-card);
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 0.75rem;
-      padding: 0;
-      max-width: 600px;
-      margin-left: auto;
-      margin-right: auto;
-      overflow: hidden;
-      text-align: left;
-    }
-
-    .terminal-bar {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.75rem 1rem;
-      background: rgba(255,255,255,0.03);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .terminal-dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.15);
-    }
-
-    .terminal-bar span { font-size: 0.75rem; color: var(--text-muted); margin-left: 0.5rem; }
-
-    .terminal-body {
-      padding: 1.25rem;
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-      line-height: 1.8;
-    }
-
-    .terminal-body .prompt { color: var(--teal-400); }
-    .terminal-body .cmd { color: var(--text-primary); }
-    .terminal-body .comment { color: var(--text-muted); }
-    .terminal-body .output { color: var(--text-secondary); }
-
-    /* ── Section base ── */
-    section {
-      padding: 6rem 2rem;
-    }
-
-    .section-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-    }
-
-    .section-header {
-      text-align: center;
-      margin-bottom: 3rem;
-    }
-
-    .section-header .section-tag {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      color: var(--teal-400);
-      font-weight: 600;
-      margin-bottom: 0.75rem;
-    }
-
-    .section-header h2 {
-      font-size: 2.25rem;
-      font-weight: 700;
-      margin-bottom: 0.75rem;
-    }
-
-    .section-header p {
-      font-size: 1.1rem;
-      color: var(--text-secondary);
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    /* ── Why Section ── */
-    .why-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1.5rem;
-    }
-
-    .why-card {
-      background: var(--bg-card);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 0.75rem;
-      padding: 2rem;
-      transition: all 0.2s;
-    }
-
-    .why-card:hover {
-      border-color: var(--teal-500);
-      box-shadow: 0 0 30px rgba(13, 148, 136, 0.1);
-    }
-
-    .why-card .card-icon {
-      font-size: 2rem;
-      margin-bottom: 1rem;
-    }
-
-    .why-card h3 {
-      font-size: 1.15rem;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-    }
-
-    .why-card p {
-      font-size: 0.9rem;
-      color: var(--text-secondary);
-      line-height: 1.6;
-    }
-
-    /* ── Mission ── */
-    .mission {
-      background: linear-gradient(180deg, rgba(13,148,136,0.05) 0%, transparent 100%);
-      border-top: 1px solid rgba(13,148,136,0.15);
-      border-bottom: 1px solid rgba(13,148,136,0.15);
-    }
-
-    .mission-content {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 4rem;
-      align-items: center;
-    }
-
-    .mission-text h2 {
-      font-size: 2rem;
-      font-weight: 700;
-      margin-bottom: 1.25rem;
-    }
-
-    .mission-text p {
-      color: var(--text-secondary);
-      margin-bottom: 1rem;
-      font-size: 1.05rem;
-    }
-
-    .mission-text .highlight {
-      color: var(--teal-400);
-      font-weight: 600;
-    }
-
-    .mission-mascot {
-      text-align: center;
-    }
-
-    .mission-mascot img {
-      max-width: 320px;
-      width: 100%;
-      height: auto;
-    }
-
-    /* ── Principles ── */
-    .principles-list {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 1.5rem;
-    }
-
-    .principle {
-      display: flex;
-      gap: 1rem;
-      padding: 1.5rem;
-      background: var(--bg-card);
-      border-radius: 0.75rem;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .principle .p-number {
-      font-family: var(--font-mono);
-      font-size: 1.5rem;
-      font-weight: 700;
-      background: var(--gradient-brand);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      line-height: 1;
-      min-width: 2rem;
-    }
-
-    .principle h3 {
-      font-size: 1rem;
-      font-weight: 600;
-      margin-bottom: 0.35rem;
-    }
-
-    .principle p {
-      font-size: 0.85rem;
-      color: var(--text-secondary);
-    }
-
-    /* ── Architecture ── */
-    .arch-grid {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 1rem;
-    }
-
-    .arch-item {
-      background: var(--bg-card);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: 0.75rem;
-      padding: 1.25rem;
-      text-align: center;
-      transition: all 0.15s;
-    }
-
-    .arch-item:hover {
-      border-color: var(--teal-500);
-    }
-
-    .arch-item .arch-name {
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--teal-400);
-      margin-bottom: 0.35rem;
-    }
-
-    .arch-item .arch-desc {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-    }
-
-    /* ── CTA ── */
-    .cta-section {
-      text-align: center;
-      padding: 6rem 2rem;
-    }
-
-    .cta-section h2 {
-      font-size: 2.5rem;
-      font-weight: 700;
-      margin-bottom: 1rem;
-    }
-
-    .cta-section p {
-      font-size: 1.1rem;
-      color: var(--text-secondary);
-      margin-bottom: 2rem;
-      max-width: 500px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    /* ── Footer ── */
-    footer {
-      padding: 3rem 2rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .footer-inner {
-      max-width: 1100px;
-      margin: 0 auto;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      font-weight: 600;
-      color: var(--text-secondary);
-    }
-
-    .footer-brand img {
-      height: 24px;
-      width: auto;
-      opacity: 0.6;
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 1.5rem;
-      list-style: none;
-    }
-
-    .footer-links a {
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-    }
-
-    .footer-links a:hover { color: var(--teal-400); }
-
-    /* ── Responsive ── */
-    @media (max-width: 768px) {
-      .hero h1 { font-size: 2.25rem; }
-      .hero .subtitle { font-size: 1.05rem; }
-      .why-grid { grid-template-columns: 1fr; }
-      .mission-content { grid-template-columns: 1fr; gap: 2rem; }
-      .principles-list { grid-template-columns: 1fr; }
-      .arch-grid { grid-template-columns: repeat(2, 1fr); }
-      .footer-inner { flex-direction: column; gap: 1rem; }
-      nav .nav-links { gap: 1rem; }
-    }
-
-    @media (max-width: 480px) {
-      .hero { padding: 8rem 1rem 4rem; }
-      section { padding: 4rem 1rem; }
-      .arch-grid { grid-template-columns: 1fr; }
-    }
-  </style>
-</head>
-<body>
-
-  <!-- Nav -->
-  <nav>
-    <div class="nav-inner">
-      <a href="/" class="nav-brand">
-        <i data-lucide="code-xml" style="width:22px;height:22px;color:var(--teal-400)"></i>
-        LibreCode
-      </a>
-      <ul class="nav-links">
-        <li><a href="#why">Why</a></li>
-        <li><a href="#mission">Mission</a></li>
-        <li><a href="#principles">Principles</a></li>
-        <li><a href="#architecture">Architecture</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode">GitHub</a></li>
-        <li><a href="https://librecode.app" class="nav-cta">Download</a></li>
-      </ul>
-    </div>
-  </nav>
-
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-content">
-      <h1>
-        <span class="gradient-text">Free Software.</span><br>
-        Modern Code.
-      </h1>
-      <p class="subtitle">
-        An open-source AI coding agent built for developers who care about
-        packaging, transparency, and owning their tools.
-      </p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LibreCode - Free Software. Modern Code.</title>
+    <meta
+      name="description"
+      content="LibreCode is an open-source AI-powered development tool. Proper Linux packaging, formalized agentic SDLC, community-driven."
+    />
+    <link rel="icon" type="image/png" href="/logo-mark.svg" />
+    <meta property="og:title" content="LibreCode - Free Software. Modern Code." />
+    <meta
+      property="og:description"
+      content="AI-powered development tool with proper Linux packaging, a formalized agentic SDLC pattern, and community-driven development."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://librecode.io" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+    <style>
+      /* ── Tokens ── */
+      :root {
+        --teal-300: #5fe0c0;
+        --teal-400: #2dd4a8;
+        --teal-500: #0d9488;
+        --teal-600: #0a7e76;
+        --teal-700: #086864;
+        --blue-400: #3b82b8;
+        --blue-500: #1e6ca0;
+        --blue-700: #15476c;
+        --blue-900: #0a2239;
+        --amber-400: #fbbf24;
+        --amber-500: #d4a017;
+        --bg-dark: #0a0b0d;
+        --bg-darker: #060708;
+        --bg-card: #12141a;
+        --bg-card-hover: #1a1d26;
+        --bg-light: #f5f0e8;
+        --text-primary: #f0f0f0;
+        --text-secondary: #a0a0a8;
+        --text-muted: #6b7280;
+        --gradient-brand: linear-gradient(135deg, var(--teal-500), var(--blue-500));
+        --gradient-hero: linear-gradient(135deg, var(--teal-400), var(--blue-700));
+        --gradient-warm: linear-gradient(135deg, var(--amber-500), var(--teal-500));
+        --font-display: "Inter", -apple-system, system-ui, sans-serif;
+        --font-mono: "JetBrains Mono", ui-monospace, monospace;
+      }
+
+      /* ── Reset ── */
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family: var(--font-display);
+        background: var(--bg-dark);
+        color: var(--text-primary);
+        line-height: 1.6;
+        overflow-x: hidden;
+      }
+
+      a {
+        color: var(--teal-400);
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+
+      /* ── Nav ── */
+      nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(10, 11, 13, 0.85);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        padding: 0 2rem;
+      }
+
+      nav .nav-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 60px;
+      }
+
+      nav .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--text-primary);
+        text-decoration: none;
+      }
+
+      nav .nav-brand img {
+        height: 28px;
+        width: auto;
+      }
+
+      nav .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        list-style: none;
+      }
+
+      nav .nav-links a {
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: color 0.15s;
+      }
+
+      nav .nav-links a:hover {
+        color: var(--text-primary);
+      }
+
+      nav .nav-cta {
+        background: var(--gradient-brand);
+        color: white !important;
+        padding: 0.4rem 1rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: opacity 0.15s;
+      }
+
+      nav .nav-cta:hover {
+        opacity: 0.9;
+        text-decoration: none;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        padding: 10rem 2rem 6rem;
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::before {
+        content: "";
+        position: absolute;
+        top: -200px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 800px;
+        height: 800px;
+        background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, transparent 60%);
+        pointer-events: none;
+      }
+
+      .hero-content {
+        max-width: 750px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 1;
+      }
+
+      .hero h1 {
+        font-size: 3.5rem;
+        font-weight: 800;
+        line-height: 1.1;
+        margin-bottom: 1.25rem;
+      }
+
+      .hero h1 .gradient-text {
+        background: var(--gradient-hero);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .hero .subtitle {
+        font-size: 1.25rem;
+        color: var(--text-secondary);
+        max-width: 550px;
+        margin: 0 auto 2rem;
+      }
+
+      .hero-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn-primary {
+        background: var(--gradient-brand);
+        color: white;
+        padding: 0.75rem 2rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 1rem;
+        border: none;
+        cursor: pointer;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .btn-primary:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+        text-decoration: none;
+      }
+
+      .btn-secondary {
+        background: var(--bg-card);
+        color: var(--text-primary);
+        padding: 0.75rem 2rem;
+        border-radius: 9999px;
+        font-weight: 600;
+        font-size: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        cursor: pointer;
+        transition: all 0.15s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .btn-secondary:hover {
+        border-color: var(--teal-500);
+        text-decoration: none;
+      }
+
+      .hero-terminal {
+        margin-top: 3rem;
+        background: var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 0.75rem;
+        padding: 0;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+        overflow: hidden;
+        text-align: left;
+      }
+
+      .terminal-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: rgba(255, 255, 255, 0.03);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .terminal-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.15);
+      }
+
+      .terminal-bar span {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-left: 0.5rem;
+      }
+
+      .terminal-body {
+        padding: 1.25rem;
+        font-family: var(--font-mono);
+        font-size: 0.9rem;
+        line-height: 1.8;
+      }
+
+      .terminal-body .prompt {
+        color: var(--teal-400);
+      }
+      .terminal-body .cmd {
+        color: var(--text-primary);
+      }
+      .terminal-body .comment {
+        color: var(--text-muted);
+      }
+      .terminal-body .output {
+        color: var(--text-secondary);
+      }
+
+      /* ── Section base ── */
+      section {
+        padding: 6rem 2rem;
+      }
+
+      .section-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+
+      .section-header {
+        text-align: center;
+        margin-bottom: 3rem;
+      }
+
+      .section-header .section-tag {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--teal-400);
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+      }
+
+      .section-header h2 {
+        font-size: 2.25rem;
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+      }
+
+      .section-header p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        max-width: 600px;
+        margin: 0 auto;
+      }
+
+      /* ── Why Section ── */
+      .why-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1.5rem;
+      }
+
+      .why-card {
+        background: var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        transition: all 0.2s;
+      }
+
+      .why-card:hover {
+        border-color: var(--teal-500);
+        box-shadow: 0 0 30px rgba(13, 148, 136, 0.1);
+      }
+
+      .why-card .card-icon {
+        font-size: 2rem;
+        margin-bottom: 1rem;
+      }
+
+      .why-card h3 {
+        font-size: 1.15rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .why-card p {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        line-height: 1.6;
+      }
+
+      /* ── Mission ── */
+      .mission {
+        background: linear-gradient(180deg, rgba(13, 148, 136, 0.05) 0%, transparent 100%);
+        border-top: 1px solid rgba(13, 148, 136, 0.15);
+        border-bottom: 1px solid rgba(13, 148, 136, 0.15);
+      }
+
+      .mission-content {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4rem;
+        align-items: center;
+      }
+
+      .mission-text h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1.25rem;
+      }
+
+      .mission-text p {
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        font-size: 1.05rem;
+      }
+
+      .mission-text .highlight {
+        color: var(--teal-400);
+        font-weight: 600;
+      }
+
+      .mission-mascot {
+        text-align: center;
+      }
+
+      .mission-mascot img {
+        max-width: 320px;
+        width: 100%;
+        height: auto;
+      }
+
+      /* ── Principles ── */
+      .principles-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+      }
+
+      .principle {
+        display: flex;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: var(--bg-card);
+        border-radius: 0.75rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .principle .p-number {
+        font-family: var(--font-mono);
+        font-size: 1.5rem;
+        font-weight: 700;
+        background: var(--gradient-brand);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1;
+        min-width: 2rem;
+      }
+
+      .principle h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 0.35rem;
+      }
+
+      .principle p {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+      }
+
+      /* ── Architecture ── */
+      .arch-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+      }
+
+      .arch-item {
+        background: var(--bg-card);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.15s;
+      }
+
+      .arch-item:hover {
+        border-color: var(--teal-500);
+      }
+
+      .arch-item .arch-name {
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--teal-400);
+        margin-bottom: 0.35rem;
+      }
+
+      .arch-item .arch-desc {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+
+      /* ── CTA ── */
+      .cta-section {
+        text-align: center;
+        padding: 6rem 2rem;
+      }
+
+      .cta-section h2 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+      }
+
+      .cta-section p {
+        font-size: 1.1rem;
+        color: var(--text-secondary);
+        margin-bottom: 2rem;
+        max-width: 500px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      /* ── Footer ── */
+      footer {
+        padding: 3rem 2rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.06);
+      }
+
+      .footer-inner {
+        max-width: 1100px;
+        margin: 0 auto;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .footer-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+
+      .footer-brand img {
+        height: 24px;
+        width: auto;
+        opacity: 0.6;
+      }
+
+      .footer-links {
+        display: flex;
+        gap: 1.5rem;
+        list-style: none;
+      }
+
+      .footer-links a {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+
+      .footer-links a:hover {
+        color: var(--teal-400);
+      }
+
+      /* ── Responsive ── */
+      @media (max-width: 768px) {
+        .hero h1 {
+          font-size: 2.25rem;
+        }
+        .hero .subtitle {
+          font-size: 1.05rem;
+        }
+        .why-grid {
+          grid-template-columns: 1fr;
+        }
+        .mission-content {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+        }
+        .principles-list {
+          grid-template-columns: 1fr;
+        }
+        .arch-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+        .footer-inner {
+          flex-direction: column;
+          gap: 1rem;
+        }
+        nav .nav-links {
+          gap: 1rem;
+        }
+      }
+
+      @media (max-width: 480px) {
+        .hero {
+          padding: 8rem 1rem 4rem;
+        }
+        section {
+          padding: 4rem 1rem;
+        }
+        .arch-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Nav -->
+    <nav>
+      <div class="nav-inner">
+        <a href="/" class="nav-brand">
+          <i data-lucide="code-xml" style="width: 22px; height: 22px; color: var(--teal-400)"></i>
+          LibreCode
+        </a>
+        <ul class="nav-links">
+          <li><a href="#why">Why</a></li>
+          <li><a href="#mission">Mission</a></li>
+          <li><a href="#principles">Principles</a></li>
+          <li><a href="#architecture">Architecture</a></li>
+          <li><a href="https://github.com/techtoboggan/librecode">GitHub</a></li>
+          <li><a href="https://librecode.app" class="nav-cta">Download</a></li>
+        </ul>
+      </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero">
+      <div class="hero-content">
+        <h1>
+          <span class="gradient-text">Free Software.</span><br />
+          Modern Code.
+        </h1>
+        <p class="subtitle">
+          An open-source AI coding agent built for developers who care about packaging, transparency, and owning their
+          tools.
+        </p>
+        <div class="hero-actions">
+          <a href="https://librecode.app" class="btn-primary"
+            ><i data-lucide="download" style="width: 18px; height: 18px"></i> Get LibreCode</a
+          >
+          <a href="https://github.com/techtoboggan/librecode" class="btn-secondary"
+            ><i data-lucide="github" style="width: 18px; height: 18px"></i> View Source</a
+          >
+        </div>
+
+        <div class="hero-terminal">
+          <div class="terminal-bar">
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <div class="terminal-dot"></div>
+            <span>~</span>
+          </div>
+          <div class="terminal-body">
+            <span class="comment"># install from your package manager, like software should be</span><br />
+            <span class="prompt">$</span> <span class="cmd">sudo dnf copr enable techtoboggan/librecode</span><br />
+            <span class="prompt">$</span> <span class="cmd">sudo dnf install librecode</span><br />
+            <br />
+            <span class="prompt">$</span> <span class="cmd">librecode</span><br />
+            <span class="output">LibreCode v1.2.27 &mdash; ready.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why -->
+    <section id="why">
+      <div class="section-inner">
+        <div class="section-header">
+          <p class="section-tag">Why LibreCode</p>
+          <h2>What makes this different</h2>
+          <p>We forked because the tools we depend on should respect the ecosystems we build in.</p>
+        </div>
+        <div class="why-grid">
+          <div class="why-card">
+            <div class="card-icon">
+              <i data-lucide="package" style="width: 32px; height: 32px; color: var(--teal-400)"></i>
+            </div>
+            <h3>Real Packaging</h3>
+            <p>
+              COPR for Fedora/RHEL. AUR for Arch. Nix flake. Not a static <code>.deb</code>
+              download from a GitHub release page. Your package manager should manage your packages.
+            </p>
+          </div>
+          <div class="why-card">
+            <div class="card-icon">
+              <i data-lucide="brain-circuit" style="width: 32px; height: 32px; color: var(--teal-400)"></i>
+            </div>
+            <h3>Agentic SDLC</h3>
+            <p>
+              A formalized agent loop with clear instruction compilation, permission boundaries, and tool capability
+              declarations. Not a prompt wrapped in a while loop.
+            </p>
+          </div>
+          <div class="why-card">
+            <div class="card-icon">
+              <i data-lucide="users" style="width: 32px; height: 32px; color: var(--teal-400)"></i>
+            </div>
+            <h3>Community First</h3>
+            <p>
+              No vendor lock-in. No cloud dependencies for core functionality. CI/CD rebuilt from scratch. Open
+              development, open roadmap.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mission -->
+    <section id="mission" class="mission">
+      <div class="section-inner">
+        <div class="mission-content">
+          <div class="mission-text">
+            <h2>AI tools should be <span class="highlight">free software</span></h2>
+            <p>
+              The AI coding assistant you use every day shouldn't be a black box with a monthly bill and a
+              terms-of-service that changes quarterly. It should be something you can inspect, modify, package, and
+              distribute.
+            </p>
+            <p>
+              LibreCode is a fork of opencode with one goal: take a solid foundation and make it into the tool we
+              actually want to use. Properly packaged, properly structured, properly open.
+            </p>
+            <p>
+              We believe the best developer tools come from developers who use them. That means
+              <span class="highlight">real Linux packaging</span>, <span class="highlight">clean architecture</span>,
+              and <span class="highlight">no artificial limitations</span>.
+            </p>
+          </div>
+          <div class="mission-mascot">
+            <!-- Replace with actual mascot: <img src="/tater.png" alt="Tater"> -->
+            <div
+              style="
+                width: 280px;
+                height: 320px;
+                background: var(--bg-card);
+                border: 2px dashed rgba(13, 148, 136, 0.3);
+                border-radius: 1rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 1rem;
+                margin: 0 auto;
+              "
+            >
+              <i data-lucide="bird" style="width: 64px; height: 64px; color: var(--teal-500)"></i>
+              <span style="font-size: 0.8rem; color: var(--text-muted)">Tater goes here</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Principles -->
+    <section id="principles">
+      <div class="section-inner">
+        <div class="section-header">
+          <p class="section-tag">Principles</p>
+          <h2>How we build</h2>
+        </div>
+        <div class="principles-list">
+          <div class="principle">
+            <span class="p-number">01</span>
+            <div>
+              <h3>Package managers exist for a reason</h3>
+              <p>Every release goes to COPR, AUR, and Nix. Static binary downloads are a fallback, not the plan.</p>
+            </div>
+          </div>
+          <div class="principle">
+            <span class="p-number">02</span>
+            <div>
+              <h3>Architecture over accumulation</h3>
+              <p>
+                Decompose megafiles. Formalize the agent loop. Single-responsibility modules. No 67,000-line prompt
+                files.
+              </p>
+            </div>
+          </div>
+          <div class="principle">
+            <span class="p-number">03</span>
+            <div>
+              <h3>Enterprise without the enterprise tax</h3>
+              <p>
+                Permission systems, audit logging, MCP server management, session branching &mdash; built into the open
+                source core.
+              </p>
+            </div>
+          </div>
+          <div class="principle">
+            <span class="p-number">04</span>
+            <div>
+              <h3>Provider agnostic</h3>
+              <p>
+                20+ LLM providers out of the box. Local models welcome. No single-vendor dependency. Your keys, your
+                choice.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <div class="section-inner">
+        <div class="section-header">
+          <p class="section-tag">Architecture</p>
+          <h2>What's inside</h2>
+          <p>A TypeScript monorepo with Bun, Effect-ts, Solid.js, and Tauri.</p>
+        </div>
+        <div class="arch-grid">
+          <div class="arch-item">
+            <i
+              data-lucide="square-terminal"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">librecode</div>
+            <div class="arch-desc">Core CLI agent</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="monitor"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">desktop</div>
+            <div class="arch-desc">Tauri desktop app</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="layout-dashboard"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">app</div>
+            <div class="arch-desc">Solid.js UI shell</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="component"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">ui</div>
+            <div class="arch-desc">Component library</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="braces"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">sdk</div>
+            <div class="arch-desc">TypeScript SDK</div>
+          </div>
+          <div class="arch-item">
+            <i data-lucide="plug" style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"></i>
+            <div class="arch-name">plugin</div>
+            <div class="arch-desc">Plugin system</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="wrench"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">util</div>
+            <div class="arch-desc">Shared utilities</div>
+          </div>
+          <div class="arch-item">
+            <i
+              data-lucide="hammer"
+              style="width: 20px; height: 20px; color: var(--teal-400); margin-bottom: 0.5rem"
+            ></i>
+            <div class="arch-name">script</div>
+            <div class="arch-desc">Build tooling</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="cta-section">
+      <h2>
+        Start building with
+        <span
+          style="
+            background: var(--gradient-hero);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+          "
+          >LibreCode</span
+        >
+      </h2>
+      <p>Install it from your package manager. Read the source. Contribute. It's your tool.</p>
       <div class="hero-actions">
-        <a href="https://librecode.app" class="btn-primary"><i data-lucide="download" style="width:18px;height:18px"></i> Get LibreCode</a>
-        <a href="https://github.com/techtoboggan/librecode" class="btn-secondary"><i data-lucide="github" style="width:18px;height:18px"></i> View Source</a>
+        <a href="https://librecode.app" class="btn-primary"
+          ><i data-lucide="download" style="width: 18px; height: 18px"></i> Download</a
+        >
+        <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md" class="btn-secondary"
+          ><i data-lucide="map" style="width: 18px; height: 18px"></i> View Roadmap</a
+        >
       </div>
+    </section>
 
-      <div class="hero-terminal">
-        <div class="terminal-bar">
-          <div class="terminal-dot"></div>
-          <div class="terminal-dot"></div>
-          <div class="terminal-dot"></div>
-          <span>~</span>
-        </div>
-        <div class="terminal-body">
-          <span class="comment"># install from your package manager, like software should be</span><br>
-          <span class="prompt">$</span> <span class="cmd">sudo dnf copr enable techtoboggan/librecode</span><br>
-          <span class="prompt">$</span> <span class="cmd">sudo dnf install librecode</span><br>
-          <br>
-          <span class="prompt">$</span> <span class="cmd">librecode</span><br>
-          <span class="output">LibreCode v1.2.27 &mdash; ready.</span>
-        </div>
-      </div>
-    </div>
-  </section>
+    <script>
+      lucide.createIcons()
+    </script>
 
-  <!-- Why -->
-  <section id="why">
-    <div class="section-inner">
-      <div class="section-header">
-        <p class="section-tag">Why LibreCode</p>
-        <h2>What makes this different</h2>
-        <p>We forked because the tools we depend on should respect the ecosystems we build in.</p>
+    <!-- Footer -->
+    <footer>
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <i data-lucide="code-xml" style="width: 18px; height: 18px; color: var(--teal-500)"></i>
+          LibreCode &mdash; Free Software. Modern Code.
+        </div>
+        <ul class="footer-links">
+          <li>
+            <a href="https://librecode.app"
+              ><i data-lucide="download" style="width: 14px; height: 14px"></i> Downloads</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/techtoboggan/librecode"
+              ><i data-lucide="github" style="width: 14px; height: 14px"></i> GitHub</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md"
+              ><i data-lucide="map" style="width: 14px; height: 14px"></i> Roadmap</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE"
+              ><i data-lucide="scale" style="width: 14px; height: 14px"></i> MIT License</a
+            >
+          </li>
+        </ul>
       </div>
-      <div class="why-grid">
-        <div class="why-card">
-          <div class="card-icon"><i data-lucide="package" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
-          <h3>Real Packaging</h3>
-          <p>
-            COPR for Fedora/RHEL. AUR for Arch. Nix flake. Not a static <code>.deb</code>
-            download from a GitHub release page. Your package manager should manage your packages.
-          </p>
-        </div>
-        <div class="why-card">
-          <div class="card-icon"><i data-lucide="brain-circuit" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
-          <h3>Agentic SDLC</h3>
-          <p>
-            A formalized agent loop with clear instruction compilation, permission boundaries,
-            and tool capability declarations. Not a prompt wrapped in a while loop.
-          </p>
-        </div>
-        <div class="why-card">
-          <div class="card-icon"><i data-lucide="users" style="width:32px;height:32px;color:var(--teal-400)"></i></div>
-          <h3>Community First</h3>
-          <p>
-            No vendor lock-in. No cloud dependencies for core functionality.
-            CI/CD rebuilt from scratch. Open development, open roadmap.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Mission -->
-  <section id="mission" class="mission">
-    <div class="section-inner">
-      <div class="mission-content">
-        <div class="mission-text">
-          <h2>AI tools should be <span class="highlight">free software</span></h2>
-          <p>
-            The AI coding assistant you use every day shouldn't be a black box with a monthly bill
-            and a terms-of-service that changes quarterly. It should be something you can
-            inspect, modify, package, and distribute.
-          </p>
-          <p>
-            LibreCode is a fork of opencode with one goal: take a solid foundation and make it
-            into the tool we actually want to use. Properly packaged, properly structured,
-            properly open.
-          </p>
-          <p>
-            We believe the best developer tools come from developers who use them. That means
-            <span class="highlight">real Linux packaging</span>,
-            <span class="highlight">clean architecture</span>, and
-            <span class="highlight">no artificial limitations</span>.
-          </p>
-        </div>
-        <div class="mission-mascot">
-          <!-- Replace with actual mascot: <img src="/tater.png" alt="Tater"> -->
-          <div style="width:280px;height:320px;background:var(--bg-card);border:2px dashed rgba(13,148,136,0.3);border-radius:1rem;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;margin:0 auto">
-            <i data-lucide="bird" style="width:64px;height:64px;color:var(--teal-500)"></i>
-            <span style="font-size:0.8rem;color:var(--text-muted)">Tater goes here</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Principles -->
-  <section id="principles">
-    <div class="section-inner">
-      <div class="section-header">
-        <p class="section-tag">Principles</p>
-        <h2>How we build</h2>
-      </div>
-      <div class="principles-list">
-        <div class="principle">
-          <span class="p-number">01</span>
-          <div>
-            <h3>Package managers exist for a reason</h3>
-            <p>Every release goes to COPR, AUR, and Nix. Static binary downloads are a fallback, not the plan.</p>
-          </div>
-        </div>
-        <div class="principle">
-          <span class="p-number">02</span>
-          <div>
-            <h3>Architecture over accumulation</h3>
-            <p>Decompose megafiles. Formalize the agent loop. Single-responsibility modules. No 67,000-line prompt files.</p>
-          </div>
-        </div>
-        <div class="principle">
-          <span class="p-number">03</span>
-          <div>
-            <h3>Enterprise without the enterprise tax</h3>
-            <p>Permission systems, audit logging, MCP server management, session branching &mdash; built into the open source core.</p>
-          </div>
-        </div>
-        <div class="principle">
-          <span class="p-number">04</span>
-          <div>
-            <h3>Provider agnostic</h3>
-            <p>20+ LLM providers out of the box. Local models welcome. No single-vendor dependency. Your keys, your choice.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Architecture -->
-  <section id="architecture">
-    <div class="section-inner">
-      <div class="section-header">
-        <p class="section-tag">Architecture</p>
-        <h2>What's inside</h2>
-        <p>A TypeScript monorepo with Bun, Effect-ts, Solid.js, and Tauri.</p>
-      </div>
-      <div class="arch-grid">
-        <div class="arch-item">
-          <i data-lucide="square-terminal" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">librecode</div>
-          <div class="arch-desc">Core CLI agent</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="monitor" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">desktop</div>
-          <div class="arch-desc">Tauri desktop app</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="layout-dashboard" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">app</div>
-          <div class="arch-desc">Solid.js UI shell</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="component" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">ui</div>
-          <div class="arch-desc">Component library</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="braces" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">sdk</div>
-          <div class="arch-desc">TypeScript SDK</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="plug" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">plugin</div>
-          <div class="arch-desc">Plugin system</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="wrench" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">util</div>
-          <div class="arch-desc">Shared utilities</div>
-        </div>
-        <div class="arch-item">
-          <i data-lucide="hammer" style="width:20px;height:20px;color:var(--teal-400);margin-bottom:0.5rem"></i>
-          <div class="arch-name">script</div>
-          <div class="arch-desc">Build tooling</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA -->
-  <section class="cta-section">
-    <h2>Start building with <span style="background: var(--gradient-hero); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">LibreCode</span></h2>
-    <p>Install it from your package manager. Read the source. Contribute. It's your tool.</p>
-    <div class="hero-actions">
-      <a href="https://librecode.app" class="btn-primary"><i data-lucide="download" style="width:18px;height:18px"></i> Download</a>
-      <a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md" class="btn-secondary"><i data-lucide="map" style="width:18px;height:18px"></i> View Roadmap</a>
-    </div>
-  </section>
-
-  <script>lucide.createIcons();</script>
-
-  <!-- Footer -->
-  <footer>
-    <div class="footer-inner">
-      <div class="footer-brand">
-        <i data-lucide="code-xml" style="width:18px;height:18px;color:var(--teal-500)"></i>
-        LibreCode &mdash; Free Software. Modern Code.
-      </div>
-      <ul class="footer-links">
-        <li><a href="https://librecode.app"><i data-lucide="download" style="width:14px;height:14px"></i> Downloads</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode"><i data-lucide="github" style="width:14px;height:14px"></i> GitHub</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode/blob/main/PLAN.md"><i data-lucide="map" style="width:14px;height:14px"></i> Roadmap</a></li>
-        <li><a href="https://github.com/techtoboggan/librecode/blob/main/LICENSE"><i data-lucide="scale" style="width:14px;height:14px"></i> MIT License</a></li>
-      </ul>
-    </div>
-  </footer>
-
-</body>
+    </footer>
+  </body>
 </html>

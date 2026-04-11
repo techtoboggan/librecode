@@ -10,17 +10,12 @@ type OAuthSuccess = {
   provider?: string
 } & ({ refresh: string; access: string; expires: number; accountId?: string } | { key: string })
 
-async function selectAuthMethod(
-  methods: AuthHook["methods"],
-  methodName?: string,
-): Promise<AuthMethod> {
+async function selectAuthMethod(methods: AuthHook["methods"], methodName?: string): Promise<AuthMethod> {
   let index = 0
   if (methodName) {
     const match = methods.findIndex((x) => x.label.toLowerCase() === methodName.toLowerCase())
     if (match === -1) {
-      prompts.log.error(
-        `Unknown method "${methodName}". Available: ${methods.map((x) => x.label).join(", ")}`,
-      )
+      prompts.log.error(`Unknown method "${methodName}". Available: ${methods.map((x) => x.label).join(", ")}`)
       process.exit(1)
     }
     index = match

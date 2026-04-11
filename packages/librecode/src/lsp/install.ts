@@ -71,9 +71,7 @@ export async function resolveLocalOrPathBin(
   return which(globalName) ?? undefined
 }
 
-export async function resolveOxlintLspBin(
-  root: string,
-): Promise<{ bin: string; useLsp: boolean } | undefined> {
+export async function resolveOxlintLspBin(root: string): Promise<{ bin: string; useLsp: boolean } | undefined> {
   const ext = process.platform === "win32" ? ".cmd" : ""
   const lintTarget = path.join("node_modules", ".bin", "oxlint" + ext)
   const serverTarget = path.join("node_modules", ".bin", "oxc_language_server" + ext)
@@ -96,9 +94,7 @@ export async function resolveOxlintLspBin(
 export async function resolveTyVenvPython(venvPaths: string[]): Promise<string | undefined> {
   for (const venvPath of venvPaths) {
     const isWindows = process.platform === "win32"
-    const pythonPath = isWindows
-      ? path.join(venvPath, "Scripts", "python.exe")
-      : path.join(venvPath, "bin", "python")
+    const pythonPath = isWindows ? path.join(venvPath, "Scripts", "python.exe") : path.join(venvPath, "bin", "python")
     if (await Filesystem.exists(pythonPath)) return pythonPath
   }
   return undefined

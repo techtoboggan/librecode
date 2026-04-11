@@ -46,9 +46,16 @@ async function writeAgentFile(filePath: string, content: string, nonInteractive:
   throw new UI.CancelledError()
 }
 
-async function runCreateAgent(args: {
-  path?: string; description?: string; tools?: string; model?: string; mode?: string
-}, nonInteractive: boolean): Promise<void> {
+async function runCreateAgent(
+  args: {
+    path?: string
+    description?: string
+    tools?: string
+    model?: string
+    mode?: string
+  },
+  nonInteractive: boolean,
+): Promise<void> {
   const targetPath = await resolveTargetPath(args.path)
   const description = await resolveDescription(args.description)
   const model = args.model ? Provider.parseModel(args.model) : undefined

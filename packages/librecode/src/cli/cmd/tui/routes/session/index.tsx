@@ -1,13 +1,4 @@
-import {
-  createEffect,
-  createMemo,
-  createSignal,
-  For,
-  Match,
-  on,
-  Show,
-  Switch,
-} from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
 import path from "path"
 import { useRoute, useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"

@@ -9,88 +9,88 @@
 
 :root {
   /* ── Primary: Teal gradient from logo ── */
-  --lc-teal-50:  #EFFCF9;
-  --lc-teal-100: #C6F7E9;
-  --lc-teal-200: #8EEDD1;
-  --lc-teal-300: #5FE0C0;
-  --lc-teal-400: #2DD4A8;
-  --lc-teal-500: #0D9488;  /* Primary brand teal */
-  --lc-teal-600: #0A7E76;
+  --lc-teal-50: #effcf9;
+  --lc-teal-100: #c6f7e9;
+  --lc-teal-200: #8eedd1;
+  --lc-teal-300: #5fe0c0;
+  --lc-teal-400: #2dd4a8;
+  --lc-teal-500: #0d9488; /* Primary brand teal */
+  --lc-teal-600: #0a7e76;
   --lc-teal-700: #086864;
   --lc-teal-800: #065452;
-  --lc-teal-900: #042F2E;
+  --lc-teal-900: #042f2e;
 
   /* ── Secondary: Deep blue from logo swoosh ── */
-  --lc-blue-50:  #EFF6FF;
-  --lc-blue-100: #DBEAFE;
-  --lc-blue-200: #B0D0F0;
-  --lc-blue-300: #6AA6D4;
-  --lc-blue-400: #3B82B8;
-  --lc-blue-500: #1E6CA0;  /* Secondary brand blue */
-  --lc-blue-600: #1A5A87;
-  --lc-blue-700: #15476C;
-  --lc-blue-800: #0F3451;
-  --lc-blue-900: #0A2239;
+  --lc-blue-50: #eff6ff;
+  --lc-blue-100: #dbeafe;
+  --lc-blue-200: #b0d0f0;
+  --lc-blue-300: #6aa6d4;
+  --lc-blue-400: #3b82b8;
+  --lc-blue-500: #1e6ca0; /* Secondary brand blue */
+  --lc-blue-600: #1a5a87;
+  --lc-blue-700: #15476c;
+  --lc-blue-800: #0f3451;
+  --lc-blue-900: #0a2239;
 
   /* ── Accent: Golden amber from mascot ── */
-  --lc-amber-50:  #FFFBEB;
-  --lc-amber-100: #FEF3C7;
-  --lc-amber-200: #FDE68A;
-  --lc-amber-300: #FCD34D;
-  --lc-amber-400: #FBBF24;
-  --lc-amber-500: #D4A017;  /* Mascot golden */
-  --lc-amber-600: #B8860B;
-  --lc-amber-700: #92400E;
-  --lc-amber-800: #78350F;
-  --lc-amber-900: #451A03;
+  --lc-amber-50: #fffbeb;
+  --lc-amber-100: #fef3c7;
+  --lc-amber-200: #fde68a;
+  --lc-amber-300: #fcd34d;
+  --lc-amber-400: #fbbf24;
+  --lc-amber-500: #d4a017; /* Mascot golden */
+  --lc-amber-600: #b8860b;
+  --lc-amber-700: #92400e;
+  --lc-amber-800: #78350f;
+  --lc-amber-900: #451a03;
 
   /* ── Surfaces ── */
-  --lc-bg-dark:    #0A0B0D;   /* Mascot dark background */
-  --lc-bg-darker:  #060708;
-  --lc-bg-card:    #12141A;
-  --lc-bg-light:   #F5F0E8;   /* Logo cream background */
-  --lc-bg-lighter: #FAFAF7;
-  --lc-bg-white:   #FFFFFF;
+  --lc-bg-dark: #0a0b0d; /* Mascot dark background */
+  --lc-bg-darker: #060708;
+  --lc-bg-card: #12141a;
+  --lc-bg-light: #f5f0e8; /* Logo cream background */
+  --lc-bg-lighter: #fafaf7;
+  --lc-bg-white: #ffffff;
 
   /* ── Text ── */
-  --lc-text-primary:   #F0F0F0;
-  --lc-text-secondary: #A0A0A8;
-  --lc-text-muted:     #6B7280;
-  --lc-text-dark:      #1A1A2E;
-  --lc-text-dark-secondary: #4A4A5A;
+  --lc-text-primary: #f0f0f0;
+  --lc-text-secondary: #a0a0a8;
+  --lc-text-muted: #6b7280;
+  --lc-text-dark: #1a1a2e;
+  --lc-text-dark-secondary: #4a4a5a;
 
   /* ── Gradients ── */
-  --lc-gradient-brand:   linear-gradient(135deg, var(--lc-teal-500), var(--lc-blue-500));
-  --lc-gradient-hero:    linear-gradient(135deg, var(--lc-teal-400), var(--lc-blue-600));
-  --lc-gradient-subtle:  linear-gradient(180deg, var(--lc-bg-dark), var(--lc-bg-darker));
-  --lc-gradient-warm:    linear-gradient(135deg, var(--lc-amber-500), var(--lc-teal-500));
+  --lc-gradient-brand: linear-gradient(135deg, var(--lc-teal-500), var(--lc-blue-500));
+  --lc-gradient-hero: linear-gradient(135deg, var(--lc-teal-400), var(--lc-blue-600));
+  --lc-gradient-subtle: linear-gradient(180deg, var(--lc-bg-dark), var(--lc-bg-darker));
+  --lc-gradient-warm: linear-gradient(135deg, var(--lc-amber-500), var(--lc-teal-500));
   --lc-gradient-surface: linear-gradient(180deg, var(--lc-bg-card), var(--lc-bg-dark));
 
   /* ── Typography ── */
-  --lc-font-display: 'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif;
-  --lc-font-body:    'Inter', 'SF Pro Text', -apple-system, system-ui, sans-serif;
-  --lc-font-mono:    'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  --lc-font-display: "Inter", "SF Pro Display", -apple-system, system-ui, sans-serif;
+  --lc-font-body: "Inter", "SF Pro Text", -apple-system, system-ui, sans-serif;
+  --lc-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 
   /* ── Spacing scale ── */
-  --lc-space-xs:  0.25rem;
-  --lc-space-sm:  0.5rem;
-  --lc-space-md:  1rem;
-  --lc-space-lg:  1.5rem;
-  --lc-space-xl:  2rem;
+  --lc-space-xs: 0.25rem;
+  --lc-space-sm: 0.5rem;
+  --lc-space-md: 1rem;
+  --lc-space-lg: 1.5rem;
+  --lc-space-xl: 2rem;
   --lc-space-2xl: 3rem;
   --lc-space-3xl: 4rem;
   --lc-space-4xl: 6rem;
 
   /* ── Radii ── */
-  --lc-radius-sm:  0.375rem;
-  --lc-radius-md:  0.5rem;
-  --lc-radius-lg:  0.75rem;
-  --lc-radius-xl:  1rem;
+  --lc-radius-sm: 0.375rem;
+  --lc-radius-md: 0.5rem;
+  --lc-radius-lg: 0.75rem;
+  --lc-radius-xl: 1rem;
   --lc-radius-full: 9999px;
 
   /* ── Shadows ── */
-  --lc-shadow-sm:   0 1px 2px rgba(0, 0, 0, 0.3);
-  --lc-shadow-md:   0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
-  --lc-shadow-lg:   0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
+  --lc-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --lc-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+  --lc-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -4px rgba(0, 0, 0, 0.2);
   --lc-shadow-glow: 0 0 20px rgba(13, 148, 136, 0.3);
 }

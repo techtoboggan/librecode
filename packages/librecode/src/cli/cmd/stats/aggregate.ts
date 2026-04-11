@@ -16,10 +16,7 @@ function computeCutoff(days?: number): { cutoffTime: number; windowDays: number 
   return { cutoffTime: Date.now() - days * MS_IN_DAY, windowDays: days }
 }
 
-async function applyProjectFilter(
-  sessions: Session.Info[],
-  projectFilter?: string,
-): Promise<Session.Info[]> {
+async function applyProjectFilter(sessions: Session.Info[], projectFilter?: string): Promise<Session.Info[]> {
   if (projectFilter === undefined) return sessions
   if (projectFilter === "") {
     const project = Instance.project
@@ -28,11 +25,7 @@ async function applyProjectFilter(
   return sessions.filter((s) => s.projectID === projectFilter)
 }
 
-function accumulateTokenCounts(
-  tokenInfo: any,
-  tokens: SessionResult["sessionTokens"],
-  mu: ModelStats,
-): void {
+function accumulateTokenCounts(tokenInfo: any, tokens: SessionResult["sessionTokens"], mu: ModelStats): void {
   if (!tokenInfo) return
   tokens.input += tokenInfo.input || 0
   tokens.output += tokenInfo.output || 0
@@ -81,8 +74,12 @@ async function processSession(session: Session.Info, cutoffTime: number): Promis
     }
   }
 
-  const totalTokens = sessionTokens.input + sessionTokens.output + sessionTokens.reasoning +
-    sessionTokens.cache.read + sessionTokens.cache.write
+  const totalTokens =
+    sessionTokens.input +
+    sessionTokens.output +
+    sessionTokens.reasoning +
+    sessionTokens.cache.read +
+    sessionTokens.cache.write
 
   return {
     messageCount: messages.length,
@@ -138,11 +135,16 @@ export async function aggregateSessionStats(days?: number, projectFilter?: strin
 
   const stats: SessionStats = {
     totalSessions: filtered.length,
-    totalMessages: 0, totalCost: 0,
+    totalMessages: 0,
+    totalCost: 0,
     totalTokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-    toolUsage: {}, modelUsage: {},
+    toolUsage: {},
+    modelUsage: {},
     dateRange: { earliest: Date.now(), latest: Date.now() },
-    days: 0, costPerDay: 0, tokensPerSession: 0, medianTokensPerSession: 0,
+    days: 0,
+    costPerDay: 0,
+    tokensPerSession: 0,
+    medianTokensPerSession: 0,
   }
 
   if (filtered.length > 1000) {
@@ -174,8 +176,12 @@ export async function aggregateSessionStats(days?: number, projectFilter?: strin
   stats.days = effectiveDays
   stats.costPerDay = stats.totalCost / effectiveDays
 
-  const totalTokenCount = stats.totalTokens.input + stats.totalTokens.output + stats.totalTokens.reasoning +
-    stats.totalTokens.cache.read + stats.totalTokens.cache.write
+  const totalTokenCount =
+    stats.totalTokens.input +
+    stats.totalTokens.output +
+    stats.totalTokens.reasoning +
+    stats.totalTokens.cache.read +
+    stats.totalTokens.cache.write
   stats.tokensPerSession = filtered.length > 0 ? totalTokenCount / filtered.length : 0
   sessionTotalTokens.sort((a, b) => a - b)
   stats.medianTokensPerSession = computeMedian(sessionTotalTokens)

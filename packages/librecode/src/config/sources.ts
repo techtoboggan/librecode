@@ -140,9 +140,7 @@ export async function loadAgent(
   return result
 }
 
-export async function loadMode(
-  dir: string,
-): Promise<Record<string, Agent>> {
+export async function loadMode(dir: string): Promise<Record<string, Agent>> {
   const result: Record<string, Agent> = {}
   for (const item of await Glob.scan("{mode,modes}/*.md", {
     cwd: dir,
@@ -225,10 +223,7 @@ export async function loadWellKnownConfigs(
   return result
 }
 
-export async function loadProjectFileConfigs(
-  result: Info,
-  loadFileFn: (file: string) => Promise<Info>,
-): Promise<Info> {
+export async function loadProjectFileConfigs(result: Info, loadFileFn: (file: string) => Promise<Info>): Promise<Info> {
   if (!Flag.LIBRECODE_DISABLE_PROJECT_CONFIG) {
     for (const file of await ConfigPaths.projectFiles("librecode", Instance.directory, Instance.worktree)) {
       result = mergeConfigConcatArrays(result, await loadFileFn(file))

@@ -52,9 +52,7 @@ export function buildGatewayAnthropicVariants(
   adaptiveEfforts: string[],
 ): Record<string, Record<string, unknown>> {
   if (isAnthropicAdaptive) {
-    return Object.fromEntries(
-      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
-    )
+    return Object.fromEntries(adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]))
   }
   return {
     high: { thinking: { type: "enabled", budgetTokens: 16000 } },
@@ -69,9 +67,7 @@ export function buildGatewayGoogleVariants(id: string): Record<string, Record<st
       max: { thinkingConfig: { includeThoughts: true, thinkingBudget: 24576 } },
     }
   }
-  return Object.fromEntries(
-    ["low", "high"].map((effort) => [effort, { includeThoughts: true, thinkingLevel: effort }]),
-  )
+  return Object.fromEntries(["low", "high"].map((effort) => [effort, { includeThoughts: true, thinkingLevel: effort }]))
 }
 
 export function buildGatewayVariants(
@@ -169,9 +165,7 @@ export function buildAnthropicVariants(
   adaptiveEfforts: string[],
 ): Record<string, Record<string, unknown>> {
   if (isAnthropicAdaptive) {
-    return Object.fromEntries(
-      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
-    )
+    return Object.fromEntries(adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]))
   }
   return {
     high: {
@@ -197,10 +191,7 @@ export function buildBedrockVariants(
   // https://v5.ai-sdk.dev/providers/ai-sdk-providers/amazon-bedrock
   if (isAnthropicAdaptive) {
     return Object.fromEntries(
-      adaptiveEfforts.map((effort) => [
-        effort,
-        { reasoningConfig: { type: "adaptive", maxReasoningEffort: effort } },
-      ]),
+      adaptiveEfforts.map((effort) => [effort, { reasoningConfig: { type: "adaptive", maxReasoningEffort: effort } }]),
     )
   }
   // For Anthropic models on Bedrock, use reasoningConfig with budgetTokens
@@ -247,9 +238,7 @@ function buildSapAnthropicVariants(
   adaptiveEfforts: string[],
 ): Record<string, Record<string, unknown>> {
   if (isAnthropicAdaptive) {
-    return Object.fromEntries(
-      adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]),
-    )
+    return Object.fromEntries(adaptiveEfforts.map((effort) => [effort, { thinking: { type: "adaptive" }, effort }]))
   }
   return {
     high: { thinking: { type: "enabled", budgetTokens: 16000 } },
@@ -327,7 +316,7 @@ export function applyGoogleThinkingOptions(result: Record<string, unknown>, mode
   if (model.api.npm !== "@ai-sdk/google" && model.api.npm !== "@ai-sdk/google-vertex") return
   result["thinkingConfig"] = { includeThoughts: true }
   if (model.api.id.includes("gemini-3")) {
-    (result["thinkingConfig"] as Record<string, unknown>)["thinkingLevel"] = "high"
+    ;(result["thinkingConfig"] as Record<string, unknown>)["thinkingLevel"] = "high"
   }
 }
 

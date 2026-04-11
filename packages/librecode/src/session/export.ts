@@ -105,9 +105,7 @@ export async function exportSession(sessionID: SessionID): Promise<ExportedSessi
     } else if (msg.info.role === "assistant") {
       const assistant = msg.info as any
       exported.agent = assistant.agent
-      exported.model = assistant.modelID
-        ? { providerID: assistant.providerID, modelID: assistant.modelID }
-        : undefined
+      exported.model = assistant.modelID ? { providerID: assistant.providerID, modelID: assistant.modelID } : undefined
       exported.cost = assistant.cost
       exported.tokens = assistant.tokens
     }

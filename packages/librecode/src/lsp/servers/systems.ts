@@ -1,6 +1,18 @@
 import path from "path"
 import { spawn as launch } from "child_process"
-import { Global, Filesystem, Instance, Flag, Process, which, log, installElixirLS, downloadZls, findClangdBin, downloadClangd } from "../install"
+import {
+  Global,
+  Filesystem,
+  Instance,
+  Flag,
+  Process,
+  which,
+  log,
+  installElixirLS,
+  downloadZls,
+  findClangdBin,
+  downloadClangd,
+} from "../install"
 import { type Handle, type Info, NearestRoot } from "./web"
 
 const spawn = ((cmd, args, opts) => {
@@ -108,8 +120,7 @@ export const Zls: Info = {
   extensions: [".zig", ".zon"],
   root: NearestRoot(["build.zig"]),
   async spawn(root) {
-    const bin =
-      which("zls", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadZls())
+    const bin = which("zls", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadZls())
     if (!bin) return
 
     return {

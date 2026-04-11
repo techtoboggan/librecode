@@ -378,10 +378,7 @@ export namespace ProviderTransform {
     )
   }
 
-  function buildGatewayProviderOptions(
-    model: Provider.Model,
-    opts: { [x: string]: unknown },
-  ): Record<string, unknown> {
+  function buildGatewayProviderOptions(model: Provider.Model, opts: { [x: string]: unknown }): Record<string, unknown> {
     const i = model.api.id.indexOf("/")
     const rawSlug = i > 0 ? model.api.id.slice(0, i) : undefined
     const slug = rawSlug ? (SLUG_OVERRIDES[rawSlug] ?? rawSlug) : undefined

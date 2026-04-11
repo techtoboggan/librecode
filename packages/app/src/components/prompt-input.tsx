@@ -4,13 +4,7 @@ import { createEffect, on, Component, Show, onCleanup, Switch, Match, createMemo
 import { createStore } from "solid-js/store"
 import { useLocal } from "@/context/local"
 import { useFile } from "@/context/file"
-import {
-  DEFAULT_PROMPT,
-  isPromptEqual,
-  type Prompt,
-  usePrompt,
-  type ImageAttachmentPart,
-} from "@/context/prompt"
+import { DEFAULT_PROMPT, isPromptEqual, type Prompt, usePrompt, type ImageAttachmentPart } from "@/context/prompt"
 import { useLayout } from "@/context/layout"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
@@ -232,9 +226,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
-  const status = createMemo(
-    () => sync.data.session_status[params.id ?? ""] ?? { type: "idle" },
-  )
+  const status = createMemo(() => sync.data.session_status[params.id ?? ""] ?? { type: "idle" })
   const working = createMemo(() => status()?.type !== "idle")
   const imageAttachments = createMemo(() =>
     prompt.current().filter((part): part is ImageAttachmentPart => part.type === "image"),
@@ -365,7 +357,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setStore("savedPrompt", null)
   }
 
-  const clearEditor = () => { editorRef.innerHTML = "" }
+  const clearEditor = () => {
+    editorRef.innerHTML = ""
+  }
 
   const setEditorText = (text: string) => {
     clearEditor()
@@ -413,7 +407,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     setComposing(false)
   }
 
-  const handleCompositionStart = () => { setComposing(true) }
+  const handleCompositionStart = () => {
+    setComposing(true)
+  }
 
   const handleCompositionEnd = () => {
     setComposing(false)
@@ -747,7 +743,9 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     queueScroll,
     promptLength,
     addToHistory,
-    resetHistoryNavigation: () => { resetHistoryNavigation(true) },
+    resetHistoryNavigation: () => {
+      resetHistoryNavigation(true)
+    },
     setMode: (mode) => setStore("mode", mode),
     setPopover: (popover) => setStore("popover", popover),
     newSessionWorktree: () => props.newSessionWorktree,

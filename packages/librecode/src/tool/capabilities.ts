@@ -110,7 +110,9 @@ export interface ToolDependencies {
 /**
  * Helper to declare tool capabilities with defaults.
  */
-export function declareCapabilities(caps: Partial<ToolCapabilities> & Pick<ToolCapabilities, "sideEffects">): ToolCapabilities {
+export function declareCapabilities(
+  caps: Partial<ToolCapabilities> & Pick<ToolCapabilities, "sideEffects">,
+): ToolCapabilities {
   const result: ToolCapabilities = {
     reads: caps.reads ?? [],
     writes: caps.writes ?? [],

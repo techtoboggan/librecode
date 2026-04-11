@@ -130,7 +130,10 @@ export function useSessionCommands(deps: CommandDeps) {
         dialog.replace(() => (
           <DialogTimeline
             onMove={(messageID: string) => {
-              const child = deps.scroll().getChildren().find((child) => child.id === messageID)
+              const child = deps
+                .scroll()
+                .getChildren()
+                .find((child) => child.id === messageID)
               if (child) deps.scroll().scrollBy(child.y - deps.scroll().y - 1)
             }}
             sessionID={route.sessionID}
@@ -149,7 +152,10 @@ export function useSessionCommands(deps: CommandDeps) {
         dialog.replace(() => (
           <DialogForkFromTimeline
             onMove={(messageID: string) => {
-              const child = deps.scroll().getChildren().find((child) => child.id === messageID)
+              const child = deps
+                .scroll()
+                .getChildren()
+                .find((child) => child.id === messageID)
               if (child) deps.scroll().scrollBy(child.y - deps.scroll().y - 1)
             }}
             sessionID={route.sessionID}
@@ -166,7 +172,11 @@ export function useSessionCommands(deps: CommandDeps) {
       onSelect: (dialog: any) => {
         const selectedModel = local.model.current()
         if (!selectedModel) {
-          deps.toast.show({ variant: "warning", message: "Connect a provider to summarize this session", duration: 3000 })
+          deps.toast.show({
+            variant: "warning",
+            message: "Connect a provider to summarize this session",
+            duration: 3000,
+          })
           return
         }
         sdk.client.session.summarize({
@@ -450,9 +460,9 @@ export function useSessionCommands(deps: CommandDeps) {
       category: "Session",
       onSelect: (dialog: any) => {
         const revertID = deps.session()?.revert?.messageID
-        const lastAssistantMessage = deps.messages().findLast(
-          (msg: any) => msg.role === "assistant" && (!revertID || msg.id < revertID),
-        )
+        const lastAssistantMessage = deps
+          .messages()
+          .findLast((msg: any) => msg.role === "assistant" && (!revertID || msg.id < revertID))
         if (!lastAssistantMessage) {
           deps.toast.show({ message: "No assistant messages found", variant: "error" })
           dialog.clear()
@@ -467,7 +477,10 @@ export function useSessionCommands(deps: CommandDeps) {
           return
         }
 
-        const text = textParts.map((part: any) => part.text).join("\n").trim()
+        const text = textParts
+          .map((part: any) => part.text)
+          .join("\n")
+          .trim()
         if (!text) {
           deps.toast.show({ message: "No text content found in last assistant message", variant: "error" })
           dialog.clear()
@@ -493,7 +506,11 @@ export function useSessionCommands(deps: CommandDeps) {
           const transcript = formatTranscript(
             sessionData,
             sessionMessages.map((msg: any) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
-            { thinking: deps.showThinking(), toolDetails: deps.showDetails(), assistantMetadata: deps.showAssistantMetadata() },
+            {
+              thinking: deps.showThinking(),
+              toolDetails: deps.showDetails(),
+              assistantMetadata: deps.showAssistantMetadata(),
+            },
           )
           await Clipboard.copy(transcript)
           deps.toast.show({ message: "Session transcript copied to clipboard!", variant: "success" })
@@ -527,7 +544,11 @@ export function useSessionCommands(deps: CommandDeps) {
           const transcript = formatTranscript(
             sessionData,
             sessionMessages.map((msg: any) => ({ info: msg, parts: sync.data.part[msg.id] ?? [] })),
-            { thinking: options.thinking, toolDetails: options.toolDetails, assistantMetadata: options.assistantMetadata },
+            {
+              thinking: options.thinking,
+              toolDetails: options.toolDetails,
+              assistantMetadata: options.assistantMetadata,
+            },
           )
           if (options.openWithoutSaving) {
             await Editor.open({ value: transcript, renderer: deps.renderer })

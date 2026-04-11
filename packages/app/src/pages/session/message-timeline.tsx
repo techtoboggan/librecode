@@ -576,8 +576,12 @@ export function MessageTimeline(props: {
             const root = e.currentTarget
             markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
           }}
-          onTouchEnd={() => { touchGesture = undefined }}
-          onTouchCancel={() => { touchGesture = undefined }}
+          onTouchEnd={() => {
+            touchGesture = undefined
+          }}
+          onTouchCancel={() => {
+            touchGesture = undefined
+          }}
           onPointerDown={(e) => {
             if (e.target !== e.currentTarget) return
             props.onMarkScrollGesture(e.currentTarget)
@@ -611,8 +615,12 @@ export function MessageTimeline(props: {
                 title={title}
                 share={share}
                 req={req}
-                moreRef={(el) => { more = el }}
-                titleInputRef={(el) => { titleRef = el }}
+                moreRef={(el) => {
+                  more = el
+                }}
+                titleInputRef={(el) => {
+                  titleRef = el
+                }}
                 onNavigateParent={navigateParent}
                 onOpenTitleEditor={openTitleEditor}
                 onCloseTitleEditor={closeTitleEditor}

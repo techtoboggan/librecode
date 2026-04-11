@@ -121,7 +121,11 @@ export namespace Agent {
         name: "build",
         description: "The default agent. Executes tools based on configured permissions.",
         options: {},
-        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ question: "allow", plan_enter: "allow" }), user),
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({ question: "allow", plan_enter: "allow" }),
+          user,
+        ),
         mode: "primary",
         native: true,
       },
@@ -149,7 +153,11 @@ export namespace Agent {
       general: {
         name: "general",
         description: `General-purpose agent for researching complex questions and executing multi-step tasks. Use this agent to execute multiple units of work in parallel.`,
-        permission: PermissionNext.merge(defaults, PermissionNext.fromConfig({ todoread: "deny", todowrite: "deny" }), user),
+        permission: PermissionNext.merge(
+          defaults,
+          PermissionNext.fromConfig({ todoread: "deny", todowrite: "deny" }),
+          user,
+        ),
         options: {},
         mode: "subagent",
         native: true,

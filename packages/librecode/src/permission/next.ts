@@ -109,5 +109,4 @@ export namespace PermissionNext {
         : undefined,
     }
   }
-
 }

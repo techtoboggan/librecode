@@ -61,27 +61,24 @@ test("orgsByAccount groups orgs per account", async () => {
   })
 
   const f = mockFetch((url) => {
-    if (url === "https://one.example.com/api/orgs")
-      return { body: [{ id: "org-1", name: "One" }] }
+    if (url === "https://one.example.com/api/orgs") return { body: [{ id: "org-1", name: "One" }] }
     if (url === "https://two.example.com/api/orgs")
-      return { body: [{ id: "org-2", name: "Two A" }, { id: "org-3", name: "Two B" }] }
+      return {
+        body: [
+          { id: "org-2", name: "Two A" },
+          { id: "org-3", name: "Two B" },
+        ],
+      }
     return { body: [], status: 404 }
   })
 
   try {
     const rows = await AccountService.orgsByAccount()
-    expect(
-      rows
-        .map((row) => [row.account.id, row.orgs.map((org) => org.id)])
-        .map(([id, orgs]) => [id, orgs]),
-    ).toEqual([
+    expect(rows.map((row) => [row.account.id, row.orgs.map((org) => org.id)]).map(([id, orgs]) => [id, orgs])).toEqual([
       [AccountID.make("user-1"), [OrgID.make("org-1")]],
       [AccountID.make("user-2"), [OrgID.make("org-2"), OrgID.make("org-3")]],
     ])
-    expect(f.seen).toEqual([
-      "GET https://one.example.com/api/orgs",
-      "GET https://two.example.com/api/orgs",
-    ])
+    expect(f.seen).toEqual(["GET https://one.example.com/api/orgs", "GET https://two.example.com/api/orgs"])
   } finally {
     f.restore()
   }
@@ -134,8 +131,7 @@ test("config sends the selected org header", async () => {
   })
 
   const f = mockFetch((url) => {
-    if (url === "https://one.example.com/api/config")
-      return { body: { config: { theme: "light", seats: 5 } } }
+    if (url === "https://one.example.com/api/config") return { body: { config: { theme: "light", seats: 5 } } }
     return { body: {}, status: 404 }
   })
 
@@ -171,10 +167,8 @@ test("poll stores the account and first org on success", async () => {
           expires_in: 60,
         },
       }
-    if (url === "https://one.example.com/api/user")
-      return { body: { id: "user-1", email: "user@example.com" } }
-    if (url === "https://one.example.com/api/orgs")
-      return { body: [{ id: "org-1", name: "One" }] }
+    if (url === "https://one.example.com/api/user") return { body: { id: "user-1", email: "user@example.com" } }
+    if (url === "https://one.example.com/api/orgs") return { body: [{ id: "org-1", name: "One" }] }
     return { body: {}, status: 404 }
   })
 

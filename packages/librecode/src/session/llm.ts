@@ -199,10 +199,7 @@ export namespace LLM {
         ...headers,
       },
       maxRetries: input.retries ?? 0,
-      messages: [
-        ...system.map((x): ModelMessage => ({ role: "system", content: x })),
-        ...input.messages,
-      ],
+      messages: [...system.map((x): ModelMessage => ({ role: "system", content: x })), ...input.messages],
       model: wrapLanguageModel({
         model: language,
         middleware: [

@@ -90,7 +90,9 @@ function saveSessionToDb(exportData: ExportData): void {
   const info = Session.Info.parse({ ...exportData.info, projectID: Instance.project.id })
   const row = Session.toRow(info)
   Database.use((db) =>
-    db.insert(SessionTable).values(row)
+    db
+      .insert(SessionTable)
+      .values(row)
       .onConflictDoUpdate({ target: SessionTable.id, set: { project_id: row.project_id } })
       .run(),
   )
@@ -98,15 +100,21 @@ function saveSessionToDb(exportData: ExportData): void {
     const msgInfo = MessageV2.Info.parse(msg.info)
     const { id, sessionID: _, ...msgData } = msgInfo
     Database.use((db) =>
-      db.insert(MessageTable).values({ id, session_id: row.id, time_created: msgInfo.time?.created ?? Date.now(), data: msgData })
-        .onConflictDoNothing().run(),
+      db
+        .insert(MessageTable)
+        .values({ id, session_id: row.id, time_created: msgInfo.time?.created ?? Date.now(), data: msgData })
+        .onConflictDoNothing()
+        .run(),
     )
     for (const part of msg.parts) {
       const partInfo = MessageV2.Part.parse(part)
       const { id: partId, sessionID: _s, messageID, ...partData } = partInfo
       Database.use((db) =>
-        db.insert(PartTable).values({ id: partId, message_id: messageID, session_id: row.id, data: partData })
-          .onConflictDoNothing().run(),
+        db
+          .insert(PartTable)
+          .values({ id: partId, message_id: messageID, session_id: row.id, data: partData })
+          .onConflictDoNothing()
+          .run(),
       )
     }
   }

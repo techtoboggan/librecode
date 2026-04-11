@@ -131,21 +131,14 @@ export namespace SessionRevert {
     return Session.clearRevert(input.sessionID)
   }
 
-  async function removeMessages(
-    sessionID: SessionID,
-    remove: MessageV2.WithParts[],
-  ): Promise<void> {
+  async function removeMessages(sessionID: SessionID, remove: MessageV2.WithParts[]): Promise<void> {
     for (const msg of remove) {
       Database.use((db) => db.delete(MessageTable).where(eq(MessageTable.id, msg.info.id)).run())
       await Bus.publish(MessageV2.Event.Removed, { sessionID, messageID: msg.info.id })
     }
   }
 
-  async function trimTargetParts(
-    sessionID: SessionID,
-    target: MessageV2.WithParts,
-    partID: string,
-  ): Promise<void> {
+  async function trimTargetParts(sessionID: SessionID, target: MessageV2.WithParts, partID: string): Promise<void> {
     const removeStart = target.parts.findIndex((part) => part.id === partID)
     if (removeStart < 0) return
     const preserveParts = target.parts.slice(0, removeStart)

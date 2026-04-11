@@ -23,12 +23,17 @@ interface CopilotRequestFlags {
   isAgent: boolean
 }
 
-function parseCompletionsFlags(body: { messages: Array<{ role?: string; content?: unknown }>; }, url: string): CopilotRequestFlags | null {
+function parseCompletionsFlags(
+  body: { messages: Array<{ role?: string; content?: unknown }> },
+  url: string,
+): CopilotRequestFlags | null {
   if (!body?.messages || !url.includes("completions")) return null
   const last = body.messages[body.messages.length - 1]
   return {
     isVision: body.messages.some(
-      (msg) => Array.isArray(msg.content) && (msg.content as Array<{ type: string }>).some((part) => part.type === "image_url"),
+      (msg) =>
+        Array.isArray(msg.content) &&
+        (msg.content as Array<{ type: string }>).some((part) => part.type === "image_url"),
     ),
     isAgent: last?.role !== "user",
   }
@@ -39,7 +44,9 @@ function parseResponsesFlags(body: { input: Array<{ role?: string; content?: unk
   const last = body.input[body.input.length - 1]
   return {
     isVision: body.input.some(
-      (item) => Array.isArray(item?.content) && (item.content as Array<{ type: string }>).some((part) => part.type === "input_image"),
+      (item) =>
+        Array.isArray(item?.content) &&
+        (item.content as Array<{ type: string }>).some((part) => part.type === "input_image"),
     ),
     isAgent: (last as { role?: string })?.role !== "user",
   }
@@ -48,7 +55,8 @@ function parseResponsesFlags(body: { input: Array<{ role?: string; content?: unk
 function parseMessagesFlags(body: { messages: Array<{ role?: string; content?: unknown }> }): CopilotRequestFlags {
   const last = body.messages[body.messages.length - 1]
   const hasNonToolCalls =
-    Array.isArray(last?.content) && (last.content as Array<{ type: string }>).some((part) => part?.type !== "tool_result")
+    Array.isArray(last?.content) &&
+    (last.content as Array<{ type: string }>).some((part) => part?.type !== "tool_result")
   return {
     isVision: body.messages.some(
       (item) =>
@@ -56,7 +64,9 @@ function parseMessagesFlags(body: { messages: Array<{ role?: string; content?: u
         (item.content as Array<{ type: string; content?: Array<{ type: string }> }>).some(
           (part) =>
             part?.type === "image" ||
-            (part?.type === "tool_result" && Array.isArray(part?.content) && part.content.some((n) => n?.type === "image")),
+            (part?.type === "tool_result" &&
+              Array.isArray(part?.content) &&
+              part.content.some((n) => n?.type === "image")),
         ),
     ),
     isAgent: !(last?.role === "user" && hasNonToolCalls),
@@ -89,11 +99,7 @@ function computeSlowDownInterval(serverInterval: number | undefined, baseInterva
   return (baseInterval + 5) * 1000
 }
 
-function buildSuccessResult(
-  accessToken: string,
-  actualProvider: string,
-  domain: string,
-): CopilotSuccessResult {
+function buildSuccessResult(accessToken: string, actualProvider: string, domain: string): CopilotSuccessResult {
   const result: CopilotSuccessResult = { type: "success", refresh: accessToken, access: accessToken, expires: 0 }
   if (actualProvider === "github-copilot-enterprise") {
     result.provider = "github-copilot-enterprise"
@@ -102,7 +108,9 @@ function buildSuccessResult(
   return result
 }
 
-type PollAction = { action: "return"; result: CopilotSuccessResult | { type: "failed" } } | { action: "sleep"; ms: number }
+type PollAction =
+  | { action: "return"; result: CopilotSuccessResult | { type: "failed" } }
+  | { action: "sleep"; ms: number }
 
 function interpretPollResponse(
   data: { access_token?: string; error?: string; interval?: number },
@@ -119,7 +127,10 @@ function interpretPollResponse(
   if (data.error === "slow_down") {
     // Based on the RFC spec, we must add 5 seconds to our current polling interval.
     // (See https://www.rfc-editor.org/rfc/rfc8628#section-3.5)
-    return { action: "sleep", ms: computeSlowDownInterval(data.interval, baseInterval) + OAUTH_POLLING_SAFETY_MARGIN_MS }
+    return {
+      action: "sleep",
+      ms: computeSlowDownInterval(data.interval, baseInterval) + OAUTH_POLLING_SAFETY_MARGIN_MS,
+    }
   }
   if (data.error) return { action: "return", result: { type: "failed" as const } }
   return { action: "sleep", ms: baseInterval * 1000 + OAUTH_POLLING_SAFETY_MARGIN_MS }
@@ -305,7 +316,13 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               instructions: `Enter code: ${deviceData.user_code}`,
               method: "auto" as const,
               callback: () =>
-                pollForCopilotToken(urls.ACCESS_TOKEN_URL, deviceData.device_code, deviceData.interval, actualProvider, domain),
+                pollForCopilotToken(
+                  urls.ACCESS_TOKEN_URL,
+                  deviceData.device_code,
+                  deviceData.interval,
+                  actualProvider,
+                  domain,
+                ),
             }
           },
         },

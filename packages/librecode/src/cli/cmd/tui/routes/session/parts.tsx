@@ -2,7 +2,12 @@ import { createMemo, Show, Switch, Match } from "solid-js"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"
 import { SplitBorder } from "@tui/component/border"
-import type { AssistantMessage, ToolPart as ToolPartType, TextPart as TextPartType, ReasoningPart as ReasoningPartType } from "@librecode/sdk/v2"
+import type {
+  AssistantMessage,
+  ToolPart as ToolPartType,
+  TextPart as TextPartType,
+  ReasoningPart as ReasoningPartType,
+} from "@librecode/sdk/v2"
 import { Flag } from "@/flag/flag"
 import { use } from "./context"
 import { GenericTool, type ToolProps } from "./tools/shared"

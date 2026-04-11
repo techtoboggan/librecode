@@ -79,5 +79,11 @@ export function createCommentContext(input: CommentContextInput) {
     saveLabel: input.language.t("common.save"),
   }))
 
-  return { selectionPreview, addCommentToContext, updateCommentInContext, removeCommentFromContext, reviewCommentActions }
+  return {
+    selectionPreview,
+    addCommentToContext,
+    updateCommentInContext,
+    removeCommentFromContext,
+    reviewCommentActions,
+  }
 }

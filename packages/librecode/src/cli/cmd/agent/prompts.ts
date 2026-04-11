@@ -5,8 +5,17 @@ import { Instance } from "../../../project/instance"
 import path from "path"
 
 export const AVAILABLE_TOOLS = [
-  "bash", "read", "write", "edit", "list", "glob",
-  "grep", "webfetch", "task", "todowrite", "todoread",
+  "bash",
+  "read",
+  "write",
+  "edit",
+  "list",
+  "glob",
+  "grep",
+  "webfetch",
+  "task",
+  "todowrite",
+  "todoread",
 ]
 
 export type AgentMode = "all" | "primary" | "subagent"
@@ -28,10 +37,7 @@ export async function resolveTargetPath(cliPath?: string): Promise<string> {
     scope = scopeResult
   }
 
-  return path.join(
-    scope === "global" ? Global.Path.config : path.join(Instance.worktree, ".librecode"),
-    "agent",
-  )
+  return path.join(scope === "global" ? Global.Path.config : path.join(Instance.worktree, ".librecode"), "agent")
 }
 
 export async function resolveDescription(cliDescription?: string): Promise<string> {

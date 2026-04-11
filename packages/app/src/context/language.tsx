@@ -3,13 +3,25 @@ import { createEffect, createMemo } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createSimpleContext } from "@librecode/ui/context"
 import { Persist, persisted } from "@/utils/persist"
+import { en, zh, zht, ko, de, es, fr, da, ja, pl, ru, ar, no, br, th, bs, tr } from "@librecode/i18n/app"
 import {
-  en, zh, zht, ko, de, es, fr, da, ja, pl, ru, ar, no, br, th, bs, tr,
-} from "@librecode/i18n/app"
-import {
-  en as uiEn, zh as uiZh, zht as uiZht, ko as uiKo, de as uiDe, es as uiEs,
-  fr as uiFr, da as uiDa, ja as uiJa, pl as uiPl, ru as uiRu, ar as uiAr,
-  no as uiNo, br as uiBr, th as uiTh, bs as uiBs, tr as uiTr,
+  en as uiEn,
+  zh as uiZh,
+  zht as uiZht,
+  ko as uiKo,
+  de as uiDe,
+  es as uiEs,
+  fr as uiFr,
+  da as uiDa,
+  ja as uiJa,
+  pl as uiPl,
+  ru as uiRu,
+  ar as uiAr,
+  no as uiNo,
+  br as uiBr,
+  th as uiTh,
+  bs as uiBs,
+  tr as uiTr,
 } from "@librecode/i18n/ui"
 
 export type Locale =

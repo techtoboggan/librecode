@@ -385,7 +385,11 @@ export function createProjectActions(deps: ProjectActionsDeps): ProjectActions {
       .then((x) => x.data ?? [])
       .catch(() => [])
 
-    clearWorkspaceTerminals(directory, sessions.map((s) => s.id), platform)
+    clearWorkspaceTerminals(
+      directory,
+      sessions.map((s) => s.id),
+      platform,
+    )
     await globalSDK.client.instance.dispose({ directory }).catch(() => undefined)
 
     const result = await globalSDK.client.worktree

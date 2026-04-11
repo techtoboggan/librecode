@@ -100,7 +100,10 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
       setToDelete(sessionID)
       return
     }
-    const deleted = await sdk.client.session.delete({ sessionID }).then(() => true).catch(() => false)
+    const deleted = await sdk.client.session
+      .delete({ sessionID })
+      .then(() => true)
+      .catch(() => false)
     setToDelete(undefined)
     if (!deleted) {
       toast.show({ message: "Failed to delete session", variant: "error" })
@@ -110,7 +113,10 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
       listedActions.mutate((sessions) => sessions?.filter((session) => session.id !== sessionID))
       return
     }
-    sync.set("session", sync.data.session.filter((session) => session.id !== sessionID))
+    sync.set(
+      "session",
+      sync.data.session.filter((session) => session.id !== sessionID),
+    )
   }
 
   return (

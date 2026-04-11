@@ -14,11 +14,7 @@ function isInList(list: ModelRef[], providerID: string, modelID: string): boolea
   return list.some((item) => item.providerID === providerID && item.modelID === modelID)
 }
 
-function isNotInFavoritesOrRecents(
-  x: { value: ModelRef },
-  favorites: ModelRef[],
-  recents: ModelRef[],
-): boolean {
+function isNotInFavoritesOrRecents(x: { value: ModelRef }, favorites: ModelRef[], recents: ModelRef[]): boolean {
   if (isInList(favorites, x.value.providerID, x.value.modelID)) return false
   if (isInList(recents, x.value.providerID, x.value.modelID)) return false
   return true

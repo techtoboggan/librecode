@@ -18,13 +18,7 @@ import { Icon } from "../icon"
 import { Checkbox } from "../checkbox"
 import { TextShimmer } from "../text-shimmer"
 import { FileIcon } from "../file-icon"
-import {
-  type ApplyPatchFile,
-  getDiagnostics,
-  DiagnosticsDisplay,
-  getDirectory,
-  ToolFileAccordion,
-} from "./shared"
+import { type ApplyPatchFile, getDiagnostics, DiagnosticsDisplay, getDirectory, ToolFileAccordion } from "./shared"
 import { ToolRegistry } from "./registry"
 
 // ---------------------------------------------------------------------------

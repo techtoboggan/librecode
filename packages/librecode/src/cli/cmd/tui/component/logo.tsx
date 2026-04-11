@@ -83,7 +83,9 @@ export function Logo() {
           return (
             <box flexDirection="row" gap={1}>
               <box flexDirection="row">{renderLine(line, theme.textMuted, shadowMuted, undefined)}</box>
-              <box flexDirection="row">{renderLine(logo.right[index()], theme.text, shadowText, TextAttributes.BOLD)}</box>
+              <box flexDirection="row">
+                {renderLine(logo.right[index()], theme.text, shadowText, TextAttributes.BOLD)}
+              </box>
             </box>
           )
         }}

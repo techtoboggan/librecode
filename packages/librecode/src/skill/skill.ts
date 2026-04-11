@@ -24,11 +24,7 @@ const SKILL_EXTERNAL_PATTERN = "skills/**/SKILL.md"
 const SKILL_LIBRECODE_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_GLOB_PATTERN = "**/SKILL.md"
 
-async function addSkill(
-  match: string,
-  skills: Record<string, Skill.Info>,
-  dirs: Set<string>,
-): Promise<void> {
+async function addSkill(match: string, skills: Record<string, Skill.Info>, dirs: Set<string>): Promise<void> {
   const md = await ConfigMarkdown.parse(match).catch((err) => {
     const message = ConfigMarkdown.FrontmatterError.isInstance(err)
       ? err.data.message
@@ -78,10 +74,7 @@ async function scanExternal(
     })
 }
 
-async function scanConfigPath(
-  skillPath: string,
-  addSkillFn: (match: string) => Promise<void>,
-): Promise<void> {
+async function scanConfigPath(skillPath: string, addSkillFn: (match: string) => Promise<void>): Promise<void> {
   const expanded = skillPath.startsWith("~/") ? path.join(os.homedir(), skillPath.slice(2)) : skillPath
   const resolved = path.isAbsolute(expanded) ? expanded : path.join(Instance.directory, expanded)
   if (!(await Filesystem.isDir(resolved))) {
@@ -135,9 +128,7 @@ async function scanUrlSkills(
   }
 }
 
-async function scanExternalDirs(
-  addSkillFn: (match: string) => Promise<void>,
-): Promise<void> {
+async function scanExternalDirs(addSkillFn: (match: string) => Promise<void>): Promise<void> {
   const scanExternalDir = (root: string, scope: "global" | "project") => scanExternal(root, scope, addSkillFn)
 
   for (const dir of SKILL_EXTERNAL_DIRS) {

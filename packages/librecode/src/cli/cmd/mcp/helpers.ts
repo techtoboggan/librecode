@@ -11,17 +11,23 @@ import { UI } from "../../ui"
 
 export function getAuthStatusIcon(status: MCP.AuthStatus): string {
   switch (status) {
-    case "authenticated": return "✓"
-    case "expired": return "⚠"
-    case "not_authenticated": return "✗"
+    case "authenticated":
+      return "✓"
+    case "expired":
+      return "⚠"
+    case "not_authenticated":
+      return "✗"
   }
 }
 
 export function getAuthStatusText(status: MCP.AuthStatus): string {
   switch (status) {
-    case "authenticated": return "authenticated"
-    case "expired": return "expired"
-    case "not_authenticated": return "not authenticated"
+    case "authenticated":
+      return "authenticated"
+    case "expired":
+      return "expired"
+    case "not_authenticated":
+      return "not authenticated"
   }
 }
 
@@ -59,10 +65,7 @@ export async function addMcpToConfig(name: string, mcpConfig: Config.Mcp, config
   return configPath
 }
 
-export async function selectOAuthServer(
-  oauthServers: Array<[string, McpRemote]>,
-  argName?: string,
-): Promise<string> {
+export async function selectOAuthServer(oauthServers: Array<[string, McpRemote]>, argName?: string): Promise<string> {
   if (argName) return argName
   const options = await Promise.all(
     oauthServers.map(async ([name, cfg]) => {
@@ -95,7 +98,10 @@ export async function confirmReauthIfNeeded(serverName: string, authStatus: MCP.
 }
 
 export async function collectOAuthConfig(url: string): Promise<Config.Mcp> {
-  const useOAuth = await prompts.confirm({ message: "Does this server require OAuth authentication?", initialValue: false })
+  const useOAuth = await prompts.confirm({
+    message: "Does this server require OAuth authentication?",
+    initialValue: false,
+  })
   if (prompts.isCancel(useOAuth)) throw new UI.CancelledError()
   if (!useOAuth) return { type: "remote", url }
 
@@ -103,7 +109,10 @@ export async function collectOAuthConfig(url: string): Promise<Config.Mcp> {
   if (prompts.isCancel(hasClientId)) throw new UI.CancelledError()
   if (!hasClientId) return { type: "remote", url, oauth: {} }
 
-  const clientId = await prompts.text({ message: "Enter client ID", validate: (x) => (x && x.length > 0 ? undefined : "Required") })
+  const clientId = await prompts.text({
+    message: "Enter client ID",
+    validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+  })
   if (prompts.isCancel(clientId)) throw new UI.CancelledError()
 
   const hasSecret = await prompts.confirm({ message: "Do you have a client secret?", initialValue: false })
@@ -148,7 +157,9 @@ export async function printDebugTokenInfo(serverName: string): Promise<void> {
   if (entry?.clientInfo) {
     prompts.log.info(`  Client ID: ${entry.clientInfo.clientId}`)
     if (entry.clientInfo.clientSecretExpiresAt) {
-      prompts.log.info(`  Client secret expires: ${new Date(entry.clientInfo.clientSecretExpiresAt * 1000).toISOString()}`)
+      prompts.log.info(
+        `  Client secret expires: ${new Date(entry.clientInfo.clientSecretExpiresAt * 1000).toISOString()}`,
+      )
     }
   }
 }

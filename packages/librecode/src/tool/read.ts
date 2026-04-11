@@ -38,7 +38,8 @@ async function throwNotFoundWithSuggestions(filepath: string): Promise<never> {
     .then((entries) =>
       entries
         .filter(
-          (entry) => entry.toLowerCase().includes(base.toLowerCase()) || base.toLowerCase().includes(entry.toLowerCase()),
+          (entry) =>
+            entry.toLowerCase().includes(base.toLowerCase()) || base.toLowerCase().includes(entry.toLowerCase()),
         )
         .map((entry) => path.join(dir, entry))
         .slice(0, 3),
@@ -192,7 +193,14 @@ async function readFileContent(
   return { title, output, metadata: { preview, truncated, loaded } }
 }
 
-function buildTextOutput(filepath: string, raw: string[], offset: number, lines: number, hasMoreLines: boolean, truncatedByBytes: boolean): string {
+function buildTextOutput(
+  filepath: string,
+  raw: string[],
+  offset: number,
+  lines: number,
+  hasMoreLines: boolean,
+  truncatedByBytes: boolean,
+): string {
   const content = raw.map((line, index) => `${index + offset}: ${line}`)
   let output = [`<path>${filepath}</path>`, `<type>file</type>`, "<content>"].join("\n")
   output += content.join("\n")

@@ -121,7 +121,11 @@ export function usePromptPaste(deps: PasteHandlerDeps) {
     return false
   }
 
-  async function handlePasteSvg(filepath: string, filename: string, event: { preventDefault(): void }): Promise<boolean> {
+  async function handlePasteSvg(
+    filepath: string,
+    filename: string,
+    event: { preventDefault(): void },
+  ): Promise<boolean> {
     event.preventDefault()
     const content = await Filesystem.readText(filepath).catch(() => {})
     if (content) {

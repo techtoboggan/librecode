@@ -235,15 +235,7 @@ export const YamlLS: Info = {
     let binary = which("yaml-language-server")
     const args: string[] = []
     if (!binary) {
-      const js = path.join(
-        Global.Path.bin,
-        "node_modules",
-        "yaml-language-server",
-        "out",
-        "server",
-        "src",
-        "server.js",
-      )
+      const js = path.join(Global.Path.bin, "node_modules", "yaml-language-server", "out", "server", "src", "server.js")
       const exists = await Filesystem.exists(js)
       if (!exists) {
         if (Flag.LIBRECODE_DISABLE_LSP_DOWNLOAD) return
@@ -588,8 +580,7 @@ export const Tinymist: Info = {
   root: NearestRoot(["typst.toml"]),
   async spawn(root) {
     const bin =
-      which("tinymist", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ??
-      (await downloadTinymist())
+      which("tinymist", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadTinymist())
     if (!bin) return
 
     return {
