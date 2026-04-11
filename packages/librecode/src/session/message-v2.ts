@@ -3,56 +3,91 @@ import { SessionID, MessageID, PartID } from "./schema"
 import z from "zod"
 import { NamedError } from "@librecode/util/error"
 import { APICallError, convertToModelMessages, LoadAPIKeyError, type ModelMessage, type UIMessage } from "ai"
-import { LSP } from "../lsp"
 import { Snapshot } from "@/snapshot"
 import { fn } from "@/util/fn"
 import { Database, NotFoundError, and, desc, eq, inArray, lt, or } from "@/storage/db"
 import { MessageTable, PartTable, SessionTable } from "./session.sql"
-import { ProviderTransform } from "@/provider/transform"
-import { STATUS_CODES } from "http"
-import { Storage } from "@/storage/storage"
 import { ProviderError } from "@/provider/error"
 import { iife } from "@/util/iife"
 import { type SystemError } from "bun"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
 
-export function isMedia(mime: string) {
+// Import everything from parts module for local use
+import {
+  OutputLengthError as _OutputLengthError,
+  AbortedError as _AbortedError,
+  StructuredOutputError as _StructuredOutputError,
+  AuthError as _AuthError,
+  APIError as _APIError,
+  ContextOverflowError as _ContextOverflowError,
+  AgentPart as _AgentPart,
+  CompactionPart as _CompactionPart,
+  FilePart as _FilePart,
+  FilePartSource as _FilePartSource,
+  FileSource as _FileSource,
+  PatchPart as _PatchPart,
+  Part as _Part,
+  ReasoningPart as _ReasoningPart,
+  ResourceSource as _ResourceSource,
+  RetryPart as _RetryPart,
+  SnapshotPart as _SnapshotPart,
+  StepFinishPart as _StepFinishPart,
+  StepStartPart as _StepStartPart,
+  SubtaskPart as _SubtaskPart,
+  SymbolSource as _SymbolSource,
+  TextPart as _TextPart,
+  ToolPart as _ToolPart,
+  ToolState as _ToolState,
+  ToolStateCompleted as _ToolStateCompleted,
+  ToolStateError as _ToolStateError,
+  ToolStatePending as _ToolStatePending,
+  ToolStateRunning as _ToolStateRunning,
+} from "./message-v2-parts"
+import type {
+  FilePart as FilePart_,
+  ToolPart as ToolPart_,
+  ToolStateCompleted as ToolStateCompleted_,
+  Part as Part_,
+} from "./message-v2-parts"
+
+// Re-export everything from parts module so callers don't need to change
+export {
+  OutputLengthError,
+  AbortedError,
+  StructuredOutputError,
+  AuthError,
+  APIError,
+  ContextOverflowError,
+  SnapshotPart,
+  PatchPart,
+  TextPart,
+  ReasoningPart,
+  FileSource,
+  SymbolSource,
+  ResourceSource,
+  FilePartSource,
+  FilePart,
+  AgentPart,
+  CompactionPart,
+  SubtaskPart,
+  RetryPart,
+  StepStartPart,
+  StepFinishPart,
+  ToolStatePending,
+  ToolStateRunning,
+  ToolStateCompleted,
+  ToolStateError,
+  ToolState,
+  ToolPart,
+  Part,
+} from "./message-v2-parts"
+
+type _APIErrorData = z.infer<typeof _APIError.Schema>
+
+export function isMedia(mime: string): boolean {
   return mime.startsWith("image/") || mime === "application/pdf"
 }
-
-export const OutputLengthError = NamedError.create("MessageOutputLengthError", z.object({}))
-export const AbortedError = NamedError.create("MessageAbortedError", z.object({ message: z.string() }))
-export const StructuredOutputError = NamedError.create(
-  "StructuredOutputError",
-  z.object({
-    message: z.string(),
-    retries: z.number(),
-  }),
-)
-export const AuthError = NamedError.create(
-  "ProviderAuthError",
-  z.object({
-    providerID: z.string(),
-    message: z.string(),
-  }),
-)
-export const APIError = NamedError.create(
-  "APIError",
-  z.object({
-    message: z.string(),
-    statusCode: z.number().optional(),
-    isRetryable: z.boolean(),
-    responseHeaders: z.record(z.string(), z.string()).optional(),
-    responseBody: z.string().optional(),
-    metadata: z.record(z.string(), z.string()).optional(),
-  }),
-)
-type _APIError = z.infer<typeof APIError.Schema>
-export const ContextOverflowError = NamedError.create(
-  "ContextOverflowError",
-  z.object({ message: z.string(), responseBody: z.string().optional() }),
-)
 
 export const OutputFormatText = z
   .object({
@@ -76,271 +111,6 @@ export const Format = z.discriminatedUnion("type", [OutputFormatText, OutputForm
   ref: "OutputFormat",
 })
 type _OutputFormat = z.infer<typeof Format>
-
-const PartBase = z.object({
-  id: PartID.zod,
-  sessionID: SessionID.zod,
-  messageID: MessageID.zod,
-})
-
-export const SnapshotPart = PartBase.extend({
-  type: z.literal("snapshot"),
-  snapshot: z.string(),
-}).meta({
-  ref: "SnapshotPart",
-})
-type _SnapshotPart = z.infer<typeof SnapshotPart>
-
-export const PatchPart = PartBase.extend({
-  type: z.literal("patch"),
-  hash: z.string(),
-  files: z.string().array(),
-}).meta({
-  ref: "PatchPart",
-})
-type _PatchPart = z.infer<typeof PatchPart>
-
-export const TextPart = PartBase.extend({
-  type: z.literal("text"),
-  text: z.string(),
-  synthetic: z.boolean().optional(),
-  ignored: z.boolean().optional(),
-  time: z
-    .object({
-      start: z.number(),
-      end: z.number().optional(),
-    })
-    .optional(),
-  metadata: z.record(z.string(), z.any()).optional(),
-}).meta({
-  ref: "TextPart",
-})
-type _TextPart = z.infer<typeof TextPart>
-
-export const ReasoningPart = PartBase.extend({
-  type: z.literal("reasoning"),
-  text: z.string(),
-  metadata: z.record(z.string(), z.any()).optional(),
-  time: z.object({
-    start: z.number(),
-    end: z.number().optional(),
-  }),
-}).meta({
-  ref: "ReasoningPart",
-})
-type _ReasoningPart = z.infer<typeof ReasoningPart>
-
-const FilePartSourceBase = z.object({
-  text: z
-    .object({
-      value: z.string(),
-      start: z.number().int(),
-      end: z.number().int(),
-    })
-    .meta({
-      ref: "FilePartSourceText",
-    }),
-})
-
-export const FileSource = FilePartSourceBase.extend({
-  type: z.literal("file"),
-  path: z.string(),
-}).meta({
-  ref: "FileSource",
-})
-
-export const SymbolSource = FilePartSourceBase.extend({
-  type: z.literal("symbol"),
-  path: z.string(),
-  range: LSP.Range,
-  name: z.string(),
-  kind: z.number().int(),
-}).meta({
-  ref: "SymbolSource",
-})
-
-export const ResourceSource = FilePartSourceBase.extend({
-  type: z.literal("resource"),
-  clientName: z.string(),
-  uri: z.string(),
-}).meta({
-  ref: "ResourceSource",
-})
-
-export const FilePartSource = z.discriminatedUnion("type", [FileSource, SymbolSource, ResourceSource]).meta({
-  ref: "FilePartSource",
-})
-
-export const FilePart = PartBase.extend({
-  type: z.literal("file"),
-  mime: z.string(),
-  filename: z.string().optional(),
-  url: z.string(),
-  source: FilePartSource.optional(),
-}).meta({
-  ref: "FilePart",
-})
-type _FilePart = z.infer<typeof FilePart>
-
-export const AgentPart = PartBase.extend({
-  type: z.literal("agent"),
-  name: z.string(),
-  source: z
-    .object({
-      value: z.string(),
-      start: z.number().int(),
-      end: z.number().int(),
-    })
-    .optional(),
-}).meta({
-  ref: "AgentPart",
-})
-type _AgentPart = z.infer<typeof AgentPart>
-
-export const CompactionPart = PartBase.extend({
-  type: z.literal("compaction"),
-  auto: z.boolean(),
-  overflow: z.boolean().optional(),
-}).meta({
-  ref: "CompactionPart",
-})
-type _CompactionPart = z.infer<typeof CompactionPart>
-
-export const SubtaskPart = PartBase.extend({
-  type: z.literal("subtask"),
-  prompt: z.string(),
-  description: z.string(),
-  agent: z.string(),
-  model: z
-    .object({
-      providerID: ProviderID.zod,
-      modelID: ModelID.zod,
-    })
-    .optional(),
-  command: z.string().optional(),
-}).meta({
-  ref: "SubtaskPart",
-})
-type _SubtaskPart = z.infer<typeof SubtaskPart>
-
-export const RetryPart = PartBase.extend({
-  type: z.literal("retry"),
-  attempt: z.number(),
-  error: APIError.Schema,
-  time: z.object({
-    created: z.number(),
-  }),
-}).meta({
-  ref: "RetryPart",
-})
-type _RetryPart = z.infer<typeof RetryPart>
-
-export const StepStartPart = PartBase.extend({
-  type: z.literal("step-start"),
-  snapshot: z.string().optional(),
-}).meta({
-  ref: "StepStartPart",
-})
-type _StepStartPart = z.infer<typeof StepStartPart>
-
-export const StepFinishPart = PartBase.extend({
-  type: z.literal("step-finish"),
-  reason: z.string(),
-  snapshot: z.string().optional(),
-  cost: z.number(),
-  tokens: z.object({
-    total: z.number().optional(),
-    input: z.number(),
-    output: z.number(),
-    reasoning: z.number(),
-    cache: z.object({
-      read: z.number(),
-      write: z.number(),
-    }),
-  }),
-}).meta({
-  ref: "StepFinishPart",
-})
-type _StepFinishPart = z.infer<typeof StepFinishPart>
-
-export const ToolStatePending = z
-  .object({
-    status: z.literal("pending"),
-    input: z.record(z.string(), z.any()),
-    raw: z.string(),
-  })
-  .meta({
-    ref: "ToolStatePending",
-  })
-
-type _ToolStatePending = z.infer<typeof ToolStatePending>
-
-export const ToolStateRunning = z
-  .object({
-    status: z.literal("running"),
-    input: z.record(z.string(), z.any()),
-    title: z.string().optional(),
-    metadata: z.record(z.string(), z.any()).optional(),
-    time: z.object({
-      start: z.number(),
-    }),
-  })
-  .meta({
-    ref: "ToolStateRunning",
-  })
-type _ToolStateRunning = z.infer<typeof ToolStateRunning>
-
-export const ToolStateCompleted = z
-  .object({
-    status: z.literal("completed"),
-    input: z.record(z.string(), z.any()),
-    output: z.string(),
-    title: z.string(),
-    metadata: z.record(z.string(), z.any()),
-    time: z.object({
-      start: z.number(),
-      end: z.number(),
-      compacted: z.number().optional(),
-    }),
-    attachments: FilePart.array().optional(),
-  })
-  .meta({
-    ref: "ToolStateCompleted",
-  })
-type _ToolStateCompleted = z.infer<typeof ToolStateCompleted>
-
-export const ToolStateError = z
-  .object({
-    status: z.literal("error"),
-    input: z.record(z.string(), z.any()),
-    error: z.string(),
-    metadata: z.record(z.string(), z.any()).optional(),
-    time: z.object({
-      start: z.number(),
-      end: z.number(),
-    }),
-  })
-  .meta({
-    ref: "ToolStateError",
-  })
-type _ToolStateError = z.infer<typeof ToolStateError>
-
-export const ToolState = z
-  .discriminatedUnion("status", [ToolStatePending, ToolStateRunning, ToolStateCompleted, ToolStateError])
-  .meta({
-    ref: "ToolState",
-  })
-
-export const ToolPart = PartBase.extend({
-  type: z.literal("tool"),
-  callID: z.string(),
-  tool: z.string(),
-  state: ToolState,
-  metadata: z.record(z.string(), z.any()).optional(),
-}).meta({
-  ref: "ToolPart",
-})
-type _ToolPart = z.infer<typeof ToolPart>
 
 const Base = z.object({
   id: MessageID.zod,
@@ -373,26 +143,6 @@ export const User = Base.extend({
 })
 type _User = z.infer<typeof User>
 
-export const Part = z
-  .discriminatedUnion("type", [
-    TextPart,
-    SubtaskPart,
-    ReasoningPart,
-    FilePart,
-    ToolPart,
-    StepStartPart,
-    StepFinishPart,
-    SnapshotPart,
-    PatchPart,
-    AgentPart,
-    RetryPart,
-    CompactionPart,
-  ])
-  .meta({
-    ref: "Part",
-  })
-type _Part = z.infer<typeof Part>
-
 export const Assistant = Base.extend({
   role: z.literal("assistant"),
   time: z.object({
@@ -401,13 +151,13 @@ export const Assistant = Base.extend({
   }),
   error: z
     .discriminatedUnion("name", [
-      AuthError.Schema,
+      _AuthError.Schema,
       NamedError.Unknown.Schema,
-      OutputLengthError.Schema,
-      AbortedError.Schema,
-      StructuredOutputError.Schema,
-      ContextOverflowError.Schema,
-      APIError.Schema,
+      _OutputLengthError.Schema,
+      _AbortedError.Schema,
+      _StructuredOutputError.Schema,
+      _ContextOverflowError.Schema,
+      _APIError.Schema,
     ])
     .optional(),
   parentID: MessageID.zod,
@@ -464,7 +214,7 @@ export const Event = {
   PartUpdated: BusEvent.define(
     "message.part.updated",
     z.object({
-      part: Part,
+      part: _Part,
     }),
   ),
   PartDelta: BusEvent.define(
@@ -489,7 +239,7 @@ export const Event = {
 
 export const WithParts = z.object({
   info: Info,
-  parts: z.array(Part),
+  parts: z.array(_Part),
 })
 type _WithParts = z.infer<typeof WithParts>
 
@@ -606,7 +356,7 @@ function toModelOutput(output: unknown): { type: string; value: unknown } {
   return { type: "json", value: output as never }
 }
 
-function processUserPart(part: _Part, userMessage: UIMessage, options: { stripMedia?: boolean } | undefined): void {
+function processUserPart(part: Part_, userMessage: UIMessage, options: { stripMedia?: boolean } | undefined): void {
   if (part.type === "text" && !part.ignored) {
     userMessage.parts.push({ type: "text", text: part.text })
     return
@@ -634,15 +384,15 @@ function buildUserMessage(
   options: { stripMedia?: boolean } | undefined,
 ): UIMessage {
   const userMessage: UIMessage = { id: msg.info.id, role: "user", parts: [] }
-  for (const part of msg.parts) {
-    processUserPart(part, userMessage, options)
+  for (const p of msg.parts) {
+    processUserPart(p, userMessage, options)
   }
   return userMessage
 }
 
 function appendCompletedToolPart(
   assistantMessage: UIMessage,
-  part: _ToolPart & { state: _ToolStateCompleted },
+  part: ToolPart_ & { state: ToolStateCompleted_ },
   differentModel: boolean,
   supportsMediaInToolResults: boolean,
   media: Array<{ mime: string; url: string }>,
@@ -673,7 +423,7 @@ function appendCompletedToolPart(
 
 function appendToolPart(
   assistantMessage: UIMessage,
-  part: _ToolPart,
+  part: ToolPart_,
   differentModel: boolean,
   supportsMediaInToolResults: boolean,
   media: Array<{ mime: string; url: string }>,
@@ -682,7 +432,7 @@ function appendToolPart(
   if (part.state.status === "completed") {
     appendCompletedToolPart(
       assistantMessage,
-      part as _ToolPart & { state: _ToolStateCompleted },
+      part as ToolPart_ & { state: ToolStateCompleted_ },
       differentModel,
       supportsMediaInToolResults,
       media,
@@ -720,7 +470,7 @@ function providerMeta(metadata: Record<string, unknown> | undefined, differentMo
 }
 
 function appendAssistantPart(
-  part: _Part,
+  part: Part_,
   assistantMessage: UIMessage,
   differentModel: boolean,
   supportsMediaInToolResults: boolean,
@@ -734,7 +484,7 @@ function appendAssistantPart(
     assistantMessage.parts.push({ type: "step-start" })
   } else if (part.type === "tool") {
     toolNames.add(part.tool)
-    appendToolPart(assistantMessage, part as _ToolPart, differentModel, supportsMediaInToolResults, media, options)
+    appendToolPart(assistantMessage, part as ToolPart_, differentModel, supportsMediaInToolResults, media, options)
   } else if (part.type === "reasoning") {
     assistantMessage.parts.push({ type: "reasoning", text: part.text, ...providerMeta(part.metadata, differentModel) })
   }
@@ -1015,40 +765,40 @@ export function fromError(e: unknown, ctx: { providerID: ProviderID }): NonNulla
 
 // Barrel export preserving MessageV2.X access pattern for consumers
 export const MessageV2 = {
-  APIError,
-  AbortedError,
-  AgentPart,
+  APIError: _APIError,
+  AbortedError: _AbortedError,
+  AgentPart: _AgentPart,
   Assistant,
-  AuthError,
-  CompactionPart,
-  ContextOverflowError,
+  AuthError: _AuthError,
+  CompactionPart: _CompactionPart,
+  ContextOverflowError: _ContextOverflowError,
   Event,
-  FilePart,
-  FilePartSource,
-  FileSource,
+  FilePart: _FilePart,
+  FilePartSource: _FilePartSource,
+  FileSource: _FileSource,
   Format,
   Info,
   OutputFormatJsonSchema,
   OutputFormatText,
-  OutputLengthError,
-  Part,
-  PatchPart,
-  ReasoningPart,
-  ResourceSource,
-  RetryPart,
-  SnapshotPart,
-  StepFinishPart,
-  StepStartPart,
-  StructuredOutputError,
-  SubtaskPart,
-  SymbolSource,
-  TextPart,
-  ToolPart,
-  ToolState,
-  ToolStateCompleted,
-  ToolStateError,
-  ToolStatePending,
-  ToolStateRunning,
+  OutputLengthError: _OutputLengthError,
+  Part: _Part,
+  PatchPart: _PatchPart,
+  ReasoningPart: _ReasoningPart,
+  ResourceSource: _ResourceSource,
+  RetryPart: _RetryPart,
+  SnapshotPart: _SnapshotPart,
+  StepFinishPart: _StepFinishPart,
+  StepStartPart: _StepStartPart,
+  StructuredOutputError: _StructuredOutputError,
+  SubtaskPart: _SubtaskPart,
+  SymbolSource: _SymbolSource,
+  TextPart: _TextPart,
+  ToolPart: _ToolPart,
+  ToolState: _ToolState,
+  ToolStateCompleted: _ToolStateCompleted,
+  ToolStateError: _ToolStateError,
+  ToolStatePending: _ToolStatePending,
+  ToolStateRunning: _ToolStateRunning,
   User,
   WithParts,
   cursor,
@@ -1064,26 +814,26 @@ export const MessageV2 = {
 
 // Type companion — declaration merging lets consumers write MessageV2.TextPart as a type
 export namespace MessageV2 {
-  export type APIError = _APIError
-  export type AgentPart = _AgentPart
+  export type APIError = _APIErrorData
+  export type AgentPart = z.infer<typeof _AgentPart>
   export type Assistant = _Assistant
-  export type CompactionPart = _CompactionPart
-  export type FilePart = _FilePart
+  export type CompactionPart = z.infer<typeof _CompactionPart>
+  export type FilePart = FilePart_
   export type Info = _Info
-  export type Part = _Part
-  export type PatchPart = _PatchPart
-  export type ReasoningPart = _ReasoningPart
-  export type RetryPart = _RetryPart
-  export type SnapshotPart = _SnapshotPart
-  export type StepFinishPart = _StepFinishPart
-  export type StepStartPart = _StepStartPart
-  export type SubtaskPart = _SubtaskPart
-  export type TextPart = _TextPart
-  export type ToolPart = _ToolPart
-  export type ToolStateCompleted = _ToolStateCompleted
-  export type ToolStateError = _ToolStateError
-  export type ToolStatePending = _ToolStatePending
-  export type ToolStateRunning = _ToolStateRunning
+  export type Part = Part_
+  export type PatchPart = z.infer<typeof _PatchPart>
+  export type ReasoningPart = z.infer<typeof _ReasoningPart>
+  export type RetryPart = z.infer<typeof _RetryPart>
+  export type SnapshotPart = z.infer<typeof _SnapshotPart>
+  export type StepFinishPart = z.infer<typeof _StepFinishPart>
+  export type StepStartPart = z.infer<typeof _StepStartPart>
+  export type SubtaskPart = z.infer<typeof _SubtaskPart>
+  export type TextPart = z.infer<typeof _TextPart>
+  export type ToolPart = ToolPart_
+  export type ToolStateCompleted = ToolStateCompleted_
+  export type ToolStateError = z.infer<typeof _ToolStateError>
+  export type ToolStatePending = z.infer<typeof _ToolStatePending>
+  export type ToolStateRunning = z.infer<typeof _ToolStateRunning>
   export type User = _User
   export type WithParts = _WithParts
   export type OutputFormat = _OutputFormat
