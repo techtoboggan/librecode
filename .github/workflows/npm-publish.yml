@@ -56,6 +56,37 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+  publish-i18n:
+    name: Publish @librecode/i18n
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: techtoboggan/librecode-i18n
+          ref: main
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Prepare package.json for publish
+        run: |
+          node -e "
+          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
+          const tag = process.env.GITHUB_REF_NAME || '';
+          const version = tag.startsWith('v') ? tag.slice(1) : pkg.version;
+          pkg.version = version;
+          pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode-i18n.git' };
+          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
+          console.log('Publishing @librecode/i18n@' + version);
+          "
+
+      - name: Publish
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   publish-plugin:
     name: Publish @librecode/plugin
     needs: publish-sdk
