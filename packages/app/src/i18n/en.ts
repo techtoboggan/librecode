@@ -116,6 +116,7 @@ export const dict = {
   "dialog.model.unpaid.addMore.title": "Connect a provider",
 
   "dialog.provider.viewAll": "Show more providers",
+  "dialog.provider.local.servers": "Local model servers",
 
   "provider.connect.title": "Connect {{provider}}",
   "provider.connect.title.anthropicProMax": "Login with Claude Pro/Max",

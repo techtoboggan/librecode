@@ -1,4 +1,4 @@
-import { Component, Show } from "solid-js"
+import { Component, Show, createSignal } from "solid-js"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { Dialog } from "@librecode/ui/dialog"
@@ -9,6 +9,8 @@ import { DialogConnectProvider } from "./dialog-connect-provider"
 import { useLanguage } from "@/context/language"
 import { DialogCustomProvider } from "./dialog-custom-provider"
 import { LocalServerWizard } from "./local-server-wizard"
+import { Collapsible } from "@librecode/ui/collapsible"
+import { Icon } from "@librecode/ui/icon"
 
 const CUSTOM_ID = "_custom"
 
@@ -17,14 +19,26 @@ export const DialogSelectProvider: Component = () => {
   const providers = useProviders()
   const language = useLanguage()
 
+  const [localServersOpen, setLocalServersOpen] = createSignal(false)
+
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
   const customLabel = () => language.t("settings.providers.tag.custom")
 
   return (
     <Dialog title={language.t("command.provider.connect")} transition>
-      <div class="px-2.5 pb-3">
-        <LocalServerWizard />
+      <div class="px-2.5 pb-1">
+        <Collapsible open={localServersOpen()} onOpenChange={setLocalServersOpen}>
+          <Collapsible.Trigger class="flex items-center gap-1.5 w-full text-left text-12-medium text-text-weak hover:text-text-base px-1 py-1 rounded-md hover:bg-surface-hover transition-colors">
+            <Icon name={localServersOpen() ? "chevron-down" : "chevron-right"} size="small" class="shrink-0" />
+            {language.t("dialog.provider.local.servers")}
+          </Collapsible.Trigger>
+          <Collapsible.Content>
+            <div class="pb-2">
+              <LocalServerWizard />
+            </div>
+          </Collapsible.Content>
+        </Collapsible>
       </div>
       <List
         search={{ placeholder: language.t("dialog.provider.search.placeholder"), autofocus: true }}
