@@ -189,3 +189,36 @@ export const createSizing = () => {
 }
 
 export type Sizing = ReturnType<typeof createSizing>
+
+export const getMessageAtViewport = (
+  scroller: HTMLDivElement | undefined,
+  fallbackId: string | undefined,
+): string | undefined => {
+  const root = scroller
+  if (!root) return fallbackId
+
+  const box = root.getBoundingClientRect()
+  const lineY = box.top + 100
+  const list = [...root.querySelectorAll<HTMLElement>("[data-message-id]")]
+    .map((el) => {
+      const id = el.dataset.messageId
+      if (!id) return
+      const rect = el.getBoundingClientRect()
+      return { id, top: rect.top, bottom: rect.bottom }
+    })
+    .filter((item): item is { id: string; top: number; bottom: number } => !!item)
+
+  const shown = list.filter((item) => item.bottom > box.top && item.top < box.bottom)
+  const hit = shown.find((item) => item.top <= lineY && item.bottom >= lineY)
+  if (hit) return hit.id
+
+  const near = [...shown].sort((a, b) => {
+    const da = Math.abs(a.top - lineY)
+    const db = Math.abs(b.top - lineY)
+    if (da !== db) return da - db
+    return a.top - b.top
+  })[0]
+  if (near) return near.id
+
+  return list.filter((item) => item.top <= lineY).at(-1)?.id ?? list[0]?.id ?? fallbackId
+}
