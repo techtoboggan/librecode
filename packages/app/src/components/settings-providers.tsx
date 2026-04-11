@@ -129,6 +129,7 @@ export const SettingsProviders: Component = () => {
               fallback={
                 <div class="py-4 text-14-regular text-text-weak">
                   {language.t("settings.providers.connected.empty")}
+                  <p class="mt-1 text-12-regular">{language.t("settings.providers.connected.emptyHint")}</p>
                 </div>
               }
             >
