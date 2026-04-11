@@ -53,12 +53,16 @@ jobs:
             libgstreamer-plugins-base1.0-dev \
             libdbus-1-dev \
             libssl-dev \
-            libayatana-appindicator3-dev
+            libayatana-appindicator3-dev \
+            libfuse2
 
       - name: Install cargo-tauri
         run: cargo install tauri-cli@2
 
       - name: Build Desktop
+        # APPIMAGE_EXTRACT_AND_RUN avoids FUSE kernel module requirement in CI
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: cargo tauri build --config tauri.prod.conf.json --no-sign
         working-directory: packages/desktop/src-tauri
 
