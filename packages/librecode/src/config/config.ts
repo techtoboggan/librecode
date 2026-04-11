@@ -350,6 +350,10 @@ export namespace Config {
   }
 
   export async function needsInstall(dir: string) {
+    // Test environments can set LIBRECODE_SKIP_DEPS_INSTALL=1 to bypass
+    // bun install (which makes network calls and is slow in unit tests).
+    if (process.env.LIBRECODE_SKIP_DEPS_INSTALL === "1") return false
+
     // Some config dirs may be read-only.
     // Installing deps there will fail; skip installation in that case.
     const writable = await isWritable(dir)

@@ -50,6 +50,10 @@ const cacheDir = path.join(dir, "cache", "librecode")
 await fs.mkdir(cacheDir, { recursive: true })
 await fs.writeFile(path.join(cacheDir, "version"), "14")
 
+// Skip bun install in tests — avoids slow network calls to npm registry.
+// Tests that need actual deps should set this back to "0" for their scope.
+process.env["LIBRECODE_SKIP_DEPS_INSTALL"] = "1"
+
 // Clear provider and server auth env vars to ensure clean test state
 delete process.env["ANTHROPIC_API_KEY"]
 delete process.env["OPENAI_API_KEY"]

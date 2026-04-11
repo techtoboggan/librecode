@@ -745,7 +745,11 @@ test("installs dependencies in writable LIBRECODE_CONFIG_DIR", async () => {
   })
 
   const prev = process.env.LIBRECODE_CONFIG_DIR
+  const prevSkip = process.env.LIBRECODE_SKIP_DEPS_INSTALL
   process.env.LIBRECODE_CONFIG_DIR = tmp.extra
+  // Enable install for this test — mock BunProc.run so no actual network call
+  delete process.env.LIBRECODE_SKIP_DEPS_INSTALL
+  const runSpy = spyOn(BunProc, "run").mockResolvedValue(undefined as any)
 
   try {
     await Instance.provide({
@@ -761,6 +765,9 @@ test("installs dependencies in writable LIBRECODE_CONFIG_DIR", async () => {
   } finally {
     if (prev === undefined) delete process.env.LIBRECODE_CONFIG_DIR
     else process.env.LIBRECODE_CONFIG_DIR = prev
+    if (prevSkip === undefined) process.env.LIBRECODE_SKIP_DEPS_INSTALL = "1"
+    else process.env.LIBRECODE_SKIP_DEPS_INSTALL = prevSkip
+    runSpy.mockRestore()
   }
 })
 
