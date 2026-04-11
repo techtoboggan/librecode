@@ -11,6 +11,7 @@ import type { PluginInput, Hooks } from "@librecode/plugin"
 import { Log } from "../util/log"
 import { Env } from "../env"
 import { ProviderCredentials } from "../provider/credentials"
+import { detectCapabilitiesFromId } from "../provider/detect-capabilities"
 
 const log = Log.create({ service: "plugin.litellm" })
 
@@ -62,6 +63,7 @@ function injectLiteLLMPluginModel(
   baseURL: string,
 ): void {
   if (models[id]) return
+  const caps = detectCapabilitiesFromId(id)
   models[id] = {
     id,
     providerID: "litellm",
@@ -74,10 +76,10 @@ function injectLiteLLMPluginModel(
     limit: { context: 128000, output: 4096 },
     capabilities: {
       temperature: true,
-      reasoning: false,
+      reasoning: caps.reasoning,
       attachment: false,
-      toolcall: true,
-      input: { text: true, audio: false, image: false, video: false, pdf: false },
+      toolcall: caps.toolcall,
+      input: { text: true, audio: false, image: caps.vision, video: false, pdf: false },
       output: { text: true, audio: false, image: false, video: false, pdf: false },
       interleaved: false,
     },
