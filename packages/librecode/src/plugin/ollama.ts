@@ -9,6 +9,7 @@
 
 import type { PluginInput, Hooks } from "@librecode/plugin"
 import { Log } from "../util/log"
+import { ProviderCredentials } from "../provider/credentials"
 
 const log = Log.create({ service: "plugin.ollama" })
 
@@ -80,7 +81,10 @@ export async function OllamaAuthPlugin(_input: PluginInput): Promise<Hooks> {
       provider: "ollama",
       async loader(getAuth, provider) {
         const auth = await getAuth()
-        const baseURL = auth.type === "api" && auth.key ? auth.key : DEFAULT_BASE_URL
+        // Prefer structured credentials (set by tryCustomAuthorize since v0.1.1).
+        // Fall back to legacy encoding where the URL was stored directly as auth.key.
+        const structured = ProviderCredentials.get("ollama")
+        const baseURL = structured?.url || (auth.type === "api" && auth.key ? auth.key : DEFAULT_BASE_URL)
 
         const models = await fetchModelsFromOllama(baseURL)
         if (models.length > 0) {

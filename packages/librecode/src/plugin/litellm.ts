@@ -10,6 +10,7 @@
 import type { PluginInput, Hooks } from "@librecode/plugin"
 import { Log } from "../util/log"
 import { Env } from "../env"
+import { ProviderCredentials } from "../provider/credentials"
 
 const log = Log.create({ service: "plugin.litellm" })
 
@@ -92,13 +93,18 @@ export async function LiteLLMAuthPlugin(_input: PluginInput): Promise<Hooks> {
       async loader(getAuth, provider) {
         const auth = await getAuth()
 
-        // The key is stored as "url|apiKey" by the authorize function.
-        // Fall back to env vars for backwards compatibility.
         const fallbackURL = Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
         const fallbackApiKey = Env.get("LITELLM_API_KEY")
 
-        const { baseURL, apiKey } =
-          auth.type === "api" && auth.key
+        // Prefer structured credentials (set by tryCustomAuthorize since v0.1.1).
+        // Fall back to legacy url|key encoding for credentials saved before the migration.
+        const structured = ProviderCredentials.get("litellm")
+        const { baseURL, apiKey } = structured
+          ? {
+              baseURL: structured.url || fallbackURL,
+              apiKey: structured.apiKey || fallbackApiKey,
+            }
+          : auth.type === "api" && auth.key
             ? parseLiteLLMCredentials(auth.key, fallbackURL, fallbackApiKey)
             : { baseURL: fallbackURL, apiKey: fallbackApiKey }
 

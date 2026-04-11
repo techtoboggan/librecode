@@ -5,6 +5,7 @@ import type { AuthHook, AuthOuathResult } from "@librecode/plugin"
 import { NamedError } from "@librecode/util/error"
 import * as Auth from "@/auth/service"
 import { ProviderID } from "./schema"
+import { ProviderCredentials } from "./credentials"
 import z from "zod"
 
 export const MethodPrompt = z
@@ -173,7 +174,16 @@ export namespace ProviderAuthService {
     if (!method.authorize) return false
     const result = await method.authorize(inputs)
     if (result.type === "failed") throw new Error("Authorization failed")
-    await Auth.set(result.provider ?? providerID, { type: "api", key: result.key })
+    const targetID = (result.provider ?? providerID) as ProviderID
+    await Auth.set(targetID, { type: "api", key: result.key })
+    // If the form supplied a URL, persist it separately so loaders don't have to
+    // parse the encoded key. Backward-compat: loaders still fall back to key parsing.
+    if (inputs.url !== undefined || inputs.apiKey !== undefined) {
+      ProviderCredentials.set(targetID, {
+        url: inputs.url?.trim() || undefined,
+        apiKey: inputs.apiKey?.trim() || undefined,
+      })
+    }
     return true
   }
 
