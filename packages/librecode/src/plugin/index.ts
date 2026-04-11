@@ -17,7 +17,13 @@ import { OllamaAuthPlugin } from "./ollama"
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
 
-  const BUILTIN = ["librecode-anthropic-auth@0.0.13"]
+  // BUILTIN npm plugins installed on first run.
+  // Simple API key providers (Anthropic, OpenAI, etc.) do NOT need entries here:
+  // - Auth UI: dialog-connect-provider.tsx falls back to a generic "API Key" prompt
+  // - API key injection: loadApiKeyProviders() handles all stored keys generically
+  // - Provider-specific headers: handled by CUSTOM_LOADERS in provider/loaders/
+  // Add plugins here only for providers that need custom OAuth flows or multi-step auth.
+  const BUILTIN: string[] = []
 
   // Built-in plugins that are directly imported (not installed from npm)
   const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
