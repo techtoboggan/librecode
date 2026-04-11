@@ -75,14 +75,14 @@
 
 ### Must Have (blocks v0.1.0 release)
 
-| Item | Description | Effort |
-|------|-------------|--------|
-| **Remove stale "librecode" provider refs** | `use-providers.ts` still references `librecode`/`librecode-go` in various places. Provider list route injects them. Clean sweep. | Small |
-| **Fix the 1 failing test** | `cowsay` external dependency test — either mock it or skip it properly | Small |
-| **First-run experience** | When no providers connected AND no local servers found, the onboarding should guide clearly: "Install Ollama" or "Connect to LiteLLM" with links | Medium |
-| **Model selector "No results"** | Reported but unverified — may be fixed by recent provider work. Needs manual validation. | Small |
-| **Stale i18n strings** | Various `dialog.provider.librecode.*`, `dialog.provider.librecodeGo.*`, Zen references still in i18n files | Small |
-| **README update** | Current README references old architecture. Needs: local-first positioning, provider ecosystem, install guide for Ollama/LiteLLM users | Medium |
+| Item | Description | Effort | Status |
+|------|-------------|--------|--------|
+| **Remove stale "librecode" provider refs** | `isFree()` dead code, `librecode`/`librecode-go` icon sprite entries removed | Small | ✅ Done |
+| **Fix the 1 failing test** | `tool.registry` singular dir test timed out due to `bun install` network call. Fixed with `LIBRECODE_SKIP_DEPS_INSTALL` env var | Small | ✅ Done |
+| **Stale i18n strings** | Audited — all stale keys were already removed in earlier phases | Small | ✅ Done (clean) |
+| **First-run experience** | When no providers connected AND no local servers found, the onboarding should guide clearly: "Install Ollama" or "Connect to LiteLLM" with links | Medium | Pending |
+| **Model selector "No results"** | Reported but unverified — may be fixed by recent provider work. Needs manual validation. | Small | Pending |
+| **README update** | Current README references old architecture. Needs: local-first positioning, provider ecosystem, install guide for Ollama/LiteLLM users | Medium | Pending |
 
 ### Should Have (v0.1.x fast-follows)
 
