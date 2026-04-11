@@ -82,7 +82,7 @@
 | **Stale i18n strings** | Audited — all stale keys were already removed in earlier phases | Small | ✅ Done (clean) |
 | **First-run experience** | Empty state now shows "Connect a provider below — Ollama or LiteLLM recommended" hint. No dedicated wizard yet, but the settings UI is self-guiding. | Medium | ✅ Done (basic) |
 | **Model selector "No results"** | Context-sensitive: shows actionable "connect Ollama or LiteLLM" hint when no providers, vs "No model results" for search-filtered empty | Small | ✅ Done |
-| **README update** | Current README references old architecture. Needs: local-first positioning, provider ecosystem, install guide for Ollama/LiteLLM users | Medium | Pending |
+| **README update** | Updated: full provider ecosystem table, bundle install, 3rdparty repo links, architecture package list | Medium | ✅ Done |
 
 ### Should Have (v0.1.x fast-follows)
 
