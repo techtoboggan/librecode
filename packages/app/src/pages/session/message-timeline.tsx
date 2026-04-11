@@ -1,25 +1,13 @@
-import { For, createEffect, createMemo, on, onCleanup, Show, Index, type JSX } from "solid-js"
+import { For, createEffect, createMemo, on, onCleanup, Show, type JSX } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { Button } from "@librecode/ui/button"
-import { FileIcon } from "@librecode/ui/file-icon"
 import { Icon } from "@librecode/ui/icon"
-import { IconButton } from "@librecode/ui/icon-button"
-import { DropdownMenu } from "@librecode/ui/dropdown-menu"
-import { Dialog } from "@librecode/ui/dialog"
-import { InlineInput } from "@librecode/ui/inline-input"
-import { Spinner } from "@librecode/ui/spinner"
-import { SessionTurn } from "@librecode/ui/session-turn"
 import { ScrollView } from "@librecode/ui/scroll-view"
-import { TextField } from "@librecode/ui/text-field"
 import type { AssistantMessage, Message as MessageType, Part, TextPart, UserMessage } from "@librecode/sdk/v2"
 import { showToast } from "@librecode/ui/toast"
 import { Binary } from "@librecode/util/binary"
-import { getFilename } from "@librecode/util/path"
-import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
-import { SessionContextUsage } from "@/components/session-context-usage"
-import { useDialog } from "@librecode/ui/context/dialog"
 import { useLanguage } from "@/context/language"
 import { useSessionKey } from "@/pages/session/session-layout"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -29,23 +17,16 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { messageAgentColor } from "@/utils/agent"
 import { parseCommentNote, readCommentMetadata } from "@/utils/comment-note"
+import { SessionHeader } from "./message-timeline/session-header"
+import { MessageRow, type MessageComment } from "./message-timeline/message-row"
 
-type MessageComment = {
-  path: string
-  comment: string
-  selection?: {
-    startLine: number
-    endLine: number
-  }
+export type UserActions = {
+  fork?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
+  revert?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
 }
 
 const emptyMessages: MessageType[] = []
 const idle = { type: "idle" as const }
-
-type UserActions = {
-  fork?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
-  revert?: (input: { sessionID: string; messageID: string }) => Promise<void> | void
-}
 
 const messageComments = (parts: Part[]): MessageComment[] =>
   parts.flatMap((part) => {
@@ -216,15 +197,16 @@ export function MessageTimeline(props: {
   onLoadEarlier: () => void
   renderedUserMessages: UserMessage[]
   anchor: (id: string) => string
-}) {
+}): JSX.Element {
   let touchGesture: number | undefined
+  let more: HTMLButtonElement | undefined
+  let titleRef: HTMLInputElement | undefined
 
   const navigate = useNavigate()
   const globalSDK = useGlobalSDK()
   const sdk = useSDK()
   const sync = useSync()
   const settings = useSettings()
-  const dialog = useDialog()
   const language = useLanguage()
   const { params, sessionKey } = useSessionKey()
   const platform = usePlatform()
@@ -281,6 +263,7 @@ export function MessageTimeline(props: {
       { defer: true },
     ),
   )
+
   const activeMessageID = createMemo(() => {
     const parentID = pending()?.parentID
     if (parentID) {
@@ -300,6 +283,7 @@ export function MessageTimeline(props: {
 
     return undefined
   })
+
   const info = createMemo(() => {
     const id = sessionID()
     if (!id) return
@@ -326,52 +310,13 @@ export function MessageTimeline(props: {
     pendingRename: false,
     pendingShare: false,
   })
-  let titleRef: HTMLInputElement | undefined
 
   const [share, setShare] = createStore({
     open: false,
     dismiss: null as "escape" | "outside" | null,
   })
 
-  let more: HTMLButtonElement | undefined
-
   const [req, setReq] = createStore({ share: false, unshare: false })
-
-  const shareSession = () => {
-    const id = sessionID()
-    if (!id || req.share) return
-    if (!shareEnabled()) return
-    setReq("share", true)
-    globalSDK.client.session
-      .share({ sessionID: id, directory: sdk.directory })
-      .catch((err: unknown) => {
-        console.error("Failed to share session", err)
-      })
-      .finally(() => {
-        setReq("share", false)
-      })
-  }
-
-  const unshareSession = () => {
-    const id = sessionID()
-    if (!id || req.unshare) return
-    if (!shareEnabled()) return
-    setReq("unshare", true)
-    globalSDK.client.session
-      .unshare({ sessionID: id, directory: sdk.directory })
-      .catch((err: unknown) => {
-        console.error("Failed to unshare session", err)
-      })
-      .finally(() => {
-        setReq("unshare", false)
-      })
-  }
-
-  const viewShare = () => {
-    const url = shareUrl()
-    if (!url) return
-    platform.openLink(url)
-  }
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
@@ -444,37 +389,37 @@ export function MessageTimeline(props: {
       })
   }
 
-  const navigateAfterSessionRemoval = (sessionID: string, parentID?: string, nextSessionID?: string) => {
-    if (params.id !== sessionID) return
-    if (parentID) {
-      navigate(`/${params.dir}/session/${parentID}`)
+  const navigateAfterSessionRemoval = (sid: string, pid?: string, nextSID?: string) => {
+    if (params.id !== sid) return
+    if (pid) {
+      navigate(`/${params.dir}/session/${pid}`)
       return
     }
-    if (nextSessionID) {
-      navigate(`/${params.dir}/session/${nextSessionID}`)
+    if (nextSID) {
+      navigate(`/${params.dir}/session/${nextSID}`)
       return
     }
     navigate(`/${params.dir}/session`)
   }
 
-  const archiveSession = async (sessionID: string) => {
-    const session = sync.session.get(sessionID)
+  const archiveSession = async (sid: string) => {
+    const session = sync.session.get(sid)
     if (!session) return
 
     const sessions = sync.data.session ?? []
-    const index = sessions.findIndex((s) => s.id === sessionID)
+    const index = sessions.findIndex((s) => s.id === sid)
     const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
 
     await sdk.client.session
-      .update({ sessionID, time: { archived: Date.now() } })
+      .update({ sessionID: sid, time: { archived: Date.now() } })
       .then(() => {
         sync.set(
           produce((draft) => {
-            const index = draft.session.findIndex((s) => s.id === sessionID)
-            if (index !== -1) draft.session.splice(index, 1)
+            const idx = draft.session.findIndex((s) => s.id === sid)
+            if (idx !== -1) draft.session.splice(idx, 1)
           }),
         )
-        navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
+        navigateAfterSessionRemoval(sid, session.parentID, nextSession?.id)
       })
       .catch((err) => {
         showToast({
@@ -484,16 +429,16 @@ export function MessageTimeline(props: {
       })
   }
 
-  const deleteSession = async (sessionID: string) => {
-    const session = sync.session.get(sessionID)
+  const deleteSession = async (sid: string) => {
+    const session = sync.session.get(sid)
     if (!session) return false
 
     const sessions = (sync.data.session ?? []).filter((s) => !s.parentID && !s.time?.archived)
-    const index = sessions.findIndex((s) => s.id === sessionID)
+    const index = sessions.findIndex((s) => s.id === sid)
     const nextSession = index === -1 ? undefined : (sessions[index + 1] ?? sessions[index - 1])
 
     const result = await sdk.client.session
-      .delete({ sessionID })
+      .delete({ sessionID: sid })
       .then((x) => x.data)
       .catch((err) => {
         showToast({
@@ -507,28 +452,26 @@ export function MessageTimeline(props: {
 
     sync.set(
       produce((draft) => {
-        const removed = new Set<string>([sessionID])
+        const removed = new Set<string>([sid])
 
         const byParent = new Map<string, string[]>()
         for (const item of draft.session) {
-          const parentID = item.parentID
-          if (!parentID) continue
-          const existing = byParent.get(parentID)
+          const pid = item.parentID
+          if (!pid) continue
+          const existing = byParent.get(pid)
           if (existing) {
             existing.push(item.id)
             continue
           }
-          byParent.set(parentID, [item.id])
+          byParent.set(pid, [item.id])
         }
 
-        const stack = [sessionID]
+        const stack = [sid]
         while (stack.length) {
-          const parentID = stack.pop()
-          if (!parentID) continue
-
-          const children = byParent.get(parentID)
+          const pid = stack.pop()
+          if (!pid) continue
+          const children = byParent.get(pid)
           if (!children) continue
-
           for (const child of children) {
             if (removed.has(child)) continue
             removed.add(child)
@@ -540,7 +483,7 @@ export function MessageTimeline(props: {
       }),
     )
 
-    navigateAfterSessionRemoval(sessionID, session.parentID, nextSession?.id)
+    navigateAfterSessionRemoval(sid, session.parentID, nextSession?.id)
     return true
   }
 
@@ -550,32 +493,40 @@ export function MessageTimeline(props: {
     navigate(`/${params.dir}/session/${id}`)
   }
 
-  function DialogDeleteSession(props: { sessionID: string }) {
-    const name = createMemo(() => sync.session.get(props.sessionID)?.title ?? language.t("command.session.new"))
-    const handleDelete = async () => {
-      await deleteSession(props.sessionID)
-      dialog.close()
-    }
+  const shareSession = () => {
+    const id = sessionID()
+    if (!id || req.share) return
+    if (!shareEnabled()) return
+    setReq("share", true)
+    globalSDK.client.session
+      .share({ sessionID: id, directory: sdk.directory })
+      .catch((err: unknown) => {
+        console.error("Failed to share session", err)
+      })
+      .finally(() => {
+        setReq("share", false)
+      })
+  }
 
-    return (
-      <Dialog title={language.t("session.delete.title")} fit>
-        <div class="flex flex-col gap-4 pl-6 pr-2.5 pb-3">
-          <div class="flex flex-col gap-1">
-            <span class="text-14-regular text-text-strong">
-              {language.t("session.delete.confirm", { name: name() })}
-            </span>
-          </div>
-          <div class="flex justify-end gap-2">
-            <Button variant="ghost" size="large" onClick={() => dialog.close()}>
-              {language.t("common.cancel")}
-            </Button>
-            <Button variant="primary" size="large" onClick={handleDelete}>
-              {language.t("session.delete.button")}
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-    )
+  const unshareSession = () => {
+    const id = sessionID()
+    if (!id || req.unshare) return
+    if (!shareEnabled()) return
+    setReq("unshare", true)
+    globalSDK.client.session
+      .unshare({ sessionID: id, directory: sdk.directory })
+      .catch((err: unknown) => {
+        console.error("Failed to unshare session", err)
+      })
+      .finally(() => {
+        setReq("unshare", false)
+      })
+  }
+
+  const viewShare = () => {
+    const url = shareUrl()
+    if (!url) return
+    platform.openLink(url)
   }
 
   return (
@@ -620,19 +571,13 @@ export function MessageTimeline(props: {
             const prev = touchGesture
             touchGesture = next
             if (next === undefined || prev === undefined) return
-
             const delta = prev - next
             if (!delta) return
-
             const root = e.currentTarget
             markBoundaryGesture({ root, target: e.target, delta, onMarkScrollGesture: props.onMarkScrollGesture })
           }}
-          onTouchEnd={() => {
-            touchGesture = undefined
-          }}
-          onTouchCancel={() => {
-            touchGesture = undefined
-          }}
+          onTouchEnd={() => { touchGesture = undefined }}
+          onTouchCancel={() => { touchGesture = undefined }}
           onPointerDown={(e) => {
             if (e.target !== e.currentTarget) return
             props.onMarkScrollGesture(e.currentTarget)
@@ -654,266 +599,61 @@ export function MessageTimeline(props: {
         >
           <div ref={props.setContentRef} class="min-w-0 w-full">
             <Show when={showHeader()}>
-              <div
-                data-session-title
-                classList={{
-                  "sticky top-0 z-30 bg-[linear-gradient(to_bottom,var(--background-stronger)_48px,transparent)]": true,
-                  "w-full": true,
-                  "pb-4": true,
-                  "pl-2 pr-3 md:pl-4 md:pr-3": true,
-                  "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": props.centered,
+              <SessionHeader
+                centered={props.centered}
+                sessionID={sessionID}
+                titleValue={titleValue}
+                shareUrl={shareUrl}
+                shareEnabled={shareEnabled}
+                parentID={parentID}
+                slot={slot}
+                tint={tint}
+                title={title}
+                share={share}
+                req={req}
+                moreRef={(el) => { more = el }}
+                titleInputRef={(el) => { titleRef = el }}
+                onNavigateParent={navigateParent}
+                onOpenTitleEditor={openTitleEditor}
+                onCloseTitleEditor={closeTitleEditor}
+                onSaveTitleEditor={() => void saveTitleEditor()}
+                onTitleInput={(value) => setTitle("draft", value)}
+                onTitleMenuOpenChange={(open) => {
+                  setTitle("menuOpen", open)
                 }}
-              >
-                <div class="h-12 w-full flex items-center justify-between gap-2">
-                  <div class="flex items-center gap-1 min-w-0 flex-1 pr-3">
-                    <Show when={parentID()}>
-                      <IconButton
-                        tabIndex={-1}
-                        icon="arrow-left"
-                        variant="ghost"
-                        onClick={navigateParent}
-                        aria-label={language.t("common.goBack")}
-                      />
-                    </Show>
-                    <div class="flex items-center min-w-0 grow-1">
-                      <div
-                        class="shrink-0 flex items-center justify-center overflow-hidden transition-[width,margin] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-                        style={{
-                          width: slot.open ? "16px" : "0px",
-                          "margin-right": slot.open ? "8px" : "0px",
-                        }}
-                        aria-hidden="true"
-                      >
-                        <Show when={slot.show}>
-                          <div
-                            class="transition-opacity duration-200 ease-out"
-                            classList={{
-                              "opacity-0": slot.fade,
-                            }}
-                          >
-                            <Spinner class="size-4" style={{ color: tint() ?? "var(--icon-interactive-base)" }} />
-                          </div>
-                        </Show>
-                      </div>
-                      <Show when={titleValue() || title.editing}>
-                        <Show
-                          when={title.editing}
-                          fallback={
-                            <h1
-                              class="text-14-medium text-text-strong truncate grow-1 min-w-0"
-                              onDblClick={openTitleEditor}
-                            >
-                              {titleValue()}
-                            </h1>
-                          }
-                        >
-                          <InlineInput
-                            ref={(el) => {
-                              titleRef = el
-                            }}
-                            value={title.draft}
-                            disabled={title.saving}
-                            class="text-14-medium text-text-strong grow-1 min-w-0 rounded-[6px]"
-                            style={{ "--inline-input-shadow": "var(--shadow-xs-border-select)" }}
-                            onInput={(event) => setTitle("draft", event.currentTarget.value)}
-                            onKeyDown={(event) => {
-                              event.stopPropagation()
-                              if (event.key === "Enter") {
-                                event.preventDefault()
-                                void saveTitleEditor()
-                                return
-                              }
-                              if (event.key === "Escape") {
-                                event.preventDefault()
-                                closeTitleEditor()
-                              }
-                            }}
-                            onBlur={closeTitleEditor}
-                          />
-                        </Show>
-                      </Show>
-                    </div>
-                  </div>
-                  <Show when={sessionID()}>
-                    {(id) => (
-                      <div class="shrink-0 flex items-center gap-3">
-                        <SessionContextUsage placement="bottom" />
-                        <DropdownMenu
-                          gutter={4}
-                          placement="bottom-end"
-                          open={title.menuOpen}
-                          onOpenChange={(open) => {
-                            setTitle("menuOpen", open)
-                            if (open) return
-                          }}
-                        >
-                          <DropdownMenu.Trigger
-                            as={IconButton}
-                            icon="dot-grid"
-                            variant="ghost"
-                            class="size-6 rounded-md data-[expanded]:bg-surface-base-active"
-                            classList={{
-                              "bg-surface-base-active": share.open || title.pendingShare,
-                            }}
-                            aria-label={language.t("common.moreOptions")}
-                            aria-expanded={title.menuOpen || share.open || title.pendingShare}
-                            ref={(el: HTMLButtonElement) => {
-                              more = el
-                            }}
-                          />
-                          <DropdownMenu.Portal>
-                            <DropdownMenu.Content
-                              style={{ "min-width": "104px" }}
-                              onCloseAutoFocus={(event) => {
-                                if (title.pendingRename) {
-                                  event.preventDefault()
-                                  setTitle("pendingRename", false)
-                                  openTitleEditor()
-                                  return
-                                }
-                                if (title.pendingShare) {
-                                  event.preventDefault()
-                                  requestAnimationFrame(() => {
-                                    setShare({ open: true, dismiss: null })
-                                    setTitle("pendingShare", false)
-                                  })
-                                }
-                              }}
-                            >
-                              <DropdownMenu.Item
-                                onSelect={() => {
-                                  setTitle("pendingRename", true)
-                                  setTitle("menuOpen", false)
-                                }}
-                              >
-                                <DropdownMenu.ItemLabel>{language.t("common.rename")}</DropdownMenu.ItemLabel>
-                              </DropdownMenu.Item>
-                              <Show when={shareEnabled()}>
-                                <DropdownMenu.Item
-                                  onSelect={() => {
-                                    setTitle({ pendingShare: true, menuOpen: false })
-                                  }}
-                                >
-                                  <DropdownMenu.ItemLabel>
-                                    {language.t("session.share.action.share")}
-                                  </DropdownMenu.ItemLabel>
-                                </DropdownMenu.Item>
-                              </Show>
-                              <DropdownMenu.Item onSelect={() => void archiveSession(id())}>
-                                <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
-                              </DropdownMenu.Item>
-                              <DropdownMenu.Separator />
-                              <DropdownMenu.Item
-                                onSelect={() => dialog.show(() => <DialogDeleteSession sessionID={id()} />)}
-                              >
-                                <DropdownMenu.ItemLabel>{language.t("common.delete")}</DropdownMenu.ItemLabel>
-                              </DropdownMenu.Item>
-                            </DropdownMenu.Content>
-                          </DropdownMenu.Portal>
-                        </DropdownMenu>
-
-                        <KobaltePopover
-                          open={share.open}
-                          anchorRef={() => more}
-                          placement="bottom-end"
-                          gutter={4}
-                          modal={false}
-                          onOpenChange={(open) => {
-                            if (open) setShare("dismiss", null)
-                            setShare("open", open)
-                          }}
-                        >
-                          <KobaltePopover.Portal>
-                            <KobaltePopover.Content
-                              data-component="popover-content"
-                              style={{ "min-width": "320px" }}
-                              onEscapeKeyDown={(event) => {
-                                setShare({ dismiss: "escape", open: false })
-                                event.preventDefault()
-                                event.stopPropagation()
-                              }}
-                              onPointerDownOutside={() => {
-                                setShare({ dismiss: "outside", open: false })
-                              }}
-                              onFocusOutside={() => {
-                                setShare({ dismiss: "outside", open: false })
-                              }}
-                              onCloseAutoFocus={(event) => {
-                                if (share.dismiss === "outside") event.preventDefault()
-                                setShare("dismiss", null)
-                              }}
-                            >
-                              <div class="flex flex-col p-3">
-                                <div class="flex flex-col gap-1">
-                                  <div class="text-13-medium text-text-strong">
-                                    {language.t("session.share.popover.title")}
-                                  </div>
-                                  <div class="text-12-regular text-text-weak">
-                                    {shareUrl()
-                                      ? language.t("session.share.popover.description.shared")
-                                      : language.t("session.share.popover.description.unshared")}
-                                  </div>
-                                </div>
-                                <div class="mt-3 flex flex-col gap-2">
-                                  <Show
-                                    when={shareUrl()}
-                                    fallback={
-                                      <Button
-                                        size="large"
-                                        variant="primary"
-                                        class="w-full"
-                                        onClick={shareSession}
-                                        disabled={req.share}
-                                      >
-                                        {req.share
-                                          ? language.t("session.share.action.publishing")
-                                          : language.t("session.share.action.publish")}
-                                      </Button>
-                                    }
-                                  >
-                                    <div class="flex flex-col gap-2">
-                                      <TextField
-                                        value={shareUrl() ?? ""}
-                                        readOnly
-                                        copyable
-                                        copyKind="link"
-                                        tabIndex={-1}
-                                        class="w-full"
-                                      />
-                                      <div class="grid grid-cols-2 gap-2">
-                                        <Button
-                                          size="large"
-                                          variant="secondary"
-                                          class="w-full shadow-none border border-border-weak-base"
-                                          onClick={unshareSession}
-                                          disabled={req.unshare}
-                                        >
-                                          {req.unshare
-                                            ? language.t("session.share.action.unpublishing")
-                                            : language.t("session.share.action.unpublish")}
-                                        </Button>
-                                        <Button
-                                          size="large"
-                                          variant="primary"
-                                          class="w-full"
-                                          onClick={viewShare}
-                                          disabled={req.unshare}
-                                        >
-                                          {language.t("session.share.action.view")}
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </Show>
-                                </div>
-                              </div>
-                            </KobaltePopover.Content>
-                          </KobaltePopover.Portal>
-                        </KobaltePopover>
-                      </div>
-                    )}
-                  </Show>
-                </div>
-              </div>
+                onSelectRename={() => {
+                  setTitle("pendingRename", true)
+                  setTitle("menuOpen", false)
+                }}
+                onSelectShare={() => {
+                  setTitle({ pendingShare: true, menuOpen: false })
+                }}
+                onPendingRename={() => {
+                  setTitle("pendingRename", false)
+                  openTitleEditor()
+                }}
+                onPendingShare={() => {
+                  requestAnimationFrame(() => {
+                    setShare({ open: true, dismiss: null })
+                    setTitle("pendingShare", false)
+                  })
+                }}
+                onArchiveSession={archiveSession}
+                onDeleteSession={deleteSession}
+                onShareSession={shareSession}
+                onUnshareSession={unshareSession}
+                onViewShare={viewShare}
+                onShareOpenChange={(open) => {
+                  if (open) setShare("dismiss", null)
+                  setShare("open", open)
+                }}
+                onShareDismissEscape={() => setShare({ dismiss: "escape", open: false })}
+                onShareDismissOutside={() => setShare({ dismiss: "outside", open: false })}
+                onShareCloseAutoFocus={(event) => {
+                  if (share.dismiss === "outside") event.preventDefault()
+                  setShare("dismiss", null)
+                }}
+              />
             </Show>
 
             <div
@@ -947,73 +687,20 @@ export function MessageTimeline(props: {
                   const comments = createMemo(() => messageComments(sync.data.part[messageID] ?? []), [], {
                     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
                   })
-                  const commentCount = createMemo(() => comments().length)
                   return (
-                    <div
-                      id={props.anchor(messageID)}
-                      data-message-id={messageID}
-                      classList={{
-                        "min-w-0 w-full max-w-full": true,
-                        "md:max-w-200 2xl:max-w-[1000px]": props.centered,
-                      }}
-                      style={{ "content-visibility": "auto", "contain-intrinsic-size": "auto 500px" }}
-                    >
-                      <Show when={commentCount() > 0}>
-                        <div class="w-full px-4 md:px-5 pb-2">
-                          <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
-                            <div class="flex w-max min-w-full justify-end gap-2">
-                              <Index each={comments()}>
-                                {(commentAccessor: () => MessageComment) => {
-                                  const comment = createMemo(() => commentAccessor())
-                                  return (
-                                    <Show when={comment()}>
-                                      {(c) => (
-                                        <div class="shrink-0 max-w-[260px] rounded-[6px] border border-border-weak-base bg-background-stronger px-2.5 py-2">
-                                          <div class="flex items-center gap-1.5 min-w-0 text-11-medium text-text-strong">
-                                            <FileIcon
-                                              node={{ path: c().path, type: "file" }}
-                                              class="size-3.5 shrink-0"
-                                            />
-                                            <span class="truncate">{getFilename(c().path)}</span>
-                                            <Show when={c().selection}>
-                                              {(selection) => (
-                                                <span class="shrink-0 text-text-weak">
-                                                  {selection().startLine === selection().endLine
-                                                    ? `:${selection().startLine}`
-                                                    : `:${selection().startLine}-${selection().endLine}`}
-                                                </span>
-                                              )}
-                                            </Show>
-                                          </div>
-                                          <div class="pt-1 text-12-regular text-text-strong whitespace-pre-wrap break-words">
-                                            {c().comment}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </Show>
-                                  )
-                                }}
-                              </Index>
-                            </div>
-                          </div>
-                        </div>
-                      </Show>
-                      <SessionTurn
-                        sessionID={sessionID() ?? ""}
-                        messageID={messageID}
-                        actions={props.actions}
-                        active={active()}
-                        status={active() ? sessionStatus() : undefined}
-                        showReasoningSummaries={settings.general.showReasoningSummaries()}
-                        shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
-                        editToolDefaultOpen={settings.general.editToolPartsExpanded()}
-                        classes={{
-                          root: "min-w-0 w-full relative",
-                          content: "flex flex-col justify-between !overflow-visible",
-                          container: "w-full px-4 md:px-5",
-                        }}
-                      />
-                    </div>
+                    <MessageRow
+                      messageID={messageID}
+                      anchor={props.anchor(messageID)}
+                      centered={props.centered}
+                      active={active()}
+                      sessionID={sessionID() ?? ""}
+                      actions={props.actions}
+                      sessionStatus={active() ? sessionStatus() : undefined}
+                      showReasoningSummaries={settings.general.showReasoningSummaries()}
+                      shellToolDefaultOpen={settings.general.shellToolPartsExpanded()}
+                      editToolDefaultOpen={settings.general.editToolPartsExpanded()}
+                      comments={comments}
+                    />
                   )
                 }}
               </For>
