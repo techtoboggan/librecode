@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-11 | 119 commits | Tests: 1358 pass, 0 fail
+> Last updated: 2026-04-11 | 122 commits | Tests: 1385 pass, 0 fail
 
 ---
 
@@ -137,16 +137,16 @@ Runtime bugs and security issues identified via OWASP analysis and production lo
 
 ### Nice to Have (v0.2+)
 
-| Item | Description | Effort | Priority |
-|------|-------------|--------|----------|
-| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low |
-| **Turbo evaluation** | 1.3 from Phase 1 — Turbo vs Bun workspaces alone | Small | Low |
-| **AppImage packaging** | Add `"appimage"` to `bundle.targets` in `tauri.prod.conf.json`; verify build on CI | Small | Medium |
-| **Flatpak packaging** | Create `com.librecode.LibreCode.yml` manifest; update appstream.metainfo.xml with `<bundle type="flatpak">`; add Flathub submission workflow | Medium | Medium |
-| **Provider capability detection** | During local server discovery, probe vision/tools/streaming support — `detectCapabilities()` function wired into ollama/litellm loaders; results stored in `provider.models[id].capabilities` | Large | Medium |
-| **Structured credential storage** | New Drizzle migration: `provider_credentials(provider_id, url, api_key, metadata)` table. Migrate from `auth.json` `url|key` encoding. Update all `getAuth()`/`authorize()` callers. Backward-compat shim for `url|key` format during transition. | Medium | High |
-| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package (repo already scaffolded). Update all `t()` import paths. Publish via existing npm-publish workflow. | Medium | Low |
-| **File-size splits** | See table above — 8 files over 1000 lines, no behavior impact | Large | Low |
+| Item | Description | Effort | Priority | Status |
+|------|-------------|--------|----------|--------|
+| **AppImage packaging** | Added `"appimage"` to `bundle.targets`; `libfuse2` CI dep; `APPIMAGE_EXTRACT_AND_RUN=1` | Small | Medium | ✅ Done |
+| **Structured credential storage** | `provider_credentials` Drizzle table; LiteLLM/Ollama use separate URL+key columns; backward-compat fallback | Medium | High | ✅ Done |
+| **Provider capability detection** | `detectCapabilitiesFromId()` heuristic fills `input.image`, `toolcall`, `reasoning` from model name patterns | Medium | Medium | ✅ Done |
+| **Flatpak packaging** | Create `com.librecode.LibreCode.yml` manifest; update appstream.metainfo.xml; Flathub submission workflow | Medium | Medium | Planned |
+| **i18n extraction** | Move `packages/app/src/locales/` to `@librecode/i18n` npm package | Medium | Low | Planned |
+| **Logo/mascot assets** | DESIGN-SPEC.md has prompts ready, need actual generation | Small | Low | Planned |
+| **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low | Planned |
+| **File-size splits** | 8 files over 1000 lines — no behavior impact, low urgency | Large | Low | Planned |
 
 #### Structured Credential Storage — Implementation Plan
 
@@ -191,8 +191,8 @@ Runtime bugs and security issues identified via OWASP analysis and production lo
 
 | Metric | Value |
 |--------|-------|
-| Total commits | 119 |
-| Tests passing | 1,358 |
+| Total commits | 122 |
+| Tests passing | 1,385 |
 | Tests failing | 0 |
 | Test files | 111 |
 | Complexity violations | 20 (all CLI/TUI, 0 core) |
