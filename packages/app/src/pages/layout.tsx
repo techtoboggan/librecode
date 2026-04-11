@@ -1,13 +1,11 @@
 import {
   createEffect,
   createMemo,
-  For,
   on,
   onCleanup,
   onMount,
   ParentProps,
   Show,
-  untrack,
 } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"
@@ -16,20 +14,16 @@ import { Persist, persisted } from "@/utils/persist"
 import { base64Encode } from "@librecode/util/encode"
 import { decode64 } from "@/utils/base64"
 import { ResizeHandle } from "@librecode/ui/resize-handle"
-import { Button } from "@librecode/ui/button"
-import { getFilename } from "@librecode/util/path"
 import { Session } from "@librecode/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { createStore, produce } from "solid-js/store"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { useProviders } from "@/hooks/use-providers"
-import { showToast, Toast, toaster } from "@librecode/ui/toast"
+import { showToast, Toast } from "@librecode/ui/toast"
 import { useGlobalSDK } from "@/context/global-sdk"
-import { clearWorkspaceTerminals } from "@/context/terminal"
 import { useNotification } from "@/context/notification"
 import { usePermission } from "@/context/permission"
-import { Binary } from "@librecode/util/binary"
 import { createAim } from "@/utils/aim"
 import { setNavigate } from "@/utils/notification-click"
 import { Worktree as WorktreeState } from "@/utils/worktree"
@@ -49,10 +43,8 @@ import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage } from "@/context/language"
 import {
-  displayName,
   effectiveWorkspaceOrder,
   errorMessage,
-  latestRootSession,
   sortedRootSessions,
   workspaceKey,
 } from "./layout/helpers"
@@ -63,13 +55,14 @@ import {
   drainPendingDeepLinks,
 } from "./layout/deep-links"
 import { createInlineEditorController } from "./layout/inline-editor"
-import { type WorkspaceSidebarContext } from "./layout/sidebar-workspace"
-import { ProjectDragOverlay, SortableProject, type ProjectSidebarContext } from "./layout/sidebar-project"
+import { ProjectDragOverlay, SortableProject } from "./layout/sidebar-project"
 import { SidebarContent } from "./layout/sidebar-shell"
 import { useUpdatePolling, useSDKNotificationToasts } from "./layout/notifications"
 import { createPrefetchController } from "./layout/prefetch"
 import { registerLayoutCommands } from "./layout/commands"
-import { SidebarPanel, DialogDeleteWorkspace, DialogResetWorkspace, type SidebarPanelCtx } from "./layout/sidebar-panel"
+import { SidebarPanel } from "./layout/sidebar-panel"
+import { createProjectActions } from "./layout/project-actions"
+import { createSidebarContexts } from "./layout/sidebar-context"
 
 export default function Layout(props: ParentProps) {
   const [store, setStore, , ready] = persisted(
@@ -377,28 +370,21 @@ export default function Layout(props: ParentProps) {
     ),
   )
 
-  const workspaceName = (directory: string, projectId?: string, branch?: string) => {
-    const key = workspaceKey(directory)
-    const direct = store.workspaceName[key] ?? store.workspaceName[directory]
-    if (direct) return direct
-    if (!projectId) return
-    if (!branch) return
-    return store.workspaceBranchName[projectId]?.[branch]
-  }
+  function workspaceIds(project: LocalProject | undefined): string[] {
+    if (!project) return []
+    const local = project.worktree
+    const dirs = [local, ...(project.sandboxes ?? [])]
+    const active = currentProject()
+    const directory = active?.worktree === project.worktree ? currentDir() : undefined
+    const extra = directory && directory !== local && !dirs.includes(directory) ? directory : undefined
+    const pending = extra ? WorktreeState.get(extra)?.status === "pending" : false
 
-  const setWorkspaceName = (directory: string, next: string, projectId?: string, branch?: string) => {
-    const key = workspaceKey(directory)
-    setStore("workspaceName", key, next)
-    if (!projectId) return
-    if (!branch) return
-    if (!store.workspaceBranchName[projectId]) {
-      setStore("workspaceBranchName", projectId, {})
-    }
-    setStore("workspaceBranchName", projectId, branch, next)
+    const ordered = effectiveWorkspaceOrder(local, dirs, store.workspaceOrder[project.worktree])
+    if (pending && extra) return [local, extra, ...ordered.filter((item) => item !== local)]
+    if (!extra) return ordered
+    if (pending) return ordered
+    return [...ordered, extra]
   }
-
-  const workspaceLabel = (directory: string, branch?: string, projectId?: string) =>
-    workspaceName(directory, projectId, branch) ?? branch ?? getFilename(directory)
 
   const workspaceSetting = createMemo(() => {
     const project = currentProject()
@@ -478,6 +464,49 @@ export default function Layout(props: ParentProps) {
     prefetch.warm(sessions, index)
   })
 
+  // ---- Project actions factory ----
+
+  const projectActions = createProjectActions({
+    params,
+    store,
+    setStore,
+    globalSDK,
+    globalSync,
+    layout,
+    platform,
+    server,
+    language,
+    notification,
+    navigate,
+    navigateWithSidebarReset,
+    currentDir,
+    currentProject,
+    scrollToSession,
+    setBusy,
+  })
+
+  const {
+    projectRoot,
+    activeProjectRoot,
+    touchProjectRoute,
+    rememberSessionRoute,
+    clearLastProjectSession,
+    syncSessionRoute,
+    navigateToProject,
+    navigateToSession,
+    openProject,
+    renameProject,
+    renameWorkspace,
+    closeProject,
+    toggleProjectWorkspaces,
+    deleteWorkspace,
+    resetWorkspace,
+    archiveSession,
+    workspaceName,
+    setWorkspaceName,
+    workspaceLabel,
+  } = projectActions
+
   function navigateSessionByOffset(offset: number) {
     const sessions = currentSessions()
     if (sessions.length === 0) return
@@ -521,32 +550,6 @@ export default function Layout(props: ParentProps) {
     }
   }
 
-  async function archiveSession(session: Session) {
-    const [dirStore, setDirStore] = globalSync.child(session.directory)
-    const sessions = dirStore.session ?? []
-    const index = sessions.findIndex((s) => s.id === session.id)
-    const nextSession = sessions[index + 1] ?? sessions[index - 1]
-
-    await globalSDK.client.session.update({
-      directory: session.directory,
-      sessionID: session.id,
-      time: { archived: Date.now() },
-    })
-    setDirStore(
-      produce((draft) => {
-        const match = Binary.search(draft.session, session.id, (s) => s.id)
-        if (match.found) draft.session.splice(match.index, 1)
-      }),
-    )
-    if (session.id === params.id) {
-      if (nextSession) {
-        navigate(`/${params.dir}/session/${nextSession.id}`)
-      } else {
-        navigate(`/${params.dir}/session`)
-      }
-    }
-  }
-
   // ---- Dialog helpers ----
 
   function connectProvider() {
@@ -561,173 +564,32 @@ export default function Layout(props: ParentProps) {
     dialog.show(() => <DialogSettings />)
   }
 
-  // ---- Commands registration ----
+  const showEditProjectDialog = (project: LocalProject) => dialog.show(() => <DialogEditProject project={project} />)
 
-  const themeDeps = { theme, language, availableThemeEntries, colorSchemeOrder, colorSchemeLabel }
-
-  registerLayoutCommands({
-    params,
-    command,
-    theme,
-    language,
-    layout,
-    colorSchemeOrder,
-    colorSchemeLabel,
-    availableThemeEntries,
-    currentSessions,
-    currentProject,
-    workspaceSetting,
-    navigateSessionByOffset,
-    navigateSessionByUnseen,
-    archiveSession,
-    createWorkspace,
-    chooseProject,
-    connectProvider,
-    openServer,
-    openSettings,
-  })
-
-  // ---- Project/navigation helpers ----
-
-  function projectRoot(directory: string) {
-    const project = layout.projects
-      .list()
-      .find((item) => item.worktree === directory || item.sandboxes?.includes(directory))
-    if (project) return project.worktree
-
-    const known = Object.entries(store.workspaceOrder).find(
-      ([root, dirs]) => root === directory || dirs.includes(directory),
-    )
-    if (known) return known[0]
-
-    const [child] = globalSync.child(directory, { bootstrap: false })
-    const id = child.project
-    if (!id) return directory
-
-    const meta = globalSync.data.project.find((item) => item.id === id)
-    return meta?.worktree ?? directory
-  }
-
-  function activeProjectRoot(directory: string) {
-    return currentProject()?.worktree ?? projectRoot(directory)
-  }
-
-  function touchProjectRoute() {
-    const root = currentProject()?.worktree
-    if (!root) return
-    if (server.projects.last() !== root) server.projects.touch(root)
-    return root
-  }
-
-  function rememberSessionRoute(directory: string, id: string, root = activeProjectRoot(directory)) {
-    setStore("lastProjectSession", root, { directory, id, at: Date.now() })
-    return root
-  }
-
-  function clearLastProjectSession(root: string) {
-    if (!store.lastProjectSession[root]) return
-    setStore(
-      "lastProjectSession",
-      produce((draft) => {
-        delete draft[root]
-      }),
-    )
-  }
-
-  function syncSessionRoute(directory: string, id: string, root = activeProjectRoot(directory)) {
-    rememberSessionRoute(directory, id, root)
-    notification.session.markViewed(id)
-    const expanded = untrack(() => store.workspaceExpanded[directory])
-    if (expanded === false) {
-      setStore("workspaceExpanded", directory, true)
-    }
-    requestAnimationFrame(() => scrollToSession(id, `${directory}:${id}`))
-    return root
-  }
-
-  async function navigateToProject(directory: string | undefined) {
-    if (!directory) return
-    const root = projectRoot(directory)
-    server.projects.touch(root)
-    const project = layout.projects.list().find((item) => item.worktree === root)
-    let dirs = project
-      ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
-      : [root]
-    const canOpen = (value: string | undefined) => {
-      if (!value) return false
-      return dirs.some((item) => workspaceKey(item) === workspaceKey(value))
-    }
-    const refreshDirs = async (target?: string) => {
-      if (!target || target === root || canOpen(target)) return canOpen(target)
-      const listed = await globalSDK.client.worktree
-        .list({ directory: root })
-        .then((x) => x.data ?? [])
-        .catch(() => [] as string[])
-      dirs = effectiveWorkspaceOrder(root, [root, ...listed], store.workspaceOrder[root])
-      return canOpen(target)
-    }
-    const openSession = async (target: { directory: string; id: string }) => {
-      if (!canOpen(target.directory)) return false
-      const [data] = globalSync.child(target.directory, { bootstrap: false })
-      if (data.session.some((item) => item.id === target.id)) {
-        setStore("lastProjectSession", root, { directory: target.directory, id: target.id, at: Date.now() })
-        navigateWithSidebarReset(`/${base64Encode(target.directory)}/session/${target.id}`)
-        return true
+  async function chooseProject() {
+    function resolve(result: string | string[] | null) {
+      if (Array.isArray(result)) {
+        for (const directory of result) {
+          openProject(directory, false)
+        }
+        navigateToProject(result[0])
+      } else if (result) {
+        openProject(result)
       }
-      const resolved = await globalSDK.client.session
-        .get({ sessionID: target.id })
-        .then((x) => x.data)
-        .catch(() => undefined)
-      if (!resolved?.directory) return false
-      if (!canOpen(resolved.directory)) return false
-      setStore("lastProjectSession", root, { directory: resolved.directory, id: resolved.id, at: Date.now() })
-      navigateWithSidebarReset(`/${base64Encode(resolved.directory)}/session/${resolved.id}`)
-      return true
     }
 
-    const projectSession = store.lastProjectSession[root]
-    if (projectSession?.id) {
-      await refreshDirs(projectSession.directory)
-      const opened = await openSession(projectSession)
-      if (opened) return
-      clearLastProjectSession(root)
+    if (platform.openDirectoryPickerDialog && server.isLocal()) {
+      const result = await platform.openDirectoryPickerDialog?.({
+        title: language.t("command.project.open"),
+        multiple: true,
+      })
+      resolve(result)
+    } else {
+      dialog.show(
+        () => <DialogSelectDirectory multiple={true} onSelect={resolve} />,
+        () => resolve(null),
+      )
     }
-
-    const latest = latestRootSession(
-      dirs.map((item) => globalSync.child(item, { bootstrap: false })[0]),
-      Date.now(),
-    )
-    if (latest && (await openSession(latest))) {
-      return
-    }
-
-    const fetched = latestRootSession(
-      await Promise.all(
-        dirs.map(async (item) => ({
-          path: { directory: item },
-          session: await globalSDK.client.session
-            .list({ directory: item })
-            .then((x) => x.data ?? [])
-            .catch(() => []),
-        })),
-      ),
-      Date.now(),
-    )
-    if (fetched && (await openSession(fetched))) {
-      return
-    }
-
-    navigateWithSidebarReset(`/${base64Encode(root)}/session`)
-  }
-
-  function navigateToSession(session: Session | undefined) {
-    if (!session) return
-    navigateWithSidebarReset(`/${base64Encode(session.directory)}/session/${session.id}`)
-  }
-
-  function openProject(directory: string, nav = true) {
-    layout.projects.open(directory)
-    if (nav) navigateToProject(directory)
   }
 
   const handleDeepLinks = (urls: string[]) => {
@@ -760,226 +622,6 @@ export default function Layout(props: ParentProps) {
     window.addEventListener(deepLinkEvent, handler as EventListener)
     onCleanup(() => window.removeEventListener(deepLinkEvent, handler as EventListener))
   })
-
-  async function renameProject(project: LocalProject, next: string) {
-    const current = displayName(project)
-    if (next === current) return
-    const name = next === getFilename(project.worktree) ? "" : next
-
-    if (project.id && project.id !== "global") {
-      await globalSDK.client.project.update({ projectID: project.id, directory: project.worktree, name })
-      return
-    }
-
-    globalSync.project.meta(project.worktree, { name })
-  }
-
-  const renameWorkspace = (directory: string, next: string, projectId?: string, branch?: string) => {
-    const current = workspaceName(directory, projectId, branch) ?? branch ?? getFilename(directory)
-    if (current === next) return
-    setWorkspaceName(directory, next, projectId, branch)
-  }
-
-  function closeProject(directory: string) {
-    const list = layout.projects.list()
-    const index = list.findIndex((x) => x.worktree === directory)
-    const active = currentProject()?.worktree === directory
-    if (index === -1) return
-    const next = list[index + 1]
-
-    if (!active) {
-      layout.projects.close(directory)
-      return
-    }
-
-    if (!next) {
-      layout.projects.close(directory)
-      navigate("/")
-      return
-    }
-
-    navigateWithSidebarReset(`/${base64Encode(next.worktree)}/session`)
-    layout.projects.close(directory)
-    queueMicrotask(() => {
-      void navigateToProject(next.worktree)
-    })
-  }
-
-  function toggleProjectWorkspaces(project: LocalProject) {
-    const enabled = layout.sidebar.workspaces(project.worktree)()
-    if (enabled) {
-      layout.sidebar.toggleWorkspaces(project.worktree)
-      return
-    }
-    if (project.vcs !== "git") return
-    layout.sidebar.toggleWorkspaces(project.worktree)
-  }
-
-  const showEditProjectDialog = (project: LocalProject) => dialog.show(() => <DialogEditProject project={project} />)
-
-  async function chooseProject() {
-    function resolve(result: string | string[] | null) {
-      if (Array.isArray(result)) {
-        for (const directory of result) {
-          openProject(directory, false)
-        }
-        navigateToProject(result[0])
-      } else if (result) {
-        openProject(result)
-      }
-    }
-
-    if (platform.openDirectoryPickerDialog && server.isLocal()) {
-      const result = await platform.openDirectoryPickerDialog?.({
-        title: language.t("command.project.open"),
-        multiple: true,
-      })
-      resolve(result)
-    } else {
-      dialog.show(
-        () => <DialogSelectDirectory multiple={true} onSelect={resolve} />,
-        () => resolve(null),
-      )
-    }
-  }
-
-  const deleteWorkspace = async (root: string, directory: string, leaveDeletedWorkspace = false) => {
-    if (directory === root) return
-
-    const current = currentDir()
-    const currentKey = workspaceKey(current)
-    const deletedKey = workspaceKey(directory)
-    const shouldLeave = leaveDeletedWorkspace || (!!params.dir && currentKey === deletedKey)
-    if (!leaveDeletedWorkspace && shouldLeave) {
-      navigateWithSidebarReset(`/${base64Encode(root)}/session`)
-    }
-
-    setBusy(directory, true)
-
-    const result = await globalSDK.client.worktree
-      .remove({ directory: root, worktreeRemoveInput: { directory } })
-      .then((x) => x.data)
-      .catch((err) => {
-        showToast({
-          title: language.t("workspace.delete.failed.title"),
-          description: errorMessage(err, language.t("common.requestFailed")),
-        })
-        return false
-      })
-
-    setBusy(directory, false)
-
-    if (!result) return
-
-    if (workspaceKey(store.lastProjectSession[root]?.directory ?? "") === workspaceKey(directory)) {
-      clearLastProjectSession(root)
-    }
-
-    globalSync.set(
-      "project",
-      produce((draft) => {
-        const project = draft.find((item) => item.worktree === root)
-        if (!project) return
-        project.sandboxes = (project.sandboxes ?? []).filter((sandbox) => sandbox !== directory)
-      }),
-    )
-    setStore("workspaceOrder", root, (order) => (order ?? []).filter((workspace) => workspace !== directory))
-
-    layout.projects.close(directory)
-    layout.projects.open(root)
-
-    if (shouldLeave) return
-
-    const nextCurrent = currentDir()
-    const nextKey = workspaceKey(nextCurrent)
-    const project = layout.projects.list().find((item) => item.worktree === root)
-    const dirs = project
-      ? effectiveWorkspaceOrder(root, [root, ...(project.sandboxes ?? [])], store.workspaceOrder[root])
-      : [root]
-    const valid = dirs.some((item) => workspaceKey(item) === nextKey)
-
-    if (params.dir && projectRoot(nextCurrent) === root && !valid) {
-      navigateWithSidebarReset(`/${base64Encode(root)}/session`)
-    }
-  }
-
-  const resetWorkspace = async (root: string, directory: string) => {
-    if (directory === root) return
-    setBusy(directory, true)
-
-    const progress = showToast({
-      persistent: true,
-      title: language.t("workspace.resetting.title"),
-      description: language.t("workspace.resetting.description"),
-    })
-    const dismiss = () => toaster.dismiss(progress)
-
-    const sessions: Session[] = await globalSDK.client.session
-      .list({ directory })
-      .then((x) => x.data ?? [])
-      .catch(() => [])
-
-    clearWorkspaceTerminals(
-      directory,
-      sessions.map((s) => s.id),
-      platform,
-    )
-    await globalSDK.client.instance.dispose({ directory }).catch(() => undefined)
-
-    const result = await globalSDK.client.worktree
-      .reset({ directory: root, worktreeResetInput: { directory } })
-      .then((x) => x.data)
-      .catch((err) => {
-        showToast({
-          title: language.t("workspace.reset.failed.title"),
-          description: errorMessage(err, language.t("common.requestFailed")),
-        })
-        return false
-      })
-
-    if (!result) {
-      setBusy(directory, false)
-      dismiss()
-      return
-    }
-
-    const archivedAt = Date.now()
-    await Promise.all(
-      sessions
-        .filter((session) => session.time.archived === undefined)
-        .map((session) =>
-          globalSDK.client.session
-            .update({
-              sessionID: session.id,
-              directory: session.directory,
-              time: { archived: archivedAt },
-            })
-            .catch(() => undefined),
-        ),
-    )
-
-    setBusy(directory, false)
-    dismiss()
-
-    showToast({
-      title: language.t("workspace.reset.success.title"),
-      description: language.t("workspace.reset.success.description"),
-      actions: [
-        {
-          label: language.t("command.session.new"),
-          onClick: () => {
-            const href = `/${base64Encode(directory)}/session`
-            navigate(href)
-            layout.mobileSidebar.hide()
-          },
-        },
-        {
-          label: language.t("common.dismiss"),
-          onClick: "dismiss",
-        },
-      ],
-    })
-  }
 
   const activeRoute = {
     session: "",
@@ -1074,63 +716,6 @@ export default function Layout(props: ParentProps) {
     setStore("activeProject", undefined)
   }
 
-  function workspaceIds(project: LocalProject | undefined) {
-    if (!project) return []
-    const local = project.worktree
-    const dirs = [local, ...(project.sandboxes ?? [])]
-    const active = currentProject()
-    const directory = active?.worktree === project.worktree ? currentDir() : undefined
-    const extra = directory && directory !== local && !dirs.includes(directory) ? directory : undefined
-    const pending = extra ? WorktreeState.get(extra)?.status === "pending" : false
-
-    const ordered = effectiveWorkspaceOrder(local, dirs, store.workspaceOrder[project.worktree])
-    if (pending && extra) return [local, extra, ...ordered.filter((item) => item !== local)]
-    if (!extra) return ordered
-    if (pending) return ordered
-    return [...ordered, extra]
-  }
-
-  const sidebarProject = createMemo(() => {
-    if (layout.sidebar.opened()) return currentProject()
-    const hovered = hoverProjectData()
-    if (hovered) return hovered
-    return currentProject()
-  })
-
-  function handleWorkspaceDragStart(event: unknown) {
-    const id = getDraggableId(event)
-    if (!id) return
-    setStore("activeWorkspace", id)
-  }
-
-  function handleWorkspaceDragOver(event: DragEvent) {
-    const { draggable, droppable } = event
-    if (!draggable || !droppable) return
-
-    const project = sidebarProject()
-    if (!project) return
-
-    const ids = workspaceIds(project)
-    const fromIndex = ids.findIndex((dir) => dir === draggable.id.toString())
-    const toIndex = ids.findIndex((dir) => dir === droppable.id.toString())
-    if (fromIndex === -1 || toIndex === -1) return
-    if (fromIndex === toIndex) return
-
-    const result = ids.slice()
-    const [item] = result.splice(fromIndex, 1)
-    if (!item) return
-    result.splice(toIndex, 0, item)
-    setStore(
-      "workspaceOrder",
-      project.worktree,
-      result.filter((directory) => workspaceKey(directory) !== workspaceKey(project.worktree)),
-    )
-  }
-
-  function handleWorkspaceDragEnd() {
-    setStore("activeWorkspace", undefined)
-  }
-
   const createWorkspace = async (project: LocalProject) => {
     clearSidebarHoverState()
     const created = await globalSDK.client.worktree
@@ -1171,114 +756,44 @@ export default function Layout(props: ParentProps) {
     navigateWithSidebarReset(`/${base64Encode(created.directory)}/session`)
   }
 
-  // ---- Sidebar context objects ----
+  // ---- Sidebar contexts factory ----
 
-  const workspaceSidebarCtx: WorkspaceSidebarContext = {
-    currentDir,
-    navList: currentSessions,
-    sidebarExpanded,
-    sidebarHovering,
-    nav: () => state.nav,
-    hoverSession: () => state.hoverSession,
-    setHoverSession,
-    clearHoverProjectSoon,
-    prefetchSession: prefetch.prefetchSession,
-    archiveSession,
-    workspaceName,
-    renameWorkspace,
-    editorOpen,
-    openEditor,
-    closeEditor,
-    setEditor,
-    InlineEditor,
-    isBusy,
-    workspaceExpanded: (directory, local) => store.workspaceExpanded[directory] ?? local,
-    setWorkspaceExpanded: (directory, value) => setStore("workspaceExpanded", directory, value),
-    showResetWorkspaceDialog: (root, directory) =>
-      dialog.show(() => (
-        <DialogResetWorkspace
-          root={root}
-          directory={directory}
-          ctx={{ globalSDK, language, resetWorkspace }}
-        />
-      )),
-    showDeleteWorkspaceDialog: (root, directory) =>
-      dialog.show(() => (
-        <DialogDeleteWorkspace
-          root={root}
-          directory={directory}
-          ctx={{ globalSDK, language, params, currentDir, navigateWithSidebarReset, deleteWorkspace }}
-        />
-      )),
-    setScrollContainerRef: (el, mobile) => {
-      if (!mobile) scrollContainerRef = el
-    },
-  }
-
-  const projectSidebarCtx: ProjectSidebarContext = {
-    currentDir,
-    sidebarOpened: () => layout.sidebar.opened(),
-    sidebarHovering,
-    hoverProject: () => state.hoverProject,
-    nav: () => state.nav,
-    onProjectMouseEnter: (worktree, event) => aim.enter(worktree, event),
-    onProjectMouseLeave: (worktree) => aim.leave(worktree),
-    onProjectFocus: (worktree) => aim.activate(worktree),
-    navigateToProject,
-    openSidebar: () => layout.sidebar.open(),
-    closeProject,
-    showEditProjectDialog,
-    toggleProjectWorkspaces,
-    workspacesEnabled: (project) => project.vcs === "git" && layout.sidebar.workspaces(project.worktree)(),
-    workspaceIds,
-    workspaceLabel,
-    sessionProps: {
-      navList: currentSessions,
-      sidebarExpanded,
-      sidebarHovering,
-      nav: () => state.nav,
-      hoverSession: () => state.hoverSession,
-      setHoverSession,
-      clearHoverProjectSoon,
+  const { sidebarProject, handleWorkspaceDragStart, handleWorkspaceDragOver, handleWorkspaceDragEnd, workspaceSidebarCtx, projectSidebarCtx, sidebarPanelCtx } =
+    createSidebarContexts({
+      params, store, setStore, globalSDK, globalSync, layout, language, notification, providers, aim,
+      currentDir, currentProject, sidebarHovering, sidebarExpanded, hoverProjectData, state,
+      setHoverSession, clearHoverProjectSoon, navigateWithSidebarReset,
       prefetchSession: prefetch.prefetchSession,
-      archiveSession,
-    },
-    setHoverSession,
-  }
+      archiveSession, workspaceName, renameWorkspace, renameProject, closeProject,
+      showEditProjectDialog, toggleProjectWorkspaces, createWorkspace, connectProvider, navigateToProject,
+      sortNow, InlineEditor, editorOpen, openEditor, closeEditor, setEditor, isBusy, workspaceLabel,
+      deleteWorkspace, resetWorkspace, currentSessions,
+      setScrollContainerRef: (el: HTMLDivElement | undefined, mobile?: boolean) => { if (!mobile) scrollContainerRef = el },
+    })
 
-  const sidebarPanelCtx: SidebarPanelCtx = {
+  // ---- Commands registration ----
+
+  registerLayoutCommands({
+    params,
+    command,
+    theme,
     language,
-    globalSDK,
-    globalSync,
-    notification,
-    providers,
-    sidebarHovering,
-    sidebarOpened: () => layout.sidebar.opened(),
-    sidebarWidth: () => layout.sidebar.width(),
-    sidebarWorkspaces: (worktree) => layout.sidebar.workspaces(worktree),
-    sidebarToggleWorkspaces: (worktree) => layout.sidebar.toggleWorkspaces(worktree),
-    workspaceIds,
-    workspaceSidebarCtx,
-    sidebarProject,
-    workspaceLabel,
-    sortNow,
-    activeWorkspace: () => store.activeWorkspace,
-    gettingStartedDismissed: () => store.gettingStartedDismissed,
-    InlineEditor,
-    renameProject,
-    closeProject,
-    showEditProjectDialog,
-    toggleProjectWorkspaces,
+    layout,
+    colorSchemeOrder,
+    colorSchemeLabel,
+    availableThemeEntries,
+    currentSessions,
+    currentProject,
+    workspaceSetting,
+    navigateSessionByOffset,
+    navigateSessionByUnseen,
+    archiveSession,
     createWorkspace,
+    chooseProject,
     connectProvider,
-    navigateWithSidebarReset,
-    setScrollContainerRef: (el, mobile) => {
-      if (!mobile) scrollContainerRef = el
-    },
-    handleWorkspaceDragStart,
-    handleWorkspaceDragEnd,
-    handleWorkspaceDragOver,
-  }
+    openServer,
+    openSettings,
+  })
 
   const projects = () => layout.projects.list()
   const projectOverlay = () => <ProjectDragOverlay projects={projects} activeProject={() => store.activeProject} />
