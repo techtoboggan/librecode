@@ -80,12 +80,37 @@ try {
   console.warn("⚠  ImageMagick not available — skipping favicon.ico")
 }
 
+// ── Tater mascot ─────────────────────────────────────────────────────────────
+const tater = dir("assets/tater")
+console.log("\n🐵 Tater mascot")
+for (const size of [1024, 512, 256]) {
+  svgToPng(`${brand}/tater-dark.svg`,        `${tater}/tater-dark-${size}.png`,  size)
+  svgToPng(`${brand}/tater-light.svg`,       `${tater}/tater-light-${size}.png`, size)
+  svgToPng(`${brand}/tater-transparent.svg`, `${tater}/tater-${size}.png`,       size)
+}
+// Head-only crop at smaller sizes (centered top 50% of the image — the head lives roughly y:110-278)
+const headPy = (input: string, output: string, size: number) => {
+  const py = `
+import cairosvg, io
+from PIL import Image
+png = cairosvg.svg2png(url="${input}", output_width=${size * 2}, output_height=${size * 2})
+img = Image.open(io.BytesIO(png))
+# Head is roughly top 55% of the 512-tall canvas: y 110-278 → scale by 2
+head = img.crop((${Math.round(0.22 * 2)}, ${Math.round(0.22 * 2)}, ${Math.round(0.78 * 2)}, ${Math.round(0.57 * 2)})).resize((${size}, ${size}), Image.LANCZOS)
+head.save("${output}")
+`.trim()
+  const r = spawnSync("python3", ["-c", py])
+  if (r.status !== 0) { console.error(`✗ ${output}\n${r.stderr?.toString()}`); return false }
+  console.log(`✓ ${output.replace(ROOT, "")}`)
+  return true
+}
+headPy(`${brand}/tater-transparent.svg`, `${tater}/tater-head-256.png`, 256)
+headPy(`${brand}/tater-transparent.svg`, `${tater}/tater-head-128.png`, 128)
+
 // ── Open Graph / Social ───────────────────────────────────────────────────────
-// TODO: composite Tater mascot + logo once mascot.svg exists
-console.log("\n🖼  Social images (placeholder — add mascot to complete)")
+console.log("\n🖼  Social images")
 svgToPng(`${brand}/logo-full-dark.svg`, `${social}/og-image.png`,     1200, 630)
 svgToPng(`${brand}/logo-full-dark.svg`, `${social}/twitter-card.png`, 1200, 600)
+// TODO: composite Tater + logo for a richer OG image (requires PIL compositing)
 
 console.log("\n✅ Done. Check assets/ for output.")
-console.log("   Next: open assets/brand/logo-full-light.svg in a browser to review,")
-console.log("   then adjust bezier curves in the file and re-run this script.")
