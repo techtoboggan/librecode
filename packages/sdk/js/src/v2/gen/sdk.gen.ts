@@ -89,6 +89,7 @@ import type {
   ProviderOauthAuthorizeResponses,
   ProviderOauthCallbackErrors,
   ProviderOauthCallbackResponses,
+  ProviderScanResponses,
   PtyConnectErrors,
   PtyConnectResponses,
   PtyCreateErrors,
@@ -1785,6 +1786,79 @@ export class Session2 extends HeyApiClient {
   }
 
   /**
+   * Revert message
+   *
+   * Revert a specific message in a session, undoing its effects and restoring the previous state.
+   */
+  public revert<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      messageID?: string
+      partID?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "messageID" },
+            { in: "body", key: "partID" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionRevertResponses, SessionRevertErrors, ThrowOnError>({
+      url: "/session/{sessionID}/revert",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Restore reverted messages
+   *
+   * Restore all previously reverted messages in a session.
+   */
+  public unrevert<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionUnrevertResponses, SessionUnrevertErrors, ThrowOnError>({
+      url: "/session/{sessionID}/unrevert",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get session messages
    *
    * Retrieve all messages in a session, including user prompts and AI responses.
@@ -2115,156 +2189,6 @@ export class Session2 extends HeyApiClient {
       },
     })
   }
-
-  /**
-   * Revert message
-   *
-   * Revert a specific message in a session, undoing its effects and restoring the previous state.
-   */
-  public revert<ThrowOnError extends boolean = false>(
-    parameters: {
-      sessionID: string
-      directory?: string
-      workspace?: string
-      messageID?: string
-      partID?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "sessionID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { in: "body", key: "messageID" },
-            { in: "body", key: "partID" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<SessionRevertResponses, SessionRevertErrors, ThrowOnError>({
-      url: "/session/{sessionID}/revert",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
-
-  /**
-   * Restore reverted messages
-   *
-   * Restore all previously reverted messages in a session.
-   */
-  public unrevert<ThrowOnError extends boolean = false>(
-    parameters: {
-      sessionID: string
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "sessionID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).post<SessionUnrevertResponses, SessionUnrevertErrors, ThrowOnError>({
-      url: "/session/{sessionID}/unrevert",
-      ...options,
-      ...params,
-    })
-  }
-}
-
-export class Part extends HeyApiClient {
-  /**
-   * Delete a part from a message
-   */
-  public delete<ThrowOnError extends boolean = false>(
-    parameters: {
-      sessionID: string
-      messageID: string
-      partID: string
-      directory?: string
-      workspace?: string
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "sessionID" },
-            { in: "path", key: "messageID" },
-            { in: "path", key: "partID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).delete<PartDeleteResponses, PartDeleteErrors, ThrowOnError>({
-      url: "/session/{sessionID}/message/{messageID}/part/{partID}",
-      ...options,
-      ...params,
-    })
-  }
-
-  /**
-   * Update a part in a message
-   */
-  public update<ThrowOnError extends boolean = false>(
-    parameters: {
-      sessionID: string
-      messageID: string
-      partID: string
-      directory?: string
-      workspace?: string
-      part?: Part2
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "path", key: "sessionID" },
-            { in: "path", key: "messageID" },
-            { in: "path", key: "partID" },
-            { in: "query", key: "directory" },
-            { in: "query", key: "workspace" },
-            { key: "part", map: "body" },
-          ],
-        },
-      ],
-    )
-    return (options?.client ?? this.client).patch<PartUpdateResponses, PartUpdateErrors, ThrowOnError>({
-      url: "/session/{sessionID}/message/{messageID}/part/{partID}",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    })
-  }
 }
 
 export class Permission extends HeyApiClient {
@@ -2379,6 +2303,83 @@ export class Permission extends HeyApiClient {
       url: "/permission",
       ...options,
       ...params,
+    })
+  }
+}
+
+export class Part extends HeyApiClient {
+  /**
+   * Delete a part from a message
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+      partID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "messageID" },
+            { in: "path", key: "partID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<PartDeleteResponses, PartDeleteErrors, ThrowOnError>({
+      url: "/session/{sessionID}/message/{messageID}/part/{partID}",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Update a part in a message
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      messageID: string
+      partID: string
+      directory?: string
+      workspace?: string
+      part?: Part2
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "path", key: "messageID" },
+            { in: "path", key: "partID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "part", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).patch<PartUpdateResponses, PartUpdateErrors, ThrowOnError>({
+      url: "/session/{sessionID}/message/{messageID}/part/{partID}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 }
@@ -2683,6 +2684,43 @@ export class Provider extends HeyApiClient {
       url: "/provider/auth",
       ...options,
       ...params,
+    })
+  }
+
+  /**
+   * Scan for local model servers
+   *
+   * Scan localhost and optionally the local network for OpenAI-compatible model servers.
+   */
+  public scan<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      host?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "host" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ProviderScanResponses, unknown, ThrowOnError>({
+      url: "/provider/scan",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     })
   }
 
@@ -4003,14 +4041,14 @@ export class OpencodeClient extends HeyApiClient {
     return (this._session ??= new Session2({ client: this.client }))
   }
 
-  private _part?: Part
-  get part(): Part {
-    return (this._part ??= new Part({ client: this.client }))
-  }
-
   private _permission?: Permission
   get permission(): Permission {
     return (this._permission ??= new Permission({ client: this.client }))
+  }
+
+  private _part?: Part
+  get part(): Part {
+    return (this._part ??= new Part({ client: this.client }))
   }
 
   private _question?: Question

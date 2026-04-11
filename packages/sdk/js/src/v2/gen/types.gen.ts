@@ -47,13 +47,6 @@ export type EventProjectUpdated = {
   properties: Project
 }
 
-export type EventServerInstanceDisposed = {
-  type: "server.instance.disposed"
-  properties: {
-    directory: string
-  }
-}
-
 export type EventServerConnected = {
   type: "server.connected"
   properties: {
@@ -65,6 +58,13 @@ export type EventGlobalDisposed = {
   type: "global.disposed"
   properties: {
     [key: string]: unknown
+  }
+}
+
+export type EventServerInstanceDisposed = {
+  type: "server.instance.disposed"
+  properties: {
+    directory: string
   }
 }
 
@@ -986,9 +986,9 @@ export type Event =
   | EventInstallationUpdated
   | EventInstallationUpdateAvailable
   | EventProjectUpdated
-  | EventServerInstanceDisposed
   | EventServerConnected
   | EventGlobalDisposed
+  | EventServerInstanceDisposed
   | EventLspClientDiagnostics
   | EventLspUpdated
   | EventFileEdited
@@ -3264,6 +3264,114 @@ export type SessionSummarizeResponses = {
 
 export type SessionSummarizeResponse = SessionSummarizeResponses[keyof SessionSummarizeResponses]
 
+export type SessionRevertData = {
+  body?: {
+    messageID: string
+    partID?: string
+  }
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/revert"
+}
+
+export type SessionRevertErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionRevertError = SessionRevertErrors[keyof SessionRevertErrors]
+
+export type SessionRevertResponses = {
+  /**
+   * Updated session
+   */
+  200: Session
+}
+
+export type SessionRevertResponse = SessionRevertResponses[keyof SessionRevertResponses]
+
+export type SessionUnrevertData = {
+  body?: never
+  path: {
+    sessionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/unrevert"
+}
+
+export type SessionUnrevertErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type SessionUnrevertError = SessionUnrevertErrors[keyof SessionUnrevertErrors]
+
+export type SessionUnrevertResponses = {
+  /**
+   * Updated session
+   */
+  200: Session
+}
+
+export type SessionUnrevertResponse = SessionUnrevertResponses[keyof SessionUnrevertResponses]
+
+export type PermissionRespondData = {
+  body?: {
+    response: "once" | "always" | "reject"
+  }
+  path: {
+    sessionID: string
+    permissionID: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/session/{sessionID}/permissions/{permissionID}"
+}
+
+export type PermissionRespondErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type PermissionRespondError = PermissionRespondErrors[keyof PermissionRespondErrors]
+
+export type PermissionRespondResponses = {
+  /**
+   * Permission processed successfully
+   */
+  200: boolean
+}
+
+export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
+
 export type SessionMessagesData = {
   body?: never
   path: {
@@ -3651,114 +3759,6 @@ export type SessionShellResponses = {
 
 export type SessionShellResponse = SessionShellResponses[keyof SessionShellResponses]
 
-export type SessionRevertData = {
-  body?: {
-    messageID: string
-    partID?: string
-  }
-  path: {
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/session/{sessionID}/revert"
-}
-
-export type SessionRevertErrors = {
-  /**
-   * Bad request
-   */
-  400: BadRequestError
-  /**
-   * Not found
-   */
-  404: NotFoundError
-}
-
-export type SessionRevertError = SessionRevertErrors[keyof SessionRevertErrors]
-
-export type SessionRevertResponses = {
-  /**
-   * Updated session
-   */
-  200: Session
-}
-
-export type SessionRevertResponse = SessionRevertResponses[keyof SessionRevertResponses]
-
-export type SessionUnrevertData = {
-  body?: never
-  path: {
-    sessionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/session/{sessionID}/unrevert"
-}
-
-export type SessionUnrevertErrors = {
-  /**
-   * Bad request
-   */
-  400: BadRequestError
-  /**
-   * Not found
-   */
-  404: NotFoundError
-}
-
-export type SessionUnrevertError = SessionUnrevertErrors[keyof SessionUnrevertErrors]
-
-export type SessionUnrevertResponses = {
-  /**
-   * Updated session
-   */
-  200: Session
-}
-
-export type SessionUnrevertResponse = SessionUnrevertResponses[keyof SessionUnrevertResponses]
-
-export type PermissionRespondData = {
-  body?: {
-    response: "once" | "always" | "reject"
-  }
-  path: {
-    sessionID: string
-    permissionID: string
-  }
-  query?: {
-    directory?: string
-    workspace?: string
-  }
-  url: "/session/{sessionID}/permissions/{permissionID}"
-}
-
-export type PermissionRespondErrors = {
-  /**
-   * Bad request
-   */
-  400: BadRequestError
-  /**
-   * Not found
-   */
-  404: NotFoundError
-}
-
-export type PermissionRespondError = PermissionRespondErrors[keyof PermissionRespondErrors]
-
-export type PermissionRespondResponses = {
-  /**
-   * Permission processed successfully
-   */
-  200: boolean
-}
-
-export type PermissionRespondResponse = PermissionRespondResponses[keyof PermissionRespondResponses]
-
 export type PermissionReplyData = {
   body?: {
     reply: "once" | "always" | "reject"
@@ -4137,6 +4137,38 @@ export type ProviderOauthCallbackResponses = {
 }
 
 export type ProviderOauthCallbackResponse = ProviderOauthCallbackResponses[keyof ProviderOauthCallbackResponses]
+
+export type ProviderScanData = {
+  body?: {
+    /**
+     * Remote hostname or IP to probe
+     */
+    host?: string
+  }
+  path?: never
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/provider/scan"
+}
+
+export type ProviderScanResponses = {
+  /**
+   * Discovered servers
+   */
+  200: Array<{
+    url: string
+    serverName: string
+    modelCount: number
+    models: Array<{
+      id: string
+      name: string
+    }>
+  }>
+}
+
+export type ProviderScanResponse = ProviderScanResponses[keyof ProviderScanResponses]
 
 export type FindTextData = {
   body?: never
