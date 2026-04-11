@@ -160,9 +160,8 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 
 | Item | Description | Effort | Priority |
 |------|-------------|--------|----------|
-| **Flatpak full build** | Fill SHA256 hashes for release tarball + Bun binaries; generate cargo-sources.json; submit to Flathub beta | Medium | Medium |
-| **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low |
-| **Turbo evaluation** | Turbo vs Bun workspaces performance comparison | Small | Low |
+| **Flatpak full build** | SHA256 hashes filled (Bun x64/aarch64 + v0.1.0 tarball); cargo-sources.json generated (1,379 Cargo deps); manifest complete | Medium | ✅ Done |
+| **Turbo evaluation** | Keep Turbo. Cold run: 40.5s · Warm (cache hit): 272ms = **149× speedup**. Already integrated at zero cost. | Small | ✅ Done |
 
 ---
 

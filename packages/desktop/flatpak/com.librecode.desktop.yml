@@ -4,7 +4,7 @@
 # Updating for a new release:
 #   1. Update the source `url` and `sha256` for the release tarball.
 #   2. Regenerate cargo-sources.json:
-#        pip install aiohttp toml
+#        pip install aiohttp tomlkit
 #        python3 flatpak-cargo-generator.py ../../../Cargo.lock -o cargo-sources.json
 #      (flatpak-cargo-generator.py is from
 #       https://github.com/flatpak/flatpak-builder-tools/tree/master/cargo)
@@ -73,14 +73,14 @@ modules:
         only-arches: [x86_64]
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-x64-baseline.zip
         # Update sha256: sha256sum bun-linux-x64-baseline.zip
-        sha256: PLACEHOLDER_BUN_X64_SHA256
+        sha256: abe346f63414547cdf6b35b7a649a490c728b93d006226156923918a84c0e59b
         dest-filename: bun.zip
       # aarch64
       - type: file
         only-arches: [aarch64]
         url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip
         # Update sha256: sha256sum bun-linux-aarch64.zip
-        sha256: PLACEHOLDER_BUN_AARCH64_SHA256
+        sha256: d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf
         dest-filename: bun.zip
     build-commands:
       - unzip -j bun.zip "*/bun" -d .
@@ -97,7 +97,7 @@ modules:
       # Release tarball — update url + sha256 for each release
       - type: archive
         url: https://github.com/techtoboggan/librecode/archive/refs/tags/v0.1.0.tar.gz
-        sha256: PLACEHOLDER_RELEASE_SHA256
+        sha256: d5558cd419c8d46bdc958064cb97f963d1ea793866414c025906ec15033512ed
         strip-components: 1
 
       # Vendored Cargo dependencies (generated with flatpak-cargo-generator.py)
