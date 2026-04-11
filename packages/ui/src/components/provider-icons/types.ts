@@ -35,6 +35,7 @@ export const iconNames = [
   "librecode",
   "librecode-go",
   "openai",
+  "ollama",
   "ollama-cloud",
   "nvidia",
   "novita-ai",
