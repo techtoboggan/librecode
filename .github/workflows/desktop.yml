@@ -24,10 +24,6 @@ jobs:
             os: macos-14
             cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
-          - platform: macos-x64
-            os: macos-13
-            cli_src: packages/librecode/dist/librecode-darwin-x64/bin/librecode
-            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-apple-darwin
           - platform: windows
             os: windows-latest
             cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
