@@ -4,33 +4,55 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to submit (e.g. 0.3.6)"
+        required: true
+
+permissions:
+  contents: read
 
 jobs:
   copr:
     name: Submit to COPR
     runs-on: ubuntu-latest
+    container:
+      image: fedora:latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Extract version from tag
-        id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - name: Install tools
+        run: dnf install -y --setopt=install_weak_deps=False copr-cli rpm-build curl
 
-      - name: Generate RPM spec
+      - name: Configure COPR credentials
         run: |
-          sed "s/@VERSION@/${{ steps.version.outputs.version }}/g" \
-            packaging/librecode.spec.in > packaging/librecode.spec
+          mkdir -p ~/.config
+          printf '[copr-cli]\nlogin = techtoboggan\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
+            "${{ secrets.COPR_API_TOKEN }}" > ~/.config/copr
+          chmod 600 ~/.config/copr
 
-      - name: Generate SRPM
-        uses: rpmbuild/rpmbuild-action@v1
-        with:
-          spec_file: packaging/librecode.spec
-          sources: ""
-          build_type: source
-
-      - name: Submit to COPR
-        env:
-          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+      - name: Build SRPM and submit
         run: |
-          pip install copr-cli
-          copr-cli build techtoboggan/librecode rpmbuild/SRPMS/*.src.rpm
+          # Version comes from the release tag or manual input
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "Submitting librecode $VERSION to COPR"
+
+          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
+
+          # Inject the real version into the spec file
+          sed "s/^Version:.*/Version:        ${VERSION}/" \
+            packages/rpm/librecode.spec > ~/rpmbuild/SPECS/librecode.spec
+
+          # Build source RPM — sources are fetched by COPR via curl in %prep
+          rpmbuild -bs --nodeps ~/rpmbuild/SPECS/librecode.spec
+
+          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-${VERSION}-*.src.rpm)
+          echo "Submitting: $SRPM"
+
+          # --nowait: return immediately; COPR queues the build asynchronously
+          copr-cli build techtoboggan/librecode "$SRPM" --nowait
