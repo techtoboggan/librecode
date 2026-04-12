@@ -20,14 +20,19 @@ jobs:
             os: ubuntu-latest
             cli_src: packages/librecode/dist/librecode-linux-x64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
+            # AppImage requires FUSE which is blocked on GH Actions runners
+            bundles: deb,rpm
           - platform: macos-arm64
             os: macos-14
             cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
+            # DMG creation fails without code signing; .app bundle is sufficient for CI
+            bundles: app
           - platform: windows
             os: windows-latest
             cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-pc-windows-msvc.exe
+            bundles: nsis
 
     steps:
       - uses: actions/checkout@v4
@@ -78,16 +83,7 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build Desktop
-        # Linux: skip AppImage — linuxdeploy is itself an AppImage and FUSE is
-        # unavailable on standard GH Actions runners even with EXTRACT_AND_RUN.
-        # deb and rpm are sufficient CI outputs; AppImage is built locally.
-        shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" = "linux" ]; then
-            cargo tauri build --config tauri.prod.conf.json --no-sign --bundles deb,rpm
-          else
-            cargo tauri build --config tauri.prod.conf.json --no-sign
-          fi
+        run: cargo tauri build --config tauri.prod.conf.json --no-sign --bundles ${{ matrix.bundles }}
         working-directory: packages/desktop/src-tauri
 
       - uses: actions/upload-artifact@v4
