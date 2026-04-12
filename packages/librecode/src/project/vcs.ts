@@ -1,4 +1,3 @@
-
 import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
@@ -9,68 +8,76 @@ import { Instance } from "./instance"
 
 const log = Log.create({ service: "vcs" })
 
-export namespace Vcs {
-  export const Event = {
-    BranchUpdated: BusEvent.define(
-      "vcs.branch.updated",
-      z.object({
-        branch: z.string().optional(),
-      }),
-    ),
-  }
+const VcsEvent = {
+  BranchUpdated: BusEvent.define(
+    "vcs.branch.updated",
+    z.object({
+      branch: z.string().optional(),
+    }),
+  ),
+}
 
-  export const Info = z
-    .object({
-      branch: z.string(),
-    })
-    .meta({
-      ref: "VcsInfo",
-    })
-  export type Info = z.infer<typeof Info>
+const VcsInfo = z
+  .object({
+    branch: z.string(),
+  })
+  .meta({
+    ref: "VcsInfo",
+  })
 
-  async function currentBranch() {
-    const result = await git(["rev-parse", "--abbrev-ref", "HEAD"], {
-      cwd: Instance.worktree,
-    })
-    if (result.exitCode !== 0) return
-    const text = result.text().trim()
-    if (!text) return
-    return text
-  }
+async function currentBranch(): Promise<string | undefined> {
+  const result = await git(["rev-parse", "--abbrev-ref", "HEAD"], {
+    cwd: Instance.worktree,
+  })
+  if (result.exitCode !== 0) return
+  const text = result.text().trim()
+  if (!text) return
+  return text
+}
 
-  const state = Instance.state(
-    async () => {
-      if (Instance.project.vcs !== "git") {
-        return { branch: async () => undefined, unsubscribe: undefined }
+const state = Instance.state(
+  async () => {
+    if (Instance.project.vcs !== "git") {
+      return { branch: async () => undefined, unsubscribe: undefined }
+    }
+    let current = await currentBranch()
+    log.info("initialized", { branch: current })
+
+    const unsubscribe = Bus.subscribe(FileWatcher.Event.Updated, async (evt) => {
+      if (!evt.properties.file.endsWith("HEAD")) return
+      const next = await currentBranch()
+      if (next !== current) {
+        log.info("branch changed", { from: current, to: next })
+        current = next
+        Bus.publish(VcsEvent.BranchUpdated, { branch: next })
       }
-      let current = await currentBranch()
-      log.info("initialized", { branch: current })
+    })
 
-      const unsubscribe = Bus.subscribe(FileWatcher.Event.Updated, async (evt) => {
-        if (!evt.properties.file.endsWith("HEAD")) return
-        const next = await currentBranch()
-        if (next !== current) {
-          log.info("branch changed", { from: current, to: next })
-          current = next
-          Bus.publish(Event.BranchUpdated, { branch: next })
-        }
-      })
+    return {
+      branch: async () => current,
+      unsubscribe,
+    }
+  },
+  async (s) => {
+    s.unsubscribe?.()
+  },
+)
 
-      return {
-        branch: async () => current,
-        unsubscribe,
-      }
-    },
-    async (state) => {
-      state.unsubscribe?.()
-    },
-  )
+async function vcsInit(): Promise<ReturnType<typeof state>> {
+  return state()
+}
 
-  export async function init() {
-    return state()
-  }
+async function vcsBranch(): Promise<string | undefined> {
+  return await state().then((s) => s.branch())
+}
 
-  export async function branch() {
-    return await state().then((s) => s.branch())
-  }
+export const Vcs = {
+  Event: VcsEvent,
+  Info: VcsInfo,
+  init: vcsInit,
+  branch: vcsBranch,
+} as const
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Vcs {
+  type Info = z.infer<typeof VcsInfo>
 }

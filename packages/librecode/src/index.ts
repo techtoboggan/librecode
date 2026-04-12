@@ -28,7 +28,7 @@ import { WorkspaceServeCommand } from "./cli/cmd/workspace-serve"
 import { FormatError } from "./cli/error"
 import { UI } from "./cli/ui"
 import { Installation } from "./installation"
-import { Log } from "./util/log"
+import { Log, type Level as LogLevel } from "./util/log"
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -64,7 +64,7 @@ let cli = yargs(hideBin(process.argv))
       print: process.argv.includes("--print-logs"),
       dev: Installation.isLocal(),
       level: (() => {
-        if (opts.logLevel) return opts.logLevel as Log.Level
+        if (opts.logLevel) return opts.logLevel as LogLevel
         if (Installation.isLocal()) return "DEBUG"
         return "INFO"
       })(),

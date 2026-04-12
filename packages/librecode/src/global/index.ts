@@ -11,20 +11,27 @@ const cache = path.join(xdgCache!, app)
 const config = path.join(xdgConfig!, app)
 const state = path.join(xdgState!, app)
 
-export namespace Global {
-  export const Path = {
-    // Allow override via LIBRECODE_TEST_HOME for test isolation
-    get home() {
-      return process.env.LIBRECODE_TEST_HOME || os.homedir()
-    },
-    data,
-    bin: path.join(data, "bin"),
-    log: path.join(data, "log"),
-    cache,
-    config,
-    state,
-  }
+const GlobalPath = {
+  // Allow override via LIBRECODE_TEST_HOME for test isolation
+  get home() {
+    return process.env.LIBRECODE_TEST_HOME || os.homedir()
+  },
+  data,
+  bin: path.join(data, "bin"),
+  log: path.join(data, "log"),
+  cache,
+  config,
+  state,
 }
+
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Global {
+  // (no types to export — all runtime values)
+}
+
+export const Global = {
+  Path: GlobalPath,
+} as const
 
 await Promise.all([
   fs.mkdir(Global.Path.data, { recursive: true }),

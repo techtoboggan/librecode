@@ -48,8 +48,8 @@ export const ProviderAuth = {
 
 export type { S as _ProviderAuthService }
 
-// biome-ignore lint/style/noNamespace: type companion for declaration merging
 // Type companion — gives consumers access to ProviderAuth.Method / Authorization types
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
 export declare namespace ProviderAuth {
   type Method = S.Method
   type Authorization = S.Authorization
