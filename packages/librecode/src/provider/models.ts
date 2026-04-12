@@ -87,6 +87,7 @@ export namespace ModelsDev {
   export const Data = lazy(async () => {
     const result = await Filesystem.readJson(Flag.LIBRECODE_MODELS_PATH ?? filepath).catch(() => {})
     if (result) return result
+    // @ts-ignore — models-snapshot is a gitignored bundled file; may not exist
     const snapshot = await import("./models-snapshot")
       .then((m) => m.snapshot as Record<string, unknown>)
       .catch(() => undefined)

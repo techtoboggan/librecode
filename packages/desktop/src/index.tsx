@@ -416,8 +416,8 @@ render(() => {
   const platform = createPlatform()
 
   // Fetch sidecar credentials from Rust (available immediately, before health check)
-  const [sidecar] = createResource(() =>
-    commands.awaitInitialization(new Channel<InitStep>() as any) as Promise<ServerReadyData>,
+  const [sidecar] = createResource(
+    () => commands.awaitInitialization(new Channel<InitStep>() as any) as Promise<ServerReadyData>,
   )
 
   const [defaultServer] = createResource(() =>

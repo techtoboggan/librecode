@@ -366,7 +366,7 @@ export async function getLanguage(model: ModelType): Promise<LanguageModelV2> {
     const modelLoader = s.modelLoaders[model.providerID]
     const language = modelLoader
       ? await modelLoader(sdk, model.api.id, provider.options)
-      : sdk.languageModel(model.api.id) as LanguageModelV2
+      : (sdk.languageModel(model.api.id) as LanguageModelV2)
     s.models.set(key, language)
     return language
   } catch (e) {

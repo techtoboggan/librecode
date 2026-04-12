@@ -195,7 +195,7 @@ export function Session() {
     }
   })
 
-  let lastSwitch: string | undefined 
+  let lastSwitch: string | undefined
   sdk.event.on("message.part.updated", (evt) => {
     const part = evt.properties.part
     if (part.type !== "tool") return

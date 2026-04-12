@@ -1,10 +1,4 @@
-import type {
-  PermissionOption,
-  PlanEntry,
-  PromptRequest,
-  ToolCallContent,
-  ToolKind,
-} from "@agentclientprotocol/sdk"
+import type { PermissionOption, PlanEntry, PromptRequest, ToolCallContent, ToolKind } from "@agentclientprotocol/sdk"
 
 import { pathToFileURL } from "node:url"
 import { Provider } from "../provider/provider"

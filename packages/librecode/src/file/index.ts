@@ -456,8 +456,7 @@ export namespace File {
       try {
         const content = await Filesystem.readText(path.join(Instance.directory, filepath))
         results.push({ path: filepath, added: content.split("\n").length, removed: 0, status: "added" })
-      } catch {
-      }
+      } catch {}
     }
     return results
   }
