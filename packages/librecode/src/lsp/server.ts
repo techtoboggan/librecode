@@ -20,8 +20,8 @@ export const LSPServer = registry
 
 // Type-only namespace augmentation so callers can use LSPServer.Info / LSPServer.Handle
 // as types in function signatures.
-// eslint-disable-next-line @typescript-eslint/no-namespace
-export namespace LSPServer {
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace LSPServer {
   export type Handle = import("./servers/web").Handle
   export type Info = import("./servers/web").Info
 }

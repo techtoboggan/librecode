@@ -227,126 +227,133 @@ function renderTree(root: TreeNode, limit: number): string[] {
   return lines
 }
 
-export namespace Ripgrep {
-  const log = _rgLog
+const _rgStats = z.object({
+  elapsed: z.object({ secs: z.number(), nanos: z.number(), human: z.string() }),
+  searches: z.number(),
+  searches_with_match: z.number(),
+  bytes_searched: z.number(),
+  bytes_printed: z.number(),
+  matched_lines: z.number(),
+  matches: z.number(),
+})
 
-  const Stats = z.object({
-    elapsed: z.object({ secs: z.number(), nanos: z.number(), human: z.string() }),
-    searches: z.number(),
-    searches_with_match: z.number(),
-    bytes_searched: z.number(),
-    bytes_printed: z.number(),
-    matched_lines: z.number(),
-    matches: z.number(),
-  })
+const _rgBegin = z.object({
+  type: z.literal("begin"),
+  data: z.object({ path: z.object({ text: z.string() }) }),
+})
 
-  const Begin = z.object({
-    type: z.literal("begin"),
-    data: z.object({ path: z.object({ text: z.string() }) }),
-  })
+const RipgrepMatch = z.object({
+  type: z.literal("match"),
+  data: z.object({
+    path: z.object({ text: z.string() }),
+    lines: z.object({ text: z.string() }),
+    line_number: z.number(),
+    absolute_offset: z.number(),
+    submatches: z.array(z.object({ match: z.object({ text: z.string() }), start: z.number(), end: z.number() })),
+  }),
+})
 
-  export const Match = z.object({
-    type: z.literal("match"),
-    data: z.object({
-      path: z.object({ text: z.string() }),
-      lines: z.object({ text: z.string() }),
-      line_number: z.number(),
-      absolute_offset: z.number(),
-      submatches: z.array(z.object({ match: z.object({ text: z.string() }), start: z.number(), end: z.number() })),
-    }),
-  })
+const _rgEnd = z.object({
+  type: z.literal("end"),
+  data: z.object({
+    path: z.object({ text: z.string() }),
+    binary_offset: z.number().nullable(),
+    stats: _rgStats,
+  }),
+})
 
-  const End = z.object({
-    type: z.literal("end"),
-    data: z.object({
-      path: z.object({ text: z.string() }),
-      binary_offset: z.number().nullable(),
-      stats: Stats,
-    }),
-  })
+const _rgSummary = z.object({
+  type: z.literal("summary"),
+  data: z.object({
+    elapsed_total: z.object({ human: z.string(), nanos: z.number(), secs: z.number() }),
+    stats: _rgStats,
+  }),
+})
 
-  const Summary = z.object({
-    type: z.literal("summary"),
-    data: z.object({
-      elapsed_total: z.object({ human: z.string(), nanos: z.number(), secs: z.number() }),
-      stats: Stats,
-    }),
-  })
+const _rgResult = z.union([_rgBegin, RipgrepMatch, _rgEnd, _rgSummary])
 
-  const Result = z.union([Begin, Match, End, Summary])
+type RipgrepResultType = z.infer<typeof _rgResult>
+type RipgrepMatchType = z.infer<typeof RipgrepMatch>
 
-  export type Result = z.infer<typeof Result>
-  export type Match = z.infer<typeof Match>
-  export type Begin = z.infer<typeof Begin>
-  export type End = z.infer<typeof End>
-  export type Summary = z.infer<typeof Summary>
+// Internal type alias used by ripgrepSearch() return type
+type MessageV2Data = RipgrepMatchType["data"]
 
-  // Re-export errors with the names callers expect
-  export const ExtractionFailedError = RipgrepExtractionFailedError
-  export const UnsupportedPlatformError = RipgrepUnsupportedPlatformError
-  export const DownloadFailedError = RipgrepDownloadFailedError
+const _rgState = lazy(() => resolveRipgrepPath())
 
-  const state = lazy(() => resolveRipgrepPath())
-
-  export async function filepath(): Promise<string> {
-    const { filepath: fp } = await state()
-    return fp
-  }
-
-  export async function* files(input: {
-    cwd: string
-    glob?: string[]
-    hidden?: boolean
-    follow?: boolean
-    maxDepth?: number
-    signal?: AbortSignal
-  }): AsyncGenerator<string> {
-    input.signal?.throwIfAborted()
-    const rgPath = await filepath()
-    const args = buildFilesArgs(rgPath, input)
-    if (!(await assertDirectoryExists(input.cwd))) return
-    const proc = Process.spawn(args, { cwd: input.cwd, stdout: "pipe", stderr: "ignore", abort: input.signal })
-    yield* streamProcLines(proc, input.signal)
-    input.signal?.throwIfAborted()
-  }
-
-  export async function tree(input: { cwd: string; limit?: number; signal?: AbortSignal }): Promise<string> {
-    log.info("tree", input)
-    const allFiles = await Array.fromAsync(Ripgrep.files({ cwd: input.cwd, signal: input.signal }))
-    const root = buildTree(allFiles)
-    const lines = renderTree(root, input.limit ?? 0)
-    return lines.join("\n")
-  }
-
-  export async function search(input: {
-    cwd: string
-    pattern: string
-    glob?: string[]
-    limit?: number
-    follow?: boolean
-  }): Promise<MessageV2Data[]> {
-    const rgPath = await filepath()
-    const args = [rgPath, "--json", "--hidden", "--glob=!.git/*"]
-    if (input.follow) args.push("--follow")
-    if (input.glob) {
-      for (const g of input.glob) args.push(`--glob=${g}`)
-    }
-    if (input.limit) args.push(`--max-count=${input.limit}`)
-    args.push("--")
-    args.push(input.pattern)
-
-    const result = await Process.text(args, { cwd: input.cwd, nothrow: true })
-    if (result.code !== 0) return []
-
-    // Handle both Unix (\n) and Windows (\r\n) line endings
-    const lines = result.text.trim().split(/\r?\n/).filter(Boolean)
-    return lines
-      .map((line) => JSON.parse(line))
-      .map((parsed) => Result.parse(parsed))
-      .filter((r) => r.type === "match")
-      .map((r) => r.data)
-  }
+async function ripgrepFilepath(): Promise<string> {
+  const { filepath: fp } = await _rgState()
+  return fp
 }
 
-// Internal type alias used by search() return type
-type MessageV2Data = Ripgrep.Match["data"]
+async function* ripgrepFiles(input: {
+  cwd: string
+  glob?: string[]
+  hidden?: boolean
+  follow?: boolean
+  maxDepth?: number
+  signal?: AbortSignal
+}): AsyncGenerator<string> {
+  input.signal?.throwIfAborted()
+  const rgPath = await ripgrepFilepath()
+  const args = buildFilesArgs(rgPath, input)
+  if (!(await assertDirectoryExists(input.cwd))) return
+  const proc = Process.spawn(args, { cwd: input.cwd, stdout: "pipe", stderr: "ignore", abort: input.signal })
+  yield* streamProcLines(proc, input.signal)
+  input.signal?.throwIfAborted()
+}
+
+async function ripgrepTree(input: { cwd: string; limit?: number; signal?: AbortSignal }): Promise<string> {
+  _rgLog.info("tree", input)
+  const allFiles = await Array.fromAsync(Ripgrep.files({ cwd: input.cwd, signal: input.signal }))
+  const root = buildTree(allFiles)
+  const lines = renderTree(root, input.limit ?? 0)
+  return lines.join("\n")
+}
+
+async function ripgrepSearch(input: {
+  cwd: string
+  pattern: string
+  glob?: string[]
+  limit?: number
+  follow?: boolean
+}): Promise<MessageV2Data[]> {
+  const rgPath = await ripgrepFilepath()
+  const args = [rgPath, "--json", "--hidden", "--glob=!.git/*"]
+  if (input.follow) args.push("--follow")
+  if (input.glob) {
+    for (const g of input.glob) args.push(`--glob=${g}`)
+  }
+  if (input.limit) args.push(`--max-count=${input.limit}`)
+  args.push("--")
+  args.push(input.pattern)
+
+  const result = await Process.text(args, { cwd: input.cwd, nothrow: true })
+  if (result.code !== 0) return []
+
+  // Handle both Unix (\n) and Windows (\r\n) line endings
+  const lines = result.text.trim().split(/\r?\n/).filter(Boolean)
+  return lines
+    .map((line) => JSON.parse(line))
+    .map((parsed) => _rgResult.parse(parsed))
+    .filter((r) => r.type === "match")
+    .map((r) => r.data)
+}
+
+export const Ripgrep = {
+  Match: RipgrepMatch,
+  ExtractionFailedError: RipgrepExtractionFailedError,
+  UnsupportedPlatformError: RipgrepUnsupportedPlatformError,
+  DownloadFailedError: RipgrepDownloadFailedError,
+  filepath: ripgrepFilepath,
+  files: ripgrepFiles,
+  tree: ripgrepTree,
+  search: ripgrepSearch,
+} as const
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Ripgrep {
+  type Result = RipgrepResultType
+  type Match = RipgrepMatchType
+  type Begin = z.infer<typeof _rgBegin>
+  type End = z.infer<typeof _rgEnd>
+  type Summary = z.infer<typeof _rgSummary>
+}

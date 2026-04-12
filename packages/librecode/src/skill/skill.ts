@@ -24,7 +24,33 @@ const SKILL_EXTERNAL_PATTERN = "skills/**/SKILL.md"
 const SKILL_LIBRECODE_PATTERN = "{skill,skills}/**/SKILL.md"
 const SKILL_GLOB_PATTERN = "**/SKILL.md"
 
-async function addSkill(match: string, skills: Record<string, Skill.Info>, dirs: Set<string>): Promise<void> {
+const SkillInfo = z.object({
+  name: z.string(),
+  description: z.string(),
+  location: z.string(),
+  content: z.string(),
+})
+type SkillInfoType = z.infer<typeof SkillInfo>
+
+const SkillInvalidError = NamedError.create(
+  "SkillInvalidError",
+  z.object({
+    path: z.string(),
+    message: z.string().optional(),
+    issues: z.custom<z.core.$ZodIssue[]>().optional(),
+  }),
+)
+
+const SkillNameMismatchError = NamedError.create(
+  "SkillNameMismatchError",
+  z.object({
+    path: z.string(),
+    expected: z.string(),
+    actual: z.string(),
+  }),
+)
+
+async function addSkill(match: string, skills: Record<string, SkillInfoType>, dirs: Set<string>): Promise<void> {
   const md = await ConfigMarkdown.parse(match).catch((err) => {
     const message = ConfigMarkdown.FrontmatterError.isInstance(err)
       ? err.data.message
@@ -36,7 +62,7 @@ async function addSkill(match: string, skills: Record<string, Skill.Info>, dirs:
 
   if (!md) return
 
-  const parsed = Skill.Info.pick({ name: true, description: true }).safeParse(md.data)
+  const parsed = SkillInfo.pick({ name: true, description: true }).safeParse(md.data)
   if (!parsed.success) return
 
   if (skills[parsed.data.name]) {
@@ -146,97 +172,86 @@ async function scanExternalDirs(addSkillFn: (match: string) => Promise<void>): P
   }
 }
 
-export namespace Skill {
-  export const Info = z.object({
-    name: z.string(),
-    description: z.string(),
-    location: z.string(),
-    content: z.string(),
-  })
-  export type Info = z.infer<typeof Info>
+const skillState = Instance.state(async () => {
+  const skills: Record<string, SkillInfoType> = {}
+  const dirs = new Set<string>()
+  const addSkillToState = (match: string) => addSkill(match, skills, dirs)
 
-  export const InvalidError = NamedError.create(
-    "SkillInvalidError",
-    z.object({
-      path: z.string(),
-      message: z.string().optional(),
-      issues: z.custom<z.core.$ZodIssue[]>().optional(),
-    }),
-  )
-
-  export const NameMismatchError = NamedError.create(
-    "SkillNameMismatchError",
-    z.object({
-      path: z.string(),
-      expected: z.string(),
-      actual: z.string(),
-    }),
-  )
-
-  export const state = Instance.state(async () => {
-    const skills: Record<string, Info> = {}
-    const dirs = new Set<string>()
-    const addSkillToState = (match: string) => addSkill(match, skills, dirs)
-
-    // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
-    // Load global (home) first, then project-level (so project-level overwrites)
-    if (!Flag.LIBRECODE_DISABLE_EXTERNAL_SKILLS) {
-      await scanExternalDirs(addSkillToState)
-    }
-
-    // Scan .librecode/skill/ directories
-    await scanLibrecodeDirs(addSkillToState)
-
-    // Scan additional skill paths from config
-    const config = await Config.get()
-    for (const skillPath of config.skills?.paths ?? []) {
-      await scanConfigPath(skillPath, addSkillToState)
-    }
-
-    // Download and load skills from URLs
-    await scanUrlSkills(config.skills?.urls ?? [], dirs, addSkillToState)
-
-    return {
-      skills,
-      dirs: Array.from(dirs),
-    }
-  })
-
-  export async function get(name: string) {
-    return state().then((x) => x.skills[name])
+  // Scan external skill directories (.claude/skills/, .agents/skills/, etc.)
+  // Load global (home) first, then project-level (so project-level overwrites)
+  if (!Flag.LIBRECODE_DISABLE_EXTERNAL_SKILLS) {
+    await scanExternalDirs(addSkillToState)
   }
 
-  export async function all() {
-    return state().then((x) => Object.values(x.skills))
+  // Scan .librecode/skill/ directories
+  await scanLibrecodeDirs(addSkillToState)
+
+  // Scan additional skill paths from config
+  const config = await Config.get()
+  for (const skillPath of config.skills?.paths ?? []) {
+    await scanConfigPath(skillPath, addSkillToState)
   }
 
-  export async function dirs() {
-    return state().then((x) => x.dirs)
-  }
+  // Download and load skills from URLs
+  await scanUrlSkills(config.skills?.urls ?? [], dirs, addSkillToState)
 
-  export async function available(agent?: AgentInfo) {
-    const list = await all()
-    if (!agent) return list
-    return list.filter((skill) => PermissionNext.evaluate("skill", skill.name, agent.permission).action !== "deny")
+  return {
+    skills,
+    dirs: Array.from(dirs),
   }
+})
 
-  export function fmt(list: Info[], opts: { verbose: boolean }) {
-    if (list.length === 0) {
-      return "No skills are currently available."
-    }
-    if (opts.verbose) {
-      return [
-        "<available_skills>",
-        ...list.flatMap((skill) => [
-          `  <skill>`,
-          `    <name>${skill.name}</name>`,
-          `    <description>${skill.description}</description>`,
-          `    <location>${pathToFileURL(skill.location).href}</location>`,
-          `  </skill>`,
-        ]),
-        "</available_skills>",
-      ].join("\n")
-    }
-    return ["## Available Skills", ...list.flatMap((skill) => `- **${skill.name}**: ${skill.description}`)].join("\n")
+async function skillGet(name: string) {
+  return skillState().then((x) => x.skills[name])
+}
+
+async function skillAll() {
+  return skillState().then((x) => Object.values(x.skills))
+}
+
+async function skillDirs() {
+  return skillState().then((x) => x.dirs)
+}
+
+async function skillAvailable(agent?: AgentInfo) {
+  const list = await skillAll()
+  if (!agent) return list
+  return list.filter((skill) => PermissionNext.evaluate("skill", skill.name, agent.permission).action !== "deny")
+}
+
+function skillFmt(list: SkillInfoType[], opts: { verbose: boolean }) {
+  if (list.length === 0) {
+    return "No skills are currently available."
   }
+  if (opts.verbose) {
+    return [
+      "<available_skills>",
+      ...list.flatMap((skill) => [
+        `  <skill>`,
+        `    <name>${skill.name}</name>`,
+        `    <description>${skill.description}</description>`,
+        `    <location>${pathToFileURL(skill.location).href}</location>`,
+        `  </skill>`,
+      ]),
+      "</available_skills>",
+    ].join("\n")
+  }
+  return ["## Available Skills", ...list.flatMap((skill) => `- **${skill.name}**: ${skill.description}`)].join("\n")
+}
+
+export const Skill = {
+  Info: SkillInfo,
+  InvalidError: SkillInvalidError,
+  NameMismatchError: SkillNameMismatchError,
+  state: skillState,
+  get: skillGet,
+  all: skillAll,
+  dirs: skillDirs,
+  available: skillAvailable,
+  fmt: skillFmt,
+} as const
+
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Skill {
+  type Info = SkillInfoType
 }

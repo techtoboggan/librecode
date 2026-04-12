@@ -33,89 +33,97 @@ function setActive(db: DbClient, accountID: AccountID, orgID: OrgID | null | und
     .run()
 }
 
-export namespace AccountRepo {
-  export function active(): Account | undefined {
-    const row = Database.use((db) => current(db))
-    if (!row) return undefined
-    return decode(row)
-  }
+function accountRepoActive(): Account | undefined {
+  const row = Database.use((db) => current(db))
+  if (!row) return undefined
+  return decode(row)
+}
 
-  export function list(): Account[] {
-    return Database.use((db) =>
-      db
-        .select()
-        .from(AccountTable)
-        .all()
-        .map((row: AccountRow) => decode({ ...row, active_org_id: null })),
-    )
-  }
+function accountRepoList(): Account[] {
+  return Database.use((db) =>
+    db
+      .select()
+      .from(AccountTable)
+      .all()
+      .map((row: AccountRow) => decode({ ...row, active_org_id: null })),
+  )
+}
 
-  export function remove(accountID: AccountID): void {
-    Database.transaction((db) => {
-      db.update(AccountStateTable)
-        .set({ active_account_id: null, active_org_id: null })
-        .where(eq(AccountStateTable.active_account_id, accountID))
-        .run()
-      db.delete(AccountTable).where(eq(AccountTable.id, accountID)).run()
-    })
-  }
+function accountRepoRemove(accountID: AccountID): void {
+  Database.transaction((db) => {
+    db.update(AccountStateTable)
+      .set({ active_account_id: null, active_org_id: null })
+      .where(eq(AccountStateTable.active_account_id, accountID))
+      .run()
+    db.delete(AccountTable).where(eq(AccountTable.id, accountID)).run()
+  })
+}
 
-  export function use(accountID: AccountID, orgID: OrgID | null | undefined): void {
-    Database.use((db) => setActive(db, accountID, orgID))
-  }
+function accountRepoUse(accountID: AccountID, orgID: OrgID | null | undefined): void {
+  Database.use((db) => setActive(db, accountID, orgID))
+}
 
-  export function getRow(accountID: AccountID): AccountRow | undefined {
-    return Database.use((db) => db.select().from(AccountTable).where(eq(AccountTable.id, accountID)).get())
-  }
+function accountRepoGetRow(accountID: AccountID): AccountRow | undefined {
+  return Database.use((db) => db.select().from(AccountTable).where(eq(AccountTable.id, accountID)).get())
+}
 
-  export function persistToken(input: {
-    accountID: AccountID
-    accessToken: AccessToken
-    refreshToken: RefreshToken
-    expiry: number | null | undefined
-  }): void {
-    Database.use((db) =>
-      db
-        .update(AccountTable)
-        .set({
-          access_token: input.accessToken,
-          refresh_token: input.refreshToken,
-          token_expiry: input.expiry ?? null,
-        })
-        .where(eq(AccountTable.id, input.accountID))
-        .run(),
-    )
-  }
+function accountRepoPersistToken(input: {
+  accountID: AccountID
+  accessToken: AccessToken
+  refreshToken: RefreshToken
+  expiry: number | null | undefined
+}): void {
+  Database.use((db) =>
+    db
+      .update(AccountTable)
+      .set({
+        access_token: input.accessToken,
+        refresh_token: input.refreshToken,
+        token_expiry: input.expiry ?? null,
+      })
+      .where(eq(AccountTable.id, input.accountID))
+      .run(),
+  )
+}
 
-  export function persistAccount(input: {
-    id: AccountID
-    email: string
-    url: string
-    accessToken: AccessToken
-    refreshToken: RefreshToken
-    expiry: number
-    orgID: OrgID | null | undefined
-  }): void {
-    Database.transaction((db) => {
-      db.insert(AccountTable)
-        .values({
-          id: input.id,
-          email: input.email,
-          url: input.url,
+function accountRepoPersistAccount(input: {
+  id: AccountID
+  email: string
+  url: string
+  accessToken: AccessToken
+  refreshToken: RefreshToken
+  expiry: number
+  orgID: OrgID | null | undefined
+}): void {
+  Database.transaction((db) => {
+    db.insert(AccountTable)
+      .values({
+        id: input.id,
+        email: input.email,
+        url: input.url,
+        access_token: input.accessToken,
+        refresh_token: input.refreshToken,
+        token_expiry: input.expiry,
+      })
+      .onConflictDoUpdate({
+        target: AccountTable.id,
+        set: {
           access_token: input.accessToken,
           refresh_token: input.refreshToken,
           token_expiry: input.expiry,
-        })
-        .onConflictDoUpdate({
-          target: AccountTable.id,
-          set: {
-            access_token: input.accessToken,
-            refresh_token: input.refreshToken,
-            token_expiry: input.expiry,
-          },
-        })
-        .run()
-      setActive(db, input.id, input.orgID)
-    })
-  }
+        },
+      })
+      .run()
+    setActive(db, input.id, input.orgID)
+  })
 }
+
+export const AccountRepo = {
+  active: accountRepoActive,
+  list: accountRepoList,
+  remove: accountRepoRemove,
+  use: accountRepoUse,
+  getRow: accountRepoGetRow,
+  persistToken: accountRepoPersistToken,
+  persistAccount: accountRepoPersistAccount,
+} as const

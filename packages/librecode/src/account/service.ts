@@ -138,144 +138,155 @@ async function fetchUser(url: string, accessToken: AccessToken): Promise<z.infer
   return User.parse(data)
 }
 
-export namespace AccountService {
-  export function active(): Account | undefined {
-    return AccountRepo.active()
-  }
-
-  export function list(): Account[] {
-    return AccountRepo.list()
-  }
-
-  export async function orgsByAccount(): Promise<readonly AccountOrgs[]> {
-    const accounts = AccountRepo.list()
-    const results: AccountOrgs[] = []
-    const settled = await Promise.allSettled(
-      accounts.map(async (account) => {
-        const o = await orgs(account.id)
-        return { account, orgs: o }
-      }),
-    )
-    for (const result of settled) {
-      if (result.status === "fulfilled") {
-        results.push(result.value)
-      }
-    }
-    return results
-  }
-
-  export function remove(accountID: AccountID): void {
-    AccountRepo.remove(accountID)
-  }
-
-  export function use(accountID: AccountID, orgID: OrgID | null | undefined): void {
-    AccountRepo.use(accountID, orgID)
-  }
-
-  export async function orgs(accountID: AccountID): Promise<readonly Org[]> {
-    const resolved = await resolveAccessAsync(accountID)
-    if (!resolved) return []
-    return fetchOrgs(resolved.account.url, resolved.accessToken)
-  }
-
-  export async function config(accountID: AccountID, orgID: OrgID): Promise<Record<string, unknown> | undefined> {
-    const resolved = await resolveAccessAsync(accountID)
-    if (!resolved) return undefined
-
-    const response = await fetchWithRetry(`${resolved.account.url}/api/config`, {
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${resolved.accessToken}`,
-        "x-org-id": orgID,
-      },
-    })
-
-    if (response.status === 404) return undefined
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-
-    const data = await response.json()
-    const parsed = RemoteConfig.parse(data)
-    return parsed.config as Record<string, unknown>
-  }
-
-  export async function token(accountID: AccountID): Promise<AccessToken | undefined> {
-    const resolved = await resolveAccessAsync(accountID)
-    if (!resolved) return undefined
-    return resolved.accessToken
-  }
-
-  export async function login(server: string): Promise<Login> {
-    const body = JSON.stringify({ client_id: clientId })
-
-    const data = await fetchJson<unknown>(`${server}/auth/device/code`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body,
-    })
-
-    const parsed = DeviceAuth.parse(data)
-    return new Login({
-      code: DeviceCode.make(parsed.device_code),
-      user: UserCode.make(parsed.user_code),
-      url: `${server}${parsed.verification_uri_complete}`,
-      server,
-      expiry: parsed.expires_in * 1000,
-      interval: parsed.interval * 1000,
-    })
-  }
-
-  export async function poll(input: Login): Promise<PollResult> {
-    const body = JSON.stringify({
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-      device_code: input.code,
-      client_id: clientId,
-    })
-
-    const response = await fetch(`${input.server}/auth/device/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body,
-    })
-
-    if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-
-    const data = await response.json()
-
-    // Try parsing as error first
-    const errorResult = DeviceTokenError.safeParse(data)
-    if (errorResult.success && errorResult.data.error) {
-      const err = errorResult.data
-      if (err.error === "authorization_pending") return new PollPending()
-      if (err.error === "slow_down") return new PollSlow()
-      if (err.error === "expired_token") return new PollExpired()
-      if (err.error === "access_denied") return new PollDenied()
-      return new PollError({ cause: err.error })
-    }
-
-    const parsed = DeviceTokenSuccess.parse(data)
-    const accessToken = parsed.access_token as AccessToken
-
-    const [account, remoteOrgs] = await Promise.all([
-      fetchUser(input.server, accessToken),
-      fetchOrgs(input.server, accessToken),
-    ])
-
-    const firstOrgID: OrgID | null = remoteOrgs.length > 0 ? (remoteOrgs[0].id as OrgID) : null
-
-    const now = Date.now()
-    const expiry = now + parsed.expires_in * 1000
-    const refreshToken = parsed.refresh_token as RefreshToken
-
-    AccountRepo.persistAccount({
-      id: account.id as AccountID,
-      email: account.email,
-      url: input.server,
-      accessToken,
-      refreshToken,
-      expiry,
-      orgID: firstOrgID,
-    })
-
-    return new PollSuccess({ email: account.email })
-  }
+function accountServiceActive(): Account | undefined {
+  return AccountRepo.active()
 }
+
+function accountServiceList(): Account[] {
+  return AccountRepo.list()
+}
+
+async function accountServiceOrgsByAccount(): Promise<readonly AccountOrgs[]> {
+  const accounts = AccountRepo.list()
+  const results: AccountOrgs[] = []
+  const settled = await Promise.allSettled(
+    accounts.map(async (account) => {
+      const o = await accountServiceOrgs(account.id)
+      return { account, orgs: o }
+    }),
+  )
+  for (const result of settled) {
+    if (result.status === "fulfilled") {
+      results.push(result.value)
+    }
+  }
+  return results
+}
+
+function accountServiceRemove(accountID: AccountID): void {
+  AccountRepo.remove(accountID)
+}
+
+function accountServiceUse(accountID: AccountID, orgID: OrgID | null | undefined): void {
+  AccountRepo.use(accountID, orgID)
+}
+
+async function accountServiceOrgs(accountID: AccountID): Promise<readonly Org[]> {
+  const resolved = await resolveAccessAsync(accountID)
+  if (!resolved) return []
+  return fetchOrgs(resolved.account.url, resolved.accessToken)
+}
+
+async function accountServiceConfig(accountID: AccountID, orgID: OrgID): Promise<Record<string, unknown> | undefined> {
+  const resolved = await resolveAccessAsync(accountID)
+  if (!resolved) return undefined
+
+  const response = await fetchWithRetry(`${resolved.account.url}/api/config`, {
+    headers: {
+      Accept: "application/json",
+      Authorization: `Bearer ${resolved.accessToken}`,
+      "x-org-id": orgID,
+    },
+  })
+
+  if (response.status === 404) return undefined
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+
+  const data = await response.json()
+  const parsed = RemoteConfig.parse(data)
+  return parsed.config as Record<string, unknown>
+}
+
+async function accountServiceToken(accountID: AccountID): Promise<AccessToken | undefined> {
+  const resolved = await resolveAccessAsync(accountID)
+  if (!resolved) return undefined
+  return resolved.accessToken
+}
+
+async function accountServiceLogin(server: string): Promise<Login> {
+  const body = JSON.stringify({ client_id: clientId })
+
+  const data = await fetchJson<unknown>(`${server}/auth/device/code`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body,
+  })
+
+  const parsed = DeviceAuth.parse(data)
+  return new Login({
+    code: DeviceCode.make(parsed.device_code),
+    user: UserCode.make(parsed.user_code),
+    url: `${server}${parsed.verification_uri_complete}`,
+    server,
+    expiry: parsed.expires_in * 1000,
+    interval: parsed.interval * 1000,
+  })
+}
+
+async function accountServicePoll(input: Login): Promise<PollResult> {
+  const body = JSON.stringify({
+    grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+    device_code: input.code,
+    client_id: clientId,
+  })
+
+  const response = await fetch(`${input.server}/auth/device/token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body,
+  })
+
+  if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+
+  const data = await response.json()
+
+  // Try parsing as error first
+  const errorResult = DeviceTokenError.safeParse(data)
+  if (errorResult.success && errorResult.data.error) {
+    const err = errorResult.data
+    if (err.error === "authorization_pending") return new PollPending()
+    if (err.error === "slow_down") return new PollSlow()
+    if (err.error === "expired_token") return new PollExpired()
+    if (err.error === "access_denied") return new PollDenied()
+    return new PollError({ cause: err.error })
+  }
+
+  const parsed = DeviceTokenSuccess.parse(data)
+  const accessToken = parsed.access_token as AccessToken
+
+  const [account, remoteOrgs] = await Promise.all([
+    fetchUser(input.server, accessToken),
+    fetchOrgs(input.server, accessToken),
+  ])
+
+  const firstOrgID: OrgID | null = remoteOrgs.length > 0 ? (remoteOrgs[0].id as OrgID) : null
+
+  const now = Date.now()
+  const expiry = now + parsed.expires_in * 1000
+  const refreshToken = parsed.refresh_token as RefreshToken
+
+  AccountRepo.persistAccount({
+    id: account.id as AccountID,
+    email: account.email,
+    url: input.server,
+    accessToken,
+    refreshToken,
+    expiry,
+    orgID: firstOrgID,
+  })
+
+  return new PollSuccess({ email: account.email })
+}
+
+export const AccountService = {
+  active: accountServiceActive,
+  list: accountServiceList,
+  orgsByAccount: accountServiceOrgsByAccount,
+  remove: accountServiceRemove,
+  use: accountServiceUse,
+  orgs: accountServiceOrgs,
+  config: accountServiceConfig,
+  token: accountServiceToken,
+  login: accountServiceLogin,
+  poll: accountServicePoll,
+} as const

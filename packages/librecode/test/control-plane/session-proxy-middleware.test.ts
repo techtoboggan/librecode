@@ -18,11 +18,9 @@ afterEach(async () => {
 })
 
 const original = Flag.LIBRECODE_EXPERIMENTAL_WORKSPACES
-// @ts-expect-error don't do this normally, but it works
 Flag.LIBRECODE_EXPERIMENTAL_WORKSPACES = true
 
 afterEach(() => {
-  // @ts-expect-error don't do this normally, but it works
   Flag.LIBRECODE_EXPERIMENTAL_WORKSPACES = original
 })
 
