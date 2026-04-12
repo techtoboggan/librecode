@@ -18,12 +18,20 @@ jobs:
         include:
           - platform: linux
             os: ubuntu-latest
+            cli_src: packages/librecode/dist/librecode-linux-x64/bin/librecode
+            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
           - platform: macos-arm64
             os: macos-14
+            cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
+            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
           - platform: macos-x64
             os: macos-13
+            cli_src: packages/librecode/dist/librecode-darwin-x64/bin/librecode
+            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-apple-darwin
           - platform: windows
             os: windows-latest
+            cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
+            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-pc-windows-msvc.exe
 
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +44,14 @@ jobs:
       - name: Build CLI
         run: bun run script/build.ts --single
         working-directory: packages/librecode
+
+      # Copy the built CLI binary to the Tauri sidecar location with the
+      # platform-specific Rust target triple name that Tauri's externalBin expects
+      - name: Stage CLI sidecar
+        shell: bash
+        run: |
+          mkdir -p packages/desktop/src-tauri/sidecars
+          cp "${{ matrix.cli_src }}" "${{ matrix.cli_dst }}"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable

@@ -39,8 +39,10 @@ jobs:
       #     cache-key: flatpak-builder-${{ github.sha }}
 
       - name: Validate AppStream metadata
+        # appstreamcli is pre-installed in the gnome-47 Fedora container;
+        # do not use apt-get (this is not a Debian/Ubuntu image).
+        # The || true means an invalid metainfo file is non-fatal.
         run: |
-          apt-get install -y --no-install-recommends appstream
           appstreamcli validate \
             packages/desktop/src-tauri/release/appstream.metainfo.xml \
             || true
