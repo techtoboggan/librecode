@@ -5,6 +5,7 @@ import { BusEvent, type BusEventDefinition } from "./bus-event"
 import { GlobalBus } from "./global"
 
 const log = Log.create({ service: "bus" })
+// biome-ignore lint/suspicious/noExplicitAny: subscriber callbacks accept specific types via generic constraints
 type Subscription = (event: any) => void
 
 const InstanceDisposed = BusEvent.define(
@@ -16,7 +17,7 @@ const InstanceDisposed = BusEvent.define(
 
 const state = Instance.state(
   () => {
-    const subscriptions = new Map<any, Subscription[]>()
+    const subscriptions = new Map<string, Subscription[]>()
 
     return {
       subscriptions,
@@ -81,10 +82,12 @@ function busOnce<Definition extends BusEventDefinition>(
   })
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: subscriber callbacks accept specific types via generic constraints
 function busSubscribeAll(callback: (event: any) => void) {
   return raw("*", callback)
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: subscribe callbacks accept typed events via generic constraints
 function raw(type: string, callback: (event: any) => void) {
   log.info("subscribing", { type })
   const subscriptions = state().subscriptions

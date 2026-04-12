@@ -9,15 +9,15 @@ export const Level = z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).meta({ ref: "Log
 export type Level = z.infer<typeof Level>
 
 export type Logger = {
-  debug(message?: any, extra?: Record<string, any>): void
-  info(message?: any, extra?: Record<string, any>): void
-  error(message?: any, extra?: Record<string, any>): void
-  warn(message?: any, extra?: Record<string, any>): void
+  debug(message?: unknown, extra?: Record<string, unknown>): void
+  info(message?: unknown, extra?: Record<string, unknown>): void
+  error(message?: unknown, extra?: Record<string, unknown>): void
+  warn(message?: unknown, extra?: Record<string, unknown>): void
   tag(key: string, value: string): Logger
   clone(): Logger
   time(
     message: string,
-    extra?: Record<string, any>,
+    extra?: Record<string, unknown>,
   ): {
     stop(): void
     [Symbol.dispose](): void
@@ -50,7 +50,7 @@ function logFile() {
   return logpath
 }
 
-let write = (msg: any) => {
+let write: (msg: string) => unknown = (msg: string) => {
   process.stderr.write(msg)
   return msg.length
 }
@@ -65,7 +65,7 @@ async function logInit(options: Options) {
   )
   await fs.truncate(logpath).catch(() => {})
   const stream = createWriteStream(logpath, { flags: "a" })
-  write = async (msg: any) => {
+  write = async (msg: string) => {
     return new Promise((resolve, reject) => {
       stream.write(msg, (err) => {
         if (err) reject(err)
@@ -95,7 +95,7 @@ function formatError(error: Error, depth = 0): string {
 }
 
 let last = Date.now()
-function logCreate(tags?: Record<string, any>): Logger {
+function logCreate(tags?: Record<string, unknown>): Logger {
   tags = tags || {}
 
   const service = tags.service
@@ -106,7 +106,7 @@ function logCreate(tags?: Record<string, any>): Logger {
     }
   }
 
-  function build(message: any, extra?: Record<string, any>) {
+  function build(message: unknown, extra?: Record<string, unknown>) {
     const prefix = Object.entries({
       ...tags,
       ...extra,
@@ -116,7 +116,7 @@ function logCreate(tags?: Record<string, any>): Logger {
         const prefix = `${key}=`
         if (value instanceof Error) return prefix + formatError(value)
         if (typeof value === "object") return prefix + JSON.stringify(value)
-        return prefix + value
+        return prefix + String(value)
       })
       .join(" ")
     const next = new Date()
@@ -125,22 +125,22 @@ function logCreate(tags?: Record<string, any>): Logger {
     return `${[next.toISOString().split(".")[0], `+${diff}ms`, prefix, message].filter(Boolean).join(" ")}\n`
   }
   const result: Logger = {
-    debug(message?: any, extra?: Record<string, any>) {
+    debug(message?: unknown, extra?: Record<string, unknown>) {
       if (shouldLog("DEBUG")) {
         write(`DEBUG ${build(message, extra)}`)
       }
     },
-    info(message?: any, extra?: Record<string, any>) {
+    info(message?: unknown, extra?: Record<string, unknown>) {
       if (shouldLog("INFO")) {
         write(`INFO  ${build(message, extra)}`)
       }
     },
-    error(message?: any, extra?: Record<string, any>) {
+    error(message?: unknown, extra?: Record<string, unknown>) {
       if (shouldLog("ERROR")) {
         write(`ERROR ${build(message, extra)}`)
       }
     },
-    warn(message?: any, extra?: Record<string, any>) {
+    warn(message?: unknown, extra?: Record<string, unknown>) {
       if (shouldLog("WARN")) {
         write(`WARN  ${build(message, extra)}`)
       }
@@ -152,7 +152,7 @@ function logCreate(tags?: Record<string, any>): Logger {
     clone() {
       return logCreate({ ...tags })
     },
-    time(message: string, extra?: Record<string, any>) {
+    time(message: string, extra?: Record<string, unknown>) {
       const now = Date.now()
       result.info(message, { status: "started", ...extra })
       function stop() {

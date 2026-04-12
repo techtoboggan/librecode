@@ -96,7 +96,7 @@ describe("memory: abort controller leak", () => {
 
     // Cleanup after measuring
     timers.forEach(clearTimeout)
-    controllers.forEach((c) => c.abort())
+    controllers.forEach((c) => { c.abort() })
     closureMap.clear()
 
     // Test NEW pattern: bind
@@ -126,7 +126,7 @@ describe("memory: abort controller leak", () => {
 
     // Cleanup after measuring
     timers2.forEach(clearTimeout)
-    controllers2.forEach((c) => c.abort())
+    controllers2.forEach((c) => { c.abort() })
     handlers2.length = 0
 
     console.log(`NEW pattern (bind): ${newGrowth.toFixed(2)} MB growth`)

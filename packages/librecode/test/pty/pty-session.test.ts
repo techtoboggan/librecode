@@ -46,7 +46,7 @@ describe("pty", () => {
           await wait(() => pick(log, id!).length >= 3)
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
-          off.forEach((x) => x())
+          off.forEach((x) => { x() })
           if (id) await Pty.remove(id)
         }
       },
@@ -79,7 +79,7 @@ describe("pty", () => {
           await wait(() => pick(log, id!).length >= 3)
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
-          off.forEach((x) => x())
+          off.forEach((x) => { x() })
           if (id) await Pty.remove(id)
         }
       },

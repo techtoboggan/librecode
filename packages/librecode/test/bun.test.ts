@@ -43,6 +43,7 @@ describe("BunProc registry configuration", () => {
       expect(installFunction).toContain('"--exact"')
       expect(installFunction).toContain('"--cwd"')
       expect(installFunction).toContain("Global.Path.cache")
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: checking source code contains this literal string
       expect(installFunction).toContain("`${pkg}@${version}`")
 
       // Verify no registry argument is added

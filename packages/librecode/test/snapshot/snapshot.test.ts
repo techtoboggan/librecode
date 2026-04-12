@@ -38,10 +38,11 @@ test("tracks deleted files correctly", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`rm ${tmp.path}/a.txt`.quiet()
 
-      expect((await Snapshot.patch(before!)).files).toContain(fwd(tmp.path, "a.txt"))
+      expect((await Snapshot.patch(beforeHash)).files).toContain(fwd(tmp.path, "a.txt"))
     },
   })
 })
@@ -53,10 +54,11 @@ test("revert should remove new files", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/new.txt`, "NEW")
 
-      await Snapshot.revert([await Snapshot.patch(before!)])
+      await Snapshot.revert([await Snapshot.patch(beforeHash)])
 
       expect(
         await fs
@@ -75,11 +77,12 @@ test("revert in subdirectory", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`mkdir -p ${tmp.path}/sub`.quiet()
       await Filesystem.write(`${tmp.path}/sub/file.txt`, "SUB")
 
-      await Snapshot.revert([await Snapshot.patch(before!)])
+      await Snapshot.revert([await Snapshot.patch(beforeHash)])
 
       expect(
         await fs
@@ -100,6 +103,7 @@ test("multiple file operations", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`rm ${tmp.path}/a.txt`.quiet()
       await Filesystem.write(`${tmp.path}/c.txt`, "C")
@@ -107,7 +111,7 @@ test("multiple file operations", async () => {
       await Filesystem.write(`${tmp.path}/dir/d.txt`, "D")
       await Filesystem.write(`${tmp.path}/b.txt`, "MODIFIED")
 
-      await Snapshot.revert([await Snapshot.patch(before!)])
+      await Snapshot.revert([await Snapshot.patch(beforeHash)])
 
       expect(await fs.readFile(`${tmp.path}/a.txt`, "utf-8")).toBe(tmp.extra.aContent)
       expect(
@@ -130,10 +134,11 @@ test("empty directory handling", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`mkdir ${tmp.path}/empty`.quiet()
 
-      expect((await Snapshot.patch(before!)).files.length).toBe(0)
+      expect((await Snapshot.patch(beforeHash)).files.length).toBe(0)
     },
   })
 })
@@ -145,10 +150,11 @@ test("binary file handling", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/image.png`, new Uint8Array([0x89, 0x50, 0x4e, 0x47]))
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(fwd(tmp.path, "image.png"))
 
       await Snapshot.revert([patch])
@@ -169,10 +175,11 @@ test("symlink handling", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await fs.symlink(`${tmp.path}/a.txt`, `${tmp.path}/link.txt`, "file")
 
-      expect((await Snapshot.patch(before!)).files).toContain(fwd(tmp.path, "link.txt"))
+      expect((await Snapshot.patch(beforeHash)).files).toContain(fwd(tmp.path, "link.txt"))
     },
   })
 })
@@ -184,10 +191,11 @@ test("large file handling", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/large.txt`, "x".repeat(1024 * 1024))
 
-      expect((await Snapshot.patch(before!)).files).toContain(fwd(tmp.path, "large.txt"))
+      expect((await Snapshot.patch(beforeHash)).files).toContain(fwd(tmp.path, "large.txt"))
     },
   })
 })
@@ -199,11 +207,12 @@ test("nested directory revert", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`mkdir -p ${tmp.path}/level1/level2/level3`.quiet()
       await Filesystem.write(`${tmp.path}/level1/level2/level3/deep.txt`, "DEEP")
 
-      await Snapshot.revert([await Snapshot.patch(before!)])
+      await Snapshot.revert([await Snapshot.patch(beforeHash)])
 
       expect(
         await fs
@@ -222,12 +231,13 @@ test("special characters in filenames", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/file with spaces.txt`, "SPACES")
       await Filesystem.write(`${tmp.path}/file-with-dashes.txt`, "DASHES")
       await Filesystem.write(`${tmp.path}/file_with_underscores.txt`, "UNDERSCORES")
 
-      const files = (await Snapshot.patch(before!)).files
+      const files = (await Snapshot.patch(beforeHash)).files
       expect(files).toContain(fwd(tmp.path, "file with spaces.txt"))
       expect(files).toContain(fwd(tmp.path, "file-with-dashes.txt"))
       expect(files).toContain(fwd(tmp.path, "file_with_underscores.txt"))
@@ -275,13 +285,14 @@ test("revert non-existent file", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Try to revert a file that doesn't exist in the snapshot
       // This should not crash
       expect(
         Snapshot.revert([
           {
-            hash: before!,
+            hash: beforeHash,
             files: [`${tmp.path}/nonexistent.txt`],
           },
         ]),
@@ -297,6 +308,7 @@ test("unicode filenames", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       const unicodeFiles = [
         { path: fwd(tmp.path, "文件.txt"), content: "chinese content" },
@@ -309,7 +321,7 @@ test("unicode filenames", async () => {
         await Filesystem.write(file.path, file.content)
       }
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files.length).toBe(4)
 
       for (const file of unicodeFiles) {
@@ -343,11 +355,12 @@ test.skip("unicode filenames modification and restore", async () => {
 
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(chineseFile, "modified chinese")
       await Filesystem.write(cyrillicFile, "modified cyrillic")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(chineseFile)
       expect(patch.files).toContain(cyrillicFile)
 
@@ -366,12 +379,13 @@ test("unicode filenames in subdirectories", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`mkdir -p "${tmp.path}/目录/подкаталог"`.quiet()
       const deepFile = fwd(tmp.path, "目录", "подкаталог", "文件.txt")
       await Filesystem.write(deepFile, "deep unicode content")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(deepFile)
 
       await Snapshot.revert([patch])
@@ -392,13 +406,14 @@ test("very long filenames", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       const longName = `${"a".repeat(200)}.txt`
       const longFile = fwd(tmp.path, longName)
 
       await Filesystem.write(longFile, "long filename content")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(longFile)
 
       await Snapshot.revert([patch])
@@ -419,12 +434,13 @@ test("hidden files", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/.hidden`, "hidden content")
       await Filesystem.write(`${tmp.path}/.gitignore`, "*.log")
       await Filesystem.write(`${tmp.path}/.config`, "config content")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(fwd(tmp.path, ".hidden"))
       expect(patch.files).toContain(fwd(tmp.path, ".gitignore"))
       expect(patch.files).toContain(fwd(tmp.path, ".config"))
@@ -439,13 +455,14 @@ test("nested symlinks", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`mkdir -p ${tmp.path}/sub/dir`.quiet()
       await Filesystem.write(`${tmp.path}/sub/dir/target.txt`, "target content")
       await fs.symlink(`${tmp.path}/sub/dir/target.txt`, `${tmp.path}/sub/dir/link.txt`, "file")
       await fs.symlink(`${tmp.path}/sub`, `${tmp.path}/sub-link`, "dir")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(fwd(tmp.path, "sub", "dir", "link.txt"))
       expect(patch.files).toContain(fwd(tmp.path, "sub-link"))
     },
@@ -459,13 +476,14 @@ test("file permissions and ownership changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Change permissions multiple times
       await $`chmod 600 ${tmp.path}/a.txt`.quiet()
       await $`chmod 755 ${tmp.path}/a.txt`.quiet()
       await $`chmod 644 ${tmp.path}/a.txt`.quiet()
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       // Note: git doesn't track permission changes on existing files by default
       // Only tracks executable bit when files are first added
       expect(patch.files.length).toBe(0)
@@ -480,11 +498,12 @@ test("circular symlinks", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Create circular symlink
       await fs.symlink(`${tmp.path}/circular`, `${tmp.path}/circular`, "dir").catch(() => {})
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files.length).toBeGreaterThanOrEqual(0) // Should not crash
     },
   })
@@ -497,12 +516,13 @@ test("gitignore changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/.gitignore`, "*.ignored")
       await Filesystem.write(`${tmp.path}/test.ignored`, "ignored content")
       await Filesystem.write(`${tmp.path}/normal.txt`, "normal content")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
 
       // Should track gitignore itself
       expect(patch.files).toContain(fwd(tmp.path, ".gitignore"))
@@ -521,6 +541,7 @@ test("git info exclude changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       const file = `${tmp.path}/.git/info/exclude`
       const text = await Bun.file(file).text()
@@ -528,12 +549,13 @@ test("git info exclude changes", async () => {
       await Bun.write(`${tmp.path}/ignored.txt`, "ignored content")
       await Bun.write(`${tmp.path}/normal.txt`, "normal content")
 
-      const patch = await Snapshot.patch(before!)
+      const patch = await Snapshot.patch(beforeHash)
       expect(patch.files).toContain(fwd(tmp.path, "normal.txt"))
       expect(patch.files).not.toContain(fwd(tmp.path, "ignored.txt"))
 
       const after = await Snapshot.track()
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const afterHash = after as string
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.some((x) => x.file === "normal.txt")).toBe(true)
       expect(diffs.some((x) => x.file === "ignored.txt")).toBe(false)
     },
@@ -555,6 +577,7 @@ test("git info exclude keeps global excludes", async () => {
       try {
         const before = await Snapshot.track()
         expect(before).toBeTruthy()
+        const beforeHash = before as string
 
         const file = `${tmp.path}/.git/info/exclude`
         const text = await Bun.file(file).text()
@@ -564,7 +587,7 @@ test("git info exclude keeps global excludes", async () => {
         await Bun.write(`${tmp.path}/info.tmp`, "info content")
         await Bun.write(`${tmp.path}/normal.txt`, "normal content")
 
-        const patch = await Snapshot.patch(before!)
+        const patch = await Snapshot.patch(beforeHash)
         expect(patch.files).toContain(fwd(tmp.path, "normal.txt"))
         expect(patch.files).not.toContain(fwd(tmp.path, "global.tmp"))
         expect(patch.files).not.toContain(fwd(tmp.path, "info.tmp"))
@@ -583,6 +606,7 @@ test("concurrent file operations during patch", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Start creating files
       const createPromise = (async () => {
@@ -594,7 +618,7 @@ test("concurrent file operations during patch", async () => {
       })()
 
       // Get patch while files are being created
-      const patchPromise = Snapshot.patch(before!)
+      const patchPromise = Snapshot.patch(beforeHash)
 
       await createPromise
       const patch = await patchPromise
@@ -614,8 +638,9 @@ test("snapshot state isolation between projects", async () => {
     directory: tmp1.path,
     fn: async () => {
       const before1 = await Snapshot.track()
+      const before1Hash = before1 as string
       await Filesystem.write(`${tmp1.path}/project1.txt`, "project1 content")
-      const patch1 = await Snapshot.patch(before1!)
+      const patch1 = await Snapshot.patch(before1Hash)
       expect(patch1.files).toContain(fwd(tmp1.path, "project1.txt"))
     },
   })
@@ -624,8 +649,9 @@ test("snapshot state isolation between projects", async () => {
     directory: tmp2.path,
     fn: async () => {
       const before2 = await Snapshot.track()
+      const before2Hash = before2 as string
       await Filesystem.write(`${tmp2.path}/project2.txt`, "project2 content")
-      const patch2 = await Snapshot.patch(before2!)
+      const patch2 = await Snapshot.patch(before2Hash)
       expect(patch2.files).toContain(fwd(tmp2.path, "project2.txt"))
 
       // Ensure project1 files don't appear in project2
@@ -652,11 +678,12 @@ test("patch detects changes in secondary worktree", async () => {
       fn: async () => {
         const before = await Snapshot.track()
         expect(before).toBeTruthy()
+        const beforeHash = before as string
 
         const worktreeFile = fwd(worktreePath, "worktree.txt")
         await Filesystem.write(worktreeFile, "worktree content")
 
-        const patch = await Snapshot.patch(before!)
+        const patch = await Snapshot.patch(beforeHash)
         expect(patch.files).toContain(worktreeFile)
       },
     })
@@ -686,11 +713,12 @@ test("revert only removes files in invoking worktree", async () => {
       fn: async () => {
         const before = await Snapshot.track()
         expect(before).toBeTruthy()
+        const beforeHash = before as string
 
         const worktreeFile = fwd(worktreePath, "worktree.txt")
         await Filesystem.write(worktreeFile, "worktree content")
 
-        const patch = await Snapshot.patch(before!)
+        const patch = await Snapshot.patch(beforeHash)
         await Snapshot.revert([patch])
 
         expect(
@@ -728,13 +756,14 @@ test("diff reports worktree-only/shared edits and ignores primary-only", async (
       fn: async () => {
         const before = await Snapshot.track()
         expect(before).toBeTruthy()
+        const beforeHash = before as string
 
         await Filesystem.write(`${worktreePath}/worktree-only.txt`, "worktree diff content")
         await Filesystem.write(`${worktreePath}/shared.txt`, "worktree edit")
         await Filesystem.write(`${tmp.path}/shared.txt`, "primary edit")
         await Filesystem.write(`${tmp.path}/primary-only.txt`, "primary change")
 
-        const diff = await Snapshot.diff(before!)
+        const diff = await Snapshot.diff(beforeHash)
         expect(diff).toContain("worktree-only.txt")
         expect(diff).toContain("shared.txt")
         expect(diff).not.toContain("primary-only.txt")
@@ -755,14 +784,15 @@ test("track with no changes returns same hash", async () => {
     fn: async () => {
       const hash1 = await Snapshot.track()
       expect(hash1).toBeTruthy()
+      const hash1Value = hash1 as string
 
       // Track again with no changes
       const hash2 = await Snapshot.track()
-      expect(hash2).toBe(hash1!)
+      expect(hash2).toBe(hash1Value)
 
       // Track again
       const hash3 = await Snapshot.track()
-      expect(hash3).toBe(hash1!)
+      expect(hash3).toBe(hash1Value)
     },
   })
 })
@@ -774,13 +804,14 @@ test("diff function with various changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Make various changes
       await $`rm ${tmp.path}/a.txt`.quiet()
       await Filesystem.write(`${tmp.path}/new.txt`, "new content")
       await Filesystem.write(`${tmp.path}/b.txt`, "modified content")
 
-      const diff = await Snapshot.diff(before!)
+      const diff = await Snapshot.diff(beforeHash)
       expect(diff).toContain("a.txt")
       expect(diff).toContain("b.txt")
       expect(diff).toContain("new.txt")
@@ -795,6 +826,7 @@ test("restore function", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       // Make changes
       await $`rm ${tmp.path}/a.txt`.quiet()
@@ -802,7 +834,7 @@ test("restore function", async () => {
       await Filesystem.write(`${tmp.path}/b.txt`, "modified")
 
       // Restore to original state
-      await Snapshot.restore(before!)
+      await Snapshot.restore(beforeHash)
 
       expect(
         await fs
@@ -834,10 +866,11 @@ test("revert should not delete files that existed but were deleted in snapshot",
 
       const snapshot2 = await Snapshot.track()
       expect(snapshot2).toBeTruthy()
+      const snapshot2Hash = snapshot2 as string
 
       await Filesystem.write(`${tmp.path}/a.txt`, "recreated content")
 
-      const patch = await Snapshot.patch(snapshot2!)
+      const patch = await Snapshot.patch(snapshot2Hash)
       expect(patch.files).toContain(fwd(tmp.path, "a.txt"))
 
       await Snapshot.revert([patch])
@@ -861,12 +894,13 @@ test("revert preserves file that existed in snapshot when deleted then recreated
 
       const snapshot = await Snapshot.track()
       expect(snapshot).toBeTruthy()
+      const snapshotHash = snapshot as string
 
       await $`rm ${tmp.path}/existing.txt`.quiet()
       await Filesystem.write(`${tmp.path}/existing.txt`, "recreated")
       await Filesystem.write(`${tmp.path}/newfile.txt`, "new")
 
-      const patch = await Snapshot.patch(snapshot!)
+      const patch = await Snapshot.patch(snapshotHash)
       expect(patch.files).toContain(fwd(tmp.path, "existing.txt"))
       expect(patch.files).toContain(fwd(tmp.path, "newfile.txt"))
 
@@ -900,6 +934,7 @@ test("diffFull sets status based on git change type", async () => {
 
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/grow.txt`, "one\ntwo\n")
       await Filesystem.write(`${tmp.path}/trim.txt`, "line1\n")
@@ -908,8 +943,9 @@ test("diffFull sets status based on git change type", async () => {
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(4)
 
       const added = diffs.find((d) => d.file === "added.txt")
@@ -942,13 +978,15 @@ test("diffFull with new file additions", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/new.txt`, "new content")
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const newFileDiff = diffs[0]
@@ -968,13 +1006,15 @@ test("diffFull with file modifications", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/b.txt`, "modified content")
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const modifiedFileDiff = diffs[0]
@@ -994,13 +1034,15 @@ test("diffFull with file deletions", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await $`rm ${tmp.path}/a.txt`.quiet()
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const removedFileDiff = diffs[0]
@@ -1020,13 +1062,15 @@ test("diffFull with multiple line additions", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/multi.txt`, "line1\nline2\nline3")
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const multiDiff = diffs[0]
@@ -1046,14 +1090,16 @@ test("diffFull with addition and deletion", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/added.txt`, "added content")
       await $`rm ${tmp.path}/a.txt`.quiet()
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(2)
 
       const addedFileDiff = diffs.find((d) => d.file === "added.txt")
@@ -1080,6 +1126,7 @@ test("diffFull with multiple additions and deletions", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/multi1.txt`, "line1\nline2\nline3")
       await Filesystem.write(`${tmp.path}/multi2.txt`, "single line")
@@ -1088,8 +1135,9 @@ test("diffFull with multiple additions and deletions", async () => {
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(4)
 
       const multi1Diff = diffs.find((d) => d.file === "multi1.txt")
@@ -1122,11 +1170,13 @@ test("diffFull with no changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(0)
     },
   })
@@ -1139,13 +1189,15 @@ test("diffFull with binary file changes", async () => {
     fn: async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/binary.bin`, new Uint8Array([0x00, 0x01, 0x02, 0x03]))
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const binaryDiff = diffs[0]
@@ -1163,13 +1215,15 @@ test("diffFull with whitespace changes", async () => {
       await Filesystem.write(`${tmp.path}/whitespace.txt`, "line1\nline2")
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
+      const beforeHash = before as string
 
       await Filesystem.write(`${tmp.path}/whitespace.txt`, "line1\n\nline2\n")
 
       const after = await Snapshot.track()
       expect(after).toBeTruthy()
+      const afterHash = after as string
 
-      const diffs = await Snapshot.diffFull(before!, after!)
+      const diffs = await Snapshot.diffFull(beforeHash, afterHash)
       expect(diffs.length).toBe(1)
 
       const whitespaceDiff = diffs[0]

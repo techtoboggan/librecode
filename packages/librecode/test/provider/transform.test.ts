@@ -524,11 +524,11 @@ describe("ProviderTransform.schema - gemini combiner nodes", () => {
       return
     }
     if (Array.isArray(node)) {
-      node.forEach((item, i) => walk(item, cb, [...path, i]))
+      node.forEach((item, i) => { walk(item, cb, [...path, i]) })
       return
     }
     cb(node, path)
-    Object.entries(node).forEach(([key, value]) => walk(value, cb, [...path, key]))
+    Object.entries(node).forEach(([key, value]) => { walk(value, cb, [...path, key]) })
   }
 
   test("keeps edits.items.anyOf without adding type", () => {
