@@ -97,6 +97,49 @@ jobs:
         run: cargo tauri build --config tauri.prod.conf.json --no-sign --bundles ${{ matrix.bundles }}
         working-directory: packages/desktop/src-tauri
 
+      - name: Submit Desktop RPM to COPR
+        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/')
+        env:
+          COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
+          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Submitting librecode-desktop $VERSION to COPR"
+
+          # Install RPM build tools and COPR CLI
+          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
+          pip3 install --quiet copr-cli
+
+          # Configure COPR credentials
+          mkdir -p ~/.config
+          printf '[copr-cli]\nlogin = %s\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
+            "$COPR_API_LOGIN" "$COPR_API_TOKEN" > ~/.config/copr
+          chmod 600 ~/.config/copr
+
+          # Find the Tauri-built RPM (name depends on version)
+          RPM=$(ls packages/desktop/src-tauri/target/release/bundle/rpm/*.rpm | grep -v src)
+          echo "Found RPM: $RPM"
+
+          # Extract the RPM contents into a staging directory
+          mkdir -p /tmp/desktop-srpm-stage
+          cd /tmp/desktop-srpm-stage
+          rpm2cpio "$OLDPWD/$RPM" | cpio -idm
+
+          # Create a tarball of the extracted contents (filesystem paths)
+          tar -czf ~/librecode-desktop-x86_64.tar.gz .
+          cd "$OLDPWD"
+
+          # Build the SRPM
+          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
+          cp ~/librecode-desktop-x86_64.tar.gz ~/rpmbuild/SOURCES/
+          sed "s/^Version:.*/Version:        ${VERSION}/" \
+            packages/rpm/librecode-desktop.spec > ~/rpmbuild/SPECS/librecode-desktop.spec
+          rpmbuild -bs ~/rpmbuild/SPECS/librecode-desktop.spec
+
+          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-desktop-${VERSION}-*.src.rpm)
+          echo "Submitting: $SRPM"
+          copr-cli build techtoboggan/librecode "$SRPM" --nowait
+
       - uses: actions/upload-artifact@v4
         with:
           name: librecode-desktop-${{ matrix.platform }}
