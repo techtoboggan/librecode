@@ -25,6 +25,7 @@ export class ACPSessionManager {
         },
         { throwOnError: true },
       )
+      // biome-ignore lint/style/noNonNullAssertion: throwOnError guarantees data is present
       .then((x) => x.data!)
 
     const sessionId = session.id
@@ -57,6 +58,7 @@ export class ACPSessionManager {
         },
         { throwOnError: true },
       )
+      // biome-ignore lint/style/noNonNullAssertion: throwOnError guarantees data is present
       .then((x) => x.data!)
 
     const resolvedModel = model

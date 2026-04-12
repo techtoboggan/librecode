@@ -94,8 +94,11 @@ export function Prompt(props: PromptProps) {
 
   const textareaKeybindings = useTextareaKeybindings()
 
+  // biome-ignore lint/style/noNonNullAssertion: style IDs are always registered at init
   const fileStyleId = syntax().getStyleId("extmark.file")!
+  // biome-ignore lint/style/noNonNullAssertion: style IDs are always registered at init
   const agentStyleId = syntax().getStyleId("extmark.agent")!
+  // biome-ignore lint/style/noNonNullAssertion: style IDs are always registered at init
   const pasteStyleId = syntax().getStyleId("extmark.paste")!
   let promptPartTypeId = 0
 

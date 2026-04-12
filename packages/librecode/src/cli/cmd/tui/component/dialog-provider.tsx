@@ -61,11 +61,13 @@ async function handleOAuthMethod(
   })
   if (result.data?.method === "code") {
     input.dialog.replace(() => (
+      // biome-ignore lint/style/noNonNullAssertion: data presence checked by method guard above
       <CodeMethod providerID={input.provider.id} title={method.label} index={index} authorization={result.data!} />
     ))
   }
   if (result.data?.method === "auto") {
     input.dialog.replace(() => (
+      // biome-ignore lint/style/noNonNullAssertion: data presence checked by method guard above
       <AutoMethod providerID={input.provider.id} title={method.label} index={index} authorization={result.data!} />
     ))
   }

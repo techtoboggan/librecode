@@ -31,6 +31,7 @@ export function Task(props: ToolProps<typeof TaskTool>) {
     )
   })
 
+  // biome-ignore lint/suspicious/noExplicitAny: part state has dynamic title property
   const current = createMemo(() => tools().findLast((x) => (x.state as any).title))
 
   const isRunning = createMemo(() => props.part.state.status === "running")
@@ -47,6 +48,8 @@ export function Task(props: ToolProps<typeof TaskTool>) {
     const content = [`Task ${props.input.description}`]
 
     if (isRunning() && tools().length > 0) {
+      // biome-ignore lint/style/noNonNullAssertion: current() checked non-null in if condition
+      // biome-ignore lint/suspicious/noExplicitAny: part state has dynamic title property
       if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()?.state as any).title}`)
       else content.push(`↳ ${tools().length} toolcalls`)
     }

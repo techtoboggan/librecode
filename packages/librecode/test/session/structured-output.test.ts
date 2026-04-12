@@ -164,6 +164,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     })
 
     // AI SDK tool type doesn't expose id, but we set it internally
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal id not in AI SDK types
     expect((tool as any).id).toBe("StructuredOutput")
   })
 
@@ -193,6 +194,7 @@ describe("structured-output.createStructuredOutputTool", () => {
 
     // AI SDK wraps schema in { jsonSchema: {...} }
     expect(tool.inputSchema).toBeDefined()
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.company).toBeDefined()
     expect(inputSchema.jsonSchema?.properties?.founded).toBeDefined()
@@ -211,6 +213,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     })
 
     // AI SDK wraps schema in { jsonSchema: {...} }
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.$schema).toBeUndefined()
   })
@@ -230,6 +233,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     const result = await tool.execute?.(testArgs, {
       toolCallId: "test-call-id",
       messages: [],
+      // biome-ignore lint/suspicious/noExplicitAny: test passes undefined for unused signal
       abortSignal: undefined as any,
     })
 
@@ -256,6 +260,7 @@ describe("structured-output.createStructuredOutputTool", () => {
 
     // The schema requires both 'name' and 'age'
     expect(tool.inputSchema).toBeDefined()
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.required).toContain("name")
     expect(inputSchema.jsonSchema?.required).toContain("age")
@@ -278,6 +283,7 @@ describe("structured-output.createStructuredOutputTool", () => {
 
     // The schema defines 'count' as a number
     expect(tool.inputSchema).toBeDefined()
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.count?.type).toBe("number")
   })
@@ -311,6 +317,7 @@ describe("structured-output.createStructuredOutputTool", () => {
       {
         toolCallId: "test-call-id",
         messages: [],
+        // biome-ignore lint/suspicious/noExplicitAny: test passes undefined for unused signal
         abortSignal: undefined as any,
       },
     )
@@ -319,6 +326,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     expect(validResult.metadata.valid).toBe(true)
 
     // Verify schema has correct nested structure
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.user?.type).toBe("object")
     expect(inputSchema.jsonSchema?.properties?.user?.properties?.name?.type).toBe("string")
@@ -350,6 +358,7 @@ describe("structured-output.createStructuredOutputTool", () => {
       {
         toolCallId: "test-call-id",
         messages: [],
+        // biome-ignore lint/suspicious/noExplicitAny: test passes undefined for unused signal
         abortSignal: undefined as any,
       },
     )
@@ -358,6 +367,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     expect(validResult.metadata.valid).toBe(true)
 
     // Verify schema has correct array structure
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK inputSchema type doesn't expose jsonSchema
     const inputSchema = tool.inputSchema as any
     expect(inputSchema.jsonSchema?.properties?.tags?.type).toBe("array")
     expect(inputSchema.jsonSchema?.properties?.tags?.items?.type).toBe("string")

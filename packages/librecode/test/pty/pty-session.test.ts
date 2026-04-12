@@ -40,10 +40,13 @@ describe("pty", () => {
           const info = await Pty.create({ command: "/bin/ls", title: "ls" })
           id = info.id
 
+          // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           await wait(() => pick(log, id!).includes("exited"))
 
           await Pty.remove(id)
+          // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           await wait(() => pick(log, id!).length >= 3)
+          // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
           off.forEach((x) => { x() })
@@ -76,7 +79,9 @@ describe("pty", () => {
           await sleep(100)
 
           await Pty.remove(id)
+          // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           await wait(() => pick(log, id!).length >= 3)
+          // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
           off.forEach((x) => { x() })

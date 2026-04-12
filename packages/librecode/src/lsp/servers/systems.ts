@@ -54,6 +54,7 @@ export const Gopls: Info = {
       })
     }
     return {
+      // biome-ignore lint/style/noNonNullAssertion: bin is either set by which() or reassigned after install; early returns handle failures
       process: spawn(bin!, {
         cwd: root,
       }),
@@ -94,6 +95,7 @@ export const Rubocop: Info = {
       })
     }
     return {
+      // biome-ignore lint/style/noNonNullAssertion: bin is either set by which() or reassigned after install; early returns handle failures
       process: spawn(bin!, ["--lsp"], {
         cwd: root,
       }),

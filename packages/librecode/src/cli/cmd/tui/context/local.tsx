@@ -57,6 +57,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           return agents()
         },
         current() {
+          // biome-ignore lint/style/noNonNullAssertion: current is set to a valid agent name
           return agents().find((x) => x.name === agentStore.current)!
         },
         set(name: string) {
@@ -139,6 +140,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
 
       Filesystem.readJson(filePath)
+        // biome-ignore lint/suspicious/noExplicitAny: JSON shape unknown at parse time
         .then((x: any) => {
           if (Array.isArray(x.recent)) setModelStore("recent", x.recent)
           if (Array.isArray(x.favorite)) setModelStore("favorite", x.favorite)

@@ -22,6 +22,7 @@ describe("LSPClient interop", () => {
   })
 
   test("handles workspace/workspaceFolders request", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: spawnFakeServer returns untyped handle
     const handle = spawnFakeServer() as any
 
     const client = await Instance.provide({
@@ -46,6 +47,7 @@ describe("LSPClient interop", () => {
   })
 
   test("handles client/registerCapability request", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: spawnFakeServer returns untyped handle
     const handle = spawnFakeServer() as any
 
     const client = await Instance.provide({
@@ -70,6 +72,7 @@ describe("LSPClient interop", () => {
   })
 
   test("handles client/unregisterCapability request", async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: spawnFakeServer returns untyped handle
     const handle = spawnFakeServer() as any
 
     const client = await Instance.provide({

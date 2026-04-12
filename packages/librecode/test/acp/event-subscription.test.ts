@@ -170,6 +170,7 @@ function createFakeAgent() {
       },
     },
     session: {
+      // biome-ignore lint/suspicious/noExplicitAny: fake SDK stub — params shape not needed
       create: async (_params?: any) => {
         calls.sessionCreate++
         return {
@@ -179,6 +180,7 @@ function createFakeAgent() {
           },
         }
       },
+      // biome-ignore lint/suspicious/noExplicitAny: fake SDK stub — params shape not needed
       get: async (_params?: any) => {
         return {
           data: {
@@ -190,6 +192,7 @@ function createFakeAgent() {
       messages: async () => {
         return { data: [] }
       },
+      // biome-ignore lint/suspicious/noExplicitAny: fake SDK stub — params shape not needed
       message: async (params?: any) => {
         // Return a message with parts that can be looked up by partID
         return {
@@ -253,15 +256,18 @@ function createFakeAgent() {
         return { data: true }
       },
     },
+    // biome-ignore lint/suspicious/noExplicitAny: fake SDK stub doesn't implement full interface
   } as any
 
   const agent = new ACP.Agent(connection, {
     sdk,
     defaultModel: { providerID: "librecode", modelID: "big-pickle" },
+    // biome-ignore lint/suspicious/noExplicitAny: partial options stub for test
   } as any)
 
   const stop = () => {
     controller.close()
+    // biome-ignore lint/suspicious/noExplicitAny: accessing private eventAbort field
     ;(agent as any).eventAbort.abort()
   }
 
@@ -277,7 +283,9 @@ describe("acp.agent event subscription", () => {
         const { agent, controller, updates, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         controller.push({
@@ -292,6 +300,7 @@ describe("acp.agent event subscription", () => {
               delta: "hello",
             },
           },
+          // biome-ignore lint/suspicious/noExplicitAny: partial event shape for test
         } as any)
 
         await new Promise((r) => setTimeout(r, 10))
@@ -312,7 +321,9 @@ describe("acp.agent event subscription", () => {
         const { agent, controller, chunks, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         const tokenA = ["ALPHA_", "111", "_X"]
@@ -331,6 +342,7 @@ describe("acp.agent event subscription", () => {
                 delta,
               },
             },
+            // biome-ignore lint/suspicious/noExplicitAny: partial event shape for test
           } as any)
         }
 
@@ -364,11 +376,16 @@ describe("acp.agent event subscription", () => {
         const { agent, calls, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         await agent.loadSession({ sessionId, cwd, mcpServers: [] } as any)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         await agent.loadSession({ sessionId, cwd, mcpServers: [] } as any)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         await agent.loadSession({ sessionId, cwd, mcpServers: [] } as any)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         await agent.loadSession({ sessionId, cwd, mcpServers: [] } as any)
 
         expect(calls.eventSubscribe).toBe(1)
@@ -385,12 +402,14 @@ describe("acp.agent event subscription", () => {
       fn: async () => {
         const permissionReplies: string[] = []
         const { agent, controller, stop, sdk } = createFakeAgent()
+        // biome-ignore lint/suspicious/noExplicitAny: fake SDK method override
         sdk.permission.reply = async (params: any) => {
           permissionReplies.push(params.requestID)
           return { data: true }
         }
         const cwd = "/tmp/librecode-acp-test"
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         controller.push({
@@ -406,6 +425,7 @@ describe("acp.agent event subscription", () => {
               always: [],
             },
           },
+          // biome-ignore lint/suspicious/noExplicitAny: partial event shape for test
         } as any)
 
         await new Promise((r) => setTimeout(r, 20))
@@ -441,6 +461,7 @@ describe("acp.agent event subscription", () => {
           return originalRequestPermission(params)
         }
 
+        // biome-ignore lint/suspicious/noExplicitAny: fake SDK method override
         sdk.permission.reply = async (params: any) => {
           permissionReplies.push(params.requestID)
           return { data: true }
@@ -448,7 +469,9 @@ describe("acp.agent event subscription", () => {
 
         const cwd = "/tmp/librecode-acp-test"
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionA = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionB = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         // Push permission.asked for session A (will block)
@@ -465,6 +488,7 @@ describe("acp.agent event subscription", () => {
               always: [],
             },
           },
+          // biome-ignore lint/suspicious/noExplicitAny: partial event shape for test
         } as any)
 
         // Give time for permission handling to start
@@ -483,6 +507,7 @@ describe("acp.agent event subscription", () => {
               delta: "session_b_message",
             },
           },
+          // biome-ignore lint/suspicious/noExplicitAny: partial event shape for test
         } as any)
 
         // Wait for session B's message to be processed
@@ -511,6 +536,7 @@ describe("acp.agent event subscription", () => {
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hello", description: "run command" }
 
@@ -545,6 +571,7 @@ describe("acp.agent event subscription", () => {
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
 
         controller.push(
@@ -590,6 +617,7 @@ describe("acp.agent event subscription", () => {
       fn: async () => {
         const { agent, controller, sessionUpdates, stop, sdk } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hi", description: "run command" }
 
@@ -617,6 +645,7 @@ describe("acp.agent event subscription", () => {
           ],
         })
 
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         await agent.loadSession({ sessionId, cwd, mcpServers: [] } as any)
         controller.push(
           toolEvent(sessionId, cwd, {
@@ -649,6 +678,7 @@ describe("acp.agent event subscription", () => {
       fn: async () => {
         const { agent, controller, sessionUpdates, stop } = createFakeAgent()
         const cwd = "/tmp/librecode-acp-test"
+        // biome-ignore lint/suspicious/noExplicitAny: partial session options for test
         const sessionId = await agent.newSession({ cwd, mcpServers: [] } as any).then((x) => x.sessionId)
         const input = { command: "echo hello", description: "run command" }
 

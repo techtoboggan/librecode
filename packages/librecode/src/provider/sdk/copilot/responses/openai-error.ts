@@ -16,6 +16,7 @@ export const openaiErrorDataSchema = z.object({
 
 export type OpenAIErrorData = z.infer<typeof openaiErrorDataSchema>
 
+// biome-ignore lint/suspicious/noExplicitAny: vendor function has opaque return type
 export const openaiFailedResponseHandler: any = createJsonErrorResponseHandler({
   errorSchema: openaiErrorDataSchema,
   errorToMessage: (data) => data.error.message,

@@ -359,6 +359,7 @@ describe("Project.update", () => {
     const { project } = await Project.fromDirectory(tmp.path)
 
     let eventFired = false
+    // biome-ignore lint/suspicious/noExplicitAny: event payload shape varies by event type
     let eventPayload: any = null
 
     GlobalBus.on("event", (data) => {

@@ -53,6 +53,7 @@ const DEFAULT_CHUNK_TIMEOUT = 300_000
 
 const log = Log.create({ service: "provider" })
 
+// biome-ignore lint/suspicious/noExplicitAny: provider factory functions have varying option shapes
 const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
   "@ai-sdk/amazon-bedrock": createAmazonBedrock,
   "@ai-sdk/anthropic": createAnthropic,

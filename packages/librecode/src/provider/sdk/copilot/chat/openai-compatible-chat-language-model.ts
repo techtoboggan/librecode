@@ -36,6 +36,7 @@ export type OpenAICompatibleChatConfig = {
   url: (options: { modelId: string; path: string }) => string
   fetch?: FetchFunction
   includeUsage?: boolean
+  // biome-ignore lint/suspicious/noExplicitAny: ProviderErrorStructure vendor generic requires any
   errorStructure?: ProviderErrorStructure<any>
   metadataExtractor?: MetadataExtractor
 
@@ -116,6 +117,7 @@ function buildGenerateContent(
         type: "tool-call",
         toolCallId: toolCall.id ?? generateId(),
         toolName: toolCall.function.name,
+        // biome-ignore lint/style/noNonNullAssertion: tool call arguments are always present in OpenAI chat responses
         input: toolCall.function.arguments!,
         providerMetadata: opaqueMetadata,
       })

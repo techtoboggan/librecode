@@ -7,6 +7,7 @@ import { Instance } from "../../src/project/instance"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 
+// biome-ignore lint/style/noNonNullAssertion: env var is always set by test preload
 const managedConfigDir = process.env.LIBRECODE_TEST_MANAGED_CONFIG_DIR!
 
 afterEach(async () => {

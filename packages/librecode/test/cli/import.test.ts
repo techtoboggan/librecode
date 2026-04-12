@@ -34,12 +34,17 @@ test("only attaches share auth headers for same-origin URLs", () => {
 // transformShareData tests
 test("transforms share data to storage format", () => {
   const data: ShareData[] = [
+    // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
     { type: "session", data: { id: "sess-1", title: "Test" } as any },
+    // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
     { type: "message", data: { id: "msg-1", sessionID: "sess-1" } as any },
+    // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
     { type: "part", data: { id: "part-1", messageID: "msg-1" } as any },
+    // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
     { type: "part", data: { id: "part-2", messageID: "msg-1" } as any },
   ]
 
+  // biome-ignore lint/style/noNonNullAssertion: test asserts result is non-null
   const result = transformShareData(data)!
 
   expect(result.info.id).toBe("sess-1")
@@ -49,6 +54,8 @@ test("transforms share data to storage format", () => {
 
 test("returns null for invalid share data", () => {
   expect(transformShareData([])).toBeNull()
+  // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
   expect(transformShareData([{ type: "message", data: {} as any }])).toBeNull()
+  // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
   expect(transformShareData([{ type: "session", data: { id: "s" } as any }])).toBeNull() // no messages
 })

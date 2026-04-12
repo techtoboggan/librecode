@@ -1,5 +1,6 @@
 import { createContext, type ParentProps, Show, useContext } from "solid-js"
 
+// biome-ignore lint/suspicious/noExplicitAny: generic Props constraint requires any for unknown context shapes
 export function createSimpleContext<T, Props extends Record<string, any>>(input: {
   name: string
   init: ((input: Props) => T) | (() => T)

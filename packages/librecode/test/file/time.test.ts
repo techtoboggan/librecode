@@ -59,11 +59,13 @@ describe("file/time", () => {
         directory: tmp.path,
         fn: async () => {
           FileTime.read(sessionID, filepath)
+          // biome-ignore lint/style/noNonNullAssertion: just called FileTime.read so value is present
           const first = FileTime.get(sessionID, filepath)!
 
           await new Promise((resolve) => setTimeout(resolve, 10))
 
           FileTime.read(sessionID, filepath)
+          // biome-ignore lint/style/noNonNullAssertion: just called FileTime.read so value is present
           const second = FileTime.get(sessionID, filepath)!
 
           expect(second.getTime()).toBeGreaterThanOrEqual(first.getTime())
@@ -351,6 +353,7 @@ describe("file/time", () => {
           await fs.writeFile(filepath, "modified", "utf-8")
 
           const newStat = Filesystem.stat(filepath)
+          // biome-ignore lint/style/noNonNullAssertion: stat is present for a file we just read
           expect(newStat?.mtime.getTime()).toBeGreaterThan(originalStat!.mtime.getTime())
 
           await expect(FileTime.assert(sessionID, filepath)).rejects.toThrow()

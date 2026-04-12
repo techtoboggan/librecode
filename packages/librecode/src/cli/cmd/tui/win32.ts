@@ -73,6 +73,7 @@ export function win32InstallCtrlCGuard() {
   if (!load()) return
   if (unhook) return unhook
 
+  // biome-ignore lint/suspicious/noExplicitAny: process.stdin internal setRawMode override requires any cast
   const stdin = process.stdin as any
   const original = stdin.setRawMode
 

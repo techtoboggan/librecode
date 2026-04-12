@@ -48,6 +48,7 @@ export function DialogForkFromTimeline(props: { sessionID: string; onMove: (mess
             messageID: message.id,
           })
           const initialPrompt = buildInitialPrompt(sync.data.part[message.id] ?? [])
+          // biome-ignore lint/style/noNonNullAssertion: data is present after successful API call
           route.navigate({ sessionID: forked.data!.id, type: "session", initialPrompt })
           dialog.clear()
         },

@@ -28,6 +28,7 @@ test("set cleans up pre-existing trailing-slash entry", async () => {
   const data = await Auth.all()
   const keys = Object.keys(data).filter((k) => k.includes("example.com"))
   expect(keys).toEqual(["https://example.com"])
+  // biome-ignore lint/style/noNonNullAssertion: key existence confirmed by expect above
   const entry = data["https://example.com"]!
   expect(entry.type).toBe("wellknown")
   if (entry.type === "wellknown") expect(entry.token).toBe("new")

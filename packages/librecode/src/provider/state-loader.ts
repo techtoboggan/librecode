@@ -71,6 +71,7 @@ function fromModelsDevModel(provider: ModelsDev.Provider, model: ModelsDev.Model
     family: model.family,
     api: {
       id: model.id,
+      // biome-ignore lint/style/noNonNullAssertion: provider.api is required when model doesn't override it
       url: model.provider?.api ?? provider.api!,
       npm: model.provider?.npm ?? provider.npm ?? "@ai-sdk/openai-compatible",
     },

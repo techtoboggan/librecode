@@ -328,6 +328,7 @@ describe("tool.bash truncation", () => {
           },
           ctx,
         )
+        // biome-ignore lint/suspicious/noExplicitAny: metadata type not exported
         expect((result.metadata as any).truncated).toBe(true)
         expect(result.output).toContain("truncated")
         expect(result.output).toContain("The tool call succeeded but the output was truncated")
@@ -348,6 +349,7 @@ describe("tool.bash truncation", () => {
           },
           ctx,
         )
+        // biome-ignore lint/suspicious/noExplicitAny: metadata type not exported
         expect((result.metadata as any).truncated).toBe(true)
         expect(result.output).toContain("truncated")
         expect(result.output).toContain("The tool call succeeded but the output was truncated")
@@ -367,6 +369,7 @@ describe("tool.bash truncation", () => {
           },
           ctx,
         )
+        // biome-ignore lint/suspicious/noExplicitAny: metadata type not exported
         expect((result.metadata as any).truncated).toBe(false)
         const eol = process.platform === "win32" ? "\r\n" : "\n"
         expect(result.output).toBe(`hello${eol}`)
@@ -387,8 +390,10 @@ describe("tool.bash truncation", () => {
           },
           ctx,
         )
+        // biome-ignore lint/suspicious/noExplicitAny: metadata type not exported
         expect((result.metadata as any).truncated).toBe(true)
 
+        // biome-ignore lint/suspicious/noExplicitAny: metadata type not exported
         const filepath = (result.metadata as any).outputPath
         expect(filepath).toBeTruthy()
 

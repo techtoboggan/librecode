@@ -15,6 +15,7 @@ const ctx = {
 }
 
 describe("tool.question", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: spy type depends on mock implementation
   let askSpy: any
 
   beforeEach(() => {

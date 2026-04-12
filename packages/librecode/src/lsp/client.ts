@@ -39,7 +39,9 @@ async function create(input: { serverID: string; server: LSPServer.Handle; root:
   l.info("starting client")
 
   const connection = createMessageConnection(
+    // biome-ignore lint/suspicious/noExplicitAny: vscode-jsonrpc expects NodeJS streams via any cast
     new StreamMessageReader(input.server.process.stdout as any),
+    // biome-ignore lint/suspicious/noExplicitAny: vscode-jsonrpc expects NodeJS streams via any cast
     new StreamMessageWriter(input.server.process.stdin as any),
   )
 

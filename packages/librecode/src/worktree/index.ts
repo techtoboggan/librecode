@@ -503,6 +503,7 @@ async function pickRemote(cwd: string): Promise<string> {
     .map((line) => line.trim())
     .filter(Boolean)
   if (remotes.includes("origin")) return "origin"
+  // biome-ignore lint/style/noNonNullAssertion: length check guarantees element exists
   if (remotes.length === 1) return remotes[0]!
   if (remotes.includes("upstream")) return "upstream"
   return ""

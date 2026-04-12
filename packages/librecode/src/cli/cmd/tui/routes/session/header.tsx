@@ -44,6 +44,7 @@ const WorkspaceInfo = (props: { workspace: Accessor<string | undefined> }) => {
 export function Header() {
   const route = useRouteData("session")
   const sync = useSync()
+  // biome-ignore lint/style/noNonNullAssertion: header renders only when session exists
   const session = createMemo(() => sync.session.get(route.sessionID)!)
   const messages = createMemo(() => sync.data.message[route.sessionID] ?? [])
 

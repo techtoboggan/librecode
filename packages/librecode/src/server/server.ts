@@ -614,6 +614,7 @@ function serverListen(opts: { port: number; hostname: string; mdns?: boolean; md
     opts.hostname !== "localhost" &&
     opts.hostname !== "::1"
   if (shouldPublishMDNS) {
+    // biome-ignore lint/style/noNonNullAssertion: Bun.serve always assigns a port after start
     MDNS.publish(server.port!, opts.mdnsDomain)
   } else if (opts.mdns) {
     log.warn("mDNS enabled but hostname is loopback; skipping mDNS publish")

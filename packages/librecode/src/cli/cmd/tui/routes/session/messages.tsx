@@ -146,7 +146,10 @@ export function AssistantMessage(props: { message: AssistantMsg; parts: Part[]; 
               <Dynamic
                 last={index() === props.parts.length - 1}
                 component={component()}
-                part={part as any}
+                part={
+                  // biome-ignore lint/suspicious/noExplicitAny: Dynamic component receives typed part via discriminated union at runtime
+                  part as any
+                }
                 message={props.message}
               />
             </Show>

@@ -158,6 +158,7 @@ function createKnightRiderTrail(options: AdvancedGradientOptions): ColorGenerato
       cachedState = getScannerState(frameIndex, totalChars, options)
     }
 
+    // biome-ignore lint/style/noNonNullAssertion: cachedState is always set in the if-block above
     const state = cachedState!
     const index = calculateColorIndex(frameIndex, charIndex, totalChars, options, state)
 

@@ -96,6 +96,7 @@ function createModel(fetchFn: ReturnType<typeof mock>) {
     provider: "copilot.chat",
     url: () => "https://api.test.com/chat/completions",
     headers: () => ({ Authorization: "Bearer test-token" }),
+    // biome-ignore lint/suspicious/noExplicitAny: mock fetch doesn't match exact Fetch type signature
     fetch: fetchFn as any,
   })
 }

@@ -56,6 +56,7 @@ export function DialogMessage(props: {
     const result = await sdk.client.session.fork({ sessionID: props.sessionID, messageID: props.messageID })
     const msg = message()
     const initialPrompt = msg ? buildInitialPrompt(sync.data.part[msg.id]) : undefined
+    // biome-ignore lint/style/noNonNullAssertion: data is present after successful API call
     route.navigate({ sessionID: result.data!.id, type: "session", initialPrompt })
     dialog.clear()
   }

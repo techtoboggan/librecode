@@ -29,6 +29,7 @@ describe("pty", () => {
           }
 
           // Connect "a" first with ws.
+          // biome-ignore lint/suspicious/noExplicitAny: minimal ws stub for test
           Pty.connect(a.id, ws as any)
 
           // Now "reuse" the same ws object for another connection.
@@ -36,6 +37,7 @@ describe("pty", () => {
           ws.send = (data: unknown) => {
             outB.push(typeof data === "string" ? data : Buffer.from(data as Uint8Array).toString("utf8"))
           }
+          // biome-ignore lint/suspicious/noExplicitAny: minimal ws stub for test
           Pty.connect(b.id, ws as any)
 
           // Clear connect metadata writes.
@@ -78,6 +80,7 @@ describe("pty", () => {
           }
 
           // Connect "a" first.
+          // biome-ignore lint/suspicious/noExplicitAny: minimal ws stub for test
           Pty.connect(a.id, ws as any)
           outA.length = 0
 
@@ -121,6 +124,7 @@ describe("pty", () => {
             },
           }
 
+          // biome-ignore lint/suspicious/noExplicitAny: minimal ws stub for test
           Pty.connect(a.id, ws as any)
           out.length = 0
 

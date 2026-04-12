@@ -129,6 +129,7 @@ cli = cli
 try {
   await cli.parse()
 } catch (e) {
+  // biome-ignore lint/suspicious/noExplicitAny: error data structure varies by error type
   const data: Record<string, any> = {}
   if (e instanceof NamedError) {
     const obj = e.toObject()

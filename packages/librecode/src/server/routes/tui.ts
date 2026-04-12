@@ -16,6 +16,7 @@ const TuiRequest = z.object({
 type TuiRequest = z.infer<typeof TuiRequest>
 
 const request = new AsyncQueue<TuiRequest>()
+// biome-ignore lint/suspicious/noExplicitAny: TUI response queue holds heterogeneous response shapes
 const response = new AsyncQueue<any>()
 
 export async function callTui(ctx: Context) {
@@ -345,6 +346,7 @@ export const TuiRoutes = lazy(() =>
       ),
       async (c) => {
         const evt = c.req.valid("json")
+        // biome-ignore lint/style/noNonNullAssertion: evt.type is validated against TuiEvent union by zod before this point
         await Bus.publish(Object.values(TuiEvent).find((def) => def.type === evt.type)!, evt.properties)
         return c.json(true)
       },

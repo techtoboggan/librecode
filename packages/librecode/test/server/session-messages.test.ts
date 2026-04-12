@@ -53,6 +53,7 @@ describe("session messages endpoint", () => {
         expect(cursor).toBeTruthy()
         expect(a.headers.get("link")).toContain('rel="next"')
 
+        // biome-ignore lint/style/noNonNullAssertion: cursor truthy confirmed by expect above
         const b = await app.request(`/session/${session.id}/message?limit=2&before=${encodeURIComponent(cursor!)}`)
         expect(b.status).toBe(200)
         const bBody = (await b.json()) as MessageV2.WithParts[]

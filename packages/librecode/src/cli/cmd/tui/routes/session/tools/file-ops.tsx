@@ -32,6 +32,7 @@ export function Write(props: ToolProps<typeof WriteTool>) {
       </Match>
       <Match when={true}>
         <InlineTool icon="←" pending="Preparing write..." complete={props.input.filePath} part={props.part}>
+          {/* biome-ignore lint/style/noNonNullAssertion: filePath always present in write tool input */}
           Write {normalizePath(props.input.filePath!)}
         </InlineTool>
       </Match>

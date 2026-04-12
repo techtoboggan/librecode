@@ -94,6 +94,7 @@ function init() {
     if (evt.defaultPrevented) return
     if (!isCloseKey(evt)) return
     if (renderer.getSelection()) return
+    // biome-ignore lint/style/noNonNullAssertion: stack.length === 0 guard above ensures non-empty
     const current = store.stack.at(-1)!
     current.onClose?.()
     setStore("stack", store.stack.slice(0, -1))
@@ -113,6 +114,7 @@ function init() {
       })
       refocus()
     },
+    // biome-ignore lint/suspicious/noExplicitAny: replace accepts any component factory
     replace(input: any, onClose?: () => void) {
       if (store.stack.length === 0) {
         focus = renderer.currentFocusedRenderable

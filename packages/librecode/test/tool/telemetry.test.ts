@@ -21,6 +21,7 @@ describe("withTelemetry", () => {
       throw new Error("command failed")
     }
 
+    // biome-ignore lint/suspicious/noExplicitAny: execute stub doesn't match full ExecuteFn signature
     const wrapped = withTelemetry("bash", execute as any)
 
     await expect(wrapped({}, { sessionID: "s1", agent: "build" })).rejects.toThrow("command failed")

@@ -411,6 +411,7 @@ export class ACPAgentImpl implements ACPAgent {
           },
           { throwOnError: true },
         )
+        // biome-ignore lint/style/noNonNullAssertion: throwOnError guarantees data is present
         .then((resp) => resp.data!)
 
       return agents
@@ -470,6 +471,7 @@ export class ACPAgentImpl implements ACPAgent {
           },
           { throwOnError: true },
         )
+        // biome-ignore lint/style/noNonNullAssertion: throwOnError guarantees data is present
         .then((resp) => resp.data!)
 
       const availableCommands = commands.map((command) => ({

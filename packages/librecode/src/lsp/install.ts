@@ -195,6 +195,7 @@ async function extractZlsArchive(tempPath: string, ext: string): Promise<boolean
   return true
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: sequential download pipeline with many early-return error guards
 export async function downloadZls(): Promise<string | undefined> {
   const zig = which("zig")
   if (!zig) {

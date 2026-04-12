@@ -280,6 +280,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             if (deploymentType === "enterprise") {
               const enterpriseUrl = inputs.enterpriseUrl
+              // biome-ignore lint/style/noNonNullAssertion: enterpriseUrl is required when deploymentType === "enterprise"
               domain = normalizeDomain(enterpriseUrl!)
               actualProvider = "github-copilot-enterprise"
             }

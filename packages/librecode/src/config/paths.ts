@@ -96,6 +96,7 @@ async function substitute(text: string, input: ParseSource, missing: "error" | "
 
   for (const match of fileMatches) {
     const token = match[0]
+    // biome-ignore lint/style/noNonNullAssertion: match.index is always defined for regex exec matches
     const index = match.index!
     out += text.slice(cursor, index)
 

@@ -13,6 +13,7 @@ import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 
 // Get managed config directory from environment (set in preload.ts)
+// biome-ignore lint/style/noNonNullAssertion: preload.ts guarantees this env var is set
 const managedConfigDir = process.env.LIBRECODE_TEST_MANAGED_CONFIG_DIR!
 
 afterEach(async () => {
@@ -683,6 +684,7 @@ test("updates config and writes to file", async () => {
     directory: tmp.path,
     fn: async () => {
       const newConfig = { model: "updated/model" }
+      // biome-ignore lint/suspicious/noExplicitAny: partial config object for update test
       await Config.update(newConfig as any)
 
       const writtenConfig = await Filesystem.readJson<{ model: string }>(path.join(tmp.path, "config.json"))
@@ -749,6 +751,7 @@ test("installs dependencies in writable LIBRECODE_CONFIG_DIR", async () => {
   process.env.LIBRECODE_CONFIG_DIR = tmp.extra
   // Enable install for this test — mock BunProc.run so no actual network call
   delete process.env.LIBRECODE_SKIP_DEPS_INSTALL
+  // biome-ignore lint/suspicious/noExplicitAny: mock return value doesn't need full type
   const runSpy = spyOn(BunProc, "run").mockResolvedValue(undefined as any)
 
   try {
@@ -1421,6 +1424,7 @@ test("permission config preserves key order", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
+      // biome-ignore lint/style/noNonNullAssertion: test asserts permission is set
       expect(Object.keys(config.permission!)).toEqual([
         "*",
         "edit",

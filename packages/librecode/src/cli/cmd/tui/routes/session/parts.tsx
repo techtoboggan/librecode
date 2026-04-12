@@ -93,6 +93,7 @@ export function ToolPart(props: { last: boolean; part: ToolPartType; message: As
     return true
   })
 
+  // biome-ignore lint/suspicious/noExplicitAny: ToolProps generic is discriminated at runtime by tool name
   const toolprops: ToolProps<any> = {
     get metadata() {
       return props.part.state.status === "pending" ? {} : (props.part.state.metadata ?? {})

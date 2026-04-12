@@ -408,12 +408,12 @@ describe("ProviderTransform.schema - gemini array items", () => {
 })
 
 describe("ProviderTransform.schema - gemini nested array items", () => {
-  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   const geminiModel = {
     providerID: "google",
     api: {
       id: "gemini-3-pro",
     },
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("adds type to 2D array with empty inner items", () => {
@@ -537,8 +537,10 @@ describe("ProviderTransform.schema - gemini combiner nodes", () => {
     api: {
       id: "gemini-3-pro",
     },
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
+  // biome-ignore lint/suspicious/noExplicitAny: recursive schema walker — unknown would break array/object indexing
   const walk = (node: any, cb: (node: any, path: (string | number)[]) => void, path: (string | number)[] = []) => {
     if (node === null || typeof node !== "object") {
       return
@@ -581,8 +583,10 @@ describe("ProviderTransform.schema - gemini combiner nodes", () => {
         },
       },
       required: ["edits"],
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(Array.isArray(result.properties.edits.items.anyOf)).toBe(true)
@@ -615,8 +619,10 @@ describe("ProviderTransform.schema - gemini combiner nodes", () => {
           ],
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
     const input = JSON.parse(JSON.stringify(schema))
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     walk(result, (node, path) => {
@@ -624,6 +630,7 @@ describe("ProviderTransform.schema - gemini combiner nodes", () => {
       if (!hasCombiner) {
         return
       }
+      // biome-ignore lint/suspicious/noExplicitAny: path reduce accumulator — dynamic schema traversal
       const before = path.reduce((acc: any, key) => acc?.[key], input)
       const added = Object.keys(node).filter((key) => !(key in before))
       expect(added).toEqual([])
@@ -637,6 +644,7 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
     api: {
       id: "gemini-3-pro",
     },
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("removes properties from non-object types", () => {
@@ -648,8 +656,10 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
           properties: { invalid: { type: "string" } },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.data.type).toBe("string")
@@ -666,8 +676,10 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
           required: ["invalid"],
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.data.type).toBe("array")
@@ -689,8 +701,10 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
           },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.outer.properties.inner.type).toBe("number")
@@ -708,8 +722,10 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
           required: ["name"],
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.data.type).toBe("object")
@@ -723,6 +739,7 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
       api: {
         id: "gpt-4",
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     } as any
 
     const schema = {
@@ -733,8 +750,10 @@ describe("ProviderTransform.schema - gemini non-object properties removal", () =
           properties: { invalid: { type: "string" } },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(openaiModel, schema) as any
 
     expect(result.properties.data.properties).toBeDefined()
@@ -756,6 +775,7 @@ describe("ProviderTransform.message - DeepSeek reasoning content", () => {
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(
@@ -818,6 +838,7 @@ describe("ProviderTransform.message - DeepSeek reasoning content", () => {
           { type: "text", text: "Answer" },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(
@@ -896,6 +917,7 @@ describe("ProviderTransform.message - empty image handling", () => {
     status: "active",
     options: {},
     headers: {},
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("should replace empty base64 image with error text", () => {
@@ -907,6 +929,7 @@ describe("ProviderTransform.message - empty image handling", () => {
           { type: "image", image: "data:image/png;base64," },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, mockModel, {})
@@ -931,6 +954,7 @@ describe("ProviderTransform.message - empty image handling", () => {
           { type: "image", image: `data:image/png;base64,${validBase64}` },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, mockModel, {})
@@ -953,6 +977,7 @@ describe("ProviderTransform.message - empty image handling", () => {
           { type: "image", image: "data:image/jpeg;base64," },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, mockModel, {})
@@ -999,6 +1024,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
     status: "active",
     options: {},
     headers: {},
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("filters out messages with empty string content", () => {
@@ -1006,6 +1032,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
       { role: "user", content: "Hello" },
       { role: "assistant", content: "" },
       { role: "user", content: "World" },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1025,6 +1052,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "text", text: "" },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1044,6 +1072,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "reasoning", text: "" },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1064,6 +1093,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
         ],
       },
       { role: "user", content: "World" },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1082,6 +1112,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "tool-call", toolCallId: "123", toolName: "bash", input: { command: "ls" } },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1106,6 +1137,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "text", text: "Result" },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, anthropicModel, {})
@@ -1138,6 +1170,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
           { type: "text", text: "Answer" },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, bedrockModel, {})
@@ -1165,6 +1198,7 @@ describe("ProviderTransform.message - anthropic empty content filtering", () => 
         role: "assistant",
         content: [{ type: "text", text: "" }],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, openaiModel, {})
@@ -1199,6 +1233,7 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
     status: "active",
     options: {},
     headers: {},
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("preserves itemId and reasoningEncryptedContent when store=false", () => {
@@ -1227,8 +1262,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, openaiModel, { store: false }) as any[]
 
     expect(result).toHaveLength(1)
@@ -1266,8 +1303,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, zenModel, { store: false }) as any[]
 
     expect(result).toHaveLength(1)
@@ -1292,8 +1331,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, openaiModel, { store: false }) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -1316,9 +1357,11 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     // openai package preserves itemId regardless of store value
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, openaiModel, { store: true }) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -1349,9 +1392,11 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     // store=false preserves metadata for non-openai packages
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, anthropicModel, { store: false }) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -1383,8 +1428,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, librecodeModel, { store: false }) as any[]
 
     expect(result[0].content[0].providerOptions?.librecode?.itemId).toBe("msg_123")
@@ -1421,8 +1468,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, librecodeModel, { store: false }) as any[]
 
     expect(result[0].providerOptions?.openai?.itemId).toBe("msg_root")
@@ -1458,8 +1507,10 @@ describe("ProviderTransform.message - strip openai metadata when store=false", (
           },
         ],
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, anthropicModel, {}) as any[]
 
     expect(result[0].content[0].providerOptions?.openai?.itemId).toBe("msg_123")
@@ -1491,6 +1542,7 @@ describe("ProviderTransform.message - providerOptions key remapping", () => {
       status: "active",
       options: {},
       headers: {},
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     }) as any
 
   test("azure keeps 'azure' key and does not remap to 'openai'", () => {
@@ -1503,6 +1555,7 @@ describe("ProviderTransform.message - providerOptions key remapping", () => {
           azure: { someOption: "value" },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, model, {})
@@ -1521,6 +1574,7 @@ describe("ProviderTransform.message - providerOptions key remapping", () => {
           copilot: { someOption: "value" },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, model, {})
@@ -1539,6 +1593,7 @@ describe("ProviderTransform.message - providerOptions key remapping", () => {
           "my-bedrock": { someOption: "value" },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, model, {})
@@ -1562,6 +1617,7 @@ describe("ProviderTransform.message - claude w/bedrock custom inference profile"
       capabilities: {},
       options: {},
       headers: {},
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     } as any
 
     const msgs = [
@@ -1569,6 +1625,7 @@ describe("ProviderTransform.message - claude w/bedrock custom inference profile"
         role: "user",
         content: "Hello",
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
     const result = ProviderTransform.message(msgs, model, {})
@@ -1584,6 +1641,7 @@ describe("ProviderTransform.message - claude w/bedrock custom inference profile"
 })
 
 describe("ProviderTransform.message - cache control on gateway", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test mock factory — partial override object
   const createModel = (overrides: Partial<any> = {}) =>
     ({
       id: "anthropic/claude-sonnet-4",
@@ -1609,6 +1667,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
       options: {},
       headers: {},
       ...overrides,
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     }) as any
 
   test("gateway does not set cache control for anthropic models", () => {
@@ -1622,8 +1681,10 @@ describe("ProviderTransform.message - cache control on gateway", () => {
         role: "user",
         content: "Hello",
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, model, {}) as any[]
 
     expect(result[0].content[0].providerOptions).toBeUndefined()
@@ -1648,8 +1709,10 @@ describe("ProviderTransform.message - cache control on gateway", () => {
         role: "user",
         content: "Hello",
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test message array — dynamic content structure
     ] as any[]
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.message(msgs, model, {}) as any[]
 
     expect(result[0].providerOptions).toEqual({
@@ -1683,6 +1746,7 @@ describe("ProviderTransform.message - cache control on gateway", () => {
 })
 
 describe("ProviderTransform.variants", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test mock factory — partial override object and dynamic return
   const createMockModel = (overrides: Partial<any> = {}): any => ({
     id: "test/test-model",
     providerID: "test",

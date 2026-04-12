@@ -61,7 +61,7 @@ async function extractTarGz(archivePath: string, filepath: string, platformKey: 
 async function extractZip(archivePath: string, filepath: string, arrayBuffer: ArrayBuffer): Promise<void> {
   const zipFileReader = new ZipReader(new BlobReader(new Blob([arrayBuffer])))
   const entries = await zipFileReader.getEntries()
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: zip entry type from @zip.js/zip.js has dynamic getData method
   let rgEntry: any
   for (const entry of entries) {
     if (entry.filename.endsWith("rg.exe")) {

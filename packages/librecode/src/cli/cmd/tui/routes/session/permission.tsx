@@ -134,7 +134,7 @@ type PermissionInfo = { icon: string; title: string; body: JSX.Element }
 
 type PermissionContext = {
   request: PermissionRequest
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: permission data shape varies by tool type
   data: Record<string, any>
   theme: ReturnType<typeof useTheme>["theme"]
 }
@@ -332,7 +332,7 @@ function buildPermissionInfo(ctx: PermissionContext): PermissionInfo {
 
 type PermissionStagePromptProps = {
   request: PermissionRequest
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // biome-ignore lint/suspicious/noExplicitAny: permission input shape varies by tool type
   input: Record<string, any>
   session: { parentID?: string } | undefined
   onAlways: () => void

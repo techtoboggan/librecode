@@ -508,6 +508,7 @@ export function Session() {
                         )
                       })()}
                     </Match>
+                    {/* biome-ignore lint/style/noNonNullAssertion: revertMessageID() !== undefined guard above */}
                     <Match when={revertMessageID() !== undefined && message.id >= revertMessageID()!}>
                       {null}
                     </Match>

@@ -548,6 +548,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
             const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
             await maybeRefreshCodexToken(currentAuth, authWithAccount, input.client.auth as unknown as CodexAuthClient)
 
+            // biome-ignore lint/style/noNonNullAssertion: access token is refreshed/validated before this point
             const headers = buildRequestHeaders(init, currentAuth.access!, authWithAccount.accountId)
             const url = resolveCodexUrl(requestInput)
 

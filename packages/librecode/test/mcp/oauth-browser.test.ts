@@ -243,6 +243,7 @@ test("open() is called with the authorization URL", async () => {
       // Verify open was called with a URL
       expect(openCalledWith).toBeDefined()
       expect(typeof openCalledWith).toBe("string")
+      // biome-ignore lint/style/noNonNullAssertion: openCalledWith defined confirmed by expect above
       expect(openCalledWith!).toContain("https://")
     },
   })

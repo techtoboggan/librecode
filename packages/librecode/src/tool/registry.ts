@@ -72,6 +72,7 @@ function fromPlugin(id: string, def: ToolDefinition): Tool.Info {
           directory: Instance.directory,
           worktree: Instance.worktree,
         } as unknown as PluginToolContext
+        // biome-ignore lint/suspicious/noExplicitAny: plugin execute args are opaque to registry
         const result = await def.execute(args as any, pluginCtx)
         const out = await Truncate.output(result, {}, initCtx?.agent)
         return {

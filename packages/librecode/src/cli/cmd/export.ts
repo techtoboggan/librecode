@@ -58,7 +58,7 @@ export const ExportCommand = cmd({
       }
 
       try {
-        const sessionInfo = await Session.get(sessionID!)
+        const sessionInfo = await Session.get(sessionID)
         const messages = await Session.messages({ sessionID: sessionInfo.id })
         const exportData = {
           info: sessionInfo,
@@ -67,7 +67,7 @@ export const ExportCommand = cmd({
         process.stdout.write(JSON.stringify(exportData, null, 2))
         process.stdout.write(EOL)
       } catch {
-        UI.error(`Session not found: ${sessionID!}`)
+        UI.error(`Session not found: ${sessionID}`)
         process.exit(1)
       }
     })

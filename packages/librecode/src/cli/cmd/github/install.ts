@@ -158,6 +158,7 @@ export const GithubInstallCommand = cmd({
           }
 
           async function promptModel() {
+            // biome-ignore lint/style/noNonNullAssertion: provider key is validated by promptProvider above
             const providerData = providers[provider]!
 
             const model = await prompts.select({

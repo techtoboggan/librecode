@@ -49,11 +49,13 @@ describe("session message pagination", () => {
         expect(a.more).toBe(true)
         expect(a.cursor).toBeTruthy()
 
+        // biome-ignore lint/style/noNonNullAssertion: cursor truthy confirmed by expect above
         const b = await MessageV2.page({ sessionID: session.id, limit: 2, before: a.cursor! })
         expect(b.items.map((item) => item.info.id)).toEqual(ids.slice(-4, -2))
         expect(b.more).toBe(true)
         expect(b.cursor).toBeTruthy()
 
+        // biome-ignore lint/style/noNonNullAssertion: cursor truthy confirmed by expect above
         const c = await MessageV2.page({ sessionID: session.id, limit: 2, before: b.cursor! })
         expect(c.items.map((item) => item.info.id)).toEqual(ids.slice(0, 2))
         expect(c.more).toBe(false)
@@ -87,6 +89,7 @@ describe("session message pagination", () => {
         const ids = await fill(session.id, 4, (i) => 1000.5 + i)
 
         const a = await MessageV2.page({ sessionID: session.id, limit: 2 })
+        // biome-ignore lint/style/noNonNullAssertion: cursor is present when MessageV2.page returns results
         const b = await MessageV2.page({ sessionID: session.id, limit: 2, before: a.cursor! })
 
         expect(a.items.map((item) => item.info.id)).toEqual(ids.slice(-2))

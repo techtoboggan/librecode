@@ -162,6 +162,7 @@ async function descendants(pid: number): Promise<number[]> {
   const pids: number[] = []
   const queue = [pid]
   while (queue.length > 0) {
+    // biome-ignore lint/style/noNonNullAssertion: queue.length > 0 guard ensures shift() returns a value
     const current = queue.shift()!
     const proc = Bun.spawn(["pgrep", "-P", String(current)], { stdout: "pipe", stderr: "pipe" })
     const [code, out] = await Promise.all([proc.exited, new Response(proc.stdout).text()]).catch(
@@ -221,6 +222,7 @@ const state = Instance.state(
     // Kill the full descendant tree first so the server exits promptly
     // and no processes are left behind.
     for (const client of Object.values(s.clients)) {
+      // biome-ignore lint/suspicious/noExplicitAny: MCP SDK transport type doesn't expose pid publicly
       const pid = (client.transport as any)?.pid
       if (typeof pid !== "number") continue
       for (const dpid of await descendants(pid)) {

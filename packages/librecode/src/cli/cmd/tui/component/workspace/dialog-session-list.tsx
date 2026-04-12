@@ -67,6 +67,7 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
   const currentSessionID = createMemo(() => (route.data.type === "session" ? route.data.sessionID : undefined))
 
   const sessions = createMemo(() => {
+    // biome-ignore lint/style/noNonNullAssertion: searchResults() truthy check guarantees non-null
     if (searchResults()) return searchResults()!
     if (props.workspaceID) return listed() ?? []
     if (props.localOnly) return sync.data.session.filter((session) => !session.workspaceID)

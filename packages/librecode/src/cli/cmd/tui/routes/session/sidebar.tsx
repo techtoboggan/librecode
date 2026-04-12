@@ -236,6 +236,7 @@ function GettingStartedPanel(props: { onDismiss: () => void; theme: Theme }) {
 export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
   const sync = useSync()
   const { theme } = useTheme()
+  // biome-ignore lint/style/noNonNullAssertion: sidebar renders only when session exists
   const session = createMemo(() => sync.session.get(props.sessionID)!)
   const diff = createMemo(() => sync.data.session_diff[props.sessionID] ?? [])
   const todo = createMemo(() => sync.data.todo[props.sessionID] ?? [])

@@ -565,6 +565,7 @@ function parseConfig(text: string, filepath: string): InfoType {
 
 async function configUpdateGlobal(config: InfoType): Promise<InfoType> {
   const filepath = globalConfigFile()
+  // biome-ignore lint/suspicious/noExplicitAny: catch variable typed for .code property access
   const before = await Filesystem.readText(filepath).catch((err: any) => {
     if (err.code === "ENOENT") return "{}"
     throw new configJsonError({ path: filepath }, { cause: err })

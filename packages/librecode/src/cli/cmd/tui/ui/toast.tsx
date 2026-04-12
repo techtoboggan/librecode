@@ -64,6 +64,7 @@ function init() {
         setStore("currentToast", null)
       }, duration).unref()
     },
+    // biome-ignore lint/suspicious/noExplicitAny: error handler accepts unknown thrown values
     error: (err: any) => {
       if (err instanceof Error)
         return toast.show({

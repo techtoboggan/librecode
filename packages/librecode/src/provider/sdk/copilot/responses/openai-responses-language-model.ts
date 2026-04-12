@@ -882,6 +882,7 @@ function processStreamChunkToolDeltas(
         toolName: "code_interpreter",
         input: JSON.stringify({
           code: value.code,
+          // biome-ignore lint/style/noNonNullAssertion: codeInterpreter is present when toolType is code_interpreter
           containerId: toolCall.codeInterpreter!.containerId,
         } satisfies z.infer<typeof codeInterpreterInputSchema>),
         providerExecuted: true,

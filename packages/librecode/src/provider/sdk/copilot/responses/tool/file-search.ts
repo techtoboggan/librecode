@@ -11,6 +11,7 @@ const comparisonFilterSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean()]),
 })
 
+// biome-ignore lint/suspicious/noExplicitAny: recursive Zod type requires any for self-referential schema
 const compoundFilterSchema: z.ZodType<any> = z.object({
   type: z.enum(["and", "or"]),
   filters: z.array(z.union([comparisonFilterSchema, z.lazy(() => compoundFilterSchema)])),

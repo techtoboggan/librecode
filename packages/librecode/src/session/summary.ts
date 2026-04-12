@@ -50,6 +50,7 @@ function unquoteGitPath(input: string): string {
   const bytes: number[] = []
 
   for (let i = 0; i < body.length; i++) {
+    // biome-ignore lint/style/noNonNullAssertion: loop bound guarantees index is valid
     const char = body[i]!
     if (char !== "\\") {
       bytes.push(char.charCodeAt(0))
@@ -96,6 +97,7 @@ async function summarizeMessage(input: { messageID: string; messages: MessageV2.
   const messages = input.messages.filter(
     (m) => m.info.id === input.messageID || (m.info.role === "assistant" && m.info.parentID === input.messageID),
   )
+  // biome-ignore lint/style/noNonNullAssertion: filter above guarantees the message exists
   const msgWithParts = messages.find((m) => m.info.id === input.messageID)!
   const userMsg = msgWithParts.info as MessageV2.User
   const diffs = await sessionSummaryComputeDiff({ messages })

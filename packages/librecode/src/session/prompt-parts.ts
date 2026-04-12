@@ -220,6 +220,7 @@ async function processFileUrlFilePart(
       type: "file",
       url: `data:${part.mime};base64,${(await Filesystem.readBytes(filepath)).toString("base64")}`,
       mime: part.mime,
+      // biome-ignore lint/style/noNonNullAssertion: file parts always have a filename
       filename: part.filename!,
       source: part.source,
     },

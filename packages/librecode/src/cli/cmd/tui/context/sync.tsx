@@ -503,6 +503,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
             sdk.client.session.diff({ sessionID }),
           ])
           setStore(
+            // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: immer produce naturally accumulates branching; extracting further would obscure the intent
             produce((draft) => {
               const match = Binary.search(draft.session, sessionID, (s) => s.id)
               if (session.data) {

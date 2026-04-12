@@ -208,6 +208,7 @@ export function BlockTool(props: {
   )
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: LSP diagnostic objects have a dynamic structure not worth typing fully
 export function Diagnostics(props: { diagnostics?: Record<string, Record<string, any>[]>; filePath: string }) {
   const { theme } = useTheme()
   const errors = createMemo(() => {
@@ -245,6 +246,7 @@ export function normalizePath(input?: string) {
   return absolute
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: tool input shapes vary per-tool and are not worth unioning
 export function inputDisplay(input: Record<string, any>, omit?: string[]): string {
   const primitives = Object.entries(input).filter(([key, value]) => {
     if (omit?.includes(key)) return false

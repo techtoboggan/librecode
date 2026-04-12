@@ -77,6 +77,7 @@ function handleOAuthCode(state: string, code: string): Response {
     log.error("oauth callback with invalid state", { state, pendingStates: Array.from(pendingAuths.keys()) })
     return htmlResponse(HTML_ERROR(errorMsg), 400)
   }
+  // biome-ignore lint/style/noNonNullAssertion: pendingAuths.has(state) guard above ensures value exists
   const pending = pendingAuths.get(state)!
   clearTimeout(pending.timeout)
   pendingAuths.delete(state)

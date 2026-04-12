@@ -35,6 +35,7 @@ describe("control-plane/workspace-server SSE", () => {
           reject(new Error("timed out waiting for workspace.test event"))
         }, 3000)
 
+        // biome-ignore lint/style/noNonNullAssertion: response.body is always set for SSE responses
         void parseSSE(response.body!, stop.signal, (event) => {
           seen.push(event)
           const next = event as { type?: string }

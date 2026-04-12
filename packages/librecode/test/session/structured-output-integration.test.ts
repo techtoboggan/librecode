@@ -55,6 +55,7 @@ describe("StructuredOutput Integration", () => {
           expect(result.info.structured).toBeDefined()
           expect(typeof result.info.structured).toBe("object")
 
+          // biome-ignore lint/suspicious/noExplicitAny: structured output shape is unknown at compile time
           const output = result.info.structured as any
           expect(output.answer).toBe(4)
 
@@ -111,6 +112,7 @@ describe("StructuredOutput Integration", () => {
         expect(result.info.role).toBe("assistant")
         if (result.info.role === "assistant") {
           expect(result.info.structured).toBeDefined()
+          // biome-ignore lint/suspicious/noExplicitAny: structured output shape is unknown at compile time
           const output = result.info.structured as any
 
           expect(output.company).toBeDefined()
