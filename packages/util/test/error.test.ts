@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { NamedError } from "../src/error"
 import z from "zod"
+import { NamedError } from "../src/error"
 
 describe("NamedError", () => {
   const TestError = NamedError.create(

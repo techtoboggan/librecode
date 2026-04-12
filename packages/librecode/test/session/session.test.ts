@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import { Session } from "../../src/session"
+import path from "node:path"
 import { Bus } from "../../src/bus"
-import { Log } from "../../src/util/log"
 import { Instance } from "../../src/project/instance"
+import { Session } from "../../src/session"
 import { MessageV2 } from "../../src/session/message-v2"
 import { MessageID, PartID } from "../../src/session/schema"
+import { Log } from "../../src/util/log"
 
 const projectRoot = path.join(__dirname, "../..")
 Log.init({ print: false })
@@ -121,7 +121,7 @@ describe("step-finish token propagation via Bus event", () => {
           await new Promise((resolve) => setTimeout(resolve, 100))
 
           expect(received).toBeDefined()
-          expect(received!.type).toBe("step-finish")
+          expect(received?.type).toBe("step-finish")
           const finish = received as MessageV2.StepFinishPart
           expect(finish.tokens.input).toBe(500)
           expect(finish.tokens.output).toBe(800)

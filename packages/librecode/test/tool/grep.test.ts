@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import { GrepTool } from "../../src/tool/grep"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { GrepTool } from "../../src/tool/grep"
 import { tmpdir } from "../fixture/fixture"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const ctx = {
   sessionID: SessionID.make("ses_test"),

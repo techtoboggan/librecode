@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import {
-  parseJwtClaims,
-  extractAccountIdFromClaims,
   extractAccountId,
+  extractAccountIdFromClaims,
   type IdTokenClaims,
+  parseJwtClaims,
 } from "../../src/plugin/codex"
 
 function createTestJwt(payload: object): string {

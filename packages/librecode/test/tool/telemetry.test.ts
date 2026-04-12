@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { withTelemetry, formatDuration, formatSize } from "../../src/tool/telemetry"
+import { formatDuration, formatSize, withTelemetry } from "../../src/tool/telemetry"
 
 describe("withTelemetry", () => {
   test("passes through successful results", async () => {

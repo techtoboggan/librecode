@@ -1,6 +1,6 @@
-import { describe, test, expect } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { Glob } from "../../src/util/glob"
 import { tmpdir } from "../fixture/fixture"
 

@@ -11,7 +11,7 @@ async function flush(n = 5) {
 
 describe("util.lock", () => {
   test("writer exclusivity: blocks reads and other writes while held", async () => {
-    const key = "lock:" + Math.random().toString(36).slice(2)
+    const key = `lock:${Math.random().toString(36).slice(2)}`
 
     const state = {
       writer2: false,

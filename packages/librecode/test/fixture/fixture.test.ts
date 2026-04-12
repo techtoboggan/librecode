@@ -1,6 +1,6 @@
-import { $ } from "bun"
 import { describe, expect, test } from "bun:test"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import { $ } from "bun"
 import { tmpdir } from "./fixture"
 
 describe("tmpdir", () => {

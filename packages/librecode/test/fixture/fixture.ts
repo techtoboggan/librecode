@@ -1,7 +1,7 @@
+import * as fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { $ } from "bun"
-import * as fs from "fs/promises"
-import os from "os"
-import path from "path"
 import type { Config } from "../../src/config/config"
 
 // Strip null bytes from paths (defensive fix for CI environment issues)
@@ -37,7 +37,7 @@ type TmpDirOptions<T> = {
   dispose?: (dir: string) => Promise<T>
 }
 export async function tmpdir<T>(options?: TmpDirOptions<T>) {
-  const dirpath = sanitizePath(path.join(os.tmpdir(), "librecode-test-" + Math.random().toString(36).slice(2)))
+  const dirpath = sanitizePath(path.join(os.tmpdir(), `librecode-test-${Math.random().toString(36).slice(2)}`))
   await fs.mkdir(dirpath, { recursive: true })
   if (options?.git) {
     await $`git init`.cwd(dirpath).quiet()

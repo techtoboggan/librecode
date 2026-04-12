@@ -1,9 +1,9 @@
-import { test, expect } from "bun:test"
-import { Question } from "../../src/question"
+import { expect, test } from "bun:test"
 import { Instance } from "../../src/project/instance"
+import { Question } from "../../src/question"
 import { QuestionID } from "../../src/question/schema"
-import { tmpdir } from "../fixture/fixture"
 import { SessionID } from "../../src/session/schema"
+import { tmpdir } from "../fixture/fixture"
 
 /** Reject all pending questions so dangling Deferred fibers don't hang the test. */
 async function rejectAll() {

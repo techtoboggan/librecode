@@ -1,8 +1,8 @@
-import { describe, test, expect } from "bun:test"
-import path from "path"
+import { describe, expect, test } from "bun:test"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
 import { WebFetchTool } from "../../src/tool/webfetch"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const projectRoot = path.join(__dirname, "../..")
 

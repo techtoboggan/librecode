@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import * as fs from "fs/promises"
-import { ApplyPatchTool } from "../../src/tool/apply_patch"
+import * as fs from "node:fs/promises"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { ApplyPatchTool } from "../../src/tool/apply_patch"
 import { tmpdir } from "../fixture/fixture"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const baseCtx = {
   sessionID: SessionID.make("ses_test"),
@@ -111,13 +111,13 @@ describe("tool.apply_patch freeform", () => {
 
         const addFile = permissionCall.metadata.files.find((f) => f.type === "add")
         expect(addFile).toBeDefined()
-        expect(addFile!.relativePath).toBe("nested/new.txt")
-        expect(addFile!.after).toBe("created\n")
+        expect(addFile?.relativePath).toBe("nested/new.txt")
+        expect(addFile?.after).toBe("created\n")
 
         const updateFile = permissionCall.metadata.files.find((f) => f.type === "update")
         expect(updateFile).toBeDefined()
-        expect(updateFile!.before).toContain("line2")
-        expect(updateFile!.after).toContain("changed")
+        expect(updateFile?.before).toContain("line2")
+        expect(updateFile?.after).toContain("changed")
 
         const added = await fs.readFile(path.join(fixture.path, "nested", "new.txt"), "utf-8")
         expect(added).toBe("created\n")

@@ -1,7 +1,7 @@
-import { describe, expect, test, beforeEach } from "bun:test"
-import { Database } from "../../src/storage/db"
+import { beforeEach, describe, expect, test } from "bun:test"
 import { ProviderCredentials } from "../../src/provider/credentials"
 import { ProviderCredentialsTable } from "../../src/provider/credentials.sql"
+import { Database } from "../../src/storage/db"
 
 function clearTable() {
   Database.use((db) => db.delete(ProviderCredentialsTable).run())

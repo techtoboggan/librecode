@@ -94,6 +94,6 @@ describe("VALID_TRANSITIONS", () => {
   })
 
   test("exit has no transitions", () => {
-    expect(VALID_TRANSITIONS["exit"]).toEqual([])
+    expect(VALID_TRANSITIONS.exit).toEqual([])
   })
 })

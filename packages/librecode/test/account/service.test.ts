@@ -1,7 +1,7 @@
-import { expect, test, beforeEach, mock } from "bun:test"
+import { beforeEach, expect, mock, test } from "bun:test"
 import { AccountRepo } from "../../src/account/repo"
-import { AccountService } from "../../src/account/service"
 import { AccessToken, AccountID, DeviceCode, Login, OrgID, RefreshToken, UserCode } from "../../src/account/schema"
+import { AccountService } from "../../src/account/service"
 import { Database } from "../../src/storage/db"
 
 beforeEach(() => {
@@ -18,7 +18,7 @@ function mockFetch(handler: (url: string, init?: RequestInit) => { body: unknown
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
     seen.push(`${init?.method ?? "GET"} ${url}`)
     headers.push({
-      auth: (init?.headers as Record<string, string>)?.["Authorization"],
+      auth: (init?.headers as Record<string, string>)?.Authorization,
       org: (init?.headers as Record<string, string>)?.["x-org-id"],
     })
     const result = handler(url, init)
@@ -107,9 +107,9 @@ test("token refresh persists the new token", async () => {
     expect(String(token)).toBe("at_new")
 
     const row = AccountRepo.getRow(id)
-    expect(row!.access_token).toBe(AccessToken.make("at_new"))
-    expect(row!.refresh_token).toBe(RefreshToken.make("rt_new"))
-    expect(row!.token_expiry).toBeGreaterThan(Date.now())
+    expect(row?.access_token).toBe(AccessToken.make("at_new"))
+    expect(row?.refresh_token).toBe(RefreshToken.make("rt_new"))
+    expect(row?.token_expiry).toBeGreaterThan(Date.now())
   } finally {
     f.restore()
   }

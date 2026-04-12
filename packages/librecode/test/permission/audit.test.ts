@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { Bus } from "../../src/bus"
-import { Instance } from "../../src/project/instance"
 import * as Audit from "../../src/permission/audit"
+import { Instance } from "../../src/project/instance"
 import { SessionID } from "../../src/session/schema"
 import { tmpdir } from "../fixture/fixture"
 

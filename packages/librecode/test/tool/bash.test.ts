@@ -1,13 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import os from "os"
-import path from "path"
-import { BashTool } from "../../src/tool/bash"
+import os from "node:os"
+import path from "node:path"
+import type { PermissionNext } from "../../src/permission/next"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { BashTool } from "../../src/tool/bash"
+import { Truncate } from "../../src/tool/truncation"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
-import type { PermissionNext } from "../../src/permission/next"
-import { Truncate } from "../../src/tool/truncation"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const ctx = {
   sessionID: SessionID.make("ses_test"),
@@ -147,7 +147,7 @@ describe("tool.bash permissions", () => {
         )
         const extDirReq = requests.find((r) => r.permission === "external_directory")
         expect(extDirReq).toBeDefined()
-        expect(extDirReq!.patterns).toContain(path.join(os.tmpdir(), "*"))
+        expect(extDirReq?.patterns).toContain(path.join(os.tmpdir(), "*"))
       },
     })
   })
@@ -181,8 +181,8 @@ describe("tool.bash permissions", () => {
         const extDirReq = requests.find((r) => r.permission === "external_directory")
         const expected = path.join(outerTmp.path, "*")
         expect(extDirReq).toBeDefined()
-        expect(extDirReq!.patterns).toContain(expected)
-        expect(extDirReq!.always).toContain(expected)
+        expect(extDirReq?.patterns).toContain(expected)
+        expect(extDirReq?.always).toContain(expected)
       },
     })
   })
@@ -286,7 +286,7 @@ describe("tool.bash permissions", () => {
         await bash.execute({ command: "cat > /tmp/output.txt", description: "Redirect ls output" }, testCtx)
         const bashReq = requests.find((r) => r.permission === "bash")
         expect(bashReq).toBeDefined()
-        expect(bashReq!.patterns).toContain("cat > /tmp/output.txt")
+        expect(bashReq?.patterns).toContain("cat > /tmp/output.txt")
       },
     })
   })
@@ -307,7 +307,7 @@ describe("tool.bash permissions", () => {
         await bash.execute({ command: "ls -la", description: "List" }, testCtx)
         const bashReq = requests.find((r) => r.permission === "bash")
         expect(bashReq).toBeDefined()
-        const pattern = bashReq!.always[0]
+        const pattern = bashReq?.always[0]
         expect(pattern).toBe("ls *")
       },
     })

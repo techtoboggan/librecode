@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { Log } from "../../src/util/log"
-import { WorkspaceServer } from "../../src/control-plane/workspace-server/server"
-import { parseSSE } from "../../src/control-plane/sse"
 import { GlobalBus } from "../../src/bus/global"
+import { parseSSE } from "../../src/control-plane/sse"
+import { WorkspaceServer } from "../../src/control-plane/workspace-server/server"
+import { Log } from "../../src/util/log"
 import { resetDatabase } from "../fixture/db"
 import { tmpdir } from "../fixture/fixture"
 

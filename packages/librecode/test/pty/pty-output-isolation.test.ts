@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { setTimeout as sleep } from "node:timers/promises"
 import { Instance } from "../../src/project/instance"
 import { Pty } from "../../src/pty"
 import { tmpdir } from "../fixture/fixture"
-import { setTimeout as sleep } from "node:timers/promises"
 
 describe("pty", () => {
   test("does not leak output when websocket objects are reused", async () => {

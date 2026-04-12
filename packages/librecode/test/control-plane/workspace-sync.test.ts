@@ -1,14 +1,14 @@
-import { afterEach, describe, expect, mock, test } from "bun:test"
+import { afterEach, describe, mock, test } from "bun:test"
+import { GlobalBus } from "../../src/bus/global"
+import * as adaptors from "../../src/control-plane/adaptors"
 import { WorkspaceID } from "../../src/control-plane/schema"
-import { Log } from "../../src/util/log"
-import { tmpdir } from "../fixture/fixture"
+import type { Adaptor } from "../../src/control-plane/types"
+import { WorkspaceTable } from "../../src/control-plane/workspace.sql"
 import { Project } from "../../src/project/project"
 import { Database } from "../../src/storage/db"
-import { WorkspaceTable } from "../../src/control-plane/workspace.sql"
-import { GlobalBus } from "../../src/bus/global"
+import { Log } from "../../src/util/log"
 import { resetDatabase } from "../fixture/db"
-import * as adaptors from "../../src/control-plane/adaptors"
-import type { Adaptor } from "../../src/control-plane/types"
+import { tmpdir } from "../fixture/fixture"
 
 afterEach(async () => {
   mock.restore()

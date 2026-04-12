@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
 import { MessageV2 } from "../../src/session/message-v2"

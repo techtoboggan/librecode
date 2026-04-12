@@ -1,9 +1,9 @@
-import { test, expect, describe } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
-import { Filesystem } from "../../src/util/filesystem"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { File } from "../../src/file"
 import { Instance } from "../../src/project/instance"
+import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 
 describe("Filesystem.contains", () => {

@@ -1,11 +1,11 @@
 import { afterEach, expect, test } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
-import { tmpdir } from "../fixture/fixture"
-import { Instance } from "../../src/project/instance"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { TuiConfig } from "../../src/config/tui"
 import { Global } from "../../src/global"
+import { Instance } from "../../src/project/instance"
 import { Filesystem } from "../../src/util/filesystem"
+import { tmpdir } from "../fixture/fixture"
 
 const managedConfigDir = process.env.LIBRECODE_TEST_MANAGED_CONFIG_DIR!
 

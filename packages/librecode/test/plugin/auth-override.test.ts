@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
-import { tmpdir } from "../fixture/fixture"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
 import { ProviderAuth } from "../../src/provider/auth"
+import { tmpdir } from "../fixture/fixture"
 
 describe("plugin.auth-override", () => {
   test("user plugin overrides built-in github-copilot auth", async () => {

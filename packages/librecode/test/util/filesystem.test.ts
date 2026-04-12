@@ -1,6 +1,6 @@
-import { describe, test, expect } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 
@@ -342,7 +342,7 @@ describe("filesystem", () => {
       await using tmp = await tmpdir()
       const filepath = path.join(tmp.path, "node-streamed.txt")
       const content = "Hello from Node stream!"
-      const { Readable } = await import("stream")
+      const { Readable } = await import("node:stream")
       const stream = Readable.from([content])
 
       await Filesystem.writeStream(filepath, stream)
@@ -514,7 +514,7 @@ describe("filesystem", () => {
 
     test("returns unresolved path when target does not exist", async () => {
       await using tmp = await tmpdir()
-      const missing = path.join(tmp.path, "does-not-exist-" + Date.now())
+      const missing = path.join(tmp.path, `does-not-exist-${Date.now()}`)
       const result = Filesystem.resolve(missing)
       expect(result).toBe(Filesystem.normalizePath(path.resolve(missing)))
     })

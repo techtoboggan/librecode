@@ -1,7 +1,7 @@
-import { test, expect, mock } from "bun:test"
-import { ShareNext } from "../../src/share/share-next"
+import { expect, mock, test } from "bun:test"
 import { AccessToken, Account, AccountID, OrgID } from "../../src/account"
 import { Config } from "../../src/config/config"
+import { ShareNext } from "../../src/share/share-next"
 
 test("ShareNext.request uses legacy share API without active org account", async () => {
   const originalActive = Account.active

@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import type { Tool } from "../../src/tool/tool"
-import { Instance } from "../../src/project/instance"
-import { assertExternalDirectory } from "../../src/tool/external-directory"
+import path from "node:path"
 import type { PermissionNext } from "../../src/permission/next"
-import { SessionID, MessageID } from "../../src/session/schema"
+import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { assertExternalDirectory } from "../../src/tool/external-directory"
+import type { Tool } from "../../src/tool/tool"
 
 const baseCtx: Omit<Tool.Context, "ask"> = {
   sessionID: SessionID.make("ses_test"),
@@ -77,8 +77,8 @@ describe("tool.assertExternalDirectory", () => {
 
     const req = requests.find((r) => r.permission === "external_directory")
     expect(req).toBeDefined()
-    expect(req!.patterns).toEqual([expected])
-    expect(req!.always).toEqual([expected])
+    expect(req?.patterns).toEqual([expected])
+    expect(req?.always).toEqual([expected])
   })
 
   test("uses target directory when kind=directory", async () => {
@@ -103,8 +103,8 @@ describe("tool.assertExternalDirectory", () => {
 
     const req = requests.find((r) => r.permission === "external_directory")
     expect(req).toBeDefined()
-    expect(req!.patterns).toEqual([expected])
-    expect(req!.always).toEqual([expected])
+    expect(req?.patterns).toEqual([expected])
+    expect(req?.always).toEqual([expected])
   })
 
   test("skips prompting when bypass=true", async () => {

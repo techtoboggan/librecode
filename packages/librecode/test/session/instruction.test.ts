@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import path from "path"
-import { InstructionPrompt } from "../../src/session/instruction"
-import { Instance } from "../../src/project/instance"
+import path from "node:path"
 import { Global } from "../../src/global"
+import { Instance } from "../../src/project/instance"
+import { InstructionPrompt } from "../../src/session/instruction"
 import { tmpdir } from "../fixture/fixture"
 
 describe("InstructionPrompt.resolve", () => {
@@ -74,14 +74,14 @@ describe("InstructionPrompt.systemPaths LIBRECODE_CONFIG_DIR", () => {
   let originalConfigDir: string | undefined
 
   beforeEach(() => {
-    originalConfigDir = process.env["LIBRECODE_CONFIG_DIR"]
+    originalConfigDir = process.env.LIBRECODE_CONFIG_DIR
   })
 
   afterEach(() => {
     if (originalConfigDir === undefined) {
-      delete process.env["LIBRECODE_CONFIG_DIR"]
+      delete process.env.LIBRECODE_CONFIG_DIR
     } else {
-      process.env["LIBRECODE_CONFIG_DIR"] = originalConfigDir
+      process.env.LIBRECODE_CONFIG_DIR = originalConfigDir
     }
   })
 
@@ -98,7 +98,7 @@ describe("InstructionPrompt.systemPaths LIBRECODE_CONFIG_DIR", () => {
     })
     await using projectTmp = await tmpdir()
 
-    process.env["LIBRECODE_CONFIG_DIR"] = profileTmp.path
+    process.env.LIBRECODE_CONFIG_DIR = profileTmp.path
     const originalGlobalConfig = Global.Path.config
     ;(Global.Path as { config: string }).config = globalTmp.path
 
@@ -125,7 +125,7 @@ describe("InstructionPrompt.systemPaths LIBRECODE_CONFIG_DIR", () => {
     })
     await using projectTmp = await tmpdir()
 
-    process.env["LIBRECODE_CONFIG_DIR"] = profileTmp.path
+    process.env.LIBRECODE_CONFIG_DIR = profileTmp.path
     const originalGlobalConfig = Global.Path.config
     ;(Global.Path as { config: string }).config = globalTmp.path
 
@@ -151,7 +151,7 @@ describe("InstructionPrompt.systemPaths LIBRECODE_CONFIG_DIR", () => {
     })
     await using projectTmp = await tmpdir()
 
-    delete process.env["LIBRECODE_CONFIG_DIR"]
+    delete process.env.LIBRECODE_CONFIG_DIR
     const originalGlobalConfig = Global.Path.config
     ;(Global.Path as { config: string }).config = globalTmp.path
 

@@ -1,13 +1,12 @@
-import { test, expect, describe } from "bun:test"
-import path from "path"
-import { unlink } from "fs/promises"
-
-import { tmpdir } from "../fixture/fixture"
-import { Instance } from "../../src/project/instance"
-import { Provider } from "../../src/provider/provider"
+import { describe, expect, test } from "bun:test"
+import { unlink } from "node:fs/promises"
+import path from "node:path"
 import { Env } from "../../src/env"
 import { Global } from "../../src/global"
+import { Instance } from "../../src/project/instance"
+import { Provider } from "../../src/provider/provider"
 import { Filesystem } from "../../src/util/filesystem"
+import { tmpdir } from "../fixture/fixture"
 
 test("Bedrock: config region takes precedence over AWS_REGION env var", async () => {
   await using tmp = await tmpdir({

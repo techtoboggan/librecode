@@ -1,10 +1,10 @@
-import { test, expect } from "bun:test"
-import path from "path"
-import { tmpdir } from "../fixture/fixture"
-import { Instance } from "../../src/project/instance"
-import { Config } from "../../src/config/config"
+import { expect, test } from "bun:test"
+import path from "node:path"
 import { Agent as AgentSvc } from "../../src/agent/agent"
+import { Config } from "../../src/config/config"
+import { Instance } from "../../src/project/instance"
 import { Color } from "../../src/util/color"
+import { tmpdir } from "../fixture/fixture"
 
 test("agent color parsed from project config", async () => {
   await using tmp = await tmpdir({
@@ -25,8 +25,8 @@ test("agent color parsed from project config", async () => {
     directory: tmp.path,
     fn: async () => {
       const cfg = await Config.get()
-      expect(cfg.agent?.["build"]?.color).toBe("#FFA500")
-      expect(cfg.agent?.["plan"]?.color).toBe("primary")
+      expect(cfg.agent?.build?.color).toBe("#FFA500")
+      expect(cfg.agent?.plan?.color).toBe("primary")
     },
   })
 })

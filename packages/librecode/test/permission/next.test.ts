@@ -1,12 +1,12 @@
-import { test, expect } from "bun:test"
-import os from "os"
+import { expect, test } from "bun:test"
+import os from "node:os"
 import { Bus } from "../../src/bus"
 import { PermissionNext } from "../../src/permission/next"
-import * as S from "../../src/permission/service"
 import { PermissionID } from "../../src/permission/schema"
+import * as S from "../../src/permission/service"
 import { Instance } from "../../src/project/instance"
-import { tmpdir } from "../fixture/fixture"
 import { MessageID, SessionID } from "../../src/session/schema"
+import { tmpdir } from "../fixture/fixture"
 
 async function rejectAll(message?: string) {
   for (const req of await PermissionNext.list()) {

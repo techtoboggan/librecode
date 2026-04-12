@@ -1,9 +1,9 @@
-import { test, expect } from "bun:test"
+import { expect, test } from "bun:test"
 import {
   parseShareUrl,
+  type ShareData,
   shouldAttachShareAuthHeaders,
   transformShareData,
-  type ShareData,
 } from "../../src/cli/cmd/import"
 
 // parseShareUrl tests

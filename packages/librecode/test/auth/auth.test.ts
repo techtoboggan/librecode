@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test"
+import { expect, test } from "bun:test"
 import { Auth } from "../../src/auth"
 
 test("set normalizes trailing slashes in keys", async () => {
@@ -51,8 +51,8 @@ test("set and remove are no-ops on keys without trailing slashes", async () => {
     key: "sk-test",
   })
   const data = await Auth.all()
-  expect(data["anthropic"]).toBeDefined()
+  expect(data.anthropic).toBeDefined()
   await Auth.remove("anthropic")
   const after = await Auth.all()
-  expect(after["anthropic"]).toBeUndefined()
+  expect(after.anthropic).toBeUndefined()
 })

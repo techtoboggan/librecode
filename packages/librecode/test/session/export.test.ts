@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { ExportedSession, EXPORT_VERSION } from "../../src/session/export"
+import { EXPORT_VERSION, ExportedSession } from "../../src/session/export"
 
 describe("session export format", () => {
   test("ExportedSession schema validates correct data", () => {

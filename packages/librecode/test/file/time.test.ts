@@ -1,6 +1,6 @@
-import { describe, test, expect, beforeEach } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { FileTime } from "../../src/file/time"
 import { Instance } from "../../src/project/instance"
 import { Filesystem } from "../../src/util/filesystem"
@@ -25,7 +25,7 @@ describe("file/time", () => {
 
           const after = FileTime.get(sessionID, filepath)
           expect(after).toBeInstanceOf(Date)
-          expect(after!.getTime()).toBeGreaterThan(0)
+          expect(after?.getTime()).toBeGreaterThan(0)
         },
       })
     })
@@ -142,8 +142,8 @@ describe("file/time", () => {
             error = e as Error
           }
           expect(error).toBeDefined()
-          expect(error!.message).toContain("Last modification:")
-          expect(error!.message).toContain("Last read:")
+          expect(error?.message).toContain("Last modification:")
+          expect(error?.message).toContain("Last read:")
         },
       })
     })
@@ -326,7 +326,7 @@ describe("file/time", () => {
 
           const stats = Filesystem.stat(filepath)
           expect(stats?.mtime).toBeInstanceOf(Date)
-          expect(stats!.mtime.getTime()).toBeGreaterThan(0)
+          expect(stats?.mtime.getTime()).toBeGreaterThan(0)
 
           // FileTime.assert uses this stat internally
           await FileTime.assert(sessionID, filepath)
@@ -351,7 +351,7 @@ describe("file/time", () => {
           await fs.writeFile(filepath, "modified", "utf-8")
 
           const newStat = Filesystem.stat(filepath)
-          expect(newStat!.mtime.getTime()).toBeGreaterThan(originalStat!.mtime.getTime())
+          expect(newStat?.mtime.getTime()).toBeGreaterThan(originalStat?.mtime.getTime()!)
 
           await expect(FileTime.assert(sessionID, filepath)).rejects.toThrow()
         },

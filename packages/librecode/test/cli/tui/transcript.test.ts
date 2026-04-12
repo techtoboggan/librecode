@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
+import type { AssistantMessage, Part, UserMessage } from "@librecode/sdk/v2"
 import {
   formatAssistantHeader,
   formatMessage,
   formatPart,
   formatTranscript,
 } from "../../../src/cli/cmd/tui/util/transcript"
-import type { AssistantMessage, Part, UserMessage } from "@librecode/sdk/v2"
 
 describe("transcript", () => {
   describe("formatAssistantHeader", () => {

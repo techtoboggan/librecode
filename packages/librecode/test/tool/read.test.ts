@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import { ReadTool } from "../../src/tool/read"
+import path from "node:path"
+import { Agent } from "../../src/agent/agent"
+import { PermissionNext } from "../../src/permission/next"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { ReadTool } from "../../src/tool/read"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
-import { PermissionNext } from "../../src/permission/next"
-import { Agent } from "../../src/agent/agent"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const FIXTURES_DIR = path.join(import.meta.dir, "fixtures")
 
@@ -75,7 +75,7 @@ describe("tool.read external_directory permission", () => {
         await read.execute({ filePath: path.join(outerTmp.path, "secret.txt") }, testCtx)
         const extDirReq = requests.find((r) => r.permission === "external_directory")
         expect(extDirReq).toBeDefined()
-        expect(extDirReq!.patterns.some((p) => p.includes(outerTmp.path.replaceAll("\\", "/")))).toBe(true)
+        expect(extDirReq?.patterns.some((p) => p.includes(outerTmp.path.replaceAll("\\", "/")))).toBe(true)
       },
     })
   })
@@ -101,7 +101,7 @@ describe("tool.read external_directory permission", () => {
         await read.execute({ filePath: path.join(outerTmp.path, "external") }, testCtx)
         const extDirReq = requests.find((r) => r.permission === "external_directory")
         expect(extDirReq).toBeDefined()
-        expect(extDirReq!.patterns).toContain(path.join(outerTmp.path, "external", "*").replaceAll("\\", "/"))
+        expect(extDirReq?.patterns).toContain(path.join(outerTmp.path, "external", "*").replaceAll("\\", "/"))
       },
     })
   })

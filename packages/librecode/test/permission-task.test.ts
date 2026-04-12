@@ -1,6 +1,6 @@
-import { describe, test, expect } from "bun:test"
-import { PermissionNext } from "../src/permission/next"
+import { describe, expect, test } from "bun:test"
 import { Config } from "../src/config/config"
+import { PermissionNext } from "../src/permission/next"
 import { Instance } from "../src/project/instance"
 import { tmpdir } from "./fixture/fixture"
 

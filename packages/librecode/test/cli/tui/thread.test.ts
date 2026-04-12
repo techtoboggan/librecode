@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test"
-import fs from "fs/promises"
-import path from "path"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { tmpdir } from "../../fixture/fixture"
 
 const stop = new Error("stop")
@@ -112,7 +112,7 @@ describe("tui thread", () => {
     const pwd = process.env.PWD
     const worker = globalThis.Worker
     const tty = Object.getOwnPropertyDescriptor(process.stdin, "isTTY")
-    const link = path.join(path.dirname(tmp.path), path.basename(tmp.path) + "-link")
+    const link = path.join(path.dirname(tmp.path), `${path.basename(tmp.path)}-link`)
     const type = process.platform === "win32" ? "junction" : "dir"
     seen.tui.length = 0
     seen.inst.length = 0

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
 import { Session } from "../../src/session"
 import { Log } from "../../src/util/log"
@@ -49,7 +49,7 @@ describe("Session.list", () => {
     await Instance.provide({
       directory: projectRoot,
       fn: async () => {
-        const session = await Session.create({ title: "new-session" })
+        const _session = await Session.create({ title: "new-session" })
         const futureStart = Date.now() + 86400000
 
         const sessions = [...Session.list({ start: futureStart })]

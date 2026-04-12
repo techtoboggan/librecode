@@ -1,5 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test"
-import { HealthMonitor, type HealthEventData } from "../../src/mcp/health"
+import { beforeEach, describe, expect, test } from "bun:test"
+import { type HealthEventData, HealthMonitor } from "../../src/mcp/health"
 
 describe("HealthMonitor", () => {
   let statuses: Record<string, { status: string; error?: string }>

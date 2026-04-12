@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { ACP } from "../../src/acp/agent"
 import type { AgentSideConnection } from "@agentclientprotocol/sdk"
 import type { Event, EventMessagePartUpdated, ToolStatePending, ToolStateRunning } from "@librecode/sdk/v2"
+import { ACP } from "../../src/acp/agent"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 
@@ -432,9 +432,9 @@ describe("acp.agent event subscription", () => {
 
         // Make permission request for session A block until we release it
         const originalRequestPermission = connection.requestPermission.bind(connection)
-        let permissionCalls = 0
+        let _permissionCalls = 0
         connection.requestPermission = async (params: RequestPermissionParams) => {
-          permissionCalls++
+          _permissionCalls++
           if (params.sessionId.endsWith("1")) {
             await permissionABlocking
           }
@@ -493,7 +493,7 @@ describe("acp.agent event subscription", () => {
         expect(permissionReplies).not.toContain("perm_a")
 
         // Release session A's permission
-        resolvePermissionA!()
+        resolvePermissionA?.()
         await new Promise((r) => setTimeout(r, 20))
 
         // Now session A's permission should be replied

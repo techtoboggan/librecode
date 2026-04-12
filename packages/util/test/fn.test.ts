@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { fn } from "../src/fn"
 import { z } from "zod"
+import { fn } from "../src/fn"
 
 describe("fn", () => {
   const add = fn(z.object({ a: z.number(), b: z.number() }), ({ a, b }) => a + b)

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { MessageV2 } from "../../src/session/message-v2"
 import { SessionPrompt } from "../../src/session/prompt"
-import { SessionID, MessageID } from "../../src/session/schema"
+import { MessageID, SessionID } from "../../src/session/schema"
 
 describe("structured-output.OutputFormat", () => {
   test("parses text format", () => {
@@ -227,7 +227,7 @@ describe("structured-output.createStructuredOutputTool", () => {
 
     expect(tool.execute).toBeDefined()
     const testArgs = { name: "Test Company" }
-    const result = await tool.execute!(testArgs, {
+    const result = await tool.execute?.(testArgs, {
       toolCallId: "test-call-id",
       messages: [],
       abortSignal: undefined as any,
@@ -306,7 +306,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     })
 
     // Valid nested object - AI SDK validates before calling execute()
-    const validResult = await tool.execute!(
+    const validResult = await tool.execute?.(
       { user: { name: "John", email: "john@test.com" } },
       {
         toolCallId: "test-call-id",
@@ -345,7 +345,7 @@ describe("structured-output.createStructuredOutputTool", () => {
     })
 
     // Valid array - AI SDK validates before calling execute()
-    const validResult = await tool.execute!(
+    const validResult = await tool.execute?.(
       { tags: ["a", "b", "c"] },
       {
         toolCallId: "test-call-id",
@@ -370,14 +370,14 @@ describe("structured-output.createStructuredOutputTool", () => {
     })
 
     expect(tool.toModelOutput).toBeDefined()
-    const modelOutput = tool.toModelOutput!({
+    const modelOutput = tool.toModelOutput?.({
       output: "Test output",
       title: "Test",
       metadata: { valid: true },
     })
 
-    expect(modelOutput.type).toBe("text")
-    expect(modelOutput.value).toBe("Test output")
+    expect(modelOutput!.type).toBe("text")
+    expect(modelOutput!.value).toBe("Test output")
   })
 
   // Note: Retry behavior is handled by the AI SDK and the prompt loop, not the tool itself

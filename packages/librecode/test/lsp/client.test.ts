@@ -1,5 +1,5 @@
-import { describe, expect, test, beforeEach } from "bun:test"
-import path from "path"
+import { beforeEach, describe, expect, test } from "bun:test"
+import path from "node:path"
 import { LSPClient } from "../../src/lsp/client"
 import type { LSPServer } from "../../src/lsp/server"
 import { Instance } from "../../src/project/instance"
@@ -7,7 +7,7 @@ import { Log } from "../../src/util/log"
 
 // Minimal fake LSP server that speaks JSON-RPC over stdio
 function spawnFakeServer() {
-  const { spawn } = require("child_process")
+  const { spawn } = require("node:child_process")
   const serverPath = path.join(__dirname, "../fixture/lsp/fake-lsp-server.js")
   return {
     process: spawn(process.execPath, [serverPath], {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import fs from "fs/promises"
-import path from "path"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { which } from "../../src/util/which"
 import { tmpdir } from "../fixture/fixture"
 
@@ -18,14 +18,14 @@ async function cmd(dir: string, name: string, exec = true) {
 function env(PATH: string): NodeJS.ProcessEnv {
   return {
     PATH,
-    PATHEXT: process.env["PATHEXT"],
+    PATHEXT: process.env.PATHEXT,
   }
 }
 
 function envPath(Path: string): NodeJS.ProcessEnv {
   return {
     Path,
-    PathExt: process.env["PathExt"] ?? process.env["PATHEXT"],
+    PathExt: process.env.PathExt ?? process.env.PATHEXT,
   }
 }
 

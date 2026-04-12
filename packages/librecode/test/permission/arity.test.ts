@@ -1,4 +1,4 @@
-import { test, expect } from "bun:test"
+import { expect, test } from "bun:test"
 import { BashArity } from "../../src/permission/arity"
 
 test("arity 1 - unknown commands default to first token", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
+import path from "node:path"
 import { Module } from "@librecode/util/module"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"

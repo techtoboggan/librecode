@@ -1,9 +1,9 @@
-import { test, expect } from "bun:test"
+import { expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { $ } from "bun"
-import fs from "fs/promises"
-import path from "path"
-import { Snapshot } from "../../src/snapshot"
 import { Instance } from "../../src/project/instance"
+import { Snapshot } from "../../src/snapshot"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
 
@@ -393,7 +393,7 @@ test("very long filenames", async () => {
       const before = await Snapshot.track()
       expect(before).toBeTruthy()
 
-      const longName = "a".repeat(200) + ".txt"
+      const longName = `${"a".repeat(200)}.txt`
       const longFile = fwd(tmp.path, longName)
 
       await Filesystem.write(longFile, "long filename content")
@@ -914,23 +914,23 @@ test("diffFull sets status based on git change type", async () => {
 
       const added = diffs.find((d) => d.file === "added.txt")
       expect(added).toBeDefined()
-      expect(added!.status).toBe("added")
+      expect(added?.status).toBe("added")
 
       const deleted = diffs.find((d) => d.file === "delete.txt")
       expect(deleted).toBeDefined()
-      expect(deleted!.status).toBe("deleted")
+      expect(deleted?.status).toBe("deleted")
 
       const grow = diffs.find((d) => d.file === "grow.txt")
       expect(grow).toBeDefined()
-      expect(grow!.status).toBe("modified")
-      expect(grow!.additions).toBeGreaterThan(0)
-      expect(grow!.deletions).toBe(0)
+      expect(grow?.status).toBe("modified")
+      expect(grow?.additions).toBeGreaterThan(0)
+      expect(grow?.deletions).toBe(0)
 
       const trim = diffs.find((d) => d.file === "trim.txt")
       expect(trim).toBeDefined()
-      expect(trim!.status).toBe("modified")
-      expect(trim!.additions).toBe(0)
-      expect(trim!.deletions).toBeGreaterThan(0)
+      expect(trim?.status).toBe("modified")
+      expect(trim?.additions).toBe(0)
+      expect(trim?.deletions).toBeGreaterThan(0)
     },
   })
 })
@@ -1058,17 +1058,17 @@ test("diffFull with addition and deletion", async () => {
 
       const addedFileDiff = diffs.find((d) => d.file === "added.txt")
       expect(addedFileDiff).toBeDefined()
-      expect(addedFileDiff!.before).toBe("")
-      expect(addedFileDiff!.after).toBe("added content")
-      expect(addedFileDiff!.additions).toBe(1)
-      expect(addedFileDiff!.deletions).toBe(0)
+      expect(addedFileDiff?.before).toBe("")
+      expect(addedFileDiff?.after).toBe("added content")
+      expect(addedFileDiff?.additions).toBe(1)
+      expect(addedFileDiff?.deletions).toBe(0)
 
       const removedFileDiff = diffs.find((d) => d.file === "a.txt")
       expect(removedFileDiff).toBeDefined()
-      expect(removedFileDiff!.before).toBe(tmp.extra.aContent)
-      expect(removedFileDiff!.after).toBe("")
-      expect(removedFileDiff!.additions).toBe(0)
-      expect(removedFileDiff!.deletions).toBe(1)
+      expect(removedFileDiff?.before).toBe(tmp.extra.aContent)
+      expect(removedFileDiff?.after).toBe("")
+      expect(removedFileDiff?.additions).toBe(0)
+      expect(removedFileDiff?.deletions).toBe(1)
     },
   })
 })
@@ -1094,23 +1094,23 @@ test("diffFull with multiple additions and deletions", async () => {
 
       const multi1Diff = diffs.find((d) => d.file === "multi1.txt")
       expect(multi1Diff).toBeDefined()
-      expect(multi1Diff!.additions).toBe(3)
-      expect(multi1Diff!.deletions).toBe(0)
+      expect(multi1Diff?.additions).toBe(3)
+      expect(multi1Diff?.deletions).toBe(0)
 
       const multi2Diff = diffs.find((d) => d.file === "multi2.txt")
       expect(multi2Diff).toBeDefined()
-      expect(multi2Diff!.additions).toBe(1)
-      expect(multi2Diff!.deletions).toBe(0)
+      expect(multi2Diff?.additions).toBe(1)
+      expect(multi2Diff?.deletions).toBe(0)
 
       const removedADiff = diffs.find((d) => d.file === "a.txt")
       expect(removedADiff).toBeDefined()
-      expect(removedADiff!.additions).toBe(0)
-      expect(removedADiff!.deletions).toBe(1)
+      expect(removedADiff?.additions).toBe(0)
+      expect(removedADiff?.deletions).toBe(1)
 
       const removedBDiff = diffs.find((d) => d.file === "b.txt")
       expect(removedBDiff).toBeDefined()
-      expect(removedBDiff!.additions).toBe(0)
-      expect(removedBDiff!.deletions).toBe(1)
+      expect(removedBDiff?.additions).toBe(0)
+      expect(removedBDiff?.deletions).toBe(1)
     },
   })
 })

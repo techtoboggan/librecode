@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeAll, afterAll } from "bun:test"
+import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { rm } from "node:fs/promises"
+import path from "node:path"
 import { Discovery } from "../../src/skill/discovery"
 import { Filesystem } from "../../src/util/filesystem"
-import { rm } from "fs/promises"
-import path from "path"
 
 let CLOUDFLARE_SKILLS_URL: string
 let server: ReturnType<typeof Bun.serve>
@@ -77,7 +77,7 @@ describe("Discovery.pull", () => {
   test("downloads reference files alongside SKILL.md", async () => {
     const dirs = await Discovery.pull(CLOUDFLARE_SKILLS_URL)
     // find a skill dir that should have reference files (e.g. agents-sdk)
-    const agentsSdk = dirs.find((d) => d.endsWith(path.sep + "agents-sdk"))
+    const agentsSdk = dirs.find((d) => d.endsWith(`${path.sep}agents-sdk`))
     expect(agentsSdk).toBeDefined()
     if (agentsSdk) {
       const refs = path.join(agentsSdk, "references")

@@ -1,6 +1,6 @@
-import { OpenAICompatibleChatLanguageModel } from "@/provider/sdk/copilot/chat/openai-compatible-chat-language-model"
-import { describe, test, expect, mock } from "bun:test"
+import { describe, expect, mock, test } from "bun:test"
 import type { LanguageModelV2Prompt } from "@ai-sdk/provider"
+import { OpenAICompatibleChatLanguageModel } from "@/provider/sdk/copilot/chat/openai-compatible-chat-language-model"
 
 async function convertReadableStreamToArray<T>(stream: ReadableStream<T>): Promise<T[]> {
   const reader = stream.getReader()
@@ -78,7 +78,7 @@ function createMockFetch(chunks: string[]) {
     const body = new ReadableStream({
       start(controller) {
         for (const chunk of chunks) {
-          controller.enqueue(new TextEncoder().encode(chunk + "\n\n"))
+          controller.enqueue(new TextEncoder().encode(`${chunk}\n\n`))
         }
         controller.close()
       },

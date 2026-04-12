@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { Scheduler } from "../src/scheduler"
 import { Instance } from "../src/project/instance"
+import { Scheduler } from "../src/scheduler"
 import { tmpdir } from "./fixture/fixture"
 
 describe("Scheduler.register", () => {
@@ -10,7 +10,7 @@ describe("Scheduler.register", () => {
     await using one = await tmpdir({ git: true })
     await using two = await tmpdir({ git: true })
     const runs = { count: 0 }
-    const id = "scheduler.instance." + Math.random().toString(36).slice(2)
+    const id = `scheduler.instance.${Math.random().toString(36).slice(2)}`
     const task = {
       id,
       interval: hour,
@@ -42,7 +42,7 @@ describe("Scheduler.register", () => {
     await using one = await tmpdir({ git: true })
     await using two = await tmpdir({ git: true })
     const runs = { count: 0 }
-    const id = "scheduler.global." + Math.random().toString(36).slice(2)
+    const id = `scheduler.global.${Math.random().toString(36).slice(2)}`
     const task = {
       id,
       interval: hour,

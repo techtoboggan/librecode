@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { APICallError } from "ai"
-import { MessageV2 } from "../../src/session/message-v2"
 import type { Provider } from "../../src/provider/provider"
 import { ModelID, ProviderID } from "../../src/provider/schema"
-import { SessionID, MessageID, PartID } from "../../src/session/schema"
+import { MessageV2 } from "../../src/session/message-v2"
+import { MessageID, PartID, SessionID } from "../../src/session/schema"
 
 const sessionID = SessionID.make("session")
 const providerID = ProviderID.make("test")

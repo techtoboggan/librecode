@@ -1,6 +1,6 @@
-import { describe, test, expect } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { File } from "../../src/file"
 import { Instance } from "../../src/project/instance"
 import { Filesystem } from "../../src/util/filesystem"
@@ -261,7 +261,7 @@ describe("file/index Filesystem patterns", () => {
 
     test("returns empty array buffer on error for images", async () => {
       await using tmp = await tmpdir()
-      const filepath = path.join(tmp.path, "broken.png")
+      const _filepath = path.join(tmp.path, "broken.png")
       // Don't create the file
 
       await Instance.provide({

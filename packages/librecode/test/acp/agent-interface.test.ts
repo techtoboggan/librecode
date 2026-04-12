@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { ACP } from "../../src/acp/agent"
 import type { Agent as ACPAgent } from "@agentclientprotocol/sdk"
+import { ACP } from "../../src/acp/agent"
 
 /**
  * Type-level test: This line will fail to compile if ACP.Agent

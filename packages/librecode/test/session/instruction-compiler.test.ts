@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import {
-  InstructionCompiler,
   estimateTokens,
   formatCompiled,
+  InstructionCompiler,
   TIER_PRIORITY,
 } from "../../src/session/instruction-compiler"
 
@@ -143,17 +143,17 @@ describe("estimateTokens", () => {
 
 describe("TIER_PRIORITY", () => {
   test("system is highest priority", () => {
-    expect(TIER_PRIORITY["system"]).toBeGreaterThan(TIER_PRIORITY["agent"])
-    expect(TIER_PRIORITY["system"]).toBeGreaterThan(TIER_PRIORITY["project"])
-    expect(TIER_PRIORITY["system"]).toBeGreaterThan(TIER_PRIORITY["user"])
+    expect(TIER_PRIORITY.system).toBeGreaterThan(TIER_PRIORITY.agent)
+    expect(TIER_PRIORITY.system).toBeGreaterThan(TIER_PRIORITY.project)
+    expect(TIER_PRIORITY.system).toBeGreaterThan(TIER_PRIORITY.user)
   })
 
   test("format is higher than project", () => {
-    expect(TIER_PRIORITY["format"]).toBeGreaterThan(TIER_PRIORITY["project"])
+    expect(TIER_PRIORITY.format).toBeGreaterThan(TIER_PRIORITY.project)
   })
 
   test("user is lowest non-contextual", () => {
-    expect(TIER_PRIORITY["user"]).toBeGreaterThan(TIER_PRIORITY["contextual"])
+    expect(TIER_PRIORITY.user).toBeGreaterThan(TIER_PRIORITY.contextual)
   })
 })
 

@@ -1,8 +1,8 @@
-import { describe, test, expect, beforeEach, afterEach } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import * as fs from "node:fs/promises"
+import { tmpdir } from "node:os"
+import * as path from "node:path"
 import { Patch } from "../../src/patch"
-import * as fs from "fs/promises"
-import * as path from "path"
-import { tmpdir } from "os"
 
 describe("Patch namespace", () => {
   let tempDir: string

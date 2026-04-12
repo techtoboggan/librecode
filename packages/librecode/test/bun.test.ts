@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import fs from "fs/promises"
-import path from "path"
+import fs from "node:fs/promises"
+import path from "node:path"
 
 describe("BunProc registry configuration", () => {
   test("should not contain hardcoded registry parameters", async () => {

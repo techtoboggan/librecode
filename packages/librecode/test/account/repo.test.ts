@@ -1,4 +1,4 @@
-import { expect, test, beforeEach } from "bun:test"
+import { beforeEach, expect, test } from "bun:test"
 
 import { AccountRepo } from "../../src/account/repo"
 import { AccessToken, AccountID, OrgID, RefreshToken } from "../../src/account/schema"
@@ -34,12 +34,12 @@ test("persistAccount inserts and getRow retrieves", () => {
 
   const row = AccountRepo.getRow(id)
   expect(row).toBeDefined()
-  expect(row!.id).toBe(AccountID.make("user-1"))
-  expect(row!.email).toBe("test@example.com")
+  expect(row?.id).toBe(AccountID.make("user-1"))
+  expect(row?.email).toBe("test@example.com")
 
   const active = AccountRepo.active()
   expect(active).toBeDefined()
-  expect(active!.active_org_id).toBe(OrgID.make("org-1"))
+  expect(active?.active_org_id).toBe(OrgID.make("org-1"))
 })
 
 test("persistAccount sets the active account and org", () => {
@@ -69,8 +69,8 @@ test("persistAccount sets the active account and org", () => {
   // Last persisted account is active with its org
   const active = AccountRepo.active()
   expect(active).toBeDefined()
-  expect(active!.id).toBe(AccountID.make("user-2"))
-  expect(active!.active_org_id).toBe(OrgID.make("org-2"))
+  expect(active?.id).toBe(AccountID.make("user-2"))
+  expect(active?.active_org_id).toBe(OrgID.make("org-2"))
 })
 
 test("list returns all accounts", () => {
@@ -147,12 +147,12 @@ test("use stores the selected org and marks the account active", () => {
 
   AccountRepo.use(id1, OrgID.make("org-99"))
   const active1 = AccountRepo.active()
-  expect(active1!.id).toBe(id1)
-  expect(active1!.active_org_id).toBe(OrgID.make("org-99"))
+  expect(active1?.id).toBe(id1)
+  expect(active1?.active_org_id).toBe(OrgID.make("org-99"))
 
   AccountRepo.use(id1, null)
   const active2 = AccountRepo.active()
-  expect(active2!.active_org_id).toBeNull()
+  expect(active2?.active_org_id).toBeNull()
 })
 
 test("persistToken updates token fields", () => {
@@ -177,9 +177,9 @@ test("persistToken updates token fields", () => {
   })
 
   const row = AccountRepo.getRow(id)
-  expect(row!.access_token).toBe(AccessToken.make("new_token"))
-  expect(row!.refresh_token).toBe(RefreshToken.make("new_refresh"))
-  expect(row!.token_expiry).toBe(expiry)
+  expect(row?.access_token).toBe(AccessToken.make("new_token"))
+  expect(row?.refresh_token).toBe(RefreshToken.make("new_refresh"))
+  expect(row?.token_expiry).toBe(expiry)
 })
 
 test("persistToken with no expiry sets token_expiry to null", () => {
@@ -203,7 +203,7 @@ test("persistToken with no expiry sets token_expiry to null", () => {
   })
 
   const row = AccountRepo.getRow(id)
-  expect(row!.token_expiry).toBeNull()
+  expect(row?.token_expiry).toBeNull()
 })
 
 test("persistAccount upserts on conflict", () => {
@@ -233,10 +233,10 @@ test("persistAccount upserts on conflict", () => {
   expect(accounts.length).toBe(1)
 
   const row = AccountRepo.getRow(id)
-  expect(row!.access_token).toBe(AccessToken.make("at_v2"))
+  expect(row?.access_token).toBe(AccessToken.make("at_v2"))
 
   const active = AccountRepo.active()
-  expect(active!.active_org_id).toBe(OrgID.make("org-2"))
+  expect(active?.active_org_id).toBe(OrgID.make("org-2"))
 })
 
 test("remove clears active state when deleting the active account", () => {

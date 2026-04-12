@@ -1,16 +1,16 @@
-import { test, expect, describe, mock, afterEach, spyOn } from "bun:test"
-import { Config } from "../../src/config/config"
-import { Instance } from "../../src/project/instance"
-import { Auth } from "../../src/auth"
+import { afterEach, describe, expect, mock, spyOn, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { AccessToken, Account, AccountID, OrgID } from "../../src/account"
-import { tmpdir } from "../fixture/fixture"
-import path from "path"
-import fs from "fs/promises"
-import { pathToFileURL } from "url"
+import { Auth } from "../../src/auth"
+import { BunProc } from "../../src/bun"
+import { Config } from "../../src/config/config"
 import { Global } from "../../src/global"
+import { Instance } from "../../src/project/instance"
 import { ProjectID } from "../../src/project/schema"
 import { Filesystem } from "../../src/util/filesystem"
-import { BunProc } from "../../src/bun"
+import { tmpdir } from "../fixture/fixture"
 
 // Get managed config directory from environment (set in preload.ts)
 const managedConfigDir = process.env.LIBRECODE_TEST_MANAGED_CONFIG_DIR!
@@ -179,8 +179,8 @@ test("merges multiple config files with correct precedence", async () => {
 })
 
 test("handles environment variable substitution", async () => {
-  const originalEnv = process.env["TEST_VAR"]
-  process.env["TEST_VAR"] = "test-user"
+  const originalEnv = process.env.TEST_VAR
+  process.env.TEST_VAR = "test-user"
 
   try {
     await using tmp = await tmpdir({
@@ -200,16 +200,16 @@ test("handles environment variable substitution", async () => {
     })
   } finally {
     if (originalEnv !== undefined) {
-      process.env["TEST_VAR"] = originalEnv
+      process.env.TEST_VAR = originalEnv
     } else {
-      delete process.env["TEST_VAR"]
+      delete process.env.TEST_VAR
     }
   }
 })
 
 test("preserves env variables when adding $schema to config", async () => {
-  const originalEnv = process.env["PRESERVE_VAR"]
-  process.env["PRESERVE_VAR"] = "secret_value"
+  const originalEnv = process.env.PRESERVE_VAR
+  process.env.PRESERVE_VAR = "secret_value"
 
   try {
     await using tmp = await tmpdir({
@@ -238,9 +238,9 @@ test("preserves env variables when adding $schema to config", async () => {
     })
   } finally {
     if (originalEnv !== undefined) {
-      process.env["PRESERVE_VAR"] = originalEnv
+      process.env.PRESERVE_VAR = originalEnv
     } else {
-      delete process.env["PRESERVE_VAR"]
+      delete process.env.PRESERVE_VAR
     }
   }
 })
@@ -249,7 +249,7 @@ test("resolves env templates in account config with account token", async () => 
   const originalActive = Account.active
   const originalConfig = Account.config
   const originalToken = Account.token
-  const originalControlToken = process.env["LIBRECODE_CONSOLE_TOKEN"]
+  const originalControlToken = process.env.LIBRECODE_CONSOLE_TOKEN
 
   Account.active = mock(() => ({
     id: AccountID.make("account-1"),
@@ -276,7 +276,7 @@ test("resolves env templates in account config with account token", async () => 
       directory: tmp.path,
       fn: async () => {
         const config = await Config.get()
-        expect(config.provider?.["librecode"]?.options?.apiKey).toBe("st_test_token")
+        expect(config.provider?.librecode?.options?.apiKey).toBe("st_test_token")
       },
     })
   } finally {
@@ -284,9 +284,9 @@ test("resolves env templates in account config with account token", async () => 
     Account.config = originalConfig
     Account.token = originalToken
     if (originalControlToken !== undefined) {
-      process.env["LIBRECODE_CONSOLE_TOKEN"] = originalControlToken
+      process.env.LIBRECODE_CONSOLE_TOKEN = originalControlToken
     } else {
-      delete process.env["LIBRECODE_CONSOLE_TOKEN"]
+      delete process.env.LIBRECODE_CONSOLE_TOKEN
     }
   }
 })
@@ -380,7 +380,7 @@ test("handles agent configuration", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test_agent"]).toEqual(
+      expect(config.agent?.test_agent).toEqual(
         expect.objectContaining({
           model: "test/model",
           temperature: 0.7,
@@ -411,7 +411,7 @@ test("treats agent variant as model-scoped setting (not provider option)", async
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      const agent = config.agent?.["test_agent"]
+      const agent = config.agent?.test_agent
 
       expect(agent?.variant).toBe("xhigh")
       expect(agent?.options).toMatchObject({
@@ -441,7 +441,7 @@ test("handles command configuration", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.command?.["test_command"]).toEqual({
+      expect(config.command?.test_command).toEqual({
         template: "test template",
         description: "test command",
         agent: "test_agent",
@@ -493,7 +493,7 @@ test("migrates mode field to agent field", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test_mode"]).toEqual({
+      expect(config.agent?.test_mode).toEqual({
         model: "test/model",
         temperature: 0.5,
         mode: "primary",
@@ -525,7 +525,7 @@ Test agent prompt`,
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]).toEqual(
+      expect(config.agent?.test).toEqual(
         expect.objectContaining({
           name: "test",
           model: "test/model",
@@ -570,7 +570,7 @@ Nested agent prompt`,
     fn: async () => {
       const config = await Config.get()
 
-      expect(config.agent?.["helper"]).toMatchObject({
+      expect(config.agent?.helper).toMatchObject({
         name: "helper",
         model: "test/model",
         mode: "subagent",
@@ -619,7 +619,7 @@ Nested command template`,
     fn: async () => {
       const config = await Config.get()
 
-      expect(config.command?.["hello"]).toEqual({
+      expect(config.command?.hello).toEqual({
         description: "Test command",
         template: "Hello from singular command",
       })
@@ -664,7 +664,7 @@ Nested command template`,
     fn: async () => {
       const config = await Config.get()
 
-      expect(config.command?.["hello"]).toEqual({
+      expect(config.command?.hello).toEqual({
         description: "Test command",
         template: "Hello from plural commands",
       })
@@ -844,7 +844,7 @@ test("resolves scoped npm plugins in config", async () => {
       const config = await Config.get()
       const pluginEntries = config.plugin ?? []
 
-      const baseUrl = pathToFileURL(path.join(tmp.path, "librecode.json")).href
+      const _baseUrl = pathToFileURL(path.join(tmp.path, "librecode.json")).href
       const expected = pathToFileURL(path.join(tmp.path, "node_modules", "@scope", "plugin", "index.js")).href
 
       expect(pluginEntries.includes(expected)).toBe(true)
@@ -924,7 +924,7 @@ Helper subagent prompt`,
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["helper"]).toMatchObject({
+      expect(config.agent?.helper).toMatchObject({
         name: "helper",
         model: "test/model",
         mode: "subagent",
@@ -1092,7 +1092,7 @@ test("migrates legacy tools config to permissions - allow", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         bash: "allow",
         read: "allow",
       })
@@ -1123,7 +1123,7 @@ test("migrates legacy tools config to permissions - deny", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         bash: "deny",
         webfetch: "deny",
       })
@@ -1153,7 +1153,7 @@ test("migrates legacy write tool to edit permission", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         edit: "allow",
       })
     },
@@ -1260,7 +1260,7 @@ test("migrates legacy edit tool to edit permission", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         edit: "deny",
       })
     },
@@ -1289,7 +1289,7 @@ test("migrates legacy patch tool to edit permission", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         edit: "allow",
       })
     },
@@ -1318,7 +1318,7 @@ test("migrates legacy multiedit tool to edit permission", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         edit: "deny",
       })
     },
@@ -1350,7 +1350,7 @@ test("migrates mixed legacy tools config", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         bash: "allow",
         edit: "allow",
         read: "deny",
@@ -1385,7 +1385,7 @@ test("merges legacy tools with existing permission config", async () => {
     directory: tmp.path,
     fn: async () => {
       const config = await Config.get()
-      expect(config.agent?.["test"]?.permission).toEqual({
+      expect(config.agent?.test?.permission).toEqual({
         glob: "allow",
         bash: "allow",
       })
@@ -1824,8 +1824,8 @@ describe("deduplicatePlugins", () => {
 
 describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
   test("skips project config files when flag is set", async () => {
-    const originalEnv = process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
-    process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = "true"
+    const originalEnv = process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
+    process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = "true"
 
     try {
       await using tmp = await tmpdir({
@@ -1852,16 +1852,16 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
       })
     } finally {
       if (originalEnv === undefined) {
-        delete process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
+        delete process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
       } else {
-        process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = originalEnv
+        process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = originalEnv
       }
     }
   })
 
   test("skips project .librecode/ directories when flag is set", async () => {
-    const originalEnv = process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
-    process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = "true"
+    const originalEnv = process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
+    process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = "true"
 
     try {
       await using tmp = await tmpdir({
@@ -1883,16 +1883,16 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
       })
     } finally {
       if (originalEnv === undefined) {
-        delete process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
+        delete process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
       } else {
-        process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = originalEnv
+        process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = originalEnv
       }
     }
   })
 
   test("still loads global config when flag is set", async () => {
-    const originalEnv = process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
-    process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = "true"
+    const originalEnv = process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
+    process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = "true"
 
     try {
       await using tmp = await tmpdir()
@@ -1907,21 +1907,21 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
       })
     } finally {
       if (originalEnv === undefined) {
-        delete process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
+        delete process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
       } else {
-        process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = originalEnv
+        process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = originalEnv
       }
     }
   })
 
   test("skips relative instructions with warning when flag is set but no config dir", async () => {
-    const originalDisable = process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
-    const originalConfigDir = process.env["LIBRECODE_CONFIG_DIR"]
+    const originalDisable = process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
+    const originalConfigDir = process.env.LIBRECODE_CONFIG_DIR
 
     try {
       // Ensure no config dir is set
-      delete process.env["LIBRECODE_CONFIG_DIR"]
-      process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = "true"
+      delete process.env.LIBRECODE_CONFIG_DIR
+      process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = "true"
 
       await using tmp = await tmpdir({
         init: async (dir) => {
@@ -1952,21 +1952,21 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
       })
     } finally {
       if (originalDisable === undefined) {
-        delete process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
+        delete process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
       } else {
-        process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = originalDisable
+        process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = originalDisable
       }
       if (originalConfigDir === undefined) {
-        delete process.env["LIBRECODE_CONFIG_DIR"]
+        delete process.env.LIBRECODE_CONFIG_DIR
       } else {
-        process.env["LIBRECODE_CONFIG_DIR"] = originalConfigDir
+        process.env.LIBRECODE_CONFIG_DIR = originalConfigDir
       }
     }
   })
 
   test("LIBRECODE_CONFIG_DIR still works when flag is set", async () => {
-    const originalDisable = process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
-    const originalConfigDir = process.env["LIBRECODE_CONFIG_DIR"]
+    const originalDisable = process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
+    const originalConfigDir = process.env.LIBRECODE_CONFIG_DIR
 
     try {
       await using configDirTmp = await tmpdir({
@@ -1995,8 +1995,8 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         },
       })
 
-      process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = "true"
-      process.env["LIBRECODE_CONFIG_DIR"] = configDirTmp.path
+      process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = "true"
+      process.env.LIBRECODE_CONFIG_DIR = configDirTmp.path
 
       await Instance.provide({
         directory: projectTmp.path,
@@ -2008,14 +2008,14 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
       })
     } finally {
       if (originalDisable === undefined) {
-        delete process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"]
+        delete process.env.LIBRECODE_DISABLE_PROJECT_CONFIG
       } else {
-        process.env["LIBRECODE_DISABLE_PROJECT_CONFIG"] = originalDisable
+        process.env.LIBRECODE_DISABLE_PROJECT_CONFIG = originalDisable
       }
       if (originalConfigDir === undefined) {
-        delete process.env["LIBRECODE_CONFIG_DIR"]
+        delete process.env.LIBRECODE_CONFIG_DIR
       } else {
-        process.env["LIBRECODE_CONFIG_DIR"] = originalConfigDir
+        process.env.LIBRECODE_CONFIG_DIR = originalConfigDir
       }
     }
   })
@@ -2023,10 +2023,10 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
 
 describe("LIBRECODE_CONFIG_CONTENT token substitution", () => {
   test("substitutes {env:} tokens in LIBRECODE_CONFIG_CONTENT", async () => {
-    const originalEnv = process.env["LIBRECODE_CONFIG_CONTENT"]
-    const originalTestVar = process.env["TEST_CONFIG_VAR"]
-    process.env["TEST_CONFIG_VAR"] = "test_api_key_12345"
-    process.env["LIBRECODE_CONFIG_CONTENT"] = JSON.stringify({
+    const originalEnv = process.env.LIBRECODE_CONFIG_CONTENT
+    const originalTestVar = process.env.TEST_CONFIG_VAR
+    process.env.TEST_CONFIG_VAR = "test_api_key_12345"
+    process.env.LIBRECODE_CONFIG_CONTENT = JSON.stringify({
       $schema: "https://librecode.app/config.json",
       username: "{env:TEST_CONFIG_VAR}",
     })
@@ -2042,26 +2042,26 @@ describe("LIBRECODE_CONFIG_CONTENT token substitution", () => {
       })
     } finally {
       if (originalEnv !== undefined) {
-        process.env["LIBRECODE_CONFIG_CONTENT"] = originalEnv
+        process.env.LIBRECODE_CONFIG_CONTENT = originalEnv
       } else {
-        delete process.env["LIBRECODE_CONFIG_CONTENT"]
+        delete process.env.LIBRECODE_CONFIG_CONTENT
       }
       if (originalTestVar !== undefined) {
-        process.env["TEST_CONFIG_VAR"] = originalTestVar
+        process.env.TEST_CONFIG_VAR = originalTestVar
       } else {
-        delete process.env["TEST_CONFIG_VAR"]
+        delete process.env.TEST_CONFIG_VAR
       }
     }
   })
 
   test("substitutes {file:} tokens in LIBRECODE_CONFIG_CONTENT", async () => {
-    const originalEnv = process.env["LIBRECODE_CONFIG_CONTENT"]
+    const originalEnv = process.env.LIBRECODE_CONFIG_CONTENT
 
     try {
       await using tmp = await tmpdir({
         init: async (dir) => {
           await Filesystem.write(path.join(dir, "api_key.txt"), "secret_key_from_file")
-          process.env["LIBRECODE_CONFIG_CONTENT"] = JSON.stringify({
+          process.env.LIBRECODE_CONFIG_CONTENT = JSON.stringify({
             $schema: "https://librecode.app/config.json",
             username: "{file:./api_key.txt}",
           })
@@ -2076,9 +2076,9 @@ describe("LIBRECODE_CONFIG_CONTENT token substitution", () => {
       })
     } finally {
       if (originalEnv !== undefined) {
-        process.env["LIBRECODE_CONFIG_CONTENT"] = originalEnv
+        process.env.LIBRECODE_CONFIG_CONTENT = originalEnv
       } else {
-        delete process.env["LIBRECODE_CONFIG_CONTENT"]
+        delete process.env.LIBRECODE_CONFIG_CONTENT
       }
     }
   })

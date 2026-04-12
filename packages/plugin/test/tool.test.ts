@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { tool } from "../src/tool"
 import { z } from "zod"
+import { tool } from "../src/tool"
 
 describe("tool", () => {
   test("defines a tool with description, args, and execute", () => {

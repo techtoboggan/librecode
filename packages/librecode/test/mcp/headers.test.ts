@@ -1,4 +1,4 @@
-import { test, expect, mock, beforeEach } from "bun:test"
+import { beforeEach, expect, mock, test } from "bun:test"
 
 // Track what options were passed to each transport constructor
 const transportCalls: Array<{

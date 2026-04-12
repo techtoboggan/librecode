@@ -1,8 +1,7 @@
-import { describe, expect, test, spyOn, beforeEach, afterEach } from "bun:test"
-import { z } from "zod"
-import { QuestionTool } from "../../src/tool/question"
+import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test"
 import * as QuestionModule from "../../src/question"
-import { SessionID, MessageID } from "../../src/session/schema"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { QuestionTool } from "../../src/tool/question"
 
 const ctx = {
   sessionID: SessionID.make("ses_test-session"),

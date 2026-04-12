@@ -1,5 +1,5 @@
-import { test, expect, mock, beforeEach } from "bun:test"
-import { EventEmitter } from "events"
+import { beforeEach, expect, mock, test } from "bun:test"
+import { EventEmitter } from "node:events"
 
 // Track open() calls and control failure behavior
 let openShouldFail = false

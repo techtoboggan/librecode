@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
+import { setTimeout as sleep } from "node:timers/promises"
 import type { NamedError } from "@librecode/util/error"
 import { APICallError } from "ai"
-import { setTimeout as sleep } from "node:timers/promises"
-import { SessionRetry } from "../../src/session/retry"
-import { MessageV2 } from "../../src/session/message-v2"
 import { ProviderID } from "../../src/provider/schema"
+import { MessageV2 } from "../../src/session/message-v2"
+import { SessionRetry } from "../../src/session/retry"
 
 const providerID = ProviderID.make("test")
 
@@ -134,7 +134,7 @@ describe("session.message-v2.fromError", () => {
       using server = Bun.serve({
         port: 0,
         idleTimeout: 8,
-        async fetch(req) {
+        async fetch(_req) {
           return new Response(
             new ReadableStream({
               async pull(controller) {

@@ -1,9 +1,9 @@
-import { test, expect } from "bun:test"
-import { Skill } from "../../src/skill"
+import { expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { Instance } from "../../src/project/instance"
+import { Skill } from "../../src/skill"
 import { tmpdir } from "../fixture/fixture"
-import path from "path"
-import fs from "fs/promises"
 
 async function createGlobalSkill(homeDir: string) {
   const skillDir = path.join(homeDir, ".claude", "skills", "global-test-skill")
@@ -49,8 +49,8 @@ Instructions here.
       expect(skills.length).toBe(1)
       const testSkill = skills.find((s) => s.name === "test-skill")
       expect(testSkill).toBeDefined()
-      expect(testSkill!.description).toBe("A test skill for verification.")
-      expect(testSkill!.location).toContain(path.join("skill", "test-skill", "SKILL.md"))
+      expect(testSkill?.description).toBe("A test skill for verification.")
+      expect(testSkill?.location).toContain(path.join("skill", "test-skill", "SKILL.md"))
     },
   })
 })
@@ -180,7 +180,7 @@ description: A skill in the .claude/skills directory.
       expect(skills.length).toBe(1)
       const claudeSkill = skills.find((s) => s.name === "claude-skill")
       expect(claudeSkill).toBeDefined()
-      expect(claudeSkill!.location).toContain(path.join(".claude", "skills", "claude-skill", "SKILL.md"))
+      expect(claudeSkill?.location).toContain(path.join(".claude", "skills", "claude-skill", "SKILL.md"))
     },
   })
 })
@@ -245,7 +245,7 @@ description: A skill in the .agents/skills directory.
       expect(skills.length).toBe(1)
       const agentSkill = skills.find((s) => s.name === "agent-skill")
       expect(agentSkill).toBeDefined()
-      expect(agentSkill!.location).toContain(path.join(".agents", "skills", "agent-skill", "SKILL.md"))
+      expect(agentSkill?.location).toContain(path.join(".agents", "skills", "agent-skill", "SKILL.md"))
     },
   })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { getFilename, getDirectory, getFileExtension, getFilenameTruncated, truncateMiddle } from "../src/path"
+import { getDirectory, getFileExtension, getFilename, getFilenameTruncated, truncateMiddle } from "../src/path"
 
 describe("getFilename", () => {
   test("extracts filename from unix path", () => {

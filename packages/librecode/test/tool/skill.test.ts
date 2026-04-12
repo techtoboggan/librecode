@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
-import { pathToFileURL } from "url"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import type { PermissionNext } from "../../src/permission/next"
-import type { Tool } from "../../src/tool/tool"
 import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
 import { SkillTool } from "../../src/tool/skill"
+import type { Tool } from "../../src/tool/tool"
 import { tmpdir } from "../fixture/fixture"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 const baseCtx: Omit<Tool.Context, "ask"> = {
   sessionID: SessionID.make("ses_test"),
@@ -45,7 +45,7 @@ description: Skill for tool tests.
         directory: tmp.path,
         fn: async () => {
           const tool = await SkillTool.init()
-          const skillPath = path.join(tmp.path, ".librecode", "skill", "tool-skill", "SKILL.md")
+          const _skillPath = path.join(tmp.path, ".librecode", "skill", "tool-skill", "SKILL.md")
           expect(tool.description).toContain(`**tool-skill**: Skill for tool tests.`)
         },
       })

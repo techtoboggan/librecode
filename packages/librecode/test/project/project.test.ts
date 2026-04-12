@@ -1,12 +1,12 @@
 import { describe, expect, mock, test } from "bun:test"
-import { Project } from "../../src/project/project"
-import { Log } from "../../src/util/log"
+import path from "node:path"
 import { $ } from "bun"
-import path from "path"
-import { tmpdir } from "../fixture/fixture"
-import { Filesystem } from "../../src/util/filesystem"
 import { GlobalBus } from "../../src/bus/global"
+import { Project } from "../../src/project/project"
 import { ProjectID } from "../../src/project/schema"
+import { Filesystem } from "../../src/util/filesystem"
+import { Log } from "../../src/util/log"
+import { tmpdir } from "../fixture/fixture"
 
 Log.init({ print: false })
 
@@ -154,7 +154,7 @@ describe("Project.fromDirectory with worktrees", () => {
     const p = await loadProject()
     await using tmp = await tmpdir({ git: true })
 
-    const worktreePath = path.join(tmp.path, "..", path.basename(tmp.path) + "-worktree")
+    const worktreePath = path.join(tmp.path, "..", `${path.basename(tmp.path)}-worktree`)
     try {
       await $`git worktree add ${worktreePath} -b test-branch-${Date.now()}`.cwd(tmp.path).quiet()
 
@@ -178,7 +178,7 @@ describe("Project.fromDirectory with worktrees", () => {
 
     const { project: main } = await p.fromDirectory(tmp.path)
 
-    const worktreePath = path.join(tmp.path, "..", path.basename(tmp.path) + "-wt-shared")
+    const worktreePath = path.join(tmp.path, "..", `${path.basename(tmp.path)}-wt-shared`)
     try {
       await $`git worktree add ${worktreePath} -b shared-${Date.now()}`.cwd(tmp.path).quiet()
 
@@ -203,8 +203,8 @@ describe("Project.fromDirectory with worktrees", () => {
     await using tmp = await tmpdir({ git: true })
 
     // Create a bare remote, push, then clone into a second directory
-    const bare = tmp.path + "-bare"
-    const clone = tmp.path + "-clone"
+    const bare = `${tmp.path}-bare`
+    const clone = `${tmp.path}-clone`
     try {
       await $`git clone --bare ${tmp.path} ${bare}`.quiet()
       await $`git clone ${bare} ${clone}`.quiet()
@@ -222,8 +222,8 @@ describe("Project.fromDirectory with worktrees", () => {
     const p = await loadProject()
     await using tmp = await tmpdir({ git: true })
 
-    const worktree1 = path.join(tmp.path, "..", path.basename(tmp.path) + "-wt1")
-    const worktree2 = path.join(tmp.path, "..", path.basename(tmp.path) + "-wt2")
+    const worktree1 = path.join(tmp.path, "..", `${path.basename(tmp.path)}-wt1`)
+    const worktree2 = path.join(tmp.path, "..", `${path.basename(tmp.path)}-wt2`)
     try {
       await $`git worktree add ${worktree1} -b branch-${Date.now()}`.cwd(tmp.path).quiet()
       await $`git worktree add ${worktree2} -b branch-${Date.now() + 1}`.cwd(tmp.path).quiet()
@@ -261,10 +261,10 @@ describe("Project.discover", () => {
 
     const updated = Project.get(project.id)
     expect(updated).toBeDefined()
-    expect(updated!.icon).toBeDefined()
-    expect(updated!.icon?.url).toStartWith("data:")
-    expect(updated!.icon?.url).toContain("base64")
-    expect(updated!.icon?.color).toBeUndefined()
+    expect(updated?.icon).toBeDefined()
+    expect(updated?.icon?.url).toStartWith("data:")
+    expect(updated?.icon?.url).toContain("base64")
+    expect(updated?.icon?.color).toBeUndefined()
   })
 
   test("should not discover non-image files", async () => {
@@ -278,7 +278,7 @@ describe("Project.discover", () => {
 
     const updated = Project.get(project.id)
     expect(updated).toBeDefined()
-    expect(updated!.icon).toBeUndefined()
+    expect(updated?.icon).toBeUndefined()
   })
 })
 
@@ -344,7 +344,7 @@ describe("Project.update", () => {
   })
 
   test("should throw error when project not found", async () => {
-    await using tmp = await tmpdir({ git: true })
+    await using _tmp = await tmpdir({ git: true })
 
     await expect(
       Project.update({

@@ -1,13 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import {
+  getToolCapabilities,
+  getToolRisk,
+  isReadOnly,
   TOOL_CAPABILITIES,
   TOOL_DEPENDENCIES,
-  getToolCapabilities,
-  getToolDependencies,
-  isReadOnly,
-  getToolRisk,
 } from "../../src/tool/capability-registry"
-import { ToolProfiles } from "../../src/tool/capabilities"
 
 describe("TOOL_CAPABILITIES", () => {
   test("every built-in tool has capabilities declared", () => {
@@ -59,7 +57,7 @@ describe("TOOL_CAPABILITIES", () => {
   })
 
   test("bash is high risk with code execution", () => {
-    const caps = TOOL_CAPABILITIES["bash"]
+    const caps = TOOL_CAPABILITIES.bash
     expect(caps.executesCode).toBe(true)
     expect(caps.risk).toBe("high")
     expect(caps.sideEffects).toBe(true)
@@ -78,12 +76,12 @@ describe("TOOL_CAPABILITIES", () => {
 
 describe("TOOL_DEPENDENCIES", () => {
   test("grep requires ripgrep", () => {
-    const deps = TOOL_DEPENDENCIES["grep"]
+    const deps = TOOL_DEPENDENCIES.grep
     expect(deps?.binaries).toContain("rg")
   })
 
   test("bash requires shell", () => {
-    const deps = TOOL_DEPENDENCIES["bash"]
+    const deps = TOOL_DEPENDENCIES.bash
     expect(deps?.runtime?.shell).toBe(true)
   })
 })

@@ -1,12 +1,12 @@
 import { describe, expect, test } from "bun:test"
+import { $ } from "bun"
 import { Project } from "../../src/project/project"
-import { Database, eq } from "../../src/storage/db"
-import { SessionTable } from "../../src/session/session.sql"
 import { ProjectTable } from "../../src/project/project.sql"
 import { ProjectID } from "../../src/project/schema"
 import { SessionID } from "../../src/session/schema"
+import { SessionTable } from "../../src/session/session.sql"
+import { Database, eq } from "../../src/storage/db"
 import { Log } from "../../src/util/log"
-import { $ } from "bun"
 import { tmpdir } from "../fixture/fixture"
 
 Log.init({ print: false })
@@ -73,7 +73,7 @@ describe("migrateFromGlobal", () => {
     // 4. The session should have been migrated to the real project ID
     const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, id)).get())
     expect(row).toBeDefined()
-    expect(row!.project_id).toBe(real.id)
+    expect(row?.project_id).toBe(real.id)
   })
 
   test("migrates global sessions even when project row already exists", async () => {
@@ -97,7 +97,7 @@ describe("migrateFromGlobal", () => {
 
     const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, id)).get())
     expect(row).toBeDefined()
-    expect(row!.project_id).toBe(project.id)
+    expect(row?.project_id).toBe(project.id)
   })
 
   test("does not claim sessions with empty directory", async () => {
@@ -116,7 +116,7 @@ describe("migrateFromGlobal", () => {
 
     const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, id)).get())
     expect(row).toBeDefined()
-    expect(row!.project_id).toBe(ProjectID.global)
+    expect(row?.project_id).toBe(ProjectID.global)
   })
 
   test("does not steal sessions from unrelated directories", async () => {
@@ -135,6 +135,6 @@ describe("migrateFromGlobal", () => {
     const row = Database.use((db) => db.select().from(SessionTable).where(eq(SessionTable.id, id)).get())
     expect(row).toBeDefined()
     // Should remain under "global" — not stolen
-    expect(row!.project_id).toBe(ProjectID.global)
+    expect(row?.project_id).toBe(ProjectID.global)
   })
 })

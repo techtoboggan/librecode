@@ -1,5 +1,5 @@
+import { describe, expect, test } from "bun:test"
 import { convertToOpenAICompatibleChatMessages as convertToCopilotMessages } from "@/provider/sdk/copilot/chat/convert-to-openai-compatible-chat-messages"
-import { describe, test, expect } from "bun:test"
 
 describe("system messages", () => {
   test("should convert system message content to string", () => {

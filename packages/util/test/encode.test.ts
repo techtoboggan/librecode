@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { base64Encode, base64Decode, hash, checksum, sampledChecksum } from "../src/encode"
+import { base64Decode, base64Encode, checksum, hash, sampledChecksum } from "../src/encode"
 
 describe("base64Encode / base64Decode", () => {
   test("round-trips simple string", () => {
@@ -51,7 +51,7 @@ describe("checksum", () => {
   test("returns string for non-empty input", () => {
     const result = checksum("hello")
     expect(typeof result).toBe("string")
-    expect(result!.length).toBeGreaterThan(0)
+    expect(result?.length).toBeGreaterThan(0)
   })
 
   test("is deterministic", () => {
@@ -79,6 +79,6 @@ describe("sampledChecksum", () => {
     expect(result).toBeDefined()
     // Format: "length:hash1:hash2:hash3:hash4:hash5"
     expect(result!).toContain("600000:")
-    expect(result!.split(":").length).toBe(6)
+    expect(result?.split(":").length).toBe(6)
   })
 })

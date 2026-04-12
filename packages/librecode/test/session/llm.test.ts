@@ -1,18 +1,17 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
-import path from "path"
+import path from "node:path"
 import type { ModelMessage } from "ai"
-import { LLM } from "../../src/session/llm"
-import { Global } from "../../src/global"
+import type { Agent } from "../../src/agent/agent"
 import { Instance } from "../../src/project/instance"
-import { Provider } from "../../src/provider/provider"
-import { ProviderTransform } from "../../src/provider/transform"
 import type { ModelsDev } from "../../src/provider/models"
-import { ProviderID, ModelID } from "../../src/provider/schema"
+import { Provider } from "../../src/provider/provider"
+import { ModelID, ProviderID } from "../../src/provider/schema"
+import { ProviderTransform } from "../../src/provider/transform"
+import { LLM } from "../../src/session/llm"
+import type { MessageV2 } from "../../src/session/message-v2"
+import { MessageID, SessionID } from "../../src/session/schema"
 import { Filesystem } from "../../src/util/filesystem"
 import { tmpdir } from "../fixture/fixture"
-import type { Agent } from "../../src/agent/agent"
-import type { MessageV2 } from "../../src/session/message-v2"
-import { SessionID, MessageID } from "../../src/session/schema"
 
 describe("session.llm.hasToolCalls", () => {
   test("returns false for empty messages array", () => {
@@ -158,7 +157,7 @@ afterAll(() => {
 
 function createChatStream(text: string) {
   const payload =
-    [
+    `${[
       `data: ${JSON.stringify({
         id: "chatcmpl-1",
         object: "chat.completion.chunk",
@@ -175,7 +174,7 @@ function createChatStream(text: string) {
         choices: [{ delta: {}, finish_reason: "stop" }],
       })}`,
       "data: [DONE]",
-    ].join("\n\n") + "\n\n"
+    ].join("\n\n")}\n\n`
 
   const encoder = new TextEncoder()
   return new ReadableStream<Uint8Array>({
@@ -205,7 +204,7 @@ function createEventStream(chunks: unknown[], includeDone = false) {
   if (includeDone) {
     lines.push("data: [DONE]")
   }
-  const payload = lines.join("\n\n") + "\n\n"
+  const payload = `${lines.join("\n\n")}\n\n`
   const encoder = new TextEncoder()
   return new ReadableStream<Uint8Array>({
     start(controller) {
@@ -232,7 +231,7 @@ describe("session.llm.stream", () => {
     const providerID = "alibaba"
     const modelID = "qwen-plus"
     const fixture = await loadFixture(providerID, modelID)
-    const provider = fixture.provider
+    const _provider = fixture.provider
     const model = fixture.model
 
     const request = waitRequest(
@@ -454,7 +453,7 @@ describe("session.llm.stream", () => {
     const providerID = "anthropic"
     const modelID = "claude-3-5-sonnet-20241022"
     const fixture = await loadFixture(providerID, modelID)
-    const provider = fixture.provider
+    const _provider = fixture.provider
     const model = fixture.model
 
     const chunks = [
@@ -573,7 +572,7 @@ describe("session.llm.stream", () => {
     const providerID = "google"
     const modelID = "gemini-2.5-flash"
     const fixture = await loadFixture(providerID, modelID)
-    const provider = fixture.provider
+    const _provider = fixture.provider
     const model = fixture.model
     const pathSuffix = `/v1beta/models/${model.id}:streamGenerateContent`
 

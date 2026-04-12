@@ -1,11 +1,11 @@
-import { describe, test, expect } from "bun:test"
-import path from "path"
-import fs from "fs/promises"
-import { EditTool } from "../../src/tool/edit"
-import { Instance } from "../../src/project/instance"
-import { tmpdir } from "../fixture/fixture"
+import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { FileTime } from "../../src/file/time"
-import { SessionID, MessageID } from "../../src/session/schema"
+import { Instance } from "../../src/project/instance"
+import { MessageID, SessionID } from "../../src/session/schema"
+import { EditTool } from "../../src/tool/edit"
+import { tmpdir } from "../fixture/fixture"
 
 const ctx = {
   sessionID: SessionID.make("ses_test-edit-session"),
@@ -519,118 +519,118 @@ describe("tool.edit", () => {
     }
 
     test("preserves LF with LF multi-line strings", async () => {
-      const content = normalize(old + "\n", "\n")
+      const content = normalize(`${old}\n`, "\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\n"),
         newString: normalize(next, "\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\n"))
       expectLf(output)
     })
 
     test("preserves CRLF with CRLF multi-line strings", async () => {
-      const content = normalize(old + "\n", "\r\n")
+      const content = normalize(`${old}\n`, "\r\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\r\n"),
         newString: normalize(next, "\r\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\r\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\r\n"))
       expectCrlf(output)
     })
 
     test("preserves LF when old/new use CRLF", async () => {
-      const content = normalize(old + "\n", "\n")
+      const content = normalize(`${old}\n`, "\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\r\n"),
         newString: normalize(next, "\r\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\n"))
       expectLf(output)
     })
 
     test("preserves CRLF when old/new use LF", async () => {
-      const content = normalize(old + "\n", "\r\n")
+      const content = normalize(`${old}\n`, "\r\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\n"),
         newString: normalize(next, "\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\r\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\r\n"))
       expectCrlf(output)
     })
 
     test("preserves LF when newString uses CRLF", async () => {
-      const content = normalize(old + "\n", "\n")
+      const content = normalize(`${old}\n`, "\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\n"),
         newString: normalize(next, "\r\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\n"))
       expectLf(output)
     })
 
     test("preserves CRLF when newString uses LF", async () => {
-      const content = normalize(old + "\n", "\r\n")
+      const content = normalize(`${old}\n`, "\r\n")
       const output = await apply({
         content,
         oldString: normalize(old, "\r\n"),
         newString: normalize(next, "\n"),
       })
-      expect(output).toBe(normalize(next + "\n", "\r\n"))
+      expect(output).toBe(normalize(`${next}\n`, "\r\n"))
       expectCrlf(output)
     })
 
     test("preserves LF with mixed old/new line endings", async () => {
-      const content = normalize(old + "\n", "\n")
+      const content = normalize(`${old}\n`, "\n")
       const output = await apply({
         content,
         oldString: "alpha\nbeta\r\ngamma",
         newString: "alpha\r\nbeta\nomega",
       })
-      expect(output).toBe(normalize(alt + "\n", "\n"))
+      expect(output).toBe(normalize(`${alt}\n`, "\n"))
       expectLf(output)
     })
 
     test("preserves CRLF with mixed old/new line endings", async () => {
-      const content = normalize(old + "\n", "\r\n")
+      const content = normalize(`${old}\n`, "\r\n")
       const output = await apply({
         content,
         oldString: "alpha\r\nbeta\ngamma",
         newString: "alpha\nbeta\r\nomega",
       })
-      expect(output).toBe(normalize(alt + "\n", "\r\n"))
+      expect(output).toBe(normalize(`${alt}\n`, "\r\n"))
       expectCrlf(output)
     })
 
     test("replaceAll preserves LF for multi-line blocks", async () => {
       const blockOld = "alpha\nbeta"
       const blockNew = "alpha\nbeta-updated"
-      const content = normalize(blockOld + "\n" + blockOld + "\n", "\n")
+      const content = normalize(`${blockOld}\n${blockOld}\n`, "\n")
       const output = await apply({
         content,
         oldString: normalize(blockOld, "\n"),
         newString: normalize(blockNew, "\n"),
         replaceAll: true,
       })
-      expect(output).toBe(normalize(blockNew + "\n" + blockNew + "\n", "\n"))
+      expect(output).toBe(normalize(`${blockNew}\n${blockNew}\n`, "\n"))
       expectLf(output)
     })
 
     test("replaceAll preserves CRLF for multi-line blocks", async () => {
       const blockOld = "alpha\nbeta"
       const blockNew = "alpha\nbeta-updated"
-      const content = normalize(blockOld + "\n" + blockOld + "\n", "\r\n")
+      const content = normalize(`${blockOld}\n${blockOld}\n`, "\r\n")
       const output = await apply({
         content,
         oldString: normalize(blockOld, "\r\n"),
         newString: normalize(blockNew, "\r\n"),
         replaceAll: true,
       })
-      expect(output).toBe(normalize(blockNew + "\n" + blockNew + "\n", "\r\n"))
+      expect(output).toBe(normalize(`${blockNew}\n${blockNew}\n`, "\r\n"))
       expectCrlf(output)
     })
   })

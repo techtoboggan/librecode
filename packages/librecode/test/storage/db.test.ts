@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import path from "path"
+import path from "node:path"
 import { Installation } from "../../src/installation"
 import { Database } from "../../src/storage/db"
 

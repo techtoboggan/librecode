@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { $ } from "bun"
-import fs from "fs/promises"
-import path from "path"
 import { Instance } from "../../src/project/instance"
-import { Worktree } from "../../src/worktree"
 import { Filesystem } from "../../src/util/filesystem"
+import { Worktree } from "../../src/worktree"
 import { tmpdir } from "../fixture/fixture"
 
 const wintest = process.platform === "win32" ? test : test.skip

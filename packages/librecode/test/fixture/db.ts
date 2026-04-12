@@ -1,4 +1,4 @@
-import { rm } from "fs/promises"
+import { rm } from "node:fs/promises"
 import { Instance } from "../../src/project/instance"
 import { Database } from "../../src/storage/db"
 
