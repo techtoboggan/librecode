@@ -536,6 +536,7 @@ export const Provider = {
 } as const
 
 // Type companion namespace for type re-exports
+// biome-ignore lint/style/noNamespace: type companion — declaration merging for Provider.Model, Provider.Info etc.
 export namespace Provider {
   export type Model = ModelType
   export type Info = InfoType

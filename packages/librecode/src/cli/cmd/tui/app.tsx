@@ -87,6 +87,7 @@ async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
 
     const handler = (data: Buffer) => {
       const str = data.toString()
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional terminal OSC escape sequences
       const match = str.match(/\x1b]11;([^\x07\x1b]+)/)
       if (match) {
         cleanup()

@@ -52,16 +52,19 @@ export namespace Terminal {
       }
 
       function applyBgMatch(str: string): void {
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional terminal OSC escape sequences
         const bgMatch = str.match(/\x1b]11;([^\x07\x1b]+)/)
         if (bgMatch) background = parseColor(bgMatch[1])
       }
 
       function applyFgMatch(str: string): void {
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional terminal OSC escape sequences
         const fgMatch = str.match(/\x1b]10;([^\x07\x1b]+)/)
         if (fgMatch) foreground = parseColor(fgMatch[1])
       }
 
       function applyPaletteMatches(str: string): void {
+        // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional terminal OSC escape sequences
         const paletteMatches = str.matchAll(/\x1b]4;(\d+);([^\x07\x1b]+)/g)
         for (const match of paletteMatches) {
           const index = parseInt(match[1], 10)

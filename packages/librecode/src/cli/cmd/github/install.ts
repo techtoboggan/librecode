@@ -53,6 +53,7 @@ async function pollForGitHubAppInstallation(
 
     retries++
     await sleep(1000)
+    // biome-ignore lint/correctness/noConstantCondition: intentional retry loop with internal break
   } while (true)
 }
 

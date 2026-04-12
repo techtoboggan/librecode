@@ -951,6 +951,7 @@ export const Session = {
 } as const
 
 // Type companion — declaration merging lets consumers write Session.Info as a type
+// biome-ignore lint/style/noNamespace: type companion — declaration merging for Session.Info, Session.ProjectInfo etc.
 export namespace Session {
   export type Info = _Info
   export type ProjectInfo = _ProjectInfo

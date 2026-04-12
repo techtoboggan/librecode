@@ -41,6 +41,7 @@ export namespace SystemPrompt {
         `</env>`,
         `<directories>`,
         `  ${
+          // biome-ignore lint/correctness/noConstantCondition: intentionally disabled pending performance evaluation
           project.vcs === "git" && false
             ? await Ripgrep.tree({
                 cwd: Instance.directory,

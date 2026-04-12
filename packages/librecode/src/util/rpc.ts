@@ -26,6 +26,7 @@ export namespace Rpc {
   }
 
   export function listen(rpc: Definition) {
+    // biome-ignore lint/suspicious/noGlobalAssign: intentional Web Worker global onmessage assignment
     onmessage = async (evt) => {
       const parsed = JSON.parse(evt.data)
       if (parsed.type === "rpc.request") {

@@ -815,6 +815,7 @@ export const MessageV2 = {
 } as const
 
 // Type companion — declaration merging lets consumers write MessageV2.TextPart as a type
+// biome-ignore lint/style/noNamespace: type companion — declaration merging for MessageV2 type aliases
 export namespace MessageV2 {
   export type APIError = _APIErrorData
   export type AgentPart = z.infer<typeof _AgentPart>
