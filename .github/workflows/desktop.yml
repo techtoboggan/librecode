@@ -82,10 +82,16 @@ jobs:
         run: cargo install tauri-cli --version "^2" --locked
 
       - name: Build Desktop
-        # APPIMAGE_EXTRACT_AND_RUN avoids FUSE kernel module requirement in CI
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: "1"
-        run: cargo tauri build --config tauri.prod.conf.json --no-sign
+        # Linux: skip AppImage — linuxdeploy is itself an AppImage and FUSE is
+        # unavailable on standard GH Actions runners even with EXTRACT_AND_RUN.
+        # deb and rpm are sufficient CI outputs; AppImage is built locally.
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            cargo tauri build --config tauri.prod.conf.json --no-sign --bundles deb,rpm
+          else
+            cargo tauri build --config tauri.prod.conf.json --no-sign
+          fi
         working-directory: packages/desktop/src-tauri
 
       - uses: actions/upload-artifact@v4
