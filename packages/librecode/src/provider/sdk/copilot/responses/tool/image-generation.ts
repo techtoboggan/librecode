@@ -93,6 +93,7 @@ type ImageGenerationArgs = {
 }
 
 const imageGenerationToolFactory = createProviderDefinedToolFactoryWithOutputSchema<
+  // biome-ignore lint/complexity/noBannedTypes: vendor SDK generic requires {} for untyped input
   {},
   {
     /**

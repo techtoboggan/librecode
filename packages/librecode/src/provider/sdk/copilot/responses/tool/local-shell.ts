@@ -56,6 +56,7 @@ export const localShell = createProviderDefinedToolFactoryWithOutputSchema<
      */
     output: string
   },
+  // biome-ignore lint/complexity/noBannedTypes: vendor SDK generic requires {} for untyped input
   {}
 >({
   id: "openai.local_shell",

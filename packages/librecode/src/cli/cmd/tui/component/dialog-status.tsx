@@ -5,7 +5,7 @@ import { fileURLToPath } from "bun"
 import { createMemo, For, Match, Show, Switch } from "solid-js"
 import { useTheme } from "../context/theme"
 
-export type DialogStatusProps = {}
+export type DialogStatusProps = Record<string, never>
 
 function parseFilePlugin(value: string): { name: string; version?: string } {
   const path = fileURLToPath(value)

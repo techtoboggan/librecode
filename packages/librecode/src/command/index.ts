@@ -65,6 +65,7 @@ export namespace Command {
         description: "create/update AGENTS.md",
         source: "command",
         get template() {
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder replaced at runtime
           return PROMPT_INITIALIZE.replace("${path}", Instance.worktree)
         },
         hints: hints(PROMPT_INITIALIZE),
@@ -74,6 +75,7 @@ export namespace Command {
         description: "review changes [commit|branch|pr], defaults to uncommitted",
         source: "command",
         get template() {
+          // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholder replaced at runtime
           return PROMPT_REVIEW.replace("${path}", Instance.worktree)
         },
         subtask: true,
@@ -102,6 +104,7 @@ export namespace Command {
         description: prompt.description,
         get template() {
           // since a getter can't be async we need to manually return a promise here
+          // biome-ignore lint/suspicious/noAsyncPromiseExecutor: getter cannot be async
           return new Promise<string>(async (resolve, reject) => {
             const template = await MCP.getPrompt(
               prompt.client,

@@ -220,6 +220,7 @@ export const BashTool = Tool.define("bash", async () => {
   log.info("bash tool using shell", { shell })
 
   return {
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholders replaced at runtime
     description: DESCRIPTION.replaceAll("${directory}", Instance.directory)
       .replaceAll("${maxLines}", String(Truncate.MAX_LINES))
       .replaceAll("${maxBytes}", String(Truncate.MAX_BYTES)),

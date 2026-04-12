@@ -44,6 +44,7 @@ export const fileSearchOutputSchema = z.object({
 })
 
 export const fileSearch = createProviderDefinedToolFactoryWithOutputSchema<
+  // biome-ignore lint/complexity/noBannedTypes: vendor SDK generic requires {} for untyped input
   {},
   {
     /**

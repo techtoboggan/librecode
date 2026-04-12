@@ -22,9 +22,8 @@ export const webSearchArgsSchema = z.object({
 })
 
 export const webSearchToolFactory = createProviderDefinedToolFactory<
-  {
-    // Web search doesn't take input parameters - it's controlled by the prompt
-  },
+  // biome-ignore lint/complexity/noBannedTypes: vendor SDK generic requires {} for untyped input
+  {},
   {
     /**
      * Filters for the search.

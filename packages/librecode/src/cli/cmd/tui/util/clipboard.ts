@@ -162,10 +162,12 @@ export namespace Clipboard {
       makeOsascriptCopier() ??
       makeLinuxCopier() ??
       makeWin32Copier() ??
-      (console.log("clipboard: no native support"),
-      async (text: string) => {
-        await clipboardy.write(text).catch(() => {})
-      })
+      (() => {
+        console.log("clipboard: no native support")
+        return async (text: string) => {
+          await clipboardy.write(text).catch(() => {})
+        }
+      })()
     )
   })
 

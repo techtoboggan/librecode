@@ -108,7 +108,7 @@ async function getTerminalBackgroundColor(): Promise<"dark" | "light"> {
 
 import type { EventSource } from "./context/sdk"
 
-export function tui(input: {
+export async function tui(input: {
   url: string
   args: Args
   config: TuiConfig.Info
@@ -117,17 +117,17 @@ export function tui(input: {
   headers?: RequestInit["headers"]
   events?: EventSource
 }) {
-  // promise to prevent immediate exit
-  return new Promise<void>(async (resolve) => {
-    const unguard = win32InstallCtrlCGuard()
-    win32DisableProcessedInput()
+  const unguard = win32InstallCtrlCGuard()
+  win32DisableProcessedInput()
 
-    const mode = await getTerminalBackgroundColor()
+  const mode = await getTerminalBackgroundColor()
 
-    // Re-clear after getTerminalBackgroundColor() — setRawMode(false) restores
-    // the original console mode which re-enables ENABLE_PROCESSED_INPUT.
-    win32DisableProcessedInput()
+  // Re-clear after getTerminalBackgroundColor() — setRawMode(false) restores
+  // the original console mode which re-enables ENABLE_PROCESSED_INPUT.
+  win32DisableProcessedInput()
 
+  // Promise that resolves when the TUI exits via onExit callback
+  await new Promise<void>((resolve) => {
     const onExit = async () => {
       unguard?.()
       resolve()
@@ -202,6 +202,7 @@ export function tui(input: {
     )
   })
 }
+
 
 function App() {
   const route = useRoute()
