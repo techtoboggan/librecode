@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto"
 
-export namespace Hash {
-  export function fast(input: string | Buffer): string {
-    return createHash("sha1").update(input).digest("hex")
-  }
+function hashFast(input: string | Buffer): string {
+  return createHash("sha1").update(input).digest("hex")
 }
+
+export const Hash = {
+  fast: hashFast,
+} as const
