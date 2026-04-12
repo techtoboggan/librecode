@@ -357,8 +357,8 @@ async function workspaceSymbol(query: string) {
       .sendRequest("workspace/symbol", {
         query,
       })
-      .then((result: any) => result.filter((x: LSPSymbolInfo) => kinds.includes(x.kind)))
-      .then((result: any) => result.slice(0, 10))
+      .then((result) => (result as LSPSymbolInfo[]).filter((x) => kinds.includes(x.kind)))
+      .then((result) => result.slice(0, 10))
       .catch(() => []),
   ).then((result) => result.flat() as LSPSymbolInfo[])
 }
@@ -430,7 +430,7 @@ async function incomingCalls(input: { file: string; line: number; character: num
         textDocument: { uri: pathToFileURL(input.file).href },
         position: { line: input.line, character: input.character },
       })
-      .catch(() => [])) as any[]
+      .catch(() => [])) as unknown[]
     if (!items?.length) return []
     return client.connection.sendRequest("callHierarchy/incomingCalls", { item: items[0] }).catch(() => [])
   }).then((result) => result.flat().filter(Boolean))
@@ -443,7 +443,7 @@ async function outgoingCalls(input: { file: string; line: number; character: num
         textDocument: { uri: pathToFileURL(input.file).href },
         position: { line: input.line, character: input.character },
       })
-      .catch(() => [])) as any[]
+      .catch(() => [])) as unknown[]
     if (!items?.length) return []
     return client.connection.sendRequest("callHierarchy/outgoingCalls", { item: items[0] }).catch(() => [])
   }).then((result) => result.flat().filter(Boolean))

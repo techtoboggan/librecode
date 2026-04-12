@@ -9,6 +9,7 @@ export class AsyncQueue<T> implements AsyncIterable<T> {
   }
 
   async next(): Promise<T> {
+    // biome-ignore lint/style/noNonNullAssertion: length check guarantees shift() returns T
     if (this.queue.length > 0) return this.queue.shift()!
     return new Promise((resolve) => this.resolvers.push(resolve))
   }

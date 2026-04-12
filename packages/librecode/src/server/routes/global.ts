@@ -77,7 +77,7 @@ export const GlobalRoutes = lazy(() =>
               },
             }),
           })
-          async function handler(event: any) {
+          async function handler(event: unknown) {
             await stream.writeSSE({
               data: JSON.stringify(event),
             })

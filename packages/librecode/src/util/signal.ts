@@ -1,9 +1,9 @@
 export function signal() {
-  let resolve: any
-  const promise = new Promise((r) => (resolve = r))
+  let resolve: (() => void) | undefined
+  const promise = new Promise<void>((r) => (resolve = r))
   return {
     trigger() {
-      return resolve()
+      return resolve?.()
     },
     wait() {
       return promise

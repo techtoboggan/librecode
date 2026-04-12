@@ -15,13 +15,13 @@ import { use } from "../context"
 export type ToolProps<T extends Tool.Info> = {
   input: Partial<Tool.InferParameters<T>>
   metadata: Partial<Tool.InferMetadata<T>>
-  permission: Record<string, any>
+  permission: Record<string, unknown>
   tool: string
   output?: string
   part: ToolPart
 }
 
-export function GenericTool(props: ToolProps<any>) {
+export function GenericTool(props: ToolProps<Tool.Info>) {
   const { theme } = useTheme()
   const ctx = use()
   const output = createMemo(() => props.output?.trim() ?? "")
@@ -59,7 +59,7 @@ export function GenericTool(props: ToolProps<any>) {
   )
 }
 
-export function ToolTitle(props: { fallback: string; when: any; icon: string; children: JSX.Element }) {
+export function ToolTitle(props: { fallback: string; when: unknown; icon: string; children: JSX.Element }) {
   const { theme } = useTheme()
   return (
     <text paddingLeft={3} fg={props.when ? theme.textMuted : theme.text}>
@@ -73,7 +73,7 @@ export function ToolTitle(props: { fallback: string; when: any; icon: string; ch
 export function InlineTool(props: {
   icon: string
   iconColor?: RGBA
-  complete: any
+  complete: unknown
   pending: string
   spinner?: boolean
   children: JSX.Element

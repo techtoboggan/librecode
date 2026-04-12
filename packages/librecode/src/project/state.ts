@@ -1,12 +1,13 @@
 import { Log } from "@/util/log"
 
 interface Entry {
-  state: any
+  state: unknown
+  // biome-ignore lint/suspicious/noExplicitAny: dispose accepts typed state from generic parameter; stored as any for heterogeneous map
   dispose?: (state: any) => Promise<void>
 }
 
 const log = Log.create({ service: "state" })
-const recordsByKey = new Map<string, Map<any, Entry>>()
+const recordsByKey = new Map<string, Map<unknown, Entry>>()
 
 function create<S>(root: () => string, init: () => S, dispose?: (state: Awaited<S>) => Promise<void>) {
   return () => {

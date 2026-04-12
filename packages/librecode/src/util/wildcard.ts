@@ -18,10 +18,9 @@ function wildcardMatch(str: string, pattern: string) {
   return new RegExp(`^${escaped}$`, flags).test(str)
 }
 
-function wildcardAll(input: string, patterns: Record<string, any>) {
+function wildcardAll(input: string, patterns: Record<string, unknown>): unknown {
   const sorted = pipe(patterns, Object.entries, sortBy([([key]) => key.length, "asc"], [([key]) => key, "asc"]))
-  // biome-ignore lint/suspicious/noExplicitAny: value type mirrors Record<string, any> parameter
-  let result: any
+  let result: unknown
   for (const [pattern, value] of sorted) {
     if (wildcardMatch(input, pattern)) {
       result = value
@@ -30,10 +29,9 @@ function wildcardAll(input: string, patterns: Record<string, any>) {
   return result
 }
 
-function wildcardAllStructured(input: { head: string; tail: string[] }, patterns: Record<string, any>) {
+function wildcardAllStructured(input: { head: string; tail: string[] }, patterns: Record<string, unknown>): unknown {
   const sorted = pipe(patterns, Object.entries, sortBy([([key]) => key.length, "asc"], [([key]) => key, "asc"]))
-  // biome-ignore lint/suspicious/noExplicitAny: value type mirrors Record<string, any> parameter
-  let result: any
+  let result: unknown
   for (const [pattern, value] of sorted) {
     const parts = pattern.split(/\s+/)
     if (!wildcardMatch(input.head, parts[0])) continue

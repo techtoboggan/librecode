@@ -287,7 +287,9 @@ async function loadSDKProvider(model: ModelType, options: Record<string, unknown
   }
 
   const mod = await import(installedPath)
-  const fn = mod[Object.keys(mod).find((key) => key.startsWith("create"))!]
+  const createKey = Object.keys(mod).find((key) => key.startsWith("create"))
+  if (!createKey) throw new Error(`No create* export found in provider module: ${installedPath}`)
+  const fn = mod[createKey]
   return fn({ name: model.providerID, ...options }) as SDK
 }
 
@@ -357,7 +359,7 @@ export async function getModel(providerID: ProviderID, modelID: ModelID): Promis
 export async function getLanguage(model: ModelType): Promise<LanguageModelV2> {
   const s = await state()
   const key = `${model.providerID}/${model.id}`
-  if (s.models.has(key)) return s.models.get(key)!
+  if (s.models.has(key)) return s.models.get(key) as LanguageModelV2
 
   const provider = s.providers[model.providerID]
   const sdk = await getSDK(model)

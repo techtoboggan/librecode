@@ -24,7 +24,7 @@ function buildDisabledTools(selected: string[]): Record<string, boolean> {
 async function generateWithSpinner(description: string, model: unknown, nonInteractive: boolean) {
   const spinner = prompts.spinner()
   spinner.start("Generating agent configuration...")
-  const generated = await Agent.generate({ description, model: model as any }).catch((err: Error) => {
+  const generated = await Agent.generate({ description, model: model as Parameters<typeof Agent.generate>[0]["model"] }).catch((err: Error) => {
     spinner.stop(`LLM failed to generate agent: ${err.message}`, 1)
     if (nonInteractive) process.exit(1)
     throw new UI.CancelledError()

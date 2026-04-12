@@ -33,6 +33,7 @@ function busEventPayloads() {
               ref: `Event.${def.type}`,
             })
         })
+        // biome-ignore lint/suspicious/noExplicitAny: Zod union requires array of schemas typed as any
         .toArray() as any,
     )
     .meta({

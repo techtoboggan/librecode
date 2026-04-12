@@ -17,12 +17,12 @@ export function Write(props: ToolProps<typeof WriteTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={`# Wrote ${normalizePath(props.input.filePath!)}`} part={props.part}>
+        <BlockTool title={`# Wrote ${normalizePath(props.input.filePath ?? "")}`} part={props.part}>
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
               fg={theme.text}
-              filetype={filetype(props.input.filePath!)}
+              filetype={filetype(props.input.filePath ?? "")}
               syntaxStyle={syntax()}
               content={code()}
             />
@@ -58,7 +58,7 @@ export function Read(props: ToolProps<typeof ReadTool>) {
         spinner={isRunning()}
         part={props.part}
       >
-        Read {normalizePath(props.input.filePath!)} {inputDisplay(props.input, ["filePath"])}
+        Read {normalizePath(props.input.filePath ?? "")} {inputDisplay(props.input, ["filePath"])}
       </InlineTool>
       <For each={loaded()}>
         {(filepath) => (
@@ -91,7 +91,7 @@ export function Edit(props: ToolProps<typeof EditTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={`← Edit ${normalizePath(props.input.filePath!)}`} part={props.part}>
+        <BlockTool title={`← Edit ${normalizePath(props.input.filePath ?? "")}`} part={props.part}>
           <box paddingLeft={1}>
             <diff
               diff={diffContent()}
@@ -118,7 +118,7 @@ export function Edit(props: ToolProps<typeof EditTool>) {
       </Match>
       <Match when={true}>
         <InlineTool icon="←" pending="Preparing edit..." complete={props.input.filePath} part={props.part}>
-          Edit {normalizePath(props.input.filePath!)} {inputDisplay({ replaceAll: props.input.replaceAll })}
+          Edit {normalizePath(props.input.filePath ?? "")} {inputDisplay({ replaceAll: props.input.replaceAll })}
         </InlineTool>
       </Match>
     </Switch>

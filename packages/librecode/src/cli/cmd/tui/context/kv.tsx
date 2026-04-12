@@ -9,7 +9,7 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
   name: "KV",
   init: () => {
     const [ready, setReady] = createSignal(false)
-    const [store, setStore] = createStore<Record<string, any>>()
+    const [store, setStore] = createStore<Record<string, unknown>>()
     const filePath = path.join(Global.Path.state, "kv.json")
 
     Filesystem.readJson<Record<string, unknown>>(filePath)
@@ -31,16 +31,16 @@ export const { use: useKV, provider: KVProvider } = createSimpleContext({
       signal<T>(name: string, defaultValue: T) {
         if (store[name] === undefined) setStore(name, defaultValue)
         return [
-          () => result.get(name),
+          () => result.get<T>(name),
           function setter(next: Setter<T>) {
             result.set(name, next)
           },
         ] as const
       },
-      get(key: string, defaultValue?: any) {
-        return store[key] ?? defaultValue
+      get<T = unknown>(key: string, defaultValue?: T): T {
+        return (store[key] ?? defaultValue) as T
       },
-      set(key: string, value: any) {
+      set(key: string, value: unknown) {
         setStore(key, value)
         Filesystem.writeJson(filePath, store)
       },

@@ -92,17 +92,17 @@ export async function exportSession(sessionID: SessionID): Promise<ExportedSessi
       role: msg.info.role,
       time: {
         created: msg.info.time.created,
-        completed: msg.info.role === "assistant" ? (msg.info as any).time?.completed : undefined,
+        completed: msg.info.role === "assistant" ? (msg.info as MessageV2.Assistant).time?.completed : undefined,
       },
       parts: [],
     }
 
     if (msg.info.role === "user") {
-      const user = msg.info as any
+      const user = msg.info as MessageV2.User
       exported.agent = user.agent
       exported.model = user.model
     } else if (msg.info.role === "assistant") {
-      const assistant = msg.info as any
+      const assistant = msg.info as MessageV2.Assistant
       exported.agent = assistant.agent
       exported.model = assistant.modelID ? { providerID: assistant.providerID, modelID: assistant.modelID } : undefined
       exported.cost = assistant.cost
@@ -111,7 +111,7 @@ export async function exportSession(sessionID: SessionID): Promise<ExportedSessi
 
     exported.parts = msg.parts.map((part) => {
       partCount++
-      const { id, sessionID: _sid, messageID: _mid, ...rest } = part as any
+      const { id, sessionID: _sid, messageID: _mid, ...rest } = part as MessageV2.Part & Record<string, unknown>
       return {
         id,
         type: part.type,

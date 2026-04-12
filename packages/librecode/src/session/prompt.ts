@@ -66,7 +66,7 @@ const state = Instance.state(
         abort: AbortController
         callbacks: {
           resolve(input: MessageV2.WithParts): void
-          reject(reason?: any): void
+          reject(reason?: unknown): void
         }[]
       }
     > = {}
@@ -197,24 +197,25 @@ export async function resolveTools(input: {
   using _ = log.time("resolveTools")
   const tools: Record<string, AITool> = {}
 
-  const context = (args: any, options: ToolCallOptions): Tool.Context => ({
+  const context = (args: unknown, options: ToolCallOptions): Tool.Context => ({
     sessionID: input.session.id,
+    // biome-ignore lint/style/noNonNullAssertion: abortSignal is always provided by the AI SDK tool call
     abort: options.abortSignal!,
     messageID: input.processor.message.id,
     callID: options.toolCallId,
     extra: { model: input.model, bypassAgentCheck: input.bypassAgentCheck },
     agent: input.agent.name,
     messages: input.messages,
-    metadata: async (val: { title?: string; metadata?: any }) => {
+    metadata: async (val: { title?: string; metadata?: unknown }) => {
       const match = input.processor.partFromToolCall(options.toolCallId)
       if (match && match.state.status === "running") {
         await Session.updatePart({
           ...match,
           state: {
             title: val.title,
-            metadata: val.metadata,
+            metadata: val.metadata as Record<string, string> | undefined,
             status: "running",
-            input: args,
+            input: args as Record<string, unknown>,
             time: {
               start: Date.now(),
             },
@@ -238,8 +239,10 @@ export async function resolveTools(input: {
   )) {
     const schema = ProviderTransform.schema(input.model, z.toJSONSchema(item.parameters))
     tools[item.id] = tool({
+      // biome-ignore lint/suspicious/noExplicitAny: AI SDK requires widened string literal for id
       id: item.id as any,
       description: item.description,
+      // biome-ignore lint/suspicious/noExplicitAny: jsonSchema() requires any for JSON schema object
       inputSchema: jsonSchema(schema as any),
       async execute(args, options) {
         const ctx = context(args, options)
@@ -295,15 +298,17 @@ export async function resolveTools(input: {
 
 /** @internal Exported for testing */
 export function createStructuredOutputTool(input: {
-  schema: Record<string, any>
+  schema: Record<string, unknown>
   onSuccess: (output: unknown) => void
 }): AITool {
   // Remove $schema property if present (not needed for tool input)
   const { $schema, ...toolSchema } = input.schema
 
   return tool({
+    // biome-ignore lint/suspicious/noExplicitAny: AI SDK requires widened string literal for id
     id: "StructuredOutput" as any,
     description: STRUCTURED_OUTPUT_DESCRIPTION,
+    // biome-ignore lint/suspicious/noExplicitAny: jsonSchema() requires any for JSON schema object
     inputSchema: jsonSchema(toolSchema as any),
     async execute(args) {
       // AI SDK validates args against inputSchema before calling execute()

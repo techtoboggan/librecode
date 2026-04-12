@@ -30,7 +30,7 @@ function emit(directory: string) {
   })
 }
 
-function boot(input: { directory: string; init?: () => Promise<any>; project?: Project.Info; worktree?: string }) {
+function boot(input: { directory: string; init?: () => Promise<unknown>; project?: Project.Info; worktree?: string }) {
   return iife(async () => {
     const ctx =
       input.project && input.worktree
@@ -89,7 +89,7 @@ async function disposeAllInstances(): Promise<void> {
 }
 
 export const Instance = {
-  async provide<R>(input: { directory: string; init?: () => Promise<any>; fn: () => R }): Promise<R> {
+  async provide<R>(input: { directory: string; init?: () => Promise<unknown>; fn: () => R }): Promise<R> {
     const directory = Filesystem.resolve(input.directory)
     let existing = cache.get(directory)
     if (!existing) {
@@ -131,7 +131,7 @@ export const Instance = {
   state<S>(init: () => S, dispose?: (state: Awaited<S>) => Promise<void>): () => S {
     return State.create(() => Instance.directory, init, dispose)
   },
-  async reload(input: { directory: string; init?: () => Promise<any>; project?: Project.Info; worktree?: string }) {
+  async reload(input: { directory: string; init?: () => Promise<unknown>; project?: Project.Info; worktree?: string }) {
     const directory = Filesystem.resolve(input.directory)
     Log.Default.info("reloading instance", { directory })
     await State.dispose(directory)

@@ -84,6 +84,7 @@ export const ExperimentalRoutes = lazy(() =>
             id: t.id,
             description: t.description,
             // Handle both Zod schemas and plain JSON schemas
+            // biome-ignore lint/suspicious/noExplicitAny: checking for Zod schema via internal _def property
             parameters: (t.parameters as any)?._def ? zodToJsonSchema(t.parameters as any) : t.parameters,
           })),
         )

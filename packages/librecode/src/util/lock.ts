@@ -17,7 +17,10 @@ function lockGet(key: string) {
       waitingWriters: [],
     })
   }
-  return locks.get(key)!
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  const entry = locks.get(key)
+  if (!entry) throw new Error(`Lock entry missing for key: ${key}`)
+  return entry
 }
 
 function lockProcess(key: string) {
@@ -26,15 +29,15 @@ function lockProcess(key: string) {
 
   // Prioritize writers to prevent starvation
   if (lock.waitingWriters.length > 0) {
-    const nextWriter = lock.waitingWriters.shift()!
-    nextWriter()
+    const nextWriter = lock.waitingWriters.shift()
+    if (nextWriter) nextWriter()
     return
   }
 
   // Wake up all waiting readers
   while (lock.waitingReaders.length > 0) {
-    const nextReader = lock.waitingReaders.shift()!
-    nextReader()
+    const nextReader = lock.waitingReaders.shift()
+    if (nextReader) nextReader()
   }
 
   // Clean up empty locks

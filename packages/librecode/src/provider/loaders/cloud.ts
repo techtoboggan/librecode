@@ -205,8 +205,8 @@ export const sapAiCore: CustomLoader = async () => {
   return {
     autoload: !!envServiceKey,
     options: envServiceKey ? { deploymentId, resourceGroup } : {},
-    async getModel(sdk: any, modelID: string) {
-      return sdk(modelID)
+    async getModel(sdk: unknown, modelID: string) {
+      return (sdk as (id: string) => LanguageModelV2)(modelID)
     },
   }
 }
@@ -226,8 +226,8 @@ export const cloudflareWorkersAi: CustomLoader = async (input) => {
   return {
     autoload: !!apiKey,
     options: { apiKey },
-    async getModel(sdk: any, modelID: string) {
-      return sdk.languageModel(modelID)
+    async getModel(sdk: unknown, modelID: string) {
+      return (sdk as { languageModel: (id: string) => LanguageModelV2 }).languageModel(modelID)
     },
     vars() {
       return { CLOUDFLARE_ACCOUNT_ID: accountId }
@@ -285,7 +285,7 @@ export const cloudflareAiGateway: CustomLoader = async (input) => {
 
   return {
     autoload: true,
-    async getModel(_sdk: any, modelID: string) {
+    async getModel(_sdk: unknown, modelID: string) {
       return aigateway(unified(modelID))
     },
     options: {},

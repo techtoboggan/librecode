@@ -5,7 +5,8 @@ import { Process } from "../../../util/process"
 
 export async function loginWithUrl(url: string): Promise<void> {
   const normalized = url.replace(/\/+$/, "")
-  const wellknown = await fetch(`${normalized}/.well-known/librecode`).then((x) => x.json() as any)
+  type WellKnown = { auth: { command: string[]; env: string } }
+  const wellknown = await fetch(`${normalized}/.well-known/librecode`).then((x) => x.json() as unknown as WellKnown)
   prompts.log.info(`Running \`${wellknown.auth.command.join(" ")}\``)
   const proc = Process.spawn(wellknown.auth.command, { stdout: "pipe" })
   if (!proc.stdout) {

@@ -1,4 +1,5 @@
 import { createMemo, Show } from "solid-js"
+import type { Tool } from "@/tool/tool"
 import type { GlobTool } from "@/tool/glob"
 import type { GrepTool } from "@/tool/grep"
 import type { ListTool } from "@/tool/ls"
@@ -43,28 +44,28 @@ export function List(props: ToolProps<typeof ListTool>) {
 
 export function WebFetch(props: ToolProps<typeof WebFetchTool>) {
   return (
-    <InlineTool icon="%" pending="Fetching from the web..." complete={(props.input as any).url} part={props.part}>
-      WebFetch {(props.input as any).url}
+    <InlineTool icon="%" pending="Fetching from the web..." complete={props.input.url} part={props.part}>
+      WebFetch {props.input.url}
     </InlineTool>
   )
 }
 
-export function CodeSearch(props: ToolProps<any>) {
-  const inputData = props.input as any
-  const metadata = props.metadata as any
+type SearchInput = { query?: string }
+type CodeSearchMetadata = { results?: number }
+type WebSearchMetadata = { numResults?: number }
+
+export function CodeSearch(props: { input: SearchInput; metadata: CodeSearchMetadata; part: ToolProps<Tool.Info>["part"] }) {
   return (
-    <InlineTool icon="◇" pending="Searching code..." complete={inputData.query} part={props.part}>
-      Exa Code Search "{inputData.query}" <Show when={metadata.results}>({metadata.results} results)</Show>
+    <InlineTool icon="◇" pending="Searching code..." complete={props.input.query} part={props.part}>
+      Exa Code Search "{props.input.query}" <Show when={props.metadata.results}>({props.metadata.results} results)</Show>
     </InlineTool>
   )
 }
 
-export function WebSearch(props: ToolProps<any>) {
-  const inputData = props.input as any
-  const metadata = props.metadata as any
+export function WebSearch(props: { input: SearchInput; metadata: WebSearchMetadata; part: ToolProps<Tool.Info>["part"] }) {
   return (
-    <InlineTool icon="◈" pending="Searching web..." complete={inputData.query} part={props.part}>
-      Exa Web Search "{inputData.query}" <Show when={metadata.numResults}>({metadata.numResults} results)</Show>
+    <InlineTool icon="◈" pending="Searching web..." complete={props.input.query} part={props.part}>
+      Exa Web Search "{props.input.query}" <Show when={props.metadata.numResults}>({props.metadata.numResults} results)</Show>
     </InlineTool>
   )
 }

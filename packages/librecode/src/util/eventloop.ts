@@ -1,13 +1,19 @@
 import { Log } from "./log"
 
+type NodeProcessInternal = NodeJS.Process & {
+  _getActiveHandles(): unknown[]
+  _getActiveRequests(): unknown[]
+}
+
 async function eventLoopWait() {
   return new Promise<void>((resolve) => {
+    const proc = process as NodeProcessInternal
     const check = () => {
-      const active = [...(process as any)._getActiveHandles(), ...(process as any)._getActiveRequests()]
+      const active = [...proc._getActiveHandles(), ...proc._getActiveRequests()]
       Log.Default.info("eventloop", {
         active,
       })
-      if ((process as any)._getActiveHandles().length === 0 && (process as any)._getActiveRequests().length === 0) {
+      if (proc._getActiveHandles().length === 0 && proc._getActiveRequests().length === 0) {
         resolve()
       } else {
         setImmediate(check)

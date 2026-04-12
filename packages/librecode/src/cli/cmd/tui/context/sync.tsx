@@ -360,7 +360,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           handlePartRemoved(event.properties)
           break
         case "lsp.updated":
-          sdk.client.lsp.status().then((x) => setStore("lsp", x.data!))
+          sdk.client.lsp.status().then((x) => setStore("lsp", x.data ?? []))
           break
         case "vcs.branch.updated":
           setStore("vcs", { branch: event.properties.branch })
@@ -393,10 +393,19 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
 
       await Promise.all(blockingRequests)
         .then(() => {
-          const providersResponse = providersPromise.then((x) => x.data!)
-          const providerListResponse = providerListPromise.then((x) => x.data!)
+          const providersResponse = providersPromise.then((x) => {
+            if (!x.data) throw new Error("providers response missing data")
+            return x.data
+          })
+          const providerListResponse = providerListPromise.then((x) => {
+            if (!x.data) throw new Error("providerList response missing data")
+            return x.data
+          })
           const agentsResponse = agentsPromise.then((x) => x.data ?? [])
-          const configResponse = configPromise.then((x) => x.data!)
+          const configResponse = configPromise.then((x) => {
+            if (!x.data) throw new Error("config response missing data")
+            return x.data
+          })
           const sessionListResponse = args.continue ? sessionListPromise : undefined
 
           return Promise.all([
@@ -428,16 +437,18 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           Promise.all([
             ...(args.continue ? [] : [sessionListPromise.then((sessions) => setStore("session", reconcile(sessions)))]),
             sdk.client.command.list().then((x) => setStore("command", reconcile(x.data ?? []))),
-            sdk.client.lsp.status().then((x) => setStore("lsp", reconcile(x.data!))),
-            sdk.client.mcp.status().then((x) => setStore("mcp", reconcile(x.data!))),
+            sdk.client.lsp.status().then((x) => setStore("lsp", reconcile(x.data ?? []))),
+            sdk.client.mcp.status().then((x) => setStore("mcp", reconcile(x.data ?? {}))),
             sdk.client.experimental.resource.list().then((x) => setStore("mcp_resource", reconcile(x.data ?? {}))),
-            sdk.client.formatter.status().then((x) => setStore("formatter", reconcile(x.data!))),
+            sdk.client.formatter.status().then((x) => setStore("formatter", reconcile(x.data ?? []))),
             sdk.client.session.status().then((x) => {
-              setStore("session_status", reconcile(x.data!))
+              setStore("session_status", reconcile(x.data ?? {}))
             }),
             sdk.client.provider.auth().then((x) => setStore("provider_auth", reconcile(x.data ?? {}))),
             sdk.client.vcs.get().then((x) => setStore("vcs", reconcile(x.data))),
-            sdk.client.path.get().then((x) => setStore("path", reconcile(x.data!))),
+            sdk.client.path.get().then((x) => {
+              if (x.data) setStore("path", reconcile(x.data))
+            }),
             syncWorkspaces(),
           ]).then(() => {
             setStore("status", "complete")
@@ -494,11 +505,13 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
           setStore(
             produce((draft) => {
               const match = Binary.search(draft.session, sessionID, (s) => s.id)
-              if (match.found) draft.session[match.index] = session.data!
-              if (!match.found) draft.session.splice(match.index, 0, session.data!)
+              if (session.data) {
+                if (match.found) draft.session[match.index] = session.data
+                else draft.session.splice(match.index, 0, session.data)
+              }
               draft.todo[sessionID] = todo.data ?? []
               draft.message[sessionID] = messages.data?.map((x) => x.info) ?? []
-              for (const message of messages.data!) {
+              for (const message of messages.data ?? []) {
                 draft.part[message.info.id] = message.parts
               }
               draft.session_diff[sessionID] = diff.data ?? []

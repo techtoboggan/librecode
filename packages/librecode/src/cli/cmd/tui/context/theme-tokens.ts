@@ -230,8 +230,9 @@ function resolveColorRef(
   if (c.startsWith("#")) return RGBA.fromHex(c)
 
   if (defs[c] != null) return resolveColorRef(defs[c], defs, themeColors, mode)
-  if (themeColors[c as keyof ThemeColors] !== undefined) {
-    return resolveColorRef(themeColors[c as keyof ThemeColors]!, defs, themeColors, mode)
+  const themeColor = themeColors[c as keyof ThemeColors]
+  if (themeColor !== undefined) {
+    return resolveColorRef(themeColor, defs, themeColors, mode)
   }
   throw new Error(`Color reference "${c}" not found in defs or theme`)
 }
@@ -250,8 +251,8 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light"): Theme {
 
   // Handle selectedListItemText separately since it's optional
   const hasSelectedListItemText = theme.theme.selectedListItemText !== undefined
-  if (hasSelectedListItemText) {
-    resolved.selectedListItemText = resolveColor(theme.theme.selectedListItemText!)
+  if (hasSelectedListItemText && theme.theme.selectedListItemText !== undefined) {
+    resolved.selectedListItemText = resolveColor(theme.theme.selectedListItemText)
   } else {
     // Backward compatibility: if selectedListItemText is not defined, use background color
     // This preserves the current behavior for all existing themes
@@ -276,8 +277,8 @@ export function resolveTheme(theme: ThemeJson, mode: "dark" | "light"): Theme {
 }
 
 export function generateSystem(colors: TerminalColors, mode: "dark" | "light"): ThemeJson {
-  const bg = RGBA.fromHex(colors.defaultBackground ?? colors.palette[0]!)
-  const fg = RGBA.fromHex(colors.defaultForeground ?? colors.palette[7]!)
+  const bg = RGBA.fromHex(colors.defaultBackground ?? colors.palette[0] ?? "#000000")
+  const fg = RGBA.fromHex(colors.defaultForeground ?? colors.palette[7] ?? "#ffffff")
   const transparent = RGBA.fromInts(0, 0, 0, 0)
   const isDark = mode === "dark"
 

@@ -221,7 +221,11 @@ export async function downloadZls(): Promise<string | undefined> {
     return undefined
   }
 
-  const downloadResponse = await fetch(asset.browser_download_url!)
+  if (!asset.browser_download_url) {
+    log.error("Asset missing download URL")
+    return undefined
+  }
+  const downloadResponse = await fetch(asset.browser_download_url)
   if (!downloadResponse.ok) {
     log.error("Failed to download zls")
     return undefined
@@ -559,7 +563,11 @@ export async function downloadLuaLS(): Promise<string | undefined> {
     return undefined
   }
 
-  const downloadResponse = await fetch(asset.browser_download_url!)
+  if (!asset.browser_download_url) {
+    log.error("Asset missing download URL")
+    return undefined
+  }
+  const downloadResponse = await fetch(asset.browser_download_url)
   if (!downloadResponse.ok) {
     log.error("Failed to download lua-language-server")
     return undefined
@@ -683,8 +691,12 @@ async function fetchAndExtractTexLab(assetName: string, ext: string): Promise<bo
     return found
   })()
   if (!asset) return false
+  if (!asset.browser_download_url) {
+    log.error("Asset missing download URL")
+    return false
+  }
 
-  const downloadResponse = await fetch(asset.browser_download_url!)
+  const downloadResponse = await fetch(asset.browser_download_url)
   if (!downloadResponse.ok) {
     log.error("Failed to download texlab")
     return false

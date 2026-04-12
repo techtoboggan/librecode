@@ -6,7 +6,7 @@ import type { MessageID, SessionID } from "../session/schema"
 import { Truncate } from "./truncation"
 
 interface Metadata {
-  [key: string]: any
+  [key: string]: unknown
 }
 
 export interface ToolInitContext {
@@ -19,7 +19,7 @@ export type ToolContext<M extends Metadata = Metadata> = {
   agent: string
   abort: AbortSignal
   callID?: string
-  extra?: { [key: string]: any }
+  extra?: { [key: string]: unknown }
   messages: MessageV2.WithParts[]
   metadata(input: { title?: string; metadata?: M }): void
   ask(input: Omit<PermissionNext.Request, "id" | "sessionID" | "tool">): Promise<void>
@@ -44,7 +44,7 @@ export interface ToolInfo<Parameters extends z.ZodType = z.ZodType, M extends Me
 }
 
 export type ToolInferParameters<T extends ToolInfo> = T extends ToolInfo<infer P> ? z.infer<P> : never
-export type ToolInferMetadata<T extends ToolInfo> = T extends ToolInfo<any, infer M> ? M : never
+export type ToolInferMetadata<T extends ToolInfo> = T extends ToolInfo<z.ZodType, infer M> ? M : never
 
 // biome-ignore lint/style/noNamespace: type companion for declaration merging
 export declare namespace Tool {

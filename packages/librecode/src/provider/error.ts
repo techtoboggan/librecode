@@ -69,12 +69,13 @@ function resolveHtmlErrorMessage(statusCode: number | undefined, baseMsg: string
 }
 
 function resolveMessageWithBody(e: APICallError, msg: string): string {
-  const jsonMsg = extractJsonErrorMessage(e.responseBody!, msg)
+  const body = e.responseBody ?? ""
+  const jsonMsg = extractJsonErrorMessage(body, msg)
   if (jsonMsg) return jsonMsg
-  if (/^\s*<!doctype|^\s*<html/i.test(e.responseBody!)) {
+  if (/^\s*<!doctype|^\s*<html/i.test(body)) {
     return resolveHtmlErrorMessage(e.statusCode, msg)
   }
-  return `${msg}: ${e.responseBody}`
+  return `${msg}: ${body}`
 }
 
 function errorMessage(_providerID: ProviderID, e: APICallError) {

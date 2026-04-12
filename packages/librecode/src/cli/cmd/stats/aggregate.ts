@@ -1,5 +1,6 @@
 import { Instance } from "../../../project/instance"
 import { Session } from "../../../session"
+import type { MessageV2 } from "../../../session/message-v2"
 import { SessionTable } from "../../../session/session.sql"
 import { Database } from "../../../storage/db"
 import type { ModelStats, SessionResult, SessionStats } from "./types"
@@ -25,7 +26,9 @@ async function applyProjectFilter(sessions: Session.Info[], projectFilter?: stri
   return sessions.filter((s) => s.projectID === projectFilter)
 }
 
-function accumulateTokenCounts(tokenInfo: any, tokens: SessionResult["sessionTokens"], mu: ModelStats): void {
+type TokenCounts = MessageV2.Assistant["tokens"]
+
+function accumulateTokenCounts(tokenInfo: TokenCounts | undefined, tokens: SessionResult["sessionTokens"], mu: ModelStats): void {
   if (!tokenInfo) return
   tokens.input += tokenInfo.input || 0
   tokens.output += tokenInfo.output || 0
@@ -39,11 +42,11 @@ function accumulateTokenCounts(tokenInfo: any, tokens: SessionResult["sessionTok
 }
 
 function processAssistantTokens(
-  message: Session.Info extends { id: string } ? Awaited<ReturnType<typeof Session.messages>>[number] : never,
+  message: MessageV2.WithParts,
   tokens: SessionResult["sessionTokens"],
   modelUsage: Record<string, ModelStats>,
 ): number {
-  const info = (message as any).info
+  const info = message.info as MessageV2.Assistant
   const modelKey = `${info.providerID}/${info.modelID}`
   if (!modelUsage[modelKey]) {
     modelUsage[modelKey] = { messages: 0, tokens: { input: 0, output: 0, cache: { read: 0, write: 0 } }, cost: 0 }
@@ -63,13 +66,14 @@ async function processSession(session: Session.Info, cutoffTime: number): Promis
   let sessionCost = 0
 
   for (const message of messages) {
-    const info = (message as any).info
+    const { info, parts } = message
     if (info.role === "assistant") {
-      sessionCost += processAssistantTokens(message as any, sessionTokens, sessionModelUsage)
+      sessionCost += processAssistantTokens(message, sessionTokens, sessionModelUsage)
     }
-    for (const part of (message as any).parts ?? []) {
-      if (part.type === "tool" && part.tool) {
-        sessionToolUsage[part.tool] = (sessionToolUsage[part.tool] || 0) + 1
+    for (const part of parts) {
+      if (part.type === "tool" && "tool" in part && part.tool) {
+        const toolName = part.tool as string
+        sessionToolUsage[toolName] = (sessionToolUsage[toolName] || 0) + 1
       }
     }
   }

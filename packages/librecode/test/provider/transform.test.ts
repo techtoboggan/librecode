@@ -37,6 +37,7 @@ describe("ProviderTransform.options - setCacheKey", () => {
     status: "active",
     options: {},
     headers: {},
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   } as any
 
   test("should set promptCacheKey when providerOptions.setCacheKey is true", () => {
@@ -131,6 +132,7 @@ describe("ProviderTransform.options - gpt-5 textVerbosity", () => {
       status: "active",
       options: {},
       headers: {},
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     }) as any
 
   test("gpt-5.2 should have textVerbosity set to low", () => {
@@ -211,6 +213,7 @@ describe("ProviderTransform.options - gateway", () => {
       options: {},
       headers: {},
       release_date: "2024-01-01",
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     }) as any
 
   test("puts gateway defaults under gateway key", () => {
@@ -225,6 +228,7 @@ describe("ProviderTransform.options - gateway", () => {
 })
 
 describe("ProviderTransform.providerOptions", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — partial override object for model
   const createModel = (overrides: Partial<any> = {}) =>
     ({
       id: "test/test-model",
@@ -258,6 +262,7 @@ describe("ProviderTransform.providerOptions", () => {
       headers: {},
       release_date: "2024-01-01",
       ...overrides,
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     }) as any
 
   test("uses sdk key for non-gateway models", () => {
@@ -324,6 +329,7 @@ describe("ProviderTransform.providerOptions", () => {
     ).toEqual({
       gateway: { order: ["vertex", "anthropic"] },
       anthropic: { thinking: { type: "enabled", budgetTokens: 12_000 } },
+    // biome-ignore lint/suspicious/noExplicitAny: test assertion — dynamic providerOptions shape
     } as any)
   })
 
@@ -381,6 +387,7 @@ describe("ProviderTransform.schema - gemini array items", () => {
       api: {
         id: "gemini-3-pro",
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
     } as any
 
     const schema = {
@@ -389,8 +396,10 @@ describe("ProviderTransform.schema - gemini array items", () => {
         nodes: { type: "array" },
         edges: { type: "array", items: { type: "string" } },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.nodes.items).toBeDefined()
@@ -399,6 +408,7 @@ describe("ProviderTransform.schema - gemini array items", () => {
 })
 
 describe("ProviderTransform.schema - gemini nested array items", () => {
+  // biome-ignore lint/suspicious/noExplicitAny: test mock — incomplete model object
   const geminiModel = {
     providerID: "google",
     api: {
@@ -418,8 +428,10 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     // Inner items should have a default type
@@ -435,8 +447,10 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           items: { type: "array" }, // No items at all
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.data.items.items).toBeDefined()
@@ -458,8 +472,10 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.matrix.items.items.items).toBeDefined()
@@ -478,8 +494,10 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     // Should preserve the explicit type
@@ -503,8 +521,10 @@ describe("ProviderTransform.schema - gemini nested array items", () => {
           },
         },
       },
+    // biome-ignore lint/suspicious/noExplicitAny: test schema — plain JSON object
     } as any
 
+    // biome-ignore lint/suspicious/noExplicitAny: result needs dynamic property access for assertions
     const result = ProviderTransform.schema(geminiModel, schema) as any
 
     expect(result.properties.spreadsheetData.properties.rows.items.items.type).toBe("string")

@@ -5,6 +5,7 @@ import { cmd } from "./cmd"
 const QueryCommand = cmd({
   command: "query <sql>",
   describe: "run a SQL query against the database",
+  // biome-ignore lint/suspicious/noExplicitAny: yargs ArgumentsCamelCase type inference requires any for positional args
   handler: async (args: any) => {
     const sqlite = Database.Client().$client
     const result = sqlite.prepare(args.sql).all()

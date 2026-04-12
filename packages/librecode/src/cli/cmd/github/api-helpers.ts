@@ -13,9 +13,10 @@ export async function assertPermissions(
   actor: string | undefined,
 ): Promise<void> {
   console.log(`Asserting permissions for user ${actor}...`)
+  if (!actor) throw new Error("Cannot assert permissions: actor is undefined")
   let permission: string
   try {
-    const response = await octoRest.repos.getCollaboratorPermissionLevel({ owner, repo, username: actor! })
+    const response = await octoRest.repos.getCollaboratorPermissionLevel({ owner, repo, username: actor })
     permission = response.data.permission
     console.log(`  permission: ${permission}`)
   } catch (error) {
@@ -50,10 +51,11 @@ export async function addReaction(
       content: AGENT_REACTION,
     })
   }
+  if (issueId === undefined) throw new Error("Cannot add reaction: issueId is undefined")
   return await octoRest.rest.reactions.createForIssue({
     owner,
     repo,
-    issue_number: issueId!,
+    issue_number: issueId,
     content: AGENT_REACTION,
   })
 }
@@ -106,10 +108,11 @@ export async function removeReaction(
     return removeReactionForIssueComment(octoRest, owner, repo, triggerCommentId)
   }
 
+  if (issueId === undefined) throw new Error("Cannot remove reaction: issueId is undefined")
   const reactions = await octoRest.rest.reactions.listForIssue({
     owner,
     repo,
-    issue_number: issueId!,
+    issue_number: issueId,
     content: AGENT_REACTION,
   })
   const eyesReaction = reactions.data.find((r) => r.user?.login === AGENT_USERNAME)
@@ -117,7 +120,7 @@ export async function removeReaction(
   await octoRest.rest.reactions.deleteForIssue({
     owner,
     repo,
-    issue_number: issueId!,
+    issue_number: issueId,
     reaction_id: eyesReaction.id,
   })
 }

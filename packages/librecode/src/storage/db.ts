@@ -125,11 +125,12 @@ function databaseClose() {
   DatabaseClient.reset()
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: drizzle SQLiteTransaction requires any for schema type parameters
 type TxOrDb = SQLiteTransaction<"sync", void, any, any> | Client
 
 const ctx = Context.create<{
   tx: TxOrDb
-  effects: (() => void | Promise<void>)[]
+  effects: (() => unknown)[]
 }>("database")
 
 function databaseUse<T>(callback: (trx: TxOrDb) => T): T {
@@ -146,7 +147,7 @@ function databaseUse<T>(callback: (trx: TxOrDb) => T): T {
   }
 }
 
-function databaseEffect(fn: () => any | Promise<any>) {
+function databaseEffect(fn: () => unknown) {
   try {
     ctx.use().effects.push(fn)
   } catch {
@@ -160,6 +161,7 @@ function databaseTransaction<T>(callback: (tx: TxOrDb) => T): T {
   } catch (err) {
     if (err instanceof Context.NotFound) {
       const effects: (() => void | Promise<void>)[] = []
+      // biome-ignore lint/suspicious/noExplicitAny: drizzle transaction type not directly accessible
       const result = (DatabaseClient().transaction as any)((tx: TxOrDb) => {
         return ctx.provide({ tx, effects }, () => callback(tx))
       })
@@ -182,5 +184,6 @@ export const Database = {
 // biome-ignore lint/style/noNamespace: type companion for declaration merging
 export declare namespace Database {
   type Transaction = DatabaseTransaction
+  // biome-ignore lint/suspicious/noExplicitAny: drizzle SQLiteTransaction requires any for schema type parameters
   type TxOrDb = SQLiteTransaction<"sync", void, any, any> | Client
 }

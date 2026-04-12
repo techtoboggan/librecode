@@ -85,6 +85,7 @@ const state = Instance.state(async (): Promise<ProviderAuthState> => {
   const methods = pipe(
     await Plugin.list(),
     filter((x) => x.auth?.provider !== undefined),
+    // biome-ignore lint/style/noNonNullAssertion: filter above guarantees auth and auth.provider are defined
     map((x) => [x.auth!.provider, x.auth!] as const),
     fromEntries(),
   )
@@ -137,6 +138,7 @@ async function authServiceCallback(input: { providerID: ProviderID; method: numb
 
   if (match.method === "code" && !input.code) throw new OauthCodeMissing({ providerID: input.providerID })
 
+  // biome-ignore lint/style/noNonNullAssertion: input.code is guaranteed non-null by the guard above
   const result = await (match.method === "code" ? match.callback(input.code!) : match.callback())
 
   if (!result || result.type !== "success") throw new OauthCallbackFailed({})

@@ -96,7 +96,7 @@ function buildServerStatusLine(
   } else if (status?.status === "failed") {
     statusIcon = "✗"
     statusText = "failed"
-    hint = `\n    ${(status as any).error}`
+    hint = `\n    ${(status as { error: string }).error}`
   }
 
   const typeHint = serverConfig.type === "remote" ? serverConfig.url : serverConfig.command.join(" ")

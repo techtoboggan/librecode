@@ -135,7 +135,7 @@ export const GithubRunCommand = cmd({
 
 async function runGithubAction(args: { token?: string; event?: string }): Promise<void> {
   const isMock = args.token || args.event
-  const context = isMock ? (JSON.parse(args.event!) as Context) : github.context
+  const context = isMock ? (JSON.parse(args.event ?? "{}") as Context) : github.context
   if (!SUPPORTED_EVENTS.includes(context.eventName as (typeof SUPPORTED_EVENTS)[number])) {
     core.setFailed(`Unsupported event type: ${context.eventName}`)
     process.exit(1)
@@ -171,8 +171,8 @@ async function runGithubAction(args: { token?: string; event?: string }): Promis
     exitCode = 1
     const msg = formatErrorMessage(e)
     console.error(msg)
-    if (eventFlags.isUserEvent && ctx.octoRest) {
-      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId!, `${msg}${buildFooter(ctx)}`)
+    if (eventFlags.isUserEvent && ctx.octoRest && ctx.issueId !== undefined) {
+      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${msg}${buildFooter(ctx)}`)
       await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, ctx.commentType)
     }
     core.setFailed(msg)
@@ -693,7 +693,7 @@ async function resolveAppToken(
     }
     return githubToken
   }
-  const actionToken = isMock ? mockToken! : await getOidcToken()
+  const actionToken = isMock ? (mockToken ?? "") : await getOidcToken()
   return exchangeForAppToken(oidcBaseUrl, owner, repo, actionToken)
 }
 
@@ -777,18 +777,20 @@ async function dispatchEvent(
   const isPR =
     ["pull_request", "pull_request_review_comment"].includes(ctx.eventName) || ctx.issueEvent?.issue.pull_request
   if (flags.isRepoEvent) {
+    if (!ctx.defaultBranch) throw new Error("defaultBranch is not set for repo event")
     await handleRepoEvent(
       ctx,
       userPrompt,
       promptFiles,
-      ctx.defaultBranch!,
+      ctx.defaultBranch,
       flags.isWorkflowDispatchEvent,
       flags.isScheduleEvent,
     )
   } else if (isPR) {
     await handlePREvent(ctx, userPrompt, promptFiles, ctx.commentType)
   } else {
-    await handleIssueEvent(ctx, userPrompt, promptFiles, ctx.defaultBranch!, ctx.commentType)
+    if (!ctx.defaultBranch) throw new Error("defaultBranch is not set for issue event")
+    await handleIssueEvent(ctx, userPrompt, promptFiles, ctx.defaultBranch, ctx.commentType)
   }
 }
 
@@ -855,11 +857,12 @@ async function handleLocalPREvent(
     await pushToLocalBranch(summary, uncommittedChanges, ctx.actor)
   }
   const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
+  if (ctx.issueId === undefined) throw new Error("issueId is required for PR event")
   await createComment(
     ctx.octoRest,
     ctx.owner,
     ctx.repo,
-    ctx.issueId!,
+    ctx.issueId,
     `${response}${buildFooter(ctx, { image: !hasShared })}`,
   )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
@@ -885,11 +888,12 @@ async function handleForkPREvent(
     await pushToForkBranch(summary, prData, uncommittedChanges, ctx.actor)
   }
   const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
+  if (ctx.issueId === undefined) throw new Error("issueId is required for fork PR event")
   await createComment(
     ctx.octoRest,
     ctx.owner,
     ctx.repo,
-    ctx.issueId!,
+    ctx.issueId,
     `${response}${buildFooter(ctx, { image: !hasShared })}`,
   )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
@@ -923,6 +927,7 @@ async function handleIssueEvent(
   const response = await chat(ctx, `${userPrompt}\n\n${dataPrompt}`, promptFiles)
   const { dirty, uncommittedChanges, switched } = await branchIsDirty(head, branch)
 
+  if (ctx.issueId === undefined) throw new Error("issueId is required for issue event")
   if (switched) {
     // Agent switched branches (likely created its own branch/PR).
     // Don't push the stale infrastructure branch — just comment.
@@ -930,7 +935,7 @@ async function handleIssueEvent(
       ctx.octoRest,
       ctx.owner,
       ctx.repo,
-      ctx.issueId!,
+      ctx.issueId,
       `${response}${buildFooter(ctx, { image: true })}`,
     )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
@@ -951,7 +956,7 @@ async function handleIssueEvent(
         ctx.octoRest,
         ctx.owner,
         ctx.repo,
-        ctx.issueId!,
+        ctx.issueId,
         `Created PR #${pr}${buildFooter(ctx, { image: true })}`,
       )
     } else {
@@ -959,7 +964,7 @@ async function handleIssueEvent(
         ctx.octoRest,
         ctx.owner,
         ctx.repo,
-        ctx.issueId!,
+        ctx.issueId,
         `${response}${buildFooter(ctx, { image: true })}`,
       )
     }
@@ -969,7 +974,7 @@ async function handleIssueEvent(
       ctx.octoRest,
       ctx.owner,
       ctx.repo,
-      ctx.issueId!,
+      ctx.issueId,
       `${response}${buildFooter(ctx, { image: true })}`,
     )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
