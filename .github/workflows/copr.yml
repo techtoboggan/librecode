@@ -44,12 +44,20 @@ jobs:
 
           mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
 
+          # Bundle both arch tarballs into the SRPM so the build works with
+          # internet access disabled (no outbound network in COPR mock).
+          BASE="https://github.com/techtoboggan/librecode/releases/download/v${VERSION}"
+          curl -fL -o ~/rpmbuild/SOURCES/librecode-linux-x64.tar.gz \
+            "${BASE}/librecode-linux-x64.tar.gz"
+          curl -fL -o ~/rpmbuild/SOURCES/librecode-linux-arm64.tar.gz \
+            "${BASE}/librecode-linux-arm64.tar.gz"
+
           # Inject the real version into the spec file
           sed "s/^Version:.*/Version:        ${VERSION}/" \
             packages/rpm/librecode.spec > ~/rpmbuild/SPECS/librecode.spec
 
-          # Build source RPM — sources are fetched by COPR via curl in %prep
-          rpmbuild -bs --nodeps ~/rpmbuild/SPECS/librecode.spec
+          # Build SRPM — sources are now local so no --nodeps needed
+          rpmbuild -bs ~/rpmbuild/SPECS/librecode.spec
 
           SRPM=$(ls ~/rpmbuild/SRPMS/librecode-${VERSION}-*.src.rpm)
           echo "Submitting: $SRPM"

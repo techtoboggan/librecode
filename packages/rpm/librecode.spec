@@ -1,4 +1,4 @@
-# Pre-built binary package — no debug package needed
+# Pre-built binary package — no debug package, no stripping
 %global debug_package %{nil}
 %global __strip /bin/true
 
@@ -9,10 +9,13 @@ Summary:        AI-powered terminal coding agent
 License:        MIT
 URL:            https://github.com/techtoboggan/librecode
 
-# Only ship for architectures we produce binaries for
+# Both arch tarballs are bundled in the SRPM so the build works with
+# internet access disabled (Fedora packaging policy).
+Source0:        librecode-linux-x64.tar.gz
+Source1:        librecode-linux-arm64.tar.gz
+
 ExclusiveArch:  x86_64 aarch64
 
-# Runtime dependency: glibc (the binary is dynamically linked)
 Requires:       glibc
 
 %description
@@ -26,17 +29,12 @@ branching, permission management with audit logging, and proper Linux
 packaging via COPR, Flatpak, and Nix.
 
 %prep
-# Download the architecture-specific pre-built binary from the GitHub release.
-# The version macro is injected by the CI workflow via rpmbuild --define.
 %ifarch x86_64
-curl -fL -o librecode.tar.gz \
-  https://github.com/techtoboggan/librecode/releases/download/v%{version}/librecode-linux-x64.tar.gz
+tar -xzf %{SOURCE0}
 %endif
 %ifarch aarch64
-curl -fL -o librecode.tar.gz \
-  https://github.com/techtoboggan/librecode/releases/download/v%{version}/librecode-linux-arm64.tar.gz
+tar -xzf %{SOURCE1}
 %endif
-tar -xzf librecode.tar.gz
 
 %build
 # Pre-built binary — nothing to compile
