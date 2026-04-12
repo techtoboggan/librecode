@@ -7,7 +7,7 @@ import { PermissionNext } from "@/permission/next"
 import { TaskTool } from "@/tool/task"
 import type { Tool } from "@/tool/tool"
 import { iife } from "@/util/iife"
-import { Agent } from "../agent/agent"
+import { Agent, type AgentInfo } from "../agent/agent"
 import { Bus } from "../bus"
 import type { Command } from "../command"
 import { ConfigMarkdown } from "../config/markdown"
@@ -131,7 +131,7 @@ export function buildMcpToolExecute(opts: BuildMcpToolOpts): import("ai").Tool["
 // ─── System prompt assembly ───────────────────────────────────────────────────
 
 export async function buildSystemPromptParts(
-  agent: Agent.Info,
+  agent: AgentInfo,
   model: Provider.Model,
   format: NonNullable<MessageV2.User["format"]>,
 ): Promise<string[]> {
@@ -172,7 +172,7 @@ export function wrapQueuedUserMessages(msgs: MessageV2.WithParts[], lastFinished
 async function insertLegacyPlanReminder(
   messages: MessageV2.WithParts[],
   userMessage: MessageV2.WithParts,
-  agent: Agent.Info,
+  agent: AgentInfo,
 ): Promise<void> {
   if (agent.name === "plan") {
     userMessage.parts.push({
@@ -200,7 +200,7 @@ async function insertLegacyPlanReminder(
 async function insertPlanModeReminder(
   messages: MessageV2.WithParts[],
   userMessage: MessageV2.WithParts,
-  agent: Agent.Info,
+  agent: AgentInfo,
   session: Session.Info,
 ): Promise<void> {
   const assistantMessage = messages.findLast((msg) => msg.info.role === "assistant")
@@ -240,7 +240,7 @@ async function insertPlanModeReminder(
 
 export async function insertReminders(input: {
   messages: MessageV2.WithParts[]
-  agent: Agent.Info
+  agent: AgentInfo
   session: Session.Info
 }) {
   const userMessage = input.messages.findLast((msg) => msg.info.role === "user")
@@ -322,7 +322,7 @@ export async function resolveCommandModel(
   return await lastModelForBuilder(sessionID)
 }
 
-export async function validateCommandAgent(agentName: string, sessionID: SessionID): Promise<Agent.Info> {
+export async function validateCommandAgent(agentName: string, sessionID: SessionID): Promise<AgentInfo> {
   const agent = await Agent.get(agentName)
   if (!agent) {
     const available = await Agent.list().then((agents) => agents.filter((a) => !a.hidden).map((a) => a.name))
@@ -355,7 +355,7 @@ export async function validateModelExists(
 
 export async function buildCommandParts(
   cmd: Awaited<ReturnType<typeof Command.get>>,
-  agent: Agent.Info,
+  agent: AgentInfo,
   taskModel: { providerID: ProviderID; modelID: ModelID },
   template: string,
   input: CommandInputType,
@@ -379,7 +379,7 @@ export async function buildCommandParts(
 
 export async function resolveCommandUserModelAndAgent(
   cmd: Awaited<ReturnType<typeof Command.get>>,
-  agent: Agent.Info,
+  agent: AgentInfo,
   agentName: string,
   taskModel: { providerID: ProviderID; modelID: ModelID },
   input: CommandInputType,
@@ -543,6 +543,7 @@ export async function executeSubtask(
 
   let executionError: Error | undefined
   const taskAgent = await Agent.get(task.agent)
+  if (!taskAgent) throw new Error(`task agent "${task.agent}" not found`)
   const taskCtx: Tool.Context = {
     agent: task.agent,
     messageID: assistantMessage.id,

@@ -418,6 +418,7 @@ async function lastModelForParts(sessionID: SessionID) {
 
 export async function createUserMessage(input: PromptInputType) {
   const agent = await Agent.get(input.agent ?? (await Agent.defaultAgent()))
+  if (!agent) throw new Error(`agent "${input.agent}" not found`)
 
   const model = input.model ?? agent.model ?? (await lastModelForParts(input.sessionID))
   const full =

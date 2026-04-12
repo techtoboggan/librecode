@@ -1,6 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import type { Agent } from "../agent/agent"
+import type { AgentInfo } from "../agent/agent"
 import { Global } from "../global"
 import { Identifier } from "../id/id"
 import { PermissionNext } from "../permission/next"
@@ -84,13 +84,13 @@ export namespace Truncate {
     }
   }
 
-  function hasTaskTool(agent?: Agent.Info): boolean {
+  function hasTaskTool(agent?: AgentInfo): boolean {
     if (!agent?.permission) return false
     const rule = PermissionNext.evaluate("task", "*", agent.permission)
     return rule.action !== "deny"
   }
 
-  export async function output(text: string, options: Options = {}, agent?: Agent.Info): Promise<Result> {
+  export async function output(text: string, options: Options = {}, agent?: AgentInfo): Promise<Result> {
     const maxLines = options.maxLines ?? MAX_LINES
     const maxBytes = options.maxBytes ?? MAX_BYTES
     const direction = options.direction ?? "head"

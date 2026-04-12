@@ -91,111 +91,116 @@ const state = Instance.state(async (): Promise<ProviderAuthState> => {
   return { methods, pending: new Map<ProviderID, AuthOuathResult>() }
 })
 
-export namespace ProviderAuthService {
-  export async function methods(): Promise<Record<string, Method[]>> {
-    const s = await state()
-    const result: Record<string, Method[]> = {}
-    for (const [key, value] of Object.entries(s.methods)) {
-      result[key] = value.methods.map(
-        (m): Method => ({
-          type: m.type as "oauth" | "api",
-          label: m.label,
-          ...(m.prompts?.length
-            ? {
-                prompts: m.prompts.map((p) => {
-                  if (p.type === "text")
-                    return { type: "text" as const, key: p.key, message: p.message, placeholder: p.placeholder }
-                  return { type: "select" as const, key: p.key, message: p.message, options: p.options }
-                }),
-              }
-            : {}),
-        }),
-      )
-    }
-    return result
+async function authServiceMethods(): Promise<Record<string, Method[]>> {
+  const s = await state()
+  const result: Record<string, Method[]> = {}
+  for (const [key, value] of Object.entries(s.methods)) {
+    result[key] = value.methods.map(
+      (m): Method => ({
+        type: m.type as "oauth" | "api",
+        label: m.label,
+        ...(m.prompts?.length
+          ? {
+              prompts: m.prompts.map((p) => {
+                if (p.type === "text")
+                  return { type: "text" as const, key: p.key, message: p.message, placeholder: p.placeholder }
+                return { type: "select" as const, key: p.key, message: p.message, options: p.options }
+              }),
+            }
+          : {}),
+      }),
+    )
   }
+  return result
+}
 
-  export async function authorize(input: {
-    providerID: ProviderID
-    method: number
-  }): Promise<Authorization | undefined> {
-    const s = await state()
-    const method = s.methods[input.providerID].methods[input.method]
-    if (method.type !== "oauth") return undefined
-    const result = await (method as Extract<typeof method, { type: "oauth" }>).authorize()
-    s.pending.set(input.providerID, result)
-    return {
-      url: result.url,
-      method: result.method,
-      instructions: result.instructions,
-    }
+async function authServiceAuthorize(input: {
+  providerID: ProviderID
+  method: number
+}): Promise<Authorization | undefined> {
+  const s = await state()
+  const method = s.methods[input.providerID].methods[input.method]
+  if (method.type !== "oauth") return undefined
+  const result = await (method as Extract<typeof method, { type: "oauth" }>).authorize()
+  s.pending.set(input.providerID, result)
+  return {
+    url: result.url,
+    method: result.method,
+    instructions: result.instructions,
   }
+}
 
-  export async function callback(input: { providerID: ProviderID; method: number; code?: string }): Promise<void> {
-    const s = await state()
-    const match = s.pending.get(input.providerID)
-    if (!match) throw new OauthMissing({ providerID: input.providerID })
+async function authServiceCallback(input: { providerID: ProviderID; method: number; code?: string }): Promise<void> {
+  const s = await state()
+  const match = s.pending.get(input.providerID)
+  if (!match) throw new OauthMissing({ providerID: input.providerID })
 
-    if (match.method === "code" && !input.code) throw new OauthCodeMissing({ providerID: input.providerID })
+  if (match.method === "code" && !input.code) throw new OauthCodeMissing({ providerID: input.providerID })
 
-    const result = await (match.method === "code" ? match.callback(input.code!) : match.callback())
+  const result = await (match.method === "code" ? match.callback(input.code!) : match.callback())
 
-    if (!result || result.type !== "success") throw new OauthCallbackFailed({})
+  if (!result || result.type !== "success") throw new OauthCallbackFailed({})
 
-    if ("key" in result) {
-      await Auth.set(input.providerID, {
-        type: "api",
-        key: result.key,
-      })
-    }
-
-    if ("refresh" in result) {
-      await Auth.set(input.providerID, {
-        type: "oauth",
-        access: result.access,
-        refresh: result.refresh,
-        expires: result.expires,
-        ...(result.accountId ? { accountId: result.accountId } : {}),
-      })
-    }
-  }
-
-  async function tryCustomAuthorize(providerID: ProviderID, inputs: Record<string, string>): Promise<boolean> {
-    const s = await state()
-    const hook = s.methods[providerID]
-    if (!hook) return false
-    const methodIndex = hook.methods.findIndex((m) => m.type === "api")
-    if (methodIndex < 0) return false
-    const method = hook.methods[methodIndex] as Extract<(typeof hook.methods)[number], { type: "api" }>
-    if (!method.authorize) return false
-    const result = await method.authorize(inputs)
-    if (result.type === "failed") throw new Error("Authorization failed")
-    const targetID = (result.provider ?? providerID) as ProviderID
-    await Auth.set(targetID, { type: "api", key: result.key })
-    // If the form supplied a URL, persist it separately so loaders don't have to
-    // parse the encoded key. Backward-compat: loaders still fall back to key parsing.
-    if (inputs.url !== undefined || inputs.apiKey !== undefined) {
-      ProviderCredentials.set(targetID, {
-        url: inputs.url?.trim() || undefined,
-        apiKey: inputs.apiKey?.trim() || undefined,
-      })
-    }
-    return true
-  }
-
-  export async function api(input: {
-    providerID: ProviderID
-    key: string
-    inputs?: Record<string, string>
-  }): Promise<void> {
-    if (input.inputs) {
-      const handled = await tryCustomAuthorize(input.providerID, input.inputs)
-      if (handled) return
-    }
-
+  if ("key" in result) {
     await Auth.set(input.providerID, {
       type: "api",
-      key: input.key,
+      key: result.key,
+    })
+  }
+
+  if ("refresh" in result) {
+    await Auth.set(input.providerID, {
+      type: "oauth",
+      access: result.access,
+      refresh: result.refresh,
+      expires: result.expires,
+      ...(result.accountId ? { accountId: result.accountId } : {}),
     })
   }
 }
+
+async function tryCustomAuthorize(providerID: ProviderID, inputs: Record<string, string>): Promise<boolean> {
+  const s = await state()
+  const hook = s.methods[providerID]
+  if (!hook) return false
+  const methodIndex = hook.methods.findIndex((m) => m.type === "api")
+  if (methodIndex < 0) return false
+  const method = hook.methods[methodIndex] as Extract<(typeof hook.methods)[number], { type: "api" }>
+  if (!method.authorize) return false
+  const result = await method.authorize(inputs)
+  if (result.type === "failed") throw new Error("Authorization failed")
+  const targetID = (result.provider ?? providerID) as ProviderID
+  await Auth.set(targetID, { type: "api", key: result.key })
+  // If the form supplied a URL, persist it separately so loaders don't have to
+  // parse the encoded key. Backward-compat: loaders still fall back to key parsing.
+  if (inputs.url !== undefined || inputs.apiKey !== undefined) {
+    ProviderCredentials.set(targetID, {
+      url: inputs.url?.trim() || undefined,
+      apiKey: inputs.apiKey?.trim() || undefined,
+    })
+  }
+  return true
+}
+
+async function authServiceApi(input: {
+  providerID: ProviderID
+  key: string
+  inputs?: Record<string, string>
+}): Promise<void> {
+  if (input.inputs) {
+    const handled = await tryCustomAuthorize(input.providerID, input.inputs)
+    if (handled) return
+  }
+
+  await Auth.set(input.providerID, {
+    type: "api",
+    key: input.key,
+  })
+}
+
+export const ProviderAuthService = {
+  methods: authServiceMethods,
+  authorize: authServiceAuthorize,
+  callback: authServiceCallback,
+  api: authServiceApi,
+} as const

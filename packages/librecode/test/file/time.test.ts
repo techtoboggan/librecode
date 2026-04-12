@@ -351,7 +351,7 @@ describe("file/time", () => {
           await fs.writeFile(filepath, "modified", "utf-8")
 
           const newStat = Filesystem.stat(filepath)
-          expect(newStat?.mtime.getTime()).toBeGreaterThan(originalStat?.mtime.getTime()!)
+          expect(newStat?.mtime.getTime()).toBeGreaterThan(originalStat!.mtime.getTime())
 
           await expect(FileTime.assert(sessionID, filepath)).rejects.toThrow()
         },

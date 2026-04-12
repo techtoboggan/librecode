@@ -9,7 +9,7 @@ import {
   wrapLanguageModel,
 } from "ai"
 import { mergeDeep, pipe } from "remeda"
-import type { Agent } from "@/agent/agent"
+import type { AgentInfo } from "@/agent/agent"
 import { Auth } from "@/auth"
 import { Config } from "@/config/config"
 import { Installation } from "@/installation"
@@ -107,7 +107,7 @@ export namespace LLM {
     user: MessageV2.User
     sessionID: string
     model: Provider.Model
-    agent: Agent.Info
+    agent: AgentInfo
     system: string[]
     abort: AbortSignal
     messages: ModelMessage[]

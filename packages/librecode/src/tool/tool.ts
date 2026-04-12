@@ -1,5 +1,5 @@
 import z from "zod"
-import type { Agent } from "../agent/agent"
+import type { AgentInfo } from "../agent/agent"
 import type { PermissionNext } from "../permission/next"
 import type { MessageV2 } from "../session/message-v2"
 import type { MessageID, SessionID } from "../session/schema"
@@ -11,7 +11,7 @@ export namespace Tool {
   }
 
   export interface InitContext {
-    agent?: Agent.Info
+    agent?: AgentInfo
   }
 
   export type Context<M extends Metadata = Metadata> = {

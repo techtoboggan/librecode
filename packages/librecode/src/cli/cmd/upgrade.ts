@@ -1,6 +1,6 @@
 import * as prompts from "@clack/prompts"
 import type { Argv } from "yargs"
-import { Installation } from "../../installation"
+import { Installation, type InstallationMethod } from "../../installation"
 import { UI } from "../ui"
 
 function logUpgradeError(err: unknown, method: string): void {
@@ -38,7 +38,7 @@ export const UpgradeCommand = {
     UI.empty()
     prompts.intro("Upgrade")
     const detectedMethod = await Installation.method()
-    const method = (args.method as Installation.Method) ?? detectedMethod
+    const method = (args.method as InstallationMethod) ?? detectedMethod
     if (method === "unknown") {
       prompts.log.error(`librecode is installed to ${process.execPath} and may be managed by a package manager`)
       const install = await prompts.select({

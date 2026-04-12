@@ -3,7 +3,7 @@ import path from "node:path"
 import { pathToFileURL } from "node:url"
 import { NamedError } from "@librecode/util/error"
 import z from "zod"
-import type { Agent } from "@/agent/agent"
+import type { AgentInfo } from "@/agent/agent"
 import { Bus } from "@/bus"
 import { Flag } from "@/flag/flag"
 import { Global } from "@/global"
@@ -214,7 +214,7 @@ export namespace Skill {
     return state().then((x) => x.dirs)
   }
 
-  export async function available(agent?: Agent.Info) {
+  export async function available(agent?: AgentInfo) {
     const list = await all()
     if (!agent) return list
     return list.filter((skill) => PermissionNext.evaluate("skill", skill.name, agent.permission).action !== "deny")

@@ -4,44 +4,52 @@ import { fn } from "@/util/fn"
 import * as S from "./auth-service"
 import { ProviderID } from "./schema"
 
-export namespace ProviderAuth {
-  export const Method = S.Method
-  export type Method = S.Method
+async function authMethods() {
+  return S.ProviderAuthService.methods()
+}
 
-  export async function methods() {
-    return S.ProviderAuthService.methods()
-  }
+const authorize = fn(
+  z.object({
+    providerID: ProviderID.zod,
+    method: z.number(),
+  }),
+  async (input): Promise<S.Authorization | undefined> => S.ProviderAuthService.authorize(input),
+)
 
-  export const Authorization = S.Authorization
-  export type Authorization = S.Authorization
+const callback = fn(
+  z.object({
+    providerID: ProviderID.zod,
+    method: z.number(),
+    code: z.string().optional(),
+  }),
+  async (input) => S.ProviderAuthService.callback(input),
+)
 
-  export const authorize = fn(
-    z.object({
-      providerID: ProviderID.zod,
-      method: z.number(),
-    }),
-    async (input): Promise<Authorization | undefined> => S.ProviderAuthService.authorize(input),
-  )
+const api = fn(
+  z.object({
+    providerID: ProviderID.zod,
+    key: z.string(),
+    inputs: z.record(z.string(), z.string()).optional(),
+  }),
+  async (input) => S.ProviderAuthService.api(input),
+)
 
-  export const callback = fn(
-    z.object({
-      providerID: ProviderID.zod,
-      method: z.number(),
-      code: z.string().optional(),
-    }),
-    async (input) => S.ProviderAuthService.callback(input),
-  )
+export const ProviderAuth = {
+  Method: S.Method,
+  Authorization: S.Authorization,
+  methods: authMethods,
+  authorize,
+  callback,
+  api,
+  OauthMissing: S.OauthMissing,
+  OauthCodeMissing: S.OauthCodeMissing,
+  OauthCallbackFailed: S.OauthCallbackFailed,
+} as const
 
-  export const api = fn(
-    z.object({
-      providerID: ProviderID.zod,
-      key: z.string(),
-      inputs: z.record(z.string(), z.string()).optional(),
-    }),
-    async (input) => S.ProviderAuthService.api(input),
-  )
+export type { S as _ProviderAuthService }
 
-  export import OauthMissing = S.OauthMissing
-  export import OauthCodeMissing = S.OauthCodeMissing
-  export import OauthCallbackFailed = S.OauthCallbackFailed
+// Type companion — gives consumers access to ProviderAuth.Method / Authorization types
+export declare namespace ProviderAuth {
+  type Method = S.Method
+  type Authorization = S.Authorization
 }

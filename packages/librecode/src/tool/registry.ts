@@ -4,7 +4,7 @@ import type { ToolContext as PluginToolContext, ToolDefinition } from "@librecod
 import z from "zod"
 import { Flag } from "@/flag/flag"
 import { Log } from "@/util/log"
-import type { Agent } from "../agent/agent"
+import type { AgentInfo } from "../agent/agent"
 import { Config } from "../config/config"
 import { Plugin } from "../plugin"
 import { Instance } from "../project/instance"
@@ -133,7 +133,7 @@ export namespace ToolRegistry {
       providerID: ProviderID
       modelID: ModelID
     },
-    agent?: Agent.Info,
+    agent?: AgentInfo,
   ) {
     const tools = await all()
     const result = await Promise.all(

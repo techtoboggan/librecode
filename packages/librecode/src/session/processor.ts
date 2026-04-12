@@ -364,6 +364,7 @@ async function checkDoomLoop(
     )
   if (!isDoomLoop) return
   const agent = await Agent.get(assistantMessage.agent)
+  if (!agent) return
   await PermissionNext.ask({
     permission: "doom_loop",
     patterns: [value.toolName],

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
 import path from "node:path"
 import type { ModelMessage } from "ai"
-import type { Agent } from "../../src/agent/agent"
+import type { AgentInfo } from "../../src/agent/agent"
 import { Instance } from "../../src/project/instance"
 import type { ModelsDev } from "../../src/provider/models"
 import { Provider } from "../../src/provider/provider"
@@ -274,7 +274,7 @@ describe("session.llm.stream", () => {
           permission: [{ permission: "*", pattern: "*", action: "allow" }],
           temperature: 0.4,
           topP: 0.8,
-        } satisfies Agent.Info
+        } satisfies AgentInfo
 
         const user = {
           id: MessageID.make("user-1"),
@@ -403,7 +403,7 @@ describe("session.llm.stream", () => {
           options: {},
           permission: [{ permission: "*", pattern: "*", action: "allow" }],
           temperature: 0.2,
-        } satisfies Agent.Info
+        } satisfies AgentInfo
 
         const user = {
           id: MessageID.make("user-2"),
@@ -526,7 +526,7 @@ describe("session.llm.stream", () => {
           permission: [{ permission: "*", pattern: "*", action: "allow" }],
           temperature: 0.4,
           topP: 0.9,
-        } satisfies Agent.Info
+        } satisfies AgentInfo
 
         const user = {
           id: MessageID.make("user-3"),
@@ -627,7 +627,7 @@ describe("session.llm.stream", () => {
           permission: [{ permission: "*", pattern: "*", action: "allow" }],
           temperature: 0.3,
           topP: 0.8,
-        } satisfies Agent.Info
+        } satisfies AgentInfo
 
         const user = {
           id: MessageID.make("user-4"),

@@ -264,6 +264,7 @@ When constructing the summary, try to stick to this template:
     }
 
     const agent = await Agent.get("compaction")
+    if (!agent) throw new Error("compaction agent not found")
     const model = agent.model
       ? await Provider.getModel(agent.model.providerID, agent.model.modelID)
       : await Provider.getModel(userMessage.model.providerID, userMessage.model.modelID)

@@ -8,7 +8,7 @@ import { PermissionNext } from "@/permission/next"
 import { Shell } from "@/shell/shell"
 import type { Tool } from "@/tool/tool"
 import { fn } from "@/util/fn"
-import { Agent } from "../agent/agent"
+import { Agent, type AgentInfo } from "../agent/agent"
 import { Bus } from "../bus"
 import { Command } from "../command"
 import { MCP } from "../mcp"
@@ -186,7 +186,7 @@ function scanMessages(msgs: MessageV2.WithParts[]): ScanResult {
 
 /** @internal Exported for testing */
 export async function resolveTools(input: {
-  agent: Agent.Info
+  agent: AgentInfo
   model: Provider.Model
   session: Session.Info
   tools?: Record<string, boolean>
@@ -369,7 +369,7 @@ async function evaluateStepResult(
 async function createAssistantProcessor(
   lastUser: MessageV2.User,
   model: Provider.Model,
-  agent: Agent.Info,
+  agent: AgentInfo,
   sessionID: SessionID,
   abort: AbortSignal,
 ): Promise<SessionProcessor.Info> {
@@ -408,6 +408,7 @@ async function runNormalStep(input: {
 }): Promise<NormalStepResult> {
   const { lastUser, lastFinished, msgs: rawMsgs, model, session, sessionID, abort, step } = input
   const agent = await Agent.get(lastUser.agent)
+  if (!agent) throw new Error(`agent "${lastUser.agent}" not found`)
   const isLastStep = step >= (agent.steps ?? Infinity)
   const msgs = await insertReminders({ messages: rawMsgs, agent, session })
 
@@ -636,6 +637,7 @@ export async function shell(input: z.infer<typeof ShellInput>) {
     await SessionRevert.cleanup(session)
   }
   const agent = await Agent.get(input.agent)
+  if (!agent) throw new Error(`agent "${input.agent}" not found`)
   const model = input.model ?? agent.model ?? (await lastModel(input.sessionID))
   const userMsg: MessageV2.User = {
     id: MessageID.ascending(),

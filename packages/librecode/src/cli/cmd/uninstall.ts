@@ -4,7 +4,7 @@ import path from "node:path"
 import * as prompts from "@clack/prompts"
 import type { Argv } from "yargs"
 import { Global } from "../../global"
-import { Installation } from "../../installation"
+import { Installation, type InstallationMethod } from "../../installation"
 import { Filesystem } from "../../util/filesystem"
 import { Process } from "../../util/process"
 import { UI } from "../ui"
@@ -87,7 +87,7 @@ export const UninstallCommand = {
   },
 }
 
-async function collectRemovalTargets(args: UninstallArgs, method: Installation.Method): Promise<RemovalTargets> {
+async function collectRemovalTargets(args: UninstallArgs, method: InstallationMethod): Promise<RemovalTargets> {
   const directories: RemovalTargets["directories"] = [
     { path: Global.Path.data, label: "Data", keep: args.keepData },
     { path: Global.Path.cache, label: "Cache", keep: false },
@@ -101,7 +101,7 @@ async function collectRemovalTargets(args: UninstallArgs, method: Installation.M
   return { directories, shellConfig, binary }
 }
 
-async function showRemovalSummary(targets: RemovalTargets, method: Installation.Method) {
+async function showRemovalSummary(targets: RemovalTargets, method: InstallationMethod) {
   prompts.log.message("The following will be removed:")
 
   for (const dir of targets.directories) {
@@ -180,7 +180,7 @@ const PACKAGE_MANAGER_CMDS: Record<string, string[]> = {
 }
 
 async function runPackageManagerUninstall(
-  method: Installation.Method,
+  method: InstallationMethod,
   spinner: ReturnType<typeof prompts.spinner>,
   errors: string[],
 ) {
@@ -215,7 +215,7 @@ function printCurlBinaryInstructions(binary: string) {
   }
 }
 
-async function executeUninstall(method: Installation.Method, targets: RemovalTargets) {
+async function executeUninstall(method: InstallationMethod, targets: RemovalTargets) {
   const spinner = prompts.spinner()
   const errors: string[] = []
 

@@ -220,9 +220,12 @@ export const BashTool = Tool.define("bash", async () => {
   log.info("bash tool using shell", { shell })
 
   return {
-    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholders replaced at runtime
-    description: DESCRIPTION.replaceAll("${directory}", Instance.directory)
+    description: DESCRIPTION
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholders replaced at runtime
+      .replaceAll("${directory}", Instance.directory)
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholders replaced at runtime
       .replaceAll("${maxLines}", String(Truncate.MAX_LINES))
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: literal placeholders replaced at runtime
       .replaceAll("${maxBytes}", String(Truncate.MAX_BYTES)),
     parameters: z.object({
       command: z.string().describe("The command to execute"),

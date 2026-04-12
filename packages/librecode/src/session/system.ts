@@ -1,4 +1,4 @@
-import type { Agent } from "@/agent/agent"
+import type { AgentInfo } from "@/agent/agent"
 import { PermissionNext } from "@/permission/next"
 import type { Provider } from "@/provider/provider"
 import { Skill } from "@/skill"
@@ -54,7 +54,7 @@ export namespace SystemPrompt {
     ]
   }
 
-  export async function skills(agent: Agent.Info) {
+  export async function skills(agent: AgentInfo) {
     if (PermissionNext.disabled(["skill"], agent.permission).has("skill")) return
 
     const list = await Skill.available(agent)

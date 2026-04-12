@@ -1,7 +1,7 @@
 import type { ToolCallOptions } from "ai"
 import z from "zod"
 import type { Tool } from "@/tool/tool"
-import type { Agent } from "../agent/agent"
+import type { AgentInfo } from "../agent/agent"
 import { ModelID, ProviderID } from "../provider/schema"
 import { MessageV2 } from "./message-v2"
 import type { SessionProcessor } from "./processor"
@@ -170,7 +170,7 @@ export type PartBuildCtx = {
   messageID: MessageID
   sessionID: SessionID
   agentName: string
-  agentPermission: Agent.Info["permission"]
+  agentPermission: AgentInfo["permission"]
   model: MessageV2.User["model"]
 }
 
@@ -178,6 +178,6 @@ export type BuildMcpToolOpts = {
   key: string
   execute: NonNullable<import("ai").Tool["execute"]>
   context: ToolContextFactory
-  agent: Agent.Info
+  agent: AgentInfo
   processor: SessionProcessor.Info
 }

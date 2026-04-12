@@ -1,6 +1,6 @@
 import { EOL } from "node:os"
 import { basename } from "node:path"
-import { Agent } from "../../../agent/agent"
+import { Agent, type AgentInfo } from "../../../agent/agent"
 import { PermissionNext } from "../../../permission/next"
 import { Instance } from "../../../project/instance"
 import { Provider } from "../../../provider/provider"
@@ -69,12 +69,12 @@ export const AgentCommand = cmd({
   },
 })
 
-async function getAvailableTools(agent: Agent.Info) {
+async function getAvailableTools(agent: AgentInfo) {
   const model = agent.model ?? (await Provider.defaultModel())
   return ToolRegistry.tools(model, agent)
 }
 
-async function resolveTools(agent: Agent.Info, availableTools: Awaited<ReturnType<typeof getAvailableTools>>) {
+async function resolveTools(agent: AgentInfo, availableTools: Awaited<ReturnType<typeof getAvailableTools>>) {
   const disabled = PermissionNext.disabled(
     availableTools.map((tool) => tool.id),
     agent.permission,
@@ -111,7 +111,7 @@ function parseToolParams(input?: string) {
   return parsed as Record<string, unknown>
 }
 
-async function createToolContext(agent: Agent.Info) {
+async function createToolContext(agent: AgentInfo) {
   const session = await Session.create({ title: `Debug tool run (${agent.name})` })
   const messageID = MessageID.ascending()
   const model = agent.model ?? (await Provider.defaultModel())
