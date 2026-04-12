@@ -4,74 +4,80 @@ import { BusEvent } from "@/bus/bus-event"
 import { Instance } from "@/project/instance"
 import { SessionID } from "./schema"
 
-export namespace SessionStatus {
-  export const Info = z
-    .union([
-      z.object({
-        type: z.literal("idle"),
-      }),
-      z.object({
-        type: z.literal("retry"),
-        attempt: z.number(),
-        message: z.string(),
-        next: z.number(),
-      }),
-      z.object({
-        type: z.literal("busy"),
-      }),
-    ])
-    .meta({
-      ref: "SessionStatus",
-    })
-  export type Info = z.infer<typeof Info>
-
-  export const Event = {
-    Status: BusEvent.define(
-      "session.status",
-      z.object({
-        sessionID: SessionID.zod,
-        status: Info,
-      }),
-    ),
-    // deprecated
-    Idle: BusEvent.define(
-      "session.idle",
-      z.object({
-        sessionID: SessionID.zod,
-      }),
-    ),
-  }
-
-  const state = Instance.state(() => {
-    const data: Record<string, Info> = {}
-    return data
+const SessionStatusInfo = z
+  .union([
+    z.object({
+      type: z.literal("idle"),
+    }),
+    z.object({
+      type: z.literal("retry"),
+      attempt: z.number(),
+      message: z.string(),
+      next: z.number(),
+    }),
+    z.object({
+      type: z.literal("busy"),
+    }),
+  ])
+  .meta({
+    ref: "SessionStatus",
   })
+export type SessionStatusInfo = z.infer<typeof SessionStatusInfo>
 
-  export function get(sessionID: SessionID) {
-    return (
-      state()[sessionID] ?? {
-        type: "idle",
-      }
-    )
-  }
-
-  export function list() {
-    return state()
-  }
-
-  export function set(sessionID: SessionID, status: Info) {
-    Bus.publish(Event.Status, {
-      sessionID,
-      status,
-    })
-    if (status.type === "idle") {
-      // deprecated
-      Bus.publish(Event.Idle, {
-        sessionID,
-      })
-      delete state()[sessionID]
-      return
-    }
-    state()[sessionID] = status
-  }
+const sessionStatusEvent = {
+  Status: BusEvent.define(
+    "session.status",
+    z.object({
+      sessionID: SessionID.zod,
+      status: SessionStatusInfo,
+    }),
+  ),
+  // deprecated
+  Idle: BusEvent.define(
+    "session.idle",
+    z.object({
+      sessionID: SessionID.zod,
+    }),
+  ),
 }
+
+const sessionStatusState = Instance.state(() => {
+  const data: Record<string, SessionStatusInfo> = {}
+  return data
+})
+
+function sessionStatusGet(sessionID: SessionID): SessionStatusInfo {
+  return (
+    sessionStatusState()[sessionID] ?? {
+      type: "idle",
+    }
+  )
+}
+
+function sessionStatusList(): Record<string, SessionStatusInfo> {
+  return sessionStatusState()
+}
+
+function sessionStatusSet(sessionID: SessionID, status: SessionStatusInfo): void {
+  Bus.publish(sessionStatusEvent.Status, {
+    sessionID,
+    status,
+  })
+  if (status.type === "idle") {
+    // deprecated
+    Bus.publish(sessionStatusEvent.Idle, {
+      sessionID,
+    })
+    delete sessionStatusState()[sessionID]
+    return
+  }
+  sessionStatusState()[sessionID] = status
+}
+
+export const SessionStatus = {
+  Info: SessionStatusInfo,
+  Event: sessionStatusEvent,
+  get: sessionStatusGet,
+  list: sessionStatusList,
+  set: sessionStatusSet,
+} as const

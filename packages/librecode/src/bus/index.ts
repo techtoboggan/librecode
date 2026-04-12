@@ -1,7 +1,7 @@
 import z from "zod"
 import { Instance } from "../project/instance"
 import { Log } from "../util/log"
-import { BusEvent } from "./bus-event"
+import { BusEvent, type BusEventDefinition } from "./bus-event"
 import { GlobalBus } from "./global"
 
 export namespace Bus {
@@ -38,7 +38,7 @@ export namespace Bus {
     },
   )
 
-  export async function publish<Definition extends BusEvent.Definition>(
+  export async function publish<Definition extends BusEventDefinition>(
     def: Definition,
     properties: z.output<Definition["properties"]>,
   ) {
@@ -63,14 +63,14 @@ export namespace Bus {
     return Promise.all(pending)
   }
 
-  export function subscribe<Definition extends BusEvent.Definition>(
+  export function subscribe<Definition extends BusEventDefinition>(
     def: Definition,
     callback: (event: { type: Definition["type"]; properties: z.infer<Definition["properties"]> }) => void,
   ) {
     return raw(def.type, callback)
   }
 
-  export function once<Definition extends BusEvent.Definition>(
+  export function once<Definition extends BusEventDefinition>(
     def: Definition,
     callback: (event: {
       type: Definition["type"]

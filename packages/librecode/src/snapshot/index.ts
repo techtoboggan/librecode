@@ -9,402 +9,434 @@ import { Scheduler } from "../scheduler"
 import { Filesystem } from "../util/filesystem"
 import { Log } from "../util/log"
 
-export namespace Snapshot {
-  const log = Log.create({ service: "snapshot" })
-  const hour = 60 * 60 * 1000
-  const prune = "7.days"
+const snapshotLog = Log.create({ service: "snapshot" })
+const snapshotHour = 60 * 60 * 1000
+const snapshotPrune = "7.days"
 
-  function args(git: string, cmd: string[]) {
-    return ["--git-dir", git, "--work-tree", Instance.worktree, ...cmd]
-  }
+function snapshotArgs(git: string, cmd: string[]) {
+  return ["--git-dir", git, "--work-tree", Instance.worktree, ...cmd]
+}
 
-  export function init() {
-    Scheduler.register({
-      id: "snapshot.cleanup",
-      interval: hour,
-      run: cleanup,
-      scope: "instance",
-    })
-  }
-
-  export async function cleanup() {
-    if (Instance.project.vcs !== "git") return
-    const cfg = await Config.get()
-    if (cfg.snapshot === false) return
-    const git = gitdir()
-    const exists = await fs
-      .stat(git)
-      .then(() => true)
-      .catch(() => false)
-    if (!exists) return
-    const result = await Process.run(["git", ...args(git, ["gc", `--prune=${prune}`])], {
-      cwd: Instance.directory,
-      nothrow: true,
-    })
-    if (result.code !== 0) {
-      log.warn("cleanup failed", {
-        exitCode: result.code,
-        stderr: result.stderr.toString(),
-        stdout: result.stdout.toString(),
-      })
-      return
-    }
-    log.info("cleanup", { prune })
-  }
-
-  export async function track() {
-    if (Instance.project.vcs !== "git") return
-    const cfg = await Config.get()
-    if (cfg.snapshot === false) return
-    const git = gitdir()
-    if (await fs.mkdir(git, { recursive: true })) {
-      await Process.run(["git", "init"], {
-        env: {
-          ...process.env,
-          GIT_DIR: git,
-          GIT_WORK_TREE: Instance.worktree,
-        },
-        nothrow: true,
-      })
-
-      // Configure git to not convert line endings on Windows
-      await Process.run(["git", "--git-dir", git, "config", "core.autocrlf", "false"], { nothrow: true })
-      await Process.run(["git", "--git-dir", git, "config", "core.longpaths", "true"], { nothrow: true })
-      await Process.run(["git", "--git-dir", git, "config", "core.symlinks", "true"], { nothrow: true })
-      await Process.run(["git", "--git-dir", git, "config", "core.fsmonitor", "false"], { nothrow: true })
-      log.info("initialized")
-    }
-    await add(git)
-    const hash = await Process.text(["git", ...args(git, ["write-tree"])], {
-      cwd: Instance.directory,
-      nothrow: true,
-    }).then((x) => x.text)
-    log.info("tracking", { hash, cwd: Instance.directory, git })
-    return hash.trim()
-  }
-
-  export const Patch = z.object({
-    hash: z.string(),
-    files: z.string().array(),
+function snapshotInit(): void {
+  Scheduler.register({
+    id: "snapshot.cleanup",
+    interval: snapshotHour,
+    run: snapshotCleanup,
+    scope: "instance",
   })
-  export type Patch = z.infer<typeof Patch>
+}
 
-  export async function patch(hash: string): Promise<Patch> {
-    const git = gitdir()
-    await add(git)
-    const result = await Process.text(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        "-c",
-        "core.quotepath=false",
-        ...args(git, ["diff", "--no-ext-diff", "--name-only", hash, "--", "."]),
-      ],
-      {
-        cwd: Instance.directory,
-        nothrow: true,
-      },
-    )
-
-    // If git diff fails, return empty patch
-    if (result.code !== 0) {
-      log.warn("failed to get diff", { hash, exitCode: result.code })
-      return { hash, files: [] }
-    }
-
-    const files = result.text
-    return {
-      hash,
-      files: files
-        .trim()
-        .split("\n")
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .map((x) => path.join(Instance.worktree, x).replaceAll("\\", "/")),
-    }
-  }
-
-  export async function restore(snapshot: string) {
-    log.info("restore", { commit: snapshot })
-    const git = gitdir()
-    const result = await Process.run(
-      ["git", "-c", "core.longpaths=true", "-c", "core.symlinks=true", ...args(git, ["read-tree", snapshot])],
-      {
-        cwd: Instance.worktree,
-        nothrow: true,
-      },
-    )
-    if (result.code === 0) {
-      const checkout = await Process.run(
-        ["git", "-c", "core.longpaths=true", "-c", "core.symlinks=true", ...args(git, ["checkout-index", "-a", "-f"])],
-        {
-          cwd: Instance.worktree,
-          nothrow: true,
-        },
-      )
-      if (checkout.code === 0) return
-      log.error("failed to restore snapshot", {
-        snapshot,
-        exitCode: checkout.code,
-        stderr: checkout.stderr.toString(),
-        stdout: checkout.stdout.toString(),
-      })
-      return
-    }
-
-    log.error("failed to restore snapshot", {
-      snapshot,
+async function snapshotCleanup(): Promise<void> {
+  if (Instance.project.vcs !== "git") return
+  const cfg = await Config.get()
+  if (cfg.snapshot === false) return
+  const git = snapshotGitdir()
+  const exists = await fs
+    .stat(git)
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return
+  const result = await Process.run(["git", ...snapshotArgs(git, ["gc", `--prune=${snapshotPrune}`])], {
+    cwd: Instance.directory,
+    nothrow: true,
+  })
+  if (result.code !== 0) {
+    snapshotLog.warn("cleanup failed", {
       exitCode: result.code,
       stderr: result.stderr.toString(),
       stdout: result.stdout.toString(),
     })
+    return
+  }
+  snapshotLog.info("cleanup", { prune: snapshotPrune })
+}
+
+async function snapshotTrack(): Promise<string | undefined> {
+  if (Instance.project.vcs !== "git") return
+  const cfg = await Config.get()
+  if (cfg.snapshot === false) return
+  const git = snapshotGitdir()
+  if (await fs.mkdir(git, { recursive: true })) {
+    await Process.run(["git", "init"], {
+      env: {
+        ...process.env,
+        GIT_DIR: git,
+        GIT_WORK_TREE: Instance.worktree,
+      },
+      nothrow: true,
+    })
+
+    // Configure git to not convert line endings on Windows
+    await Process.run(["git", "--git-dir", git, "config", "core.autocrlf", "false"], { nothrow: true })
+    await Process.run(["git", "--git-dir", git, "config", "core.longpaths", "true"], { nothrow: true })
+    await Process.run(["git", "--git-dir", git, "config", "core.symlinks", "true"], { nothrow: true })
+    await Process.run(["git", "--git-dir", git, "config", "core.fsmonitor", "false"], { nothrow: true })
+    snapshotLog.info("initialized")
+  }
+  await snapshotAdd(git)
+  const hash = await Process.text(["git", ...snapshotArgs(git, ["write-tree"])], {
+    cwd: Instance.directory,
+    nothrow: true,
+  }).then((x) => x.text)
+  snapshotLog.info("tracking", { hash, cwd: Instance.directory, git })
+  return hash.trim()
+}
+
+export const SnapshotPatch = z.object({
+  hash: z.string(),
+  files: z.string().array(),
+})
+export type SnapshotPatch = z.infer<typeof SnapshotPatch>
+
+async function snapshotPatchFn(hash: string): Promise<SnapshotPatch> {
+  const git = snapshotGitdir()
+  await snapshotAdd(git)
+  const result = await Process.text(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      "-c",
+      "core.quotepath=false",
+      ...snapshotArgs(git, ["diff", "--no-ext-diff", "--name-only", hash, "--", "."]),
+    ],
+    {
+      cwd: Instance.directory,
+      nothrow: true,
+    },
+  )
+
+  // If git diff fails, return empty patch
+  if (result.code !== 0) {
+    snapshotLog.warn("failed to get diff", { hash, exitCode: result.code })
+    return { hash, files: [] }
   }
 
-  export async function revert(patches: Patch[]) {
-    const files = new Set<string>()
-    const git = gitdir()
-    for (const item of patches) {
-      for (const file of item.files) {
-        if (files.has(file)) continue
-        await revertFile(git, file, item.hash)
-        files.add(file)
-      }
-    }
+  const files = result.text
+  return {
+    hash,
+    files: files
+      .trim()
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .map((x) => path.join(Instance.worktree, x).replaceAll("\\", "/")),
   }
+}
 
-  async function revertFile(git: string, file: string, hash: string): Promise<void> {
-    log.info("reverting", { file, hash })
-    const result = await Process.run(
-      ["git", "-c", "core.longpaths=true", "-c", "core.symlinks=true", ...args(git, ["checkout", hash, "--", file])],
-      { cwd: Instance.worktree, nothrow: true },
-    )
-    if (result.code === 0) return
-    await handleRevertFailure(git, file, hash)
-  }
-
-  async function handleRevertFailure(git: string, file: string, hash: string): Promise<void> {
-    const relativePath = path.relative(Instance.worktree, file)
-    const checkTree = await Process.text(
+async function snapshotRestore(snapshot: string): Promise<void> {
+  snapshotLog.info("restore", { commit: snapshot })
+  const git = snapshotGitdir()
+  const result = await Process.run(
+    [
+      "git",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["read-tree", snapshot]),
+    ],
+    {
+      cwd: Instance.worktree,
+      nothrow: true,
+    },
+  )
+  if (result.code === 0) {
+    const checkout = await Process.run(
       [
         "git",
         "-c",
         "core.longpaths=true",
         "-c",
         "core.symlinks=true",
-        ...args(git, ["ls-tree", hash, "--", relativePath]),
-      ],
-      { cwd: Instance.worktree, nothrow: true },
-    )
-    if (checkTree.code === 0 && checkTree.text.trim()) {
-      log.info("file existed in snapshot but checkout failed, keeping", { file })
-    } else {
-      log.info("file did not exist in snapshot, deleting", { file })
-      await fs.unlink(file).catch(() => {})
-    }
-  }
-
-  export async function diff(hash: string) {
-    const git = gitdir()
-    await add(git)
-    const result = await Process.text(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        "-c",
-        "core.quotepath=false",
-        ...args(git, ["diff", "--no-ext-diff", hash, "--", "."]),
+        ...snapshotArgs(git, ["checkout-index", "-a", "-f"]),
       ],
       {
         cwd: Instance.worktree,
         nothrow: true,
       },
     )
-
-    if (result.code !== 0) {
-      log.warn("failed to get diff", {
-        hash,
-        exitCode: result.code,
-        stderr: result.stderr.toString(),
-        stdout: result.stdout.toString(),
-      })
-      return ""
-    }
-
-    return result.text.trim()
-  }
-
-  export const FileDiff = z
-    .object({
-      file: z.string(),
-      before: z.string(),
-      after: z.string(),
-      additions: z.number(),
-      deletions: z.number(),
-      status: z.enum(["added", "deleted", "modified"]).optional(),
+    if (checkout.code === 0) return
+    snapshotLog.error("failed to restore snapshot", {
+      snapshot,
+      exitCode: checkout.code,
+      stderr: checkout.stderr.toString(),
+      stdout: checkout.stdout.toString(),
     })
-    .meta({
-      ref: "FileDiff",
-    })
-  export type FileDiff = z.infer<typeof FileDiff>
+    return
+  }
 
-  async function fetchFileStatusMap(
-    git: string,
-    from: string,
-    to: string,
-  ): Promise<Map<string, "added" | "deleted" | "modified">> {
-    const status = new Map<string, "added" | "deleted" | "modified">()
-    const statuses = await Process.text(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        "-c",
-        "core.quotepath=false",
-        ...args(git, ["diff", "--no-ext-diff", "--name-status", "--no-renames", from, to, "--", "."]),
-      ],
-      { cwd: Instance.directory, nothrow: true },
-    ).then((x) => x.text)
+  snapshotLog.error("failed to restore snapshot", {
+    snapshot,
+    exitCode: result.code,
+    stderr: result.stderr.toString(),
+    stdout: result.stdout.toString(),
+  })
+}
 
-    for (const line of statuses.trim().split("\n")) {
-      if (!line) continue
-      const [code, file] = line.split("\t")
-      if (!code || !file) continue
-      const kind = code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified"
-      status.set(file, kind)
+async function snapshotRevert(patches: SnapshotPatch[]): Promise<void> {
+  const files = new Set<string>()
+  const git = snapshotGitdir()
+  for (const item of patches) {
+    for (const file of item.files) {
+      if (files.has(file)) continue
+      await revertFile(git, file, item.hash)
+      files.add(file)
     }
-    return status
-  }
-
-  async function fetchFileContent(git: string, ref: string, file: string): Promise<string> {
-    return Process.text(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        ...args(git, ["show", `${ref}:${file}`]),
-      ],
-      { nothrow: true },
-    ).then((x) => x.text)
-  }
-
-  async function buildFileDiff(
-    git: string,
-    line: string,
-    from: string,
-    to: string,
-    status: Map<string, "added" | "deleted" | "modified">,
-  ): Promise<FileDiff | undefined> {
-    if (!line) return undefined
-    const [additions, deletions, file] = line.split("\t")
-    if (!file) return undefined
-    const isBinary = additions === "-" && deletions === "-"
-    const before = isBinary ? "" : await fetchFileContent(git, from, file)
-    const after = isBinary ? "" : await fetchFileContent(git, to, file)
-    const added = isBinary ? 0 : parseInt(additions, 10)
-    const deleted = isBinary ? 0 : parseInt(deletions, 10)
-    return {
-      file,
-      before,
-      after,
-      additions: Number.isFinite(added) ? added : 0,
-      deletions: Number.isFinite(deleted) ? deleted : 0,
-      status: status.get(file) ?? "modified",
-    }
-  }
-
-  export async function diffFull(from: string, to: string): Promise<FileDiff[]> {
-    const git = gitdir()
-    const status = await fetchFileStatusMap(git, from, to)
-    const numstatLines = await Process.lines(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        "-c",
-        "core.quotepath=false",
-        ...args(git, ["diff", "--no-ext-diff", "--no-renames", "--numstat", from, to, "--", "."]),
-      ],
-      { cwd: Instance.directory, nothrow: true },
-    )
-    const result: FileDiff[] = []
-    for (const line of numstatLines) {
-      const entry = await buildFileDiff(git, line, from, to, status)
-      if (entry) result.push(entry)
-    }
-    return result
-  }
-
-  function gitdir() {
-    const project = Instance.project
-    return path.join(Global.Path.data, "snapshot", project.id)
-  }
-
-  async function add(git: string) {
-    await syncExclude(git)
-    await Process.run(
-      [
-        "git",
-        "-c",
-        "core.autocrlf=false",
-        "-c",
-        "core.longpaths=true",
-        "-c",
-        "core.symlinks=true",
-        ...args(git, ["add", "."]),
-      ],
-      {
-        cwd: Instance.directory,
-        nothrow: true,
-      },
-    )
-  }
-
-  async function syncExclude(git: string) {
-    const file = await excludes()
-    const target = path.join(git, "info", "exclude")
-    await fs.mkdir(path.join(git, "info"), { recursive: true })
-    if (!file) {
-      await Filesystem.write(target, "")
-      return
-    }
-    const text = await Filesystem.readText(file).catch(() => "")
-
-    await Filesystem.write(target, text)
-  }
-
-  async function excludes() {
-    const file = await Process.text(["git", "rev-parse", "--path-format=absolute", "--git-path", "info/exclude"], {
-      cwd: Instance.worktree,
-      nothrow: true,
-    }).then((x) => x.text)
-    if (!file.trim()) return
-    const exists = await fs
-      .stat(file.trim())
-      .then(() => true)
-      .catch(() => false)
-    if (!exists) return
-    return file.trim()
   }
 }
+
+async function revertFile(git: string, file: string, hash: string): Promise<void> {
+  snapshotLog.info("reverting", { file, hash })
+  const result = await Process.run(
+    [
+      "git",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["checkout", hash, "--", file]),
+    ],
+    { cwd: Instance.worktree, nothrow: true },
+  )
+  if (result.code === 0) return
+  await handleRevertFailure(git, file, hash)
+}
+
+async function handleRevertFailure(git: string, file: string, hash: string): Promise<void> {
+  const relativePath = path.relative(Instance.worktree, file)
+  const checkTree = await Process.text(
+    [
+      "git",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["ls-tree", hash, "--", relativePath]),
+    ],
+    { cwd: Instance.worktree, nothrow: true },
+  )
+  if (checkTree.code === 0 && checkTree.text.trim()) {
+    snapshotLog.info("file existed in snapshot but checkout failed, keeping", { file })
+  } else {
+    snapshotLog.info("file did not exist in snapshot, deleting", { file })
+    await fs.unlink(file).catch(() => {})
+  }
+}
+
+async function snapshotDiff(hash: string): Promise<string> {
+  const git = snapshotGitdir()
+  await snapshotAdd(git)
+  const result = await Process.text(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      "-c",
+      "core.quotepath=false",
+      ...snapshotArgs(git, ["diff", "--no-ext-diff", hash, "--", "."]),
+    ],
+    {
+      cwd: Instance.worktree,
+      nothrow: true,
+    },
+  )
+
+  if (result.code !== 0) {
+    snapshotLog.warn("failed to get diff", {
+      hash,
+      exitCode: result.code,
+      stderr: result.stderr.toString(),
+      stdout: result.stdout.toString(),
+    })
+    return ""
+  }
+
+  return result.text.trim()
+}
+
+export const SnapshotFileDiff = z
+  .object({
+    file: z.string(),
+    before: z.string(),
+    after: z.string(),
+    additions: z.number(),
+    deletions: z.number(),
+    status: z.enum(["added", "deleted", "modified"]).optional(),
+  })
+  .meta({
+    ref: "FileDiff",
+  })
+export type SnapshotFileDiff = z.infer<typeof SnapshotFileDiff>
+
+async function fetchFileStatusMap(
+  git: string,
+  from: string,
+  to: string,
+): Promise<Map<string, "added" | "deleted" | "modified">> {
+  const status = new Map<string, "added" | "deleted" | "modified">()
+  const statuses = await Process.text(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      "-c",
+      "core.quotepath=false",
+      ...snapshotArgs(git, ["diff", "--no-ext-diff", "--name-status", "--no-renames", from, to, "--", "."]),
+    ],
+    { cwd: Instance.directory, nothrow: true },
+  ).then((x) => x.text)
+
+  for (const line of statuses.trim().split("\n")) {
+    if (!line) continue
+    const [code, file] = line.split("\t")
+    if (!code || !file) continue
+    const kind = code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : "modified"
+    status.set(file, kind)
+  }
+  return status
+}
+
+async function fetchFileContent(git: string, ref: string, file: string): Promise<string> {
+  return Process.text(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["show", `${ref}:${file}`]),
+    ],
+    { nothrow: true },
+  ).then((x) => x.text)
+}
+
+async function buildFileDiff(
+  git: string,
+  line: string,
+  from: string,
+  to: string,
+  status: Map<string, "added" | "deleted" | "modified">,
+): Promise<SnapshotFileDiff | undefined> {
+  if (!line) return undefined
+  const [additions, deletions, file] = line.split("\t")
+  if (!file) return undefined
+  const isBinary = additions === "-" && deletions === "-"
+  const before = isBinary ? "" : await fetchFileContent(git, from, file)
+  const after = isBinary ? "" : await fetchFileContent(git, to, file)
+  const added = isBinary ? 0 : parseInt(additions, 10)
+  const deleted = isBinary ? 0 : parseInt(deletions, 10)
+  return {
+    file,
+    before,
+    after,
+    additions: Number.isFinite(added) ? added : 0,
+    deletions: Number.isFinite(deleted) ? deleted : 0,
+    status: status.get(file) ?? "modified",
+  }
+}
+
+async function snapshotDiffFull(from: string, to: string): Promise<SnapshotFileDiff[]> {
+  const git = snapshotGitdir()
+  const status = await fetchFileStatusMap(git, from, to)
+  const numstatLines = await Process.lines(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      "-c",
+      "core.quotepath=false",
+      ...snapshotArgs(git, ["diff", "--no-ext-diff", "--no-renames", "--numstat", from, to, "--", "."]),
+    ],
+    { cwd: Instance.directory, nothrow: true },
+  )
+  const result: SnapshotFileDiff[] = []
+  for (const line of numstatLines) {
+    const entry = await buildFileDiff(git, line, from, to, status)
+    if (entry) result.push(entry)
+  }
+  return result
+}
+
+function snapshotGitdir(): string {
+  const project = Instance.project
+  return path.join(Global.Path.data, "snapshot", project.id)
+}
+
+async function snapshotAdd(git: string): Promise<void> {
+  await syncExclude(git)
+  await Process.run(
+    [
+      "git",
+      "-c",
+      "core.autocrlf=false",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["add", "."]),
+    ],
+    {
+      cwd: Instance.directory,
+      nothrow: true,
+    },
+  )
+}
+
+async function syncExclude(git: string): Promise<void> {
+  const file = await excludes()
+  const target = path.join(git, "info", "exclude")
+  await fs.mkdir(path.join(git, "info"), { recursive: true })
+  if (!file) {
+    await Filesystem.write(target, "")
+    return
+  }
+  const text = await Filesystem.readText(file).catch(() => "")
+
+  await Filesystem.write(target, text)
+}
+
+async function excludes(): Promise<string | undefined> {
+  const file = await Process.text(["git", "rev-parse", "--path-format=absolute", "--git-path", "info/exclude"], {
+    cwd: Instance.worktree,
+    nothrow: true,
+  }).then((x) => x.text)
+  if (!file.trim()) return
+  const exists = await fs
+    .stat(file.trim())
+    .then(() => true)
+    .catch(() => false)
+  if (!exists) return
+  return file.trim()
+}
+
+export const Snapshot = {
+  Patch: SnapshotPatch,
+  FileDiff: SnapshotFileDiff,
+  init: snapshotInit,
+  cleanup: snapshotCleanup,
+  track: snapshotTrack,
+  patch: snapshotPatchFn,
+  restore: snapshotRestore,
+  revert: snapshotRevert,
+  diff: snapshotDiff,
+  diffFull: snapshotDiffFull,
+} as const

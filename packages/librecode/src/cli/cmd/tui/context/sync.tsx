@@ -23,7 +23,7 @@ import { Binary } from "@librecode/util/binary"
 import { useSDK } from "@tui/context/sdk"
 import { batch, onMount } from "solid-js"
 import { createStore, produce, reconcile } from "solid-js/store"
-import type { Snapshot } from "@/snapshot"
+import type { SnapshotFileDiff } from "@/snapshot"
 import { Log } from "@/util/log"
 import { useArgs } from "./args"
 import { useExit } from "./exit"
@@ -52,7 +52,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
         [sessionID: string]: SessionStatus
       }
       session_diff: {
-        [sessionID: string]: Snapshot.FileDiff[]
+        [sessionID: string]: SnapshotFileDiff[]
       }
       todo: {
         [sessionID: string]: Todo[]

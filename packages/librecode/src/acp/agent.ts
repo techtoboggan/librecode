@@ -50,16 +50,15 @@ const log = Log.create({ service: "acp-agent" })
 type ModeOption = { id: string; name: string; description?: string }
 type _ModelOption = { modelId: string; name: string }
 
-export namespace ACP {
-  export async function init({ sdk: _sdk }: { sdk: OpencodeClient }) {
-    return {
-      create: (connection: AgentSideConnection, fullConfig: ACPConfig) => {
-        return new Agent(connection, fullConfig)
-      },
-    }
+async function acpInit({ sdk: _sdk }: { sdk: OpencodeClient }) {
+  return {
+    create: (connection: AgentSideConnection, fullConfig: ACPConfig) => {
+      return new ACPAgentImpl(connection, fullConfig)
+    },
   }
+}
 
-  export class Agent implements ACPAgent {
+export class ACPAgentImpl implements ACPAgent {
     private connection: AgentSideConnection
     private config: ACPConfig
     private sdk: OpencodeClient
@@ -703,4 +702,15 @@ export namespace ACP {
       )
     }
   }
+
+export const ACP = {
+  init: acpInit,
+  Agent: ACPAgentImpl,
+} as const
+
+// Type companion namespace: preserves ACP.Agent as an instance type for type-checking consumers.
+// This is a type-only companion (no runtime code) — biome-ignore is intentional here.
+// biome-ignore lint/style/noNamespace: type-only companion namespace required for ACP.Agent instance type
+export namespace ACP {
+  export type Agent = ACPAgentImpl
 }

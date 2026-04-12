@@ -6,7 +6,7 @@ import { Bus } from "../bus"
 import { File } from "../file"
 import { FileWatcher } from "../file/watcher"
 import { LSP } from "../lsp"
-import { Patch } from "../patch"
+import { Patch, type PatchHunk } from "../patch"
 import { Instance } from "../project/instance"
 import { Filesystem } from "../util/filesystem"
 import DESCRIPTION from "./apply_patch.txt"
@@ -39,7 +39,7 @@ function countDiffLines(oldContent: string, newContent: string): { additions: nu
   return { additions, deletions }
 }
 
-async function processAddHunk(hunk: Patch.Hunk & { type: "add" }, filePath: string): Promise<FileChange> {
+async function processAddHunk(hunk: PatchHunk & { type: "add" }, filePath: string): Promise<FileChange> {
   const oldContent = ""
   const newContent = hunk.contents.length === 0 || hunk.contents.endsWith("\n") ? hunk.contents : `${hunk.contents}\n`
   const diff = trimDiff(createTwoFilesPatch(filePath, filePath, oldContent, newContent))
@@ -47,7 +47,7 @@ async function processAddHunk(hunk: Patch.Hunk & { type: "add" }, filePath: stri
   return { filePath, oldContent, newContent, type: "add", diff, additions, deletions }
 }
 
-async function processUpdateHunk(hunk: Patch.Hunk & { type: "update" }, filePath: string): Promise<FileChange> {
+async function processUpdateHunk(hunk: PatchHunk & { type: "update" }, filePath: string): Promise<FileChange> {
   const stats = await fs.stat(filePath).catch(() => null)
   if (!stats || stats.isDirectory()) {
     throw new Error(`apply_patch verification failed: Failed to read file to update: ${filePath}`)
@@ -83,8 +83,8 @@ async function processDeleteHunk(filePath: string): Promise<FileChange> {
   return { filePath, oldContent: contentToDelete, newContent: "", type: "delete", diff, additions: 0, deletions }
 }
 
-function parsePatchHunks(patchText: string): Patch.Hunk[] {
-  let hunks: Patch.Hunk[]
+function parsePatchHunks(patchText: string): PatchHunk[] {
+  let hunks: PatchHunk[]
   try {
     hunks = Patch.parsePatch(patchText).hunks
   } catch (error) {
@@ -117,14 +117,14 @@ async function touchLspFiles(fileChanges: FileChange[]): Promise<void> {
 }
 
 async function processHunk(
-  hunk: Patch.Hunk,
+  hunk: PatchHunk,
   filePath: string,
   ctx: import("./tool").Tool.Context,
 ): Promise<FileChange> {
-  if (hunk.type === "add") return processAddHunk(hunk as Patch.Hunk & { type: "add" }, filePath)
+  if (hunk.type === "add") return processAddHunk(hunk as PatchHunk & { type: "add" }, filePath)
   if (hunk.type === "delete") return processDeleteHunk(filePath)
   if (hunk.type === "update") {
-    const change = await processUpdateHunk(hunk as Patch.Hunk & { type: "update" }, filePath)
+    const change = await processUpdateHunk(hunk as PatchHunk & { type: "update" }, filePath)
     if (change.movePath) await assertExternalDirectory(ctx, change.movePath)
     return change
   }

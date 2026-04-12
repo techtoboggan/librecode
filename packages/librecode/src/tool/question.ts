@@ -1,5 +1,5 @@
 import z from "zod"
-import { Question } from "../question"
+import { Question, type QuestionAnswer } from "../question"
 import DESCRIPTION from "./question.txt"
 import { Tool } from "./tool"
 
@@ -15,7 +15,7 @@ export const QuestionTool = Tool.define("question", {
       tool: ctx.callID ? { messageID: ctx.messageID, callID: ctx.callID } : undefined,
     })
 
-    function format(answer: Question.Answer | undefined) {
+    function format(answer: QuestionAnswer | undefined) {
       if (!answer?.length) return "Unanswered"
       return answer.join(", ")
     }

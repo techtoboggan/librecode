@@ -7,22 +7,22 @@
 
 import * as S from "./service"
 
-export namespace Question {
-  export const Option = S.Option
-  export type Option = S.Option
-  export const Info = S.Info
-  export type Info = S.Info
-  export const Request = S.Request
-  export type Request = S.Request
-  export const Answer = S.Answer
-  export type Answer = S.Answer
-  export const Reply = S.Reply
-  export type Reply = S.Reply
-  export const Event = S.Event
-  export const RejectedError = S.RejectedError
+export type QuestionOption = S.Option
+export type QuestionInfo = S.Info
+export type QuestionRequest = S.Request
+export type QuestionAnswer = S.Answer
+export type QuestionReply = S.Reply
 
-  export const ask = S.ask
-  export const reply = S.reply
-  export const reject = S.reject
-  export const list = S.list
-}
+export const Question = {
+  Option: S.Option,
+  Info: S.Info,
+  Request: S.Request,
+  Answer: S.Answer,
+  Reply: S.Reply,
+  Event: S.Event,
+  RejectedError: S.RejectedError,
+  ask: S.ask,
+  reply: S.reply,
+  reject: S.reject,
+  list: S.list,
+} as const

@@ -10,7 +10,7 @@ import { Global } from "@/global"
 import { PermissionNext } from "@/permission/next"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
-import { Snapshot } from "@/snapshot"
+import { Snapshot, type SnapshotFileDiff } from "@/snapshot"
 import { Storage } from "@/storage/storage"
 import { fn } from "@/util/fn"
 import { Command } from "../command"
@@ -512,7 +512,7 @@ export const setSummary = fn(
 
 export const diff = fn(SessionID.zod, async (sessionID) => {
   try {
-    return await Storage.read<Snapshot.FileDiff[]>(["session_diff", sessionID])
+    return await Storage.read<SnapshotFileDiff[]>(["session_diff", sessionID])
   } catch {
     return []
   }

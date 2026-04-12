@@ -6,7 +6,7 @@
 import * as path from "node:path"
 import { createTwoFilesPatch, diffLines } from "diff"
 import z from "zod"
-import type { Snapshot } from "@/snapshot"
+import type { SnapshotFileDiff } from "@/snapshot"
 import { Bus } from "../bus"
 import { File } from "../file"
 import { FileTime } from "../file/time"
@@ -20,8 +20,8 @@ import { Tool } from "./tool"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 
-function computeFileDiff(filePath: string, contentOld: string, contentNew: string): Snapshot.FileDiff {
-  const filediff: Snapshot.FileDiff = {
+function computeFileDiff(filePath: string, contentOld: string, contentNew: string): SnapshotFileDiff {
+  const filediff: SnapshotFileDiff = {
     file: filePath,
     before: contentOld,
     after: contentNew,
