@@ -13,7 +13,7 @@ import type {
 } from "@librecode/sdk"
 
 import type { BunShell } from "./shell.js"
-import { type ToolDefinition } from "./tool.js"
+import type { ToolDefinition } from "./tool.js"
 
 export * from "./tool.js"
 

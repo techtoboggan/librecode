@@ -42,13 +42,7 @@ render(() => {
 
     const timers = delays.map((ms, i) => setTimeout(() => setLine(i + 1), ms))
 
-    const listener = events.sqliteMigrationProgress.listen((e) => {
-      if (e.payload.type === "InProgress") setPercent(Math.max(0, Math.min(100, e.payload.value)))
-      if (e.payload.type === "Done") setPercent(100)
-    })
-
     onCleanup(() => {
-      listener.then((cb) => cb())
       timers.forEach(clearTimeout)
     })
   })
@@ -62,7 +56,7 @@ render(() => {
 
   const status = createMemo(() => {
     if (phase() === "done") return t("desktop.loading.status.done")
-    if (phase() === "sqlite_waiting") return lines[line()]
+    if (phase() === "server_waiting") return lines[line()]
     return t("desktop.loading.status.initial")
   })
 

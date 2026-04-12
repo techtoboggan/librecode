@@ -1,4 +1,4 @@
-import z from "zod"
+import type z from "zod"
 
 import type { Brand } from "@/util/brand"
 import { Identifier } from "@/id/id"

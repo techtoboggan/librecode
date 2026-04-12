@@ -7,7 +7,7 @@ import { focusTerminalById } from "@/pages/session/helpers"
 type PageKeydownInput = {
   dialog: ReturnType<typeof useDialog>
   terminal: ReturnType<typeof useTerminal>
-  view: ReturnType<typeof useLayout>["view"]
+  view: () => ReturnType<ReturnType<typeof useLayout>["view"]>
   composer: ReturnType<typeof createSessionComposerState>
   inputRef: () => HTMLDivElement | undefined
   markScrollGesture: () => void

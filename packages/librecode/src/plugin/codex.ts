@@ -546,7 +546,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
             if (currentAuth.type !== "oauth") return fetch(requestInput, init)
 
             const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
-            await maybeRefreshCodexToken(currentAuth, authWithAccount, input.client.auth)
+            await maybeRefreshCodexToken(currentAuth, authWithAccount, input.client.auth as unknown as CodexAuthClient)
 
             const headers = buildRequestHeaders(init, currentAuth.access!, authWithAccount.accountId)
             const url = resolveCodexUrl(requestInput)

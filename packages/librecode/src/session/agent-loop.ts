@@ -16,7 +16,7 @@ import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { Log } from "@/util/log"
 import z from "zod"
-import { SessionID } from "./schema"
+import type { SessionID } from "./schema"
 
 const log = Log.create({ service: "agent-loop" })
 

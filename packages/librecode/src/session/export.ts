@@ -9,7 +9,7 @@
 
 import z from "zod"
 import { Log } from "@/util/log"
-import { SessionID, MessageID, PartID } from "./schema"
+import { type SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Session } from "."
 
@@ -83,12 +83,10 @@ export type ExportedSession = z.infer<typeof ExportedSession>
  */
 export async function exportSession(sessionID: SessionID): Promise<ExportedSession> {
   const session = await Session.get(sessionID)
-  const stream = await MessageV2.stream({ sessionID })
-
   const messages: ExportedMessage[] = []
   let partCount = 0
 
-  for (const msg of stream) {
+  for await (const msg of MessageV2.stream(sessionID)) {
     const exported: ExportedMessage = {
       id: msg.info.id,
       role: msg.info.role,
@@ -96,6 +94,7 @@ export async function exportSession(sessionID: SessionID): Promise<ExportedSessi
         created: msg.info.time.created,
         completed: msg.info.role === "assistant" ? (msg.info as any).time?.completed : undefined,
       },
+      parts: [],
     }
 
     if (msg.info.role === "user") {

@@ -1,5 +1,5 @@
 import {
-  APICallError,
+  type APICallError,
   InvalidResponseDataError,
   type LanguageModelV2,
   type LanguageModelV2CallWarning,

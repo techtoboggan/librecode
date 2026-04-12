@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/rest"
+import type { Octokit } from "@octokit/rest"
 import { setTimeout as sleep } from "node:timers/promises"
 import { hasNewCommits } from "./git-helpers"
 

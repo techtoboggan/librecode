@@ -19,7 +19,8 @@
     "isolatedModules": true,
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "types": ["vite/client", "bun", "node"]
   },
   "include": ["src", "package.json"],
   "exclude": ["dist", "ts-dist"]

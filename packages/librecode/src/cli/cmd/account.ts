@@ -2,7 +2,7 @@ import { cmd } from "./cmd"
 import * as prompts from "@clack/prompts"
 import { UI } from "../ui"
 import { AccountService } from "@/account/service"
-import { AccountID, OrgID, PollExpired, type PollResult } from "@/account/schema"
+import { type AccountID, type OrgID, PollExpired, type PollResult } from "@/account/schema"
 import open from "open"
 
 function handlePollResult(result: PollResult, spinner: ReturnType<typeof prompts.spinner>): void {
@@ -131,7 +131,7 @@ async function listOrgs() {
   const activeOrgID = AccountService.active()?.active_org_id
   for (const group of groups) {
     for (const org of group.orgs) {
-      UI.println(formatOrgLine(org, group.account.email, activeOrgID && activeOrgID === org.id))
+      UI.println(formatOrgLine(org, group.account.email, !!activeOrgID && activeOrgID === org.id))
     }
   }
 }

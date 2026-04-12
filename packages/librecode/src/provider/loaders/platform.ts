@@ -8,8 +8,8 @@ import { Auth } from "../../auth"
 import { Env } from "../../env"
 import { Installation } from "../../installation"
 import { VERSION as GITLAB_PROVIDER_VERSION } from "@gitlab/gitlab-ai-provider"
-import { createGitLab } from "@gitlab/gitlab-ai-provider"
 import type { CustomLoader } from "./types"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 export const gitlab: CustomLoader = async (input) => {
   const instanceUrl = Env.get("GITLAB_INSTANCE_URL") || "https://gitlab.com"
@@ -42,8 +42,9 @@ export const gitlab: CustomLoader = async (input) => {
         ...(providerConfig?.options?.featureFlags || {}),
       },
     },
-    async getModel(sdk: ReturnType<typeof createGitLab>, modelID: string) {
-      return sdk.agenticChat(modelID, {
+    async getModel(sdk: unknown, modelID: string): Promise<LanguageModelV2> {
+      const gitlab = sdk as { agenticChat: (id: string, opts?: Record<string, unknown>) => LanguageModelV2 }
+      return gitlab.agenticChat(modelID, {
         aiGatewayHeaders,
         featureFlags: {
           duo_agent_platform_agentic_chat: true,

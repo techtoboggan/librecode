@@ -44,7 +44,7 @@ export function Task(props: ToolProps<typeof TaskTool>) {
 
   const content = createMemo(() => {
     if (!props.input.description) return ""
-    let content = [`Task ${props.input.description}`]
+    const content = [`Task ${props.input.description}`]
 
     if (isRunning() && tools().length > 0) {
       if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()!.state as any).title}`)

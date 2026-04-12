@@ -9,7 +9,7 @@ import { ResizeHandle } from "@librecode/ui/resize-handle"
 import { Session } from "@librecode/sdk/v2/client"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
-import { createStore, produce } from "solid-js/store"
+import { createStore, produce, type SetStoreFunction } from "solid-js/store"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { useProviders } from "@/hooks/use-providers"
 import { showToast, Toast } from "@librecode/ui/toast"
@@ -49,7 +49,7 @@ import { createPrefetchController } from "./layout/prefetch"
 import { registerLayoutCommands } from "./layout/commands"
 import { SidebarPanel } from "./layout/sidebar-panel"
 import { createProjectActions } from "./layout/project-actions"
-import { createSidebarContexts } from "./layout/sidebar-context"
+import { createSidebarContexts, type SidebarContextDeps } from "./layout/sidebar-context"
 
 export default function Layout(props: ParentProps) {
   const [store, setStore, , ready] = persisted(
@@ -703,7 +703,7 @@ export default function Layout(props: ParentProps) {
     setStore("activeProject", undefined)
   }
 
-  const createWorkspace = async (project: LocalProject) => {
+  const createWorkspace = async (project: { worktree: string; id?: string; vcs?: "git" }) => {
     clearSidebarHoverState()
     const created = await globalSDK.client.worktree
       .create({ directory: project.worktree })
@@ -756,7 +756,7 @@ export default function Layout(props: ParentProps) {
   } = createSidebarContexts({
     params,
     store,
-    setStore,
+    setStore: setStore as unknown as SidebarContextDeps["setStore"],
     globalSDK,
     globalSync,
     layout,

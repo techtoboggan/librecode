@@ -11,8 +11,9 @@
 import { Log } from "@/util/log"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import { SessionID } from "@/session/schema"
-import { getToolCapabilities, getToolRisk, type ToolCapabilities } from "@/tool/capability-registry"
+import type { SessionID } from "@/session/schema"
+import { getToolCapabilities, getToolRisk } from "@/tool/capability-registry"
+import type { ToolCapabilities } from "@/tool/capabilities"
 import z from "zod"
 
 const log = Log.create({ service: "permission.audit" })

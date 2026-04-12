@@ -2,10 +2,10 @@ import z from "zod"
 import { SessionID, MessageID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { ModelID, ProviderID } from "../provider/schema"
-import { Agent } from "../agent/agent"
+import type { Agent } from "../agent/agent"
 import type { ToolCallOptions } from "ai"
-import { Tool } from "@/tool/tool"
-import { SessionProcessor } from "./processor"
+import type { Tool } from "@/tool/tool"
+import type { SessionProcessor } from "./processor"
 
 export const STRUCTURED_OUTPUT_DESCRIPTION = `Use this tool to return your final response in the requested structured format.
 

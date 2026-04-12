@@ -1,4 +1,4 @@
-import z from "zod"
+import type z from "zod"
 import { Worktree } from "@/worktree"
 import { type Adaptor, WorkspaceInfo } from "../types"
 

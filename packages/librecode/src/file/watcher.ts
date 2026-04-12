@@ -6,7 +6,7 @@ import { Log } from "../util/log"
 import { FileIgnore } from "./ignore"
 import { Config } from "../config/config"
 import path from "path"
-// @ts-ignore
+// @ts-expect-error
 import { createWrapper } from "@parcel/watcher/wrapper"
 import { lazy } from "@/util/lazy"
 import { withTimeout } from "@/util/timeout"
@@ -75,7 +75,7 @@ export namespace FileWatcher {
     label: string,
   ): Promise<ParcelWatcher.AsyncSubscription | undefined> {
     const subscribe = makeSubscribeCallback()
-    const pending = w.subscribe(dir, subscribe, { ignore: ignoreList, backend })
+    const pending = w.subscribe(dir, subscribe, { ignore: ignoreList, backend: backend as ParcelWatcher.BackendType })
     return withTimeout(pending, SUBSCRIBE_TIMEOUT_MS).catch((err) => {
       log.error(`failed to subscribe to ${label}`, { error: err })
       pending.then((s) => s.unsubscribe()).catch(() => {})

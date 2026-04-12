@@ -29,7 +29,7 @@ import { UPDATER_ENABLED } from "./updater"
 import { webviewZoom } from "./webview-zoom"
 import "./styles.css"
 import { Channel } from "@tauri-apps/api/core"
-import { commands, type InitStep } from "./bindings"
+import { commands, type InitStep, type LinuxDisplayBackend, type ServerReadyData } from "./bindings"
 import { createMenu } from "./menu"
 
 const root = document.getElementById("root")
@@ -72,9 +72,9 @@ const createPlatform = (): Platform => {
   const handleWslPicker = async <T extends string | string[]>(result: T | null): Promise<T | null> => {
     if (!result || !window.__LIBRECODE__?.wsl) return result
     if (Array.isArray(result)) {
-      return Promise.all(result.map((path) => commands.wslPath(path, "linux").catch(() => path))) as any
+      return Promise.all(result.map((path) => commands.wslPath(path, "linux").catch(() => path))) as Promise<T>
     }
-    return commands.wslPath(result, "linux").catch(() => result) as any
+    return commands.wslPath(result as string, "linux").catch(() => result) as Promise<T>
   }
 
   return {
@@ -359,11 +359,14 @@ const createPlatform = (): Platform => {
 
     getDisplayBackend: async () => {
       const result = await commands.getDisplayBackend().catch(() => null)
-      return result
+      if (result === null) return null
+      // Map LinuxDisplayBackend ("wayland" | "auto") to DisplayBackend ("wayland" | "auto")
+      return result as import("@librecode/app").DisplayBackend
     },
 
     setDisplayBackend: async (backend) => {
-      await commands.setDisplayBackend(backend)
+      // Map DisplayBackend ("wayland" | "auto") to LinuxDisplayBackend ("wayland" | "auto")
+      await commands.setDisplayBackend(backend as LinuxDisplayBackend)
     },
 
     parseMarkdown: (markdown: string) => commands.parseMarkdownCommand(markdown),
@@ -413,7 +416,9 @@ render(() => {
   const platform = createPlatform()
 
   // Fetch sidecar credentials from Rust (available immediately, before health check)
-  const [sidecar] = createResource(() => commands.awaitInitialization(new Channel<InitStep>() as any))
+  const [sidecar] = createResource(() =>
+    commands.awaitInitialization(new Channel<InitStep>() as any) as Promise<ServerReadyData>,
+  )
 
   const [defaultServer] = createResource(() =>
     platform.getDefaultServer?.().then((url) => {

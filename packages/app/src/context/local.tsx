@@ -142,8 +142,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     })
 
     const configuredModel = () => {
-      if (!sync.data.config.model) return
-      const [providerID, modelID] = sync.data.config.model.split("/")
+      const rawModel: string | undefined = sync.data.config.model as string | undefined
+      if (!rawModel) return
+      const [providerID, modelID] = rawModel.split("/")
       const model = { providerID, modelID }
       if (validModel(model)) return model
     }

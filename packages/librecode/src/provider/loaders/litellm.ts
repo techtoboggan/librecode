@@ -11,7 +11,8 @@
 
 import { Env } from "../../env"
 import { Log } from "../../util/log"
-import type { CustomLoader } from "./types"
+import type { CustomLoader, ProviderLoadResult } from "./types"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 const log = Log.create({ service: "provider.litellm" })
 
@@ -69,7 +70,7 @@ function injectLiteLLMModel(provider: Parameters<CustomLoader>[0], model: { id: 
   } as unknown as (typeof provider.models)[string]
 }
 
-export const litellm: CustomLoader = async (provider) => {
+export const litellm: CustomLoader = async (provider): Promise<ProviderLoadResult> => {
   const baseURL = (provider.options?.baseURL as string | undefined) ?? Env.get("LITELLM_BASE_URL") ?? DEFAULT_BASE_URL
   const apiKey = (provider.options?.apiKey as string | undefined) ?? Env.get("LITELLM_API_KEY") ?? undefined
 
@@ -86,7 +87,7 @@ export const litellm: CustomLoader = async (provider) => {
     autoload: true,
     options: { baseURL, ...(apiKey && { apiKey }) },
     async getModel(sdk: unknown, modelID: string) {
-      return (sdk as { languageModel: (id: string) => unknown }).languageModel(modelID)
+      return (sdk as { languageModel: (id: string) => LanguageModelV2 }).languageModel(modelID)
     },
   }
 }

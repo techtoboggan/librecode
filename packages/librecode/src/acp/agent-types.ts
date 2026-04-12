@@ -1,12 +1,12 @@
-import {
-  type PermissionOption,
-  type PlanEntry,
-  type PromptRequest,
-  type ToolCallContent,
-  type ToolKind,
+import type {
+  PermissionOption,
+  PlanEntry,
+  PromptRequest,
+  ToolCallContent,
+  ToolKind,
 } from "@agentclientprotocol/sdk"
 
-import { pathToFileURL } from "url"
+import { pathToFileURL } from "node:url"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
 import { Todo } from "@/session/todo"
@@ -224,7 +224,7 @@ export async function defaultModel(
     .then((resp) => {
       const cfg = resp.data
       if (!cfg || !cfg.model) return undefined
-      return Provider.parseModel(cfg.model)
+      return Provider.parseModel(cfg.model.id)
     })
     .catch((error) => {
       log.error("failed to load user config for default model", { error })

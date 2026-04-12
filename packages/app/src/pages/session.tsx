@@ -280,6 +280,10 @@ export default function Page() {
     deferRender: false,
   })
 
+  // Forward declaration — assigned below once autoScroll and clearMessageHash are available
+  // eslint-disable-next-line prefer-const
+  let resumeScroll: () => void = () => {}
+
   const followupQueue = createFollowupQueue({
     sessionID: () => params.id,
     sdk,
@@ -289,7 +293,7 @@ export default function Page() {
     followupMode: () => settings.general.followup(),
     busy,
     attachmentLabel: () => language.t("common.attachment"),
-    onScrollToBottom: resumeScroll,
+    onScrollToBottom: () => resumeScroll(),
     onError: fail,
   })
 
@@ -679,7 +683,7 @@ export default function Page() {
     })
   }
 
-  const resumeScroll = () => {
+  resumeScroll = () => {
     setStore("messageId", undefined)
     autoScroll.forceScrollToBottom()
     clearMessageHash()

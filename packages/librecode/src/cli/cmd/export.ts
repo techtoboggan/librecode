@@ -7,7 +7,7 @@ import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
 import { EOL } from "os"
 
-async function selectSessionInteractive(): Promise<typeof SessionID.Type | undefined> {
+async function selectSessionInteractive(): Promise<SessionID | undefined> {
   UI.empty()
   prompts.intro("Export session", { output: process.stderr })
 

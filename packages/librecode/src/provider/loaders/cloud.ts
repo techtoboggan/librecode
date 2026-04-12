@@ -10,6 +10,8 @@ import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { GoogleAuth } from "google-auth-library"
 import type { AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
 import type { CustomLoader } from "./types"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
+import type { ProviderLoadResult } from "./types"
 
 const US_PREFIXED_MODELS = ["nova-micro", "nova-lite", "nova-pro", "nova-premier", "nova-2", "claude", "deepseek"]
 const EU_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"]
@@ -69,7 +71,7 @@ function applyBedrockRegionPrefix(modelID: string, region: string): string {
   }
 }
 
-export const amazonBedrock: CustomLoader = async () => {
+export const amazonBedrock: CustomLoader = async (): Promise<ProviderLoadResult> => {
   const config = await Config.get()
   const providerConfig = config.provider?.["amazon-bedrock"]
 
@@ -120,18 +122,18 @@ export const amazonBedrock: CustomLoader = async () => {
 
   return {
     autoload: true,
-    options: providerOptions,
+    options: providerOptions as unknown as Record<string, unknown>,
     async getModel(sdk: unknown, modelID: string, options?: Record<string, unknown>) {
       const prefixedModelID = applyBedrockRegionPrefix(
         modelID,
         (options?.region as string | undefined) ?? defaultRegion,
       )
-      return (sdk as { languageModel: (id: string) => unknown }).languageModel(prefixedModelID)
+      return (sdk as { languageModel: (id: string) => LanguageModelV2 }).languageModel(prefixedModelID)
     },
   }
 }
 
-export const googleVertex: CustomLoader = async (provider) => {
+export const googleVertex: CustomLoader = async (provider): Promise<ProviderLoadResult> => {
   const project =
     provider.options?.project ?? Env.get("GOOGLE_CLOUD_PROJECT") ?? Env.get("GCP_PROJECT") ?? Env.get("GCLOUD_PROJECT")
 
@@ -147,13 +149,14 @@ export const googleVertex: CustomLoader = async (provider) => {
 
   return {
     autoload: true,
-    vars() {
+    vars(): Record<string, string> {
       const endpoint = location === "global" ? "aiplatform.googleapis.com" : `${location}-aiplatform.googleapis.com`
-      return {
-        ...(project && { GOOGLE_VERTEX_PROJECT: project }),
+      const result: Record<string, string> = {
         GOOGLE_VERTEX_LOCATION: location,
         GOOGLE_VERTEX_ENDPOINT: endpoint,
       }
+      if (project) result.GOOGLE_VERTEX_PROJECT = String(project)
+      return result
     },
     options: {
       project,
@@ -167,21 +170,21 @@ export const googleVertex: CustomLoader = async (provider) => {
         return fetch(input, { ...init, headers })
       },
     },
-    async getModel(sdk: any, modelID: string) {
-      return sdk.languageModel(String(modelID).trim())
+    async getModel(sdk: unknown, modelID: string) {
+      return (sdk as { languageModel: (id: string) => LanguageModelV2 }).languageModel(String(modelID).trim())
     },
   }
 }
 
-export const googleVertexAnthropic: CustomLoader = async () => {
+export const googleVertexAnthropic: CustomLoader = async (): Promise<ProviderLoadResult> => {
   const project = Env.get("GOOGLE_CLOUD_PROJECT") ?? Env.get("GCP_PROJECT") ?? Env.get("GCLOUD_PROJECT")
   const location = Env.get("GOOGLE_CLOUD_LOCATION") ?? Env.get("VERTEX_LOCATION") ?? "global"
   if (!project) return { autoload: false }
   return {
     autoload: true,
     options: { project, location },
-    async getModel(sdk: any, modelID: string) {
-      return sdk.languageModel(String(modelID).trim())
+    async getModel(sdk: unknown, modelID: string) {
+      return (sdk as { languageModel: (id: string) => LanguageModelV2 }).languageModel(String(modelID).trim())
     },
   }
 }
@@ -260,17 +263,17 @@ export const cloudflareAiGateway: CustomLoader = async (input) => {
   const metadata = iife(() => {
     if (input.options?.metadata) return input.options.metadata
     try {
-      return JSON.parse(input.options?.headers?.["cf-aig-metadata"])
+      return JSON.parse((input.options?.headers as Record<string, string> | undefined)?.["cf-aig-metadata"] ?? "null")
     } catch {
       return undefined
     }
   })
   const opts = {
     metadata,
-    cacheTtl: input.options?.cacheTtl,
-    cacheKey: input.options?.cacheKey,
-    skipCache: input.options?.skipCache,
-    collectLog: input.options?.collectLog,
+    cacheTtl: input.options?.cacheTtl as number | undefined,
+    cacheKey: input.options?.cacheKey as string | undefined,
+    skipCache: input.options?.skipCache as boolean | undefined,
+    collectLog: input.options?.collectLog as boolean | undefined,
   }
 
   const aigateway = createAiGateway({

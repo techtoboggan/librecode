@@ -40,7 +40,7 @@ import open from "open"
 import { writeHeapSnapshot } from "v8"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { TuiConfigProvider } from "./context/tui-config"
-import { TuiConfig } from "@/config/tui"
+import type { TuiConfig } from "@/config/tui"
 
 type Rgb = { r: number; g: number; b: number }
 

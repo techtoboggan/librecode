@@ -1,6 +1,6 @@
 import path from "path"
 import z from "zod"
-import { SessionID, MessageID, PartID } from "./schema"
+import { type SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Log } from "../util/log"
 import { SessionRevert } from "./revert"
@@ -25,7 +25,7 @@ import { SessionSummary } from "./summary"
 import { NamedError } from "@librecode/util/error"
 import { fn } from "@/util/fn"
 import { SessionProcessor } from "./processor"
-import { Tool } from "@/tool/tool"
+import type { Tool } from "@/tool/tool"
 import { PermissionNext } from "@/permission/next"
 import { SessionStatus } from "./status"
 import { Shell } from "@/shell/shell"
@@ -56,7 +56,6 @@ import {
   ensureTitle,
 } from "./prompt-builder"
 
-// @ts-ignore
 globalThis.AI_SDK_LOG_WARNINGS = false
 
 const log = Log.create({ service: "session.prompt" })

@@ -2,7 +2,7 @@ import { type JSX, createMemo, Index, Show } from "solid-js"
 import { FileIcon } from "@librecode/ui/file-icon"
 import { SessionTurn } from "@librecode/ui/session-turn"
 import { getFilename } from "@librecode/util/path"
-import type { Part, UserMessage } from "@librecode/sdk/v2"
+import type { Part, SessionStatus, UserMessage } from "@librecode/sdk/v2"
 import type { UserActions } from "../message-timeline"
 
 type MessageComment = {
@@ -21,7 +21,7 @@ export type MessageRowProps = {
   active: boolean
   sessionID: string
   actions?: UserActions
-  sessionStatus: { type: string } | undefined
+  sessionStatus: SessionStatus | undefined
   showReasoningSummaries: boolean
   shellToolDefaultOpen: boolean
   editToolDefaultOpen: boolean

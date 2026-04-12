@@ -1,6 +1,6 @@
 import { MCP } from "../../../mcp"
 import { McpAuth } from "../../../mcp/auth"
-import { Config } from "../../../config/config"
+import type { Config } from "../../../config/config"
 import { modify, applyEdits } from "jsonc-parser"
 import { Filesystem } from "../../../util/filesystem"
 import { Global } from "../../../global"

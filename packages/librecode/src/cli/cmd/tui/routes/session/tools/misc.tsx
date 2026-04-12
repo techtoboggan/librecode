@@ -1,6 +1,6 @@
 import { createMemo, For, Switch, Match } from "solid-js"
 import { useTheme } from "@tui/context/theme"
-import { TodoWriteTool } from "@/tool/todo"
+import type { TodoWriteTool } from "@/tool/todo"
 import type { QuestionTool } from "@/tool/question"
 import type { SkillTool } from "@/tool/skill"
 import { TodoItem } from "@tui/component/todo-item"

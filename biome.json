@@ -28,7 +28,15 @@
         }
       },
       "suspicious": {
-        "noExplicitAny": "warn"
+        "noExplicitAny": "warn",
+        "noDoubleEquals": "warn",
+        "noImplicitAnyLet": "warn",
+        "noControlCharactersInRegex": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noAsyncPromiseExecutor": "warn",
+        "noRedeclare": "warn",
+        "noShadowRestrictedNames": "warn",
+        "noGlobalAssign": "warn"
       },
       "style": {
         "noNamespace": "warn",
@@ -37,10 +45,15 @@
       },
       "correctness": {
         "noUnusedImports": "warn",
-        "noUnusedVariables": "warn"
+        "noUnusedVariables": "warn",
+        "noConstantCondition": "warn"
       },
       "performance": {
         "noDelete": "off"
+      },
+      "a11y": {
+        "noStaticElementInteractions": "off",
+        "useKeyWithMouseEvents": "off"
       }
     }
   },

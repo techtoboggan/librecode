@@ -26,7 +26,7 @@ export interface SessionReviewContentProps {
   onInitGit: () => void
   deferRender: () => boolean
   reviewDiffs: () => FileDiff[]
-  view: ReturnType<typeof useLayout>["view"]
+  view: () => ReturnType<ReturnType<typeof useLayout>["view"]>
   activeDiff: string | undefined
   diffStyle: () => DiffStyle
   onDiffStyleChange: (style: DiffStyle) => void

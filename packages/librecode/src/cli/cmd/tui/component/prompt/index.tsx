@@ -1,4 +1,4 @@
-import { BoxRenderable, TextareaRenderable, MouseEvent, PasteEvent, t, dim, fg } from "@opentui/core"
+import { type BoxRenderable, type TextareaRenderable, type MouseEvent, type PasteEvent, type KeyEvent, type ParsedKey, t, dim, fg } from "@opentui/core"
 import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
 import "opentui-spinner/solid"
 import { useLocal } from "@tui/context/local"
@@ -173,7 +173,7 @@ export function Prompt(props: PromptProps) {
   const { pasteText, pasteImage, handleKeyDownPaste, onPaste } = usePromptPaste({
     getInput: () => input,
     store,
-    setStore: setStore as Parameters<typeof usePromptPaste>[0]["setStore"],
+    setStore: setStore as unknown as Parameters<typeof usePromptPaste>[0]["setStore"],
     pasteStyleId,
     getPromptPartTypeId: () => promptPartTypeId,
   })
@@ -696,15 +696,15 @@ export function Prompt(props: PromptProps) {
     input.cursorOffset = direction === -1 ? 0 : input.plainText.length
   }
 
-  function handleHistoryNavigation(isPrev: boolean, isNext: boolean, e: { preventDefault(): void }): void {
+  function handleHistoryNavigation(isPrev: boolean, isNext: boolean, e: KeyEvent): void {
     const direction: -1 | 1 = isPrev ? -1 : 1
     const item = history.move(direction, input.plainText)
     if (item) applyHistoryItem(item, direction, e)
   }
 
-  function handleKeyDownHistory(e: { preventDefault(): void; name: string }): void {
-    const isPrev = keybind.match("history_previous", e)
-    const isNext = keybind.match("history_next", e)
+  function handleKeyDownHistory(e: KeyEvent): void {
+    const isPrev = !!keybind.match("history_previous", e)
+    const isNext = !!keybind.match("history_next", e)
     const atStart = input.cursorOffset === 0
     const atEnd = input.cursorOffset === input.plainText.length
 
@@ -716,7 +716,7 @@ export function Prompt(props: PromptProps) {
     if (isNext && input.visualCursor.visualRow === input.height - 1) input.cursorOffset = input.plainText.length
   }
 
-  async function handleSpecialKeys(e: { name: string; preventDefault(): void }): Promise<boolean> {
+  async function handleSpecialKeys(e: KeyEvent): Promise<boolean> {
     if (keybind.match("input_paste", e)) {
       const handled = await handleKeyDownPaste(e)
       if (handled) return true
@@ -730,7 +730,7 @@ export function Prompt(props: PromptProps) {
     return handleKeyDownShellMode(e)
   }
 
-  async function onTextareaKeyDown(e: { name: string; preventDefault(): void }): Promise<void> {
+  async function onTextareaKeyDown(e: KeyEvent): Promise<void> {
     if (props.disabled) {
       e.preventDefault()
       return

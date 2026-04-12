@@ -5,7 +5,7 @@ import { useSync } from "@tui/context/sync"
 import { SplitBorder } from "@tui/component/border"
 import { useTheme } from "@tui/context/theme"
 import {
-  ScrollBoxRenderable,
+  type ScrollBoxRenderable,
   addDefaultParsers,
   MacOSScrollAccel,
   type ScrollAcceleration,
@@ -195,7 +195,7 @@ export function Session() {
     }
   })
 
-  let lastSwitch: string | undefined = undefined
+  let lastSwitch: string | undefined 
   sdk.event.on("message.part.updated", (evt) => {
     const part = evt.properties.part
     if (part.type !== "tool") return
@@ -453,7 +453,7 @@ export function Session() {
                 {(message, index) => (
                   <Switch>
                     <Match when={message.id === revert()?.messageID}>
-                      {(function () {
+                      {(() => {
                         const cmd = useCommandDialog()
                         const [hover, setHover] = createSignal(false)
                         const dlg = useDialog()

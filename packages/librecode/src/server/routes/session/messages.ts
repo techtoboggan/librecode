@@ -90,7 +90,7 @@ export const SessionMessageRoutes = new Hono()
         url.searchParams.set("limit", query.limit.toString())
         url.searchParams.set("before", page.cursor)
         c.header("Access-Control-Expose-Headers", "Link, X-Next-Cursor")
-        c.header("Link", `<${url.toString()}>; rel=\"next\"`)
+        c.header("Link", `<${url.toString()}>; rel="next"`)
         c.header("X-Next-Cursor", page.cursor)
       }
       return c.json(page.items)

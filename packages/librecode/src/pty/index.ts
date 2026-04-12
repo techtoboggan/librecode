@@ -1,6 +1,6 @@
 import { BusEvent } from "@/bus/bus-event"
 import { Bus } from "@/bus"
-import { type IPty } from "bun-pty"
+import type { IPty } from "bun-pty"
 import z from "zod"
 import { Log } from "../util/log"
 import { Instance } from "../project/instance"

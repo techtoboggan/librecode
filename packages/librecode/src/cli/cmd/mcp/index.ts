@@ -71,7 +71,7 @@ export const McpListCommand = cmd({
 function buildServerStatusLine(
   name: string,
   serverConfig: Config.Mcp,
-  status: MCP.ServerStatus | undefined,
+  status: MCP.Status | undefined,
   hasStoredTokens: boolean,
 ): string {
   const hasOAuth = isMcpRemote(serverConfig) && !!serverConfig.oauth

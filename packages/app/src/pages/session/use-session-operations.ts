@@ -60,7 +60,7 @@ export function createSessionOperations(input: SessionOperationsInput) {
       const idx = list.findIndex((item) => item.id === next.id)
       if (idx < 0) return list
       const out = list.slice()
-      out[idx] = next
+      out[idx] = { ...out[idx], ...next }
       return out
     })
 
@@ -81,7 +81,12 @@ export function createSessionOperations(input: SessionOperationsInput) {
   }
 
   const halt = (sessionID: string): Promise<void> =>
-    busy(sessionID) ? input.sdk.client.session.abort({ sessionID }).catch(() => {}) : Promise.resolve()
+    busy(sessionID)
+      ? input.sdk.client.session
+          .abort({ sessionID })
+          .then(() => {})
+          .catch(() => {})
+      : Promise.resolve()
 
   const fork = (op: { sessionID: string; messageID: string }) => {
     const value = draft(op.messageID)

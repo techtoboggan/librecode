@@ -62,7 +62,7 @@
  * ```
  */
 
-import type { LanguageModelV2 } from "ai"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 /**
  * Information about a provider as loaded from the models database or user config.

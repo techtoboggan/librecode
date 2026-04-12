@@ -34,7 +34,7 @@ import { createPerplexity } from "@ai-sdk/perplexity"
 import { createVercel } from "@ai-sdk/vercel"
 import { createGitLab } from "@gitlab/gitlab-ai-provider"
 import { ModelID, ProviderID } from "./schema"
-import { type CustomVarsLoader } from "./loaders"
+import type { CustomVarsLoader } from "./loaders"
 import { Model, Info, ModelNotFoundError, InitError, type ModelType, type InfoType } from "./types"
 import {
   fromModelsDevProvider,
@@ -74,7 +74,7 @@ const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
   "@ai-sdk/perplexity": createPerplexity,
   "@ai-sdk/vercel": createVercel,
   "@gitlab/gitlab-ai-provider": createGitLab,
-  // @ts-ignore (TODO: kill this code so we dont have to maintain it)
+  // @ts-expect-error (TODO: kill this code so we dont have to maintain it)
   "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
 }
 
@@ -262,7 +262,7 @@ function buildCustomFetch(
 
     const res = await fetchFn(input as RequestInfo | URL, {
       ...opts,
-      // @ts-ignore see here: https://github.com/oven-sh/bun/issues/16682
+      // @ts-expect-error see here: https://github.com/oven-sh/bun/issues/16682
       timeout: false,
     })
 
@@ -366,7 +366,7 @@ export async function getLanguage(model: ModelType): Promise<LanguageModelV2> {
     const modelLoader = s.modelLoaders[model.providerID]
     const language = modelLoader
       ? await modelLoader(sdk, model.api.id, provider.options)
-      : sdk.languageModel(model.api.id)
+      : sdk.languageModel(model.api.id) as LanguageModelV2
     s.models.set(key, language)
     return language
   } catch (e) {

@@ -178,7 +178,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const fallbackModel = createMemo(
         () =>
           (args.model ? resolveModelFromString(args.model) : undefined) ??
-          (sync.data.config.model ? resolveModelFromString(sync.data.config.model) : undefined) ??
+          (sync.data.config.model ? resolveModelFromString(sync.data.config.model.id) : undefined) ??
           firstRecentValidModel() ??
           firstProviderDefaultModel(),
       )

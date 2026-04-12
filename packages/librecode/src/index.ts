@@ -134,7 +134,7 @@ cli = cli
 try {
   await cli.parse()
 } catch (e) {
-  let data: Record<string, any> = {}
+  const data: Record<string, any> = {}
   if (e instanceof NamedError) {
     const obj = e.toObject()
     Object.assign(data, {

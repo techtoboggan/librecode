@@ -28,7 +28,7 @@ import { Log } from "@/util/log"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import z from "zod"
-import { SessionID, MessageID, PartID } from "./schema"
+import { type SessionID, MessageID, PartID } from "./schema"
 import { MessageV2 } from "./message-v2"
 import { Session } from "."
 
@@ -112,8 +112,9 @@ async function copyMessagesToSession(
  */
 export async function fork(options: ForkOptions): Promise<ForkResult> {
   const original = await Session.get(options.sessionID)
-  const stream = await MessageV2.stream({ sessionID: options.sessionID })
-  const messagesToCopy = sliceMessagesToFork(stream, options.atMessageID, options.sessionID)
+  const messages: MessageV2.WithParts[] = []
+  for await (const msg of MessageV2.stream(options.sessionID)) messages.push(msg)
+  const messagesToCopy = sliceMessagesToFork(messages, options.atMessageID, options.sessionID)
 
   const title = options.title ?? `${original.title} (branch)`
   const newSession = await Session.create({ title, parentID: options.sessionID })
@@ -145,7 +146,7 @@ export async function fork(options: ForkOptions): Promise<ForkResult> {
  * List all branches of a session (sessions with this one as parent).
  */
 export async function branches(sessionID: SessionID): Promise<Session.Info[]> {
-  const all = await Session.list()
+  const all = [...Session.list()]
   return all.filter((s) => s.parentID === sessionID)
 }
 

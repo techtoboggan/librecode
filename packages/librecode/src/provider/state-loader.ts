@@ -1,15 +1,15 @@
-import { Config } from "../config/config"
+import type { Config } from "../config/config"
 import { mapValues, mergeDeep, omit, pickBy } from "remeda"
 import { Log } from "../util/log"
 import { Plugin } from "../plugin"
-import { ModelsDev } from "./models"
+import type { ModelsDev } from "./models"
 import { Auth } from "../auth"
 import { Env } from "../env"
 import { Flag } from "../flag/flag"
 import { ProviderTransform } from "./transform"
 import { ModelID, ProviderID } from "./schema"
 import { CUSTOM_LOADERS, type CustomModelLoader, type CustomVarsLoader } from "./loaders"
-import { type ModelType, type InfoType } from "./types"
+import type { ModelType, InfoType } from "./types"
 
 const log = Log.create({ service: "provider" })
 

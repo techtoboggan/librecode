@@ -1,6 +1,4 @@
 import { expect, test, beforeEach, mock } from "bun:test"
-import { Duration } from "effect"
-
 import { AccountRepo } from "../../src/account/repo"
 import { AccountService } from "../../src/account/service"
 import { AccessToken, AccountID, DeviceCode, Login, OrgID, RefreshToken, UserCode } from "../../src/account/schema"
@@ -153,8 +151,8 @@ test("poll stores the account and first org on success", async () => {
     user: UserCode.make("user-code"),
     url: "https://one.example.com/verify",
     server: "https://one.example.com",
-    expiry: Duration.seconds(600),
-    interval: Duration.seconds(5),
+    expiry: 600 * 1000,
+    interval: 5 * 1000,
   })
 
   const f = mockFetch((url) => {

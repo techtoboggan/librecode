@@ -51,7 +51,7 @@ export namespace SessionRetry {
       if (ms !== undefined) return ms
     }
 
-    return RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1)
+    return RETRY_INITIAL_DELAY * RETRY_BACKOFF_FACTOR ** (attempt - 1)
   }
 
   export function delay(attempt: number, error?: MessageV2.APIError): number {
@@ -59,7 +59,7 @@ export namespace SessionRetry {
       const headers = error.data.responseHeaders
       if (headers) return delayFromHeaders(headers, attempt)
     }
-    return Math.min(RETRY_INITIAL_DELAY * Math.pow(RETRY_BACKOFF_FACTOR, attempt - 1), RETRY_MAX_DELAY_NO_HEADERS)
+    return Math.min(RETRY_INITIAL_DELAY * RETRY_BACKOFF_FACTOR ** (attempt - 1), RETRY_MAX_DELAY_NO_HEADERS)
   }
 
   function parseErrorJson(error: ReturnType<NamedError["toObject"]>): unknown {

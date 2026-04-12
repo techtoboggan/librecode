@@ -1,6 +1,6 @@
 import type { ModelMessage, TextPart, ImagePart, FilePart } from "ai"
 import { mergeDeep, unique } from "remeda"
-import type { JSONSchema7 } from "@ai-sdk/provider"
+import type { JSONSchema7, SharedV2ProviderOptions } from "@ai-sdk/provider"
 import type { JSONSchema } from "zod/v4/core"
 import type { Provider } from "./provider"
 import { Flag } from "@/flag/flag"
@@ -324,13 +324,13 @@ export namespace ProviderTransform {
     amazon: "bedrock",
   }
 
-  export function providerOptions(model: Provider.Model, options: { [x: string]: unknown }) {
+  export function providerOptions(model: Provider.Model, options: { [x: string]: unknown }): SharedV2ProviderOptions {
     if (model.api.npm === "@ai-sdk/gateway") {
-      return buildGatewayProviderOptions(model, options)
+      return buildGatewayProviderOptions(model, options) as SharedV2ProviderOptions
     }
 
     const key = sdkKey(model.api.npm) ?? model.providerID
-    return { [key]: options }
+    return { [key]: options } as SharedV2ProviderOptions
   }
 
   export function maxOutputTokens(model: Provider.Model): number {

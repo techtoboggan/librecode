@@ -1,6 +1,6 @@
 import { createMemo, createSignal, onMount, onCleanup, Show } from "solid-js"
-import { useTheme } from "@tui/context/theme"
-import { useDialog } from "@tui/ui/dialog"
+import type { useTheme } from "@tui/context/theme"
+import type { useDialog } from "@tui/ui/dialog"
 import { DialogAlert } from "../../ui/dialog-alert"
 import { formatDuration } from "@/util/format"
 import type { SessionStatus } from "@librecode/sdk/v2"

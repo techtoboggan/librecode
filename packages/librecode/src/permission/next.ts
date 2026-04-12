@@ -4,7 +4,7 @@
  * Migrated from Effect facade to direct re-exports per ADR-001.
  */
 
-import { Config } from "@/config/config"
+import type { Config } from "@/config/config"
 import { fn } from "@/util/fn"
 import { Wildcard } from "@/util/wildcard"
 import { getToolCapabilities, getToolRisk, isReadOnly } from "@/tool/capability-registry"

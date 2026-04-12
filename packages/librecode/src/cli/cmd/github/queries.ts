@@ -1,4 +1,4 @@
-import { graphql } from "@octokit/graphql"
+import type { graphql } from "@octokit/graphql"
 
 // ---------------------------------------------------------------------------
 // GitHub API types

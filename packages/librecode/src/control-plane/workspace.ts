@@ -1,7 +1,7 @@
 import z from "zod"
 import { fn } from "@/util/fn"
 import { Database, eq } from "@/storage/db"
-import { Project } from "@/project/project"
+import type { Project } from "@/project/project"
 import { BusEvent } from "@/bus/bus-event"
 import { GlobalBus } from "@/bus/global"
 import { Log } from "@/util/log"

@@ -57,7 +57,7 @@ async function buildSystemPrompt(
   return system
 }
 
-type ProviderInfo = Awaited<ReturnType<typeof Provider.getProvider>>
+type ProviderInfo = NonNullable<Awaited<ReturnType<typeof Provider.getProvider>>>
 
 function buildModelOptions(
   input: Pick<LLM.StreamInput, "sessionID" | "model" | "agent" | "user" | "small">,
@@ -132,12 +132,14 @@ export namespace LLM {
       .tag("mode", input.agent.mode)
     l.info("stream", { modelID: input.model.id, providerID: input.model.providerID })
 
-    const [language, cfg, provider, auth] = await Promise.all([
+    const [language, cfg, providerOrUndefined, auth] = await Promise.all([
       Provider.getLanguage(input.model),
       Config.get(),
       Provider.getProvider(input.model.providerID),
       Auth.get(input.model.providerID),
     ])
+    if (!providerOrUndefined) throw new Error(`Provider not found: ${input.model.providerID}`)
+    const provider: ProviderInfo = providerOrUndefined
     const isCodex = provider.id === "openai" && auth?.type === "oauth"
 
     const system = await buildSystemPrompt(input, isCodex)

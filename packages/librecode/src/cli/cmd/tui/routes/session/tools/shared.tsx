@@ -1,5 +1,5 @@
 import { createMemo, createSignal, For, Show, Switch, Match } from "solid-js"
-import { BoxRenderable, RGBA, TextAttributes } from "@opentui/core"
+import { type BoxRenderable, type RGBA, TextAttributes } from "@opentui/core"
 import { useRenderer, type JSX } from "@opentui/solid"
 import { useTheme } from "@tui/context/theme"
 import { useSync } from "@tui/context/sync"

@@ -1,4 +1,5 @@
 import { useSync } from "@tui/context/sync"
+import { type RGBA } from "@opentui/core"
 import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useTheme } from "../../context/theme"
@@ -18,7 +19,7 @@ type SyncData = ReturnType<typeof useSync>
 type McpEntry = [string, SyncData["data"]["mcp"][string]]
 
 function McpStatusDot(props: { status: string; theme: Theme }) {
-  const colorMap: Record<string, string> = {
+  const colorMap: Record<string, RGBA> = {
     connected: props.theme.success,
     failed: props.theme.error,
     disabled: props.theme.textMuted,

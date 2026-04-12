@@ -158,7 +158,7 @@ export class HealthMonitor {
     health.reconnectAttempts++
 
     const baseDelay = this.options.reconnectBaseDelay ?? 5000
-    const delay = baseDelay * Math.pow(2, health.reconnectAttempts - 1)
+    const delay = baseDelay * 2 ** (health.reconnectAttempts - 1)
     const timeSinceLastCheck = Date.now() - health.lastCheck
     if (timeSinceLastCheck < delay) return
 

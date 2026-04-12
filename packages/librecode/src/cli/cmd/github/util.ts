@@ -1,4 +1,4 @@
-import { MessageV2 } from "../../../session/message-v2"
+import type { MessageV2 } from "../../../session/message-v2"
 
 /**
  * Parses GitHub remote URLs in various formats:

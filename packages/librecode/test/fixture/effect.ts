@@ -1,5 +1,5 @@
 import { test } from "bun:test"
-import { Effect, Layer } from "effect"
+import { Effect, type Layer } from "effect"
 
 export const testEffect = <R, E>(layer: Layer.Layer<R, E, never>) => ({
   effect: <A, E2>(name: string, value: Effect.Effect<A, E2, R>) =>

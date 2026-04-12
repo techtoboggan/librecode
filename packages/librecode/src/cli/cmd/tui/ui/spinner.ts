@@ -215,7 +215,7 @@ export function deriveTrailColors(brightColor: ColorInput, steps: number = 6): R
       brightnessFactor = 1.15
     } else {
       // Exponential alpha decay for natural-looking trail fade
-      alpha = Math.pow(0.65, i - 1)
+      alpha = 0.65 ** (i - 1)
       brightnessFactor = 1.0
     }
 
