@@ -1,18 +1,18 @@
-import z from "zod"
-import * as path from "path"
-import * as fs from "fs/promises"
-import { Tool } from "./tool"
-import { Bus } from "../bus"
-import { FileWatcher } from "../file/watcher"
-import { Instance } from "../project/instance"
-import { Patch } from "../patch"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import { createTwoFilesPatch, diffLines } from "diff"
-import { assertExternalDirectory } from "./external-directory"
-import { trimDiff } from "./edit"
+import z from "zod"
+import { Bus } from "../bus"
+import { File } from "../file"
+import { FileWatcher } from "../file/watcher"
 import { LSP } from "../lsp"
+import { Patch } from "../patch"
+import { Instance } from "../project/instance"
 import { Filesystem } from "../util/filesystem"
 import DESCRIPTION from "./apply_patch.txt"
-import { File } from "../file"
+import { trimDiff } from "./edit"
+import { assertExternalDirectory } from "./external-directory"
+import { Tool } from "./tool"
 
 const PatchParams = z.object({
   patchText: z.string().describe("The full patch text that describes all changes to be made"),
@@ -214,7 +214,7 @@ export const ApplyPatchTool = Tool.define("apply_patch", {
       await assertExternalDirectory(ctx, filePath)
       const change = await processHunk(hunk, filePath, ctx)
       fileChanges.push(change)
-      totalDiff += change.diff + "\n"
+      totalDiff += `${change.diff}\n`
     }
 
     const files = fileChanges.map((change) => ({

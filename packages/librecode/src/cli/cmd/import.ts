@@ -1,15 +1,15 @@
+import { EOL } from "node:os"
+import type { Message, Part, Session as SDKSession } from "@librecode/sdk/v2"
 import type { Argv } from "yargs"
-import type { Session as SDKSession, Message, Part } from "@librecode/sdk/v2"
+import { Instance } from "../../project/instance"
 import { Session } from "../../session"
 import { MessageV2 } from "../../session/message-v2"
-import { cmd } from "./cmd"
-import { bootstrap } from "../bootstrap"
-import { Database } from "../../storage/db"
-import { SessionTable, MessageTable, PartTable } from "../../session/session.sql"
-import { Instance } from "../../project/instance"
+import { MessageTable, PartTable, SessionTable } from "../../session/session.sql"
 import { ShareNext } from "../../share/share-next"
-import { EOL } from "os"
+import { Database } from "../../storage/db"
 import { Filesystem } from "../../util/filesystem"
+import { bootstrap } from "../bootstrap"
+import { cmd } from "./cmd"
 
 /** Discriminated union returned by the ShareNext API (GET /api/shares/:id/data) */
 export type ShareData =
@@ -47,7 +47,7 @@ export function transformShareData(shareData: ShareData[]): ExportData | null {
       messageMap.set(item.data.id, item.data)
     } else if (item.type === "part") {
       if (!partMap.has(item.data.messageID)) partMap.set(item.data.messageID, [])
-      partMap.get(item.data.messageID)!.push(item.data)
+      partMap.get(item.data.messageID)?.push(item.data)
     }
   }
 
@@ -62,7 +62,7 @@ async function importFromUrl(url: string): Promise<ExportData | null> {
   const slug = parseShareUrl(url)
   if (!slug) {
     const baseUrl = await ShareNext.url()
-    process.stdout.write(`Invalid URL format. Expected: ${baseUrl}/share/<slug>` + EOL)
+    process.stdout.write(`Invalid URL format. Expected: ${baseUrl}/share/<slug>${EOL}`)
     return null
   }
   const parsed = new URL(url)
@@ -74,13 +74,13 @@ async function importFromUrl(url: string): Promise<ExportData | null> {
     response = await fetch(`${parsed.origin}/api/share/${slug}/data`, { headers })
   }
   if (!response.ok) {
-    process.stdout.write(`Failed to fetch share data: ${response.statusText}` + EOL)
+    process.stdout.write(`Failed to fetch share data: ${response.statusText}${EOL}`)
     return null
   }
   const shareData: ShareData[] = await response.json()
   const transformed = transformShareData(shareData)
   if (!transformed) {
-    process.stdout.write(`Share not found or empty: ${slug}` + EOL)
+    process.stdout.write(`Share not found or empty: ${slug}${EOL}`)
     return null
   }
   return transformed
@@ -140,7 +140,7 @@ export const ImportCommand = cmd({
       } else {
         exportData = await Filesystem.readJson<ExportData>(args.file).catch(() => undefined)
         if (!exportData) {
-          process.stdout.write(`File not found: ${args.file}` + EOL)
+          process.stdout.write(`File not found: ${args.file}${EOL}`)
           return
         }
       }
@@ -148,7 +148,7 @@ export const ImportCommand = cmd({
       if (!exportData) return
 
       saveSessionToDb(exportData)
-      process.stdout.write(`Imported session: ${exportData.info.id}` + EOL)
+      process.stdout.write(`Imported session: ${exportData.info.id}${EOL}`)
     })
   },
 })

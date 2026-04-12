@@ -1,10 +1,10 @@
+import { networkInterfaces } from "node:os"
+import open from "open"
+import { Flag } from "../../flag/flag"
 import { Server } from "../../server/server"
+import { resolveNetworkOptions, withNetworkOptions } from "../network"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
-import { withNetworkOptions, resolveNetworkOptions } from "../network"
-import { Flag } from "../../flag/flag"
-import open from "open"
-import { networkInterfaces } from "os"
 
 function getNetworkIPs() {
   const nets = networkInterfaces()
@@ -34,7 +34,7 @@ export const WebCommand = cmd({
   describe: "start librecode server and open web interface",
   handler: async (args) => {
     if (!Flag.LIBRECODE_SERVER_PASSWORD) {
-      UI.println(UI.Style.TEXT_WARNING_BOLD + "!  " + "LIBRECODE_SERVER_PASSWORD is not set; server is unsecured.")
+      UI.println(`${UI.Style.TEXT_WARNING_BOLD}!  LIBRECODE_SERVER_PASSWORD is not set; server is unsecured.`)
     }
     const opts = await resolveNetworkOptions(args)
     const server = Server.listen(opts)
@@ -45,14 +45,14 @@ export const WebCommand = cmd({
     if (opts.hostname === "0.0.0.0") {
       // Show localhost for local access
       const localhostUrl = `http://localhost:${server.port}`
-      UI.println(UI.Style.TEXT_INFO_BOLD + "  Local access:      ", UI.Style.TEXT_NORMAL, localhostUrl)
+      UI.println(`${UI.Style.TEXT_INFO_BOLD}  Local access:      `, UI.Style.TEXT_NORMAL, localhostUrl)
 
       // Show network IPs for remote access
       const networkIPs = getNetworkIPs()
       if (networkIPs.length > 0) {
         for (const ip of networkIPs) {
           UI.println(
-            UI.Style.TEXT_INFO_BOLD + "  Network access:    ",
+            `${UI.Style.TEXT_INFO_BOLD}  Network access:    `,
             UI.Style.TEXT_NORMAL,
             `http://${ip}:${server.port}`,
           )
@@ -61,7 +61,7 @@ export const WebCommand = cmd({
 
       if (opts.mdns) {
         UI.println(
-          UI.Style.TEXT_INFO_BOLD + "  mDNS:              ",
+          `${UI.Style.TEXT_INFO_BOLD}  mDNS:              `,
           UI.Style.TEXT_NORMAL,
           `${opts.mdnsDomain}:${server.port}`,
         )
@@ -71,7 +71,7 @@ export const WebCommand = cmd({
       open(localhostUrl.toString()).catch(() => {})
     } else {
       const displayUrl = server.url.toString()
-      UI.println(UI.Style.TEXT_INFO_BOLD + "  Web interface:    ", UI.Style.TEXT_NORMAL, displayUrl)
+      UI.println(`${UI.Style.TEXT_INFO_BOLD}  Web interface:    `, UI.Style.TEXT_NORMAL, displayUrl)
       open(displayUrl).catch(() => {})
     }
 

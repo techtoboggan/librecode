@@ -1,7 +1,6 @@
+import { setTimeout as sleep } from "node:timers/promises"
 import type { Hooks, PluginInput } from "@librecode/plugin"
 import { Installation } from "@/installation"
-import { iife } from "@/util/iife"
-import { setTimeout as sleep } from "node:timers/promises"
 
 const CLIENT_ID = "Ov23li8tweQw6odWQebz"
 // Add a small safety buffer when polling to avoid hitting the server
@@ -179,7 +178,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
         const enterpriseUrl = info.enterpriseUrl
         const baseURL = enterpriseUrl ? `https://copilot-api.${normalizeDomain(enterpriseUrl)}` : undefined
 
-        if (provider && provider.models) {
+        if (provider?.models) {
           for (const model of Object.values(provider.models)) {
             model.cost = {
               input: 0,
@@ -227,7 +226,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
 
             if (isVision) headers["Copilot-Vision-Request"] = "true"
             delete headers["x-api-key"]
-            delete headers["authorization"]
+            delete headers.authorization
 
             return fetch(request, { ...init, headers })
           },
@@ -364,7 +363,7 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
           throwOnError: true,
         })
         .catch(() => undefined)
-      if (!session || !session.data.parentID) return
+      if (!session?.data.parentID) return
       // mark subagent sessions as agent initiated matching standard that other copilot tools have
       output.headers["x-initiator"] = "agent"
     },

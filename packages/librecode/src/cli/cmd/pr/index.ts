@@ -1,7 +1,7 @@
+import { Instance } from "@/project/instance"
 import { UI } from "../../ui"
 import { cmd } from "../cmd"
-import { Instance } from "@/project/instance"
-import { checkoutPrBranch, fetchPrInfo, configureForkRemote, importPrSession, launchLibrecode } from "./helpers"
+import { checkoutPrBranch, configureForkRemote, fetchPrInfo, importPrSession, launchLibrecode } from "./helpers"
 
 export const PrCommand = cmd({
   command: "pr <number>",

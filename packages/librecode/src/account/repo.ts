@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm"
 
 import { Database } from "@/storage/db"
 import { AccountStateTable, AccountTable } from "./account.sql"
-import type { Account, AccountID, OrgID, AccessToken, RefreshToken } from "./schema"
+import type { AccessToken, Account, AccountID, OrgID, RefreshToken } from "./schema"
 
 export type AccountRow = (typeof AccountTable)["$inferSelect"]
 

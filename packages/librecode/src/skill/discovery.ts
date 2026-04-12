@@ -1,8 +1,8 @@
-import path from "path"
-import { mkdir } from "fs/promises"
-import { Log } from "../util/log"
+import { mkdir } from "node:fs/promises"
+import path from "node:path"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
 
 export namespace Discovery {
   const log = Log.create({ service: "skill-discovery" })

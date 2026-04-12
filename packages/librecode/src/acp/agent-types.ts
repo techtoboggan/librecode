@@ -1,14 +1,13 @@
-import type { PermissionOption, PlanEntry, PromptRequest, ToolCallContent, ToolKind } from "@agentclientprotocol/sdk"
-
 import { pathToFileURL } from "node:url"
+import type { PermissionOption, PromptRequest, ToolCallContent, ToolKind } from "@agentclientprotocol/sdk"
+import type { OpencodeClient } from "@librecode/sdk/v2"
+import { applyPatch } from "diff"
+import { z } from "zod"
+import { Todo } from "@/session/todo"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
-import { Todo } from "@/session/todo"
-import { z } from "zod"
-import { applyPatch } from "diff"
 import { Log } from "../util/log"
 import type { ACPConfig } from "./types"
-import type { OpencodeClient } from "@librecode/sdk/v2"
 
 const log = Log.create({ service: "acp-agent" })
 
@@ -61,27 +60,27 @@ export function toLocations(toolName: string, input: Record<string, unknown>): {
     case "read":
     case "edit":
     case "write":
-      return input["filePath"] ? [{ path: input["filePath"] as string }] : []
+      return input.filePath ? [{ path: input.filePath as string }] : []
     case "glob":
     case "grep":
-      return input["path"] ? [{ path: input["path"] as string }] : []
+      return input.path ? [{ path: input.path as string }] : []
     case "bash":
       return []
     case "list":
-      return input["path"] ? [{ path: input["path"] as string }] : []
+      return input.path ? [{ path: input.path as string }] : []
     default:
       return []
   }
 }
 
 export function buildEditDiffContent(input: Record<string, unknown>): Extract<ToolCallContent, { type: "diff" }> {
-  const filePath = typeof input["filePath"] === "string" ? input["filePath"] : ""
-  const oldText = typeof input["oldString"] === "string" ? input["oldString"] : ""
+  const filePath = typeof input.filePath === "string" ? input.filePath : ""
+  const oldText = typeof input.oldString === "string" ? input.oldString : ""
   const newText =
-    typeof input["newString"] === "string"
-      ? input["newString"]
-      : typeof input["content"] === "string"
-        ? input["content"]
+    typeof input.newString === "string"
+      ? input.newString
+      : typeof input.content === "string"
+        ? input.content
         : ""
   return { type: "diff", path: filePath, oldText, newText }
 }
@@ -217,7 +216,7 @@ export async function defaultModel(
     .get({ directory }, { throwOnError: true })
     .then((resp) => {
       const cfg = resp.data
-      if (!cfg || !cfg.model) return undefined
+      if (!cfg?.model) return undefined
       return Provider.parseModel(cfg.model.id)
     })
     .catch((error) => {
@@ -235,7 +234,7 @@ export async function defaultModel(
 
   if (specified && providers.length) {
     const provider = providers.find((p) => p.id === specified.providerID)
-    if (provider && provider.models[specified.modelID]) return specified
+    if (provider?.models[specified.modelID]) return specified
   }
 
   if (specified && !providers.length) return specified
@@ -303,7 +302,7 @@ function convertImagePromptPart(part: Extract<PromptRequest["prompt"][number], {
   if (part.data) {
     return [{ type: "file", url: `data:${part.mimeType};base64,${part.data}`, filename, mime: part.mimeType }]
   }
-  if (part.uri && part.uri.startsWith("http:")) {
+  if (part.uri?.startsWith("http:")) {
     return [{ type: "file", url: part.uri, filename, mime: part.mimeType }]
   }
   return []

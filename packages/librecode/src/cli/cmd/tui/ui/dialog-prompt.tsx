@@ -1,8 +1,8 @@
-import { type TextareaRenderable, TextAttributes } from "@opentui/core"
-import { useTheme } from "../context/theme"
-import { useDialog, type DialogContext } from "./dialog"
-import { onMount, type JSX } from "solid-js"
+import { TextAttributes, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
+import { type JSX, onMount } from "solid-js"
+import { useTheme } from "../context/theme"
+import { type DialogContext, useDialog } from "./dialog"
 
 export type DialogPromptProps = {
   title: string

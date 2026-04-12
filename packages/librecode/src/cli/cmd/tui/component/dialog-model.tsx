@@ -1,12 +1,12 @@
-import { createMemo, createSignal } from "solid-js"
 import { useLocal } from "@tui/context/local"
 import { useSync } from "@tui/context/sync"
-import { map, pipe, flatMap, entries, filter, sortBy, take } from "remeda"
-import { DialogSelect } from "@tui/ui/dialog-select"
 import { useDialog } from "@tui/ui/dialog"
-import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
-import { useKeybind } from "../context/keybind"
+import { DialogSelect } from "@tui/ui/dialog-select"
 import * as fuzzysort from "fuzzysort"
+import { entries, filter, flatMap, map, pipe, sortBy, take } from "remeda"
+import { createMemo, createSignal } from "solid-js"
+import { useKeybind } from "../context/keybind"
+import { createDialogProviderOptions, DialogProvider } from "./dialog-provider"
 
 type ModelRef = { providerID: string; modelID: string }
 

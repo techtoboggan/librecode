@@ -1,7 +1,6 @@
-import { BusEvent } from "@/bus/bus-event"
-import { Bus } from "@/bus"
-import { SessionID } from "@/session/schema"
 import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
+import { SessionID } from "@/session/schema"
 
 export const TuiEvent = {
   PromptAppend: BusEvent.define("tui.prompt.append", z.object({ text: z.string() })),

@@ -1,7 +1,7 @@
+import { readFileSync } from "node:fs"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import z from "zod"
-import * as path from "path"
-import * as fs from "fs/promises"
-import { readFileSync } from "fs"
 import { Log } from "../util/log"
 
 export namespace Patch {
@@ -174,7 +174,7 @@ export namespace Patch {
 
     while (i < lines.length && !lines[i].startsWith("***")) {
       if (lines[i].startsWith("+")) {
-        content += lines[i].substring(1) + "\n"
+        content += `${lines[i].substring(1)}\n`
       }
       i++
     }

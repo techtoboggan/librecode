@@ -1,29 +1,29 @@
-import path from "path"
-import os from "os"
-import fs from "fs/promises"
-import { spawn as launch } from "child_process"
+import { spawn as launch } from "node:child_process"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import {
-  Global,
-  Filesystem,
-  Instance,
-  Flag,
-  Process,
-  which,
-  log,
-  pathExists,
-  run,
-  resolveTyVenvPython,
-  resolveTyBinary,
+  BunProc,
   downloadJdtls,
-  jdtlsPlatformConfigDir,
   downloadKotlinLS,
   downloadLuaLS,
   downloadTerraformLS,
   downloadTexLab,
   downloadTinymist,
-  BunProc,
+  Filesystem,
+  Flag,
+  Global,
+  Instance,
+  jdtlsPlatformConfigDir,
+  log,
+  Process,
+  pathExists,
+  resolveTyBinary,
+  resolveTyVenvPython,
+  run,
+  which,
 } from "../install"
-import { type Handle, type Info, NearestRoot } from "./web"
+import { type Info, NearestRoot } from "./web"
 
 const spawn = ((cmd, args, opts) => {
   if (Array.isArray(args)) return launch(cmd, [...args], { ...(opts ?? {}), windowsHide: true })
@@ -45,13 +45,13 @@ export const Ty: Info = {
   async spawn(root) {
     if (!Flag.LIBRECODE_EXPERIMENTAL_LSP_TY) return undefined
 
-    const potentialVenvPaths = [process.env["VIRTUAL_ENV"], path.join(root, ".venv"), path.join(root, "venv")].filter(
+    const potentialVenvPaths = [process.env.VIRTUAL_ENV, path.join(root, ".venv"), path.join(root, "venv")].filter(
       (p): p is string => p !== undefined,
     )
 
     const initialization: Record<string, string> = {}
     const pythonPath = await resolveTyVenvPython(potentialVenvPaths)
-    if (pythonPath) initialization["pythonPath"] = pythonPath
+    if (pythonPath) initialization.pythonPath = pythonPath
 
     const binary = which("ty") ?? (await resolveTyBinary(potentialVenvPaths))
     if (!binary) {
@@ -92,11 +92,11 @@ export const Pyright: Info = {
 
     const initialization: Record<string, string> = {}
 
-    const potentialVenvPaths = [process.env["VIRTUAL_ENV"], path.join(root, ".venv"), path.join(root, "venv")].filter(
+    const potentialVenvPaths = [process.env.VIRTUAL_ENV, path.join(root, ".venv"), path.join(root, "venv")].filter(
       (p): p is string => p !== undefined,
     )
     const pythonPath = await resolveTyVenvPython(potentialVenvPaths)
-    if (pythonPath) initialization["pythonPath"] = pythonPath
+    if (pythonPath) initialization.pythonPath = pythonPath
 
     const proc = spawn(binary, args, {
       cwd: root,
@@ -147,7 +147,7 @@ export const JDTLS: Info = {
     }
     const javaMajorVersion = await run(["java", "-version"]).then((result) => {
       const m = /"(\d+)\.\d+\.\d+"/.exec(result.stderr.toString())
-      return !m ? undefined : parseInt(m[1])
+      return !m ? undefined : parseInt(m[1], 10)
     })
     if (javaMajorVersion == null || javaMajorVersion < 21) {
       log.error("JDTLS requires at least Java 21.")
@@ -281,7 +281,7 @@ export const LuaLS: Info = {
   extensions: [".lua"],
   async spawn(root) {
     const bin =
-      which("lua-language-server", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ??
+      which("lua-language-server", { PATH: process.env.PATH + path.delimiter + Global.Path.bin }) ??
       (await downloadLuaLS())
     if (!bin) return
 
@@ -434,7 +434,7 @@ export const TerraformLS: Info = {
   root: NearestRoot([".terraform.lock.hcl", "terraform.tfstate", "*.tf"]),
   async spawn(root) {
     const bin =
-      which("terraform-ls", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ??
+      which("terraform-ls", { PATH: process.env.PATH + path.delimiter + Global.Path.bin }) ??
       (await downloadTerraformLS())
     if (!bin) return
 
@@ -456,7 +456,7 @@ export const TexLab: Info = {
   root: NearestRoot([".latexmkrc", "latexmkrc", ".texlabroot", "texlabroot"]),
   async spawn(root) {
     const bin =
-      which("texlab", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadTexLab())
+      which("texlab", { PATH: process.env.PATH + path.delimiter + Global.Path.bin }) ?? (await downloadTexLab())
     if (!bin) return
 
     return {
@@ -580,7 +580,7 @@ export const Tinymist: Info = {
   root: NearestRoot(["typst.toml"]),
   async spawn(root) {
     const bin =
-      which("tinymist", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadTinymist())
+      which("tinymist", { PATH: process.env.PATH + path.delimiter + Global.Path.bin }) ?? (await downloadTinymist())
     if (!bin) return
 
     return {

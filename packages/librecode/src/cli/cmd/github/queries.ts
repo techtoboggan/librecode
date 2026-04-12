@@ -254,7 +254,7 @@ query($owner: String!, $repo: String!, $number: Int!) {
 
 export function buildPromptDataForIssue(issue: GitHubIssue, triggerCommentId: number | undefined): string {
   const comments = (issue.comments?.nodes || [])
-    .filter((c) => parseInt(c.databaseId) !== triggerCommentId)
+    .filter((c) => parseInt(c.databaseId, 10) !== triggerCommentId)
     .map((c) => `  - ${c.author.login} at ${c.createdAt}: ${c.body}`)
 
   return [
@@ -280,7 +280,7 @@ export function buildPromptDataForIssue(issue: GitHubIssue, triggerCommentId: nu
 
 export function buildPromptDataForPR(pr: GitHubPullRequest, triggerCommentId: number | undefined): string {
   const comments = (pr.comments?.nodes || [])
-    .filter((c) => parseInt(c.databaseId) !== triggerCommentId)
+    .filter((c) => parseInt(c.databaseId, 10) !== triggerCommentId)
     .map((c) => `- ${c.author.login} at ${c.createdAt}: ${c.body}`)
 
   const files = (pr.files.nodes || []).map((f) => `- ${f.path} (${f.changeType}) +${f.additions}/-${f.deletions}`)

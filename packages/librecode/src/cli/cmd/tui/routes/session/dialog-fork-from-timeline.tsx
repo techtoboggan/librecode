@@ -1,12 +1,12 @@
-import { createMemo, onMount } from "solid-js"
+import type { Part, TextPart } from "@librecode/sdk/v2"
+import type { PromptInfo } from "@tui/component/prompt/history"
+import { useRoute } from "@tui/context/route"
+import { useSDK } from "@tui/context/sdk"
 import { useSync } from "@tui/context/sync"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
-import type { TextPart, Part } from "@librecode/sdk/v2"
+import { createMemo, onMount } from "solid-js"
 import { Locale } from "@/util/locale"
-import { useSDK } from "@tui/context/sdk"
-import { useRoute } from "@tui/context/route"
 import { useDialog } from "../../ui/dialog"
-import type { PromptInfo } from "@tui/component/prompt/history"
 
 function buildInitialPrompt(parts: Part[]): PromptInfo {
   return parts.reduce(

@@ -1,16 +1,16 @@
-import { Installation } from "@/installation"
-import { Server } from "@/server/server"
-import { Log } from "@/util/log"
-import { Instance } from "@/project/instance"
-import { InstanceBootstrap } from "@/project/bootstrap"
-import { Rpc } from "@/util/rpc"
-import { upgrade } from "@/cli/upgrade"
-import { Config } from "@/config/config"
-import { GlobalBus } from "@/bus/global"
+import { setTimeout as sleep } from "node:timers/promises"
 import { createOpencodeClient, type Event } from "@librecode/sdk/v2"
 import type { BunWebSocketData } from "hono/bun"
+import { GlobalBus } from "@/bus/global"
+import { upgrade } from "@/cli/upgrade"
+import { Config } from "@/config/config"
 import { Flag } from "@/flag/flag"
-import { setTimeout as sleep } from "node:timers/promises"
+import { Installation } from "@/installation"
+import { InstanceBootstrap } from "@/project/bootstrap"
+import { Instance } from "@/project/instance"
+import { Server } from "@/server/server"
+import { Log } from "@/util/log"
+import { Rpc } from "@/util/rpc"
 
 await Log.init({
   print: process.argv.includes("--print-logs"),
@@ -102,8 +102,8 @@ export const rpc = {
   async fetch(input: { url: string; method: string; headers: Record<string, string>; body?: string }) {
     const headers = { ...input.headers }
     const auth = getAuthorizationHeader()
-    if (auth && !headers["authorization"] && !headers["Authorization"]) {
-      headers["Authorization"] = auth
+    if (auth && !headers.authorization && !headers.Authorization) {
+      headers.Authorization = auth
     }
     const request = new Request(input.url, {
       method: input.method,

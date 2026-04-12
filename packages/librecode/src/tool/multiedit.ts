@@ -1,9 +1,9 @@
+import path from "node:path"
 import z from "zod"
-import { Tool } from "./tool"
+import { Instance } from "../project/instance"
 import { EditTool } from "./edit"
 import DESCRIPTION from "./multiedit.txt"
-import path from "path"
-import { Instance } from "../project/instance"
+import { Tool } from "./tool"
 
 export const MultiEditTool = Tool.define("multiedit", {
   description: DESCRIPTION,
@@ -40,7 +40,7 @@ export const MultiEditTool = Tool.define("multiedit", {
       metadata: {
         results: results.map((r) => r.metadata),
       },
-      output: results.at(-1)!.output,
+      output: results.at(-1)?.output ?? "",
     }
   },
 })

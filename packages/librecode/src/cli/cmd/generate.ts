@@ -1,5 +1,5 @@
-import { Server } from "../../server/server"
 import type { CommandModule } from "yargs"
+import { Server } from "../../server/server"
 
 export const GenerateCommand = {
   command: "generate",

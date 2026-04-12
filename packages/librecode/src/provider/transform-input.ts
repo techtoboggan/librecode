@@ -1,6 +1,6 @@
-import type { ModelMessage, TextPart, ImagePart, FilePart } from "ai"
-import type { Provider } from "./provider"
+import type { FilePart, ImagePart, ModelMessage, TextPart } from "ai"
 import type { ModelsDev } from "./models"
+import type { Provider } from "./provider"
 
 type Modality = NonNullable<ModelsDev.Model["modalities"]>["input"][number]
 

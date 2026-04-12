@@ -1,7 +1,7 @@
-import { createMemo, createResource } from "solid-js"
-import { DialogSelect } from "@tui/ui/dialog-select"
-import { useDialog } from "@tui/ui/dialog"
 import { useSDK } from "@tui/context/sdk"
+import { useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
+import { createMemo, createResource } from "solid-js"
 import { createStore } from "solid-js/store"
 
 export function DialogTag(props: { onSelect?: (value: string) => void }) {

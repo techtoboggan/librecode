@@ -1,4 +1,4 @@
-import { Account as AccountSchema, type AccessToken, type AccountID, AccountService, type OrgID } from "./service"
+import { type AccessToken, type AccountID, Account as AccountSchema, AccountService, type OrgID } from "./service"
 
 export { AccessToken, AccountID, OrgID } from "./service"
 

@@ -1,6 +1,6 @@
-import { DialogPrompt } from "@tui/ui/dialog-prompt"
-import { useDialog } from "@tui/ui/dialog"
 import { useSync } from "@tui/context/sync"
+import { useDialog } from "@tui/ui/dialog"
+import { DialogPrompt } from "@tui/ui/dialog-prompt"
 import { createMemo } from "solid-js"
 import { useSDK } from "../context/sdk"
 

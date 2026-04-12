@@ -1,7 +1,7 @@
-import { createMemo } from "solid-js"
 import type { KeyBinding } from "@opentui/core"
-import { useKeybind } from "../context/keybind"
+import { createMemo } from "solid-js"
 import type { Keybind } from "@/util/keybind"
+import { useKeybind } from "../context/keybind"
 
 const TEXTAREA_ACTIONS = [
   "submit",

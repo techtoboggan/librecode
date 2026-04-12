@@ -1,7 +1,7 @@
-import { Auth } from "../../../auth"
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
+import { Auth } from "../../../auth"
 import { Plugin } from "../../../plugin"
+import { UI } from "../../ui"
 import { handlePluginAuth } from "./auth-flow"
 import { buildProviderOptions, selectProvider } from "./select"
 
@@ -28,7 +28,7 @@ function handleProviderSpecificInfo(provider: string): void {
 async function handleOtherProvider(method?: string): Promise<string | null> {
   const custom = await prompts.text({
     message: "Enter provider id",
-    validate: (x) => (x && x.match(/^[0-9a-z-]+$/) ? undefined : "a-z, 0-9 and hyphens only"),
+    validate: (x) => (x?.match(/^[0-9a-z-]+$/) ? undefined : "a-z, 0-9 and hyphens only"),
   })
   if (prompts.isCancel(custom)) throw new UI.CancelledError()
   const provider = custom.replace(/^@ai-sdk\//, "")

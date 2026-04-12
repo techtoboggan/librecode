@@ -1,6 +1,6 @@
-import { createConnection } from "net"
+import { createConnection } from "node:net"
 import { Log } from "../util/log"
-import { OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH } from "./oauth-provider"
+import { OAUTH_CALLBACK_PATH, OAUTH_CALLBACK_PORT } from "./oauth-provider"
 
 const log = Log.create({ service: "mcp.oauth-callback" })
 
@@ -168,7 +168,7 @@ export namespace McpOAuthCallback {
       log.info("oauth callback server stopped")
     }
 
-    for (const [name, pending] of pendingAuths) {
+    for (const [_name, pending] of pendingAuths) {
       clearTimeout(pending.timeout)
       pending.reject(new Error("OAuth callback server stopped"))
     }

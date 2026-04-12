@@ -1,14 +1,14 @@
-import { cmd } from "./cmd"
 import * as prompts from "@clack/prompts"
-import { UI } from "../ui"
-import { AccountService } from "@/account/service"
-import { type AccountID, type OrgID, PollExpired, type PollResult } from "@/account/schema"
 import open from "open"
+import { type AccountID, type OrgID, PollExpired, type PollResult } from "@/account/schema"
+import { AccountService } from "@/account/service"
+import { UI } from "../ui"
+import { cmd } from "./cmd"
 
 function handlePollResult(result: PollResult, spinner: ReturnType<typeof prompts.spinner>): void {
   switch (result._tag) {
     case "PollSuccess":
-      spinner.stop("Logged in as " + result.email)
+      spinner.stop(`Logged in as ${result.email}`)
       prompts.outro("Done")
       break
     case "PollExpired":
@@ -18,7 +18,7 @@ function handlePollResult(result: PollResult, spinner: ReturnType<typeof prompts
       spinner.stop("Authorization denied", 1)
       break
     case "PollError":
-      spinner.stop("Error: " + String(result.cause), 1)
+      spinner.stop(`Error: ${String(result.cause)}`, 1)
       break
     default:
       spinner.stop("Unexpected state", 1)
@@ -29,8 +29,8 @@ async function login(url: string) {
   prompts.intro("Log in")
   const loginResult = await AccountService.login(url)
 
-  prompts.log.info("Go to: " + loginResult.url)
-  prompts.log.info("Enter code: " + loginResult.user)
+  prompts.log.info(`Go to: ${loginResult.url}`)
+  prompts.log.info(`Enter code: ${loginResult.user}`)
   open(loginResult.url).catch(() => undefined)
 
   const s = prompts.spinner()
@@ -55,9 +55,9 @@ async function logout(email?: string) {
 
   if (email) {
     const match = accounts.find((a) => a.email === email)
-    if (!match) return UI.println("Account not found: " + email)
+    if (!match) return UI.println(`Account not found: ${email}`)
     AccountService.remove(match.id)
-    prompts.outro("Logged out from " + email)
+    prompts.outro(`Logged out from ${email}`)
     return
   }
 
@@ -70,7 +70,7 @@ async function logout(email?: string) {
     const server = UI.Style.TEXT_DIM + a.url + UI.Style.TEXT_NORMAL
     return {
       value: a,
-      label: isActive ? `${a.email} ${server}` + UI.Style.TEXT_DIM + " (active)" : `${a.email} ${server}`,
+      label: isActive ? `${a.email} ${server}${UI.Style.TEXT_DIM} (active)` : `${a.email} ${server}`,
     }
   })
 
@@ -78,7 +78,7 @@ async function logout(email?: string) {
   if (prompts.isCancel(result)) return
 
   AccountService.remove(result.id)
-  prompts.outro("Logged out from " + result.email)
+  prompts.outro(`Logged out from ${result.email}`)
 }
 
 interface OrgChoice {
@@ -100,7 +100,7 @@ async function switchOrg() {
       return {
         value: { orgID: org.id, accountID: group.account.id, label: org.name } as OrgChoice,
         label: isActive
-          ? `${org.name} (${group.account.email})` + UI.Style.TEXT_DIM + " (active)"
+          ? `${org.name} (${group.account.email})${UI.Style.TEXT_DIM} (active)`
           : `${org.name} (${group.account.email})`,
       }
     }),
@@ -114,11 +114,11 @@ async function switchOrg() {
 
   const choice = result as OrgChoice
   AccountService.use(choice.accountID, choice.orgID)
-  prompts.outro("Switched to " + choice.label)
+  prompts.outro(`Switched to ${choice.label}`)
 }
 
 function formatOrgLine(org: { name: string; id: string }, email: string, isActive: boolean | "" | undefined): string {
-  const dot = isActive ? UI.Style.TEXT_SUCCESS + "\u25CF" + UI.Style.TEXT_NORMAL : " "
+  const dot = isActive ? `${UI.Style.TEXT_SUCCESS}\u25CF${UI.Style.TEXT_NORMAL}` : " "
   const name = isActive ? UI.Style.TEXT_HIGHLIGHT_BOLD + org.name + UI.Style.TEXT_NORMAL : org.name
   return `  ${dot} ${name}  ${UI.Style.TEXT_DIM}${email}${UI.Style.TEXT_NORMAL}  ${UI.Style.TEXT_DIM}${org.id}${UI.Style.TEXT_NORMAL}`
 }

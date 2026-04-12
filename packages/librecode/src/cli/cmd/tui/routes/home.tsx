@@ -1,20 +1,20 @@
 import { Prompt, type PromptRef } from "@tui/component/prompt"
-import { createEffect, createMemo, Match, on, onMount, Show, Switch } from "solid-js"
-import { useTheme } from "@tui/context/theme"
 import { useKeybind } from "@tui/context/keybind"
+import { useRouteData } from "@tui/context/route"
+import { useTheme } from "@tui/context/theme"
+import { createEffect, createMemo, Match, on, onMount, Show, Switch } from "solid-js"
+import { Installation } from "@/installation"
+import { Locale } from "@/util/locale"
+import { useCommandDialog } from "../component/dialog-command"
 import { Logo } from "../component/logo"
 import { Tips } from "../component/tips"
-import { Locale } from "@/util/locale"
-import { useSync } from "../context/sync"
-import { Toast } from "../ui/toast"
 import { useArgs } from "../context/args"
 import { useDirectory } from "../context/directory"
-import { useRouteData } from "@tui/context/route"
-import { usePromptRef } from "../context/prompt"
-import { Installation } from "@/installation"
 import { useKV } from "../context/kv"
-import { useCommandDialog } from "../component/dialog-command"
 import { useLocal } from "../context/local"
+import { usePromptRef } from "../context/prompt"
+import { useSync } from "../context/sync"
+import { Toast } from "../ui/toast"
 
 // TODO: what is the best way to do this?
 let once = false
@@ -103,7 +103,7 @@ export function Home() {
   )
   const directory = useDirectory()
 
-  const keybind = useKeybind()
+  const _keybind = useKeybind()
 
   return (
     <>

@@ -1,9 +1,9 @@
-import { createMemo, createSignal, onMount, onCleanup, Show } from "solid-js"
+import type { SessionStatus } from "@librecode/sdk/v2"
 import type { useTheme } from "@tui/context/theme"
 import type { useDialog } from "@tui/ui/dialog"
-import { DialogAlert } from "../../ui/dialog-alert"
+import { createMemo, createSignal, onCleanup, onMount, Show } from "solid-js"
 import { formatDuration } from "@/util/format"
-import type { SessionStatus } from "@librecode/sdk/v2"
+import { DialogAlert } from "../../ui/dialog-alert"
 
 // ---------------------------------------------------------------------------
 // RetryStatusDisplay — subcomponent that shows retry error + countdown
@@ -27,7 +27,7 @@ export function RetryStatusDisplay(props: RetryStatusDisplayProps) {
     if (!r) return undefined
     if (r.message.includes("exceeded your current quota") && r.message.includes("gemini"))
       return "gemini is way too hot right now"
-    if (r.message.length > 80) return r.message.slice(0, 80) + "..."
+    if (r.message.length > 80) return `${r.message.slice(0, 80)}...`
     return r.message
   })
 

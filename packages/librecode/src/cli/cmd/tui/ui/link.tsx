@@ -1,6 +1,6 @@
-import type { JSX } from "solid-js"
 import type { RGBA } from "@opentui/core"
 import open from "open"
+import type { JSX } from "solid-js"
 
 export interface LinkProps {
   href: string

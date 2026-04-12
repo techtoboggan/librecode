@@ -1,76 +1,76 @@
-import { Log } from "../util/log"
-import path from "path"
-import { pathToFileURL } from "url"
-import { createRequire } from "module"
-import os from "os"
-import z from "zod"
-import { mergeDeep, pipe } from "remeda"
-import { Global } from "../global"
-import fs from "fs/promises"
-import { lazy } from "../util/lazy"
+import { constants, existsSync } from "node:fs"
+import fs from "node:fs/promises"
+import { createRequire } from "node:module"
+import os from "node:os"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { NamedError } from "@librecode/util/error"
-import { Flag } from "../flag/flag"
-import { Auth } from "../auth"
 import {
-  type ParseError as JsoncParseError,
   applyEdits,
+  type ParseError as JsoncParseError,
   modify,
   parse as parseJsonc,
   printParseErrorCode,
 } from "jsonc-parser"
-import { Instance } from "../project/instance"
+import { mergeDeep, pipe } from "remeda"
+import z from "zod"
 import { BunProc } from "@/bun"
-import { Installation } from "@/installation"
-import { constants, existsSync } from "fs"
-import { GlobalBus } from "@/bus/global"
-import { Event } from "../server/event"
 import { PackageRegistry } from "@/bun/registry"
-import { proxied } from "@/util/proxied"
-import { ConfigPaths } from "./paths"
+import { GlobalBus } from "@/bus/global"
+import { Installation } from "@/installation"
 import { Filesystem } from "@/util/filesystem"
-import { Process } from "@/util/process"
 import { Lock } from "@/util/lock"
+import { Process } from "@/util/process"
+import { proxied } from "@/util/proxied"
+import { Auth } from "../auth"
+import { Flag } from "../flag/flag"
+import { Global } from "../global"
+import { Instance } from "../project/instance"
+import { Event } from "../server/event"
+import { lazy } from "../util/lazy"
+import { Log } from "../util/log"
+import { ConfigPaths } from "./paths"
 import {
-  mergeConfigConcatArrays,
-  loadWellKnownConfigs,
-  loadProjectFileConfigs,
-  loadLibrecodeDirConfigs,
-  loadInlineConfig,
-  loadAccountConfig,
-  loadManagedConfig,
-  migrateModesToAgents,
-  applyLegacyToolsPermissions,
-} from "./sources"
-import {
+  Agent as _Agent,
+  Command as _Command,
+  Info as _Info,
+  Keybinds as _Keybinds,
+  Layout as _Layout,
+  Mcp as _Mcp,
   McpLocal as _McpLocal,
   McpOAuth as _McpOAuth,
   McpRemote as _McpRemote,
-  Mcp as _Mcp,
+  Permission as _Permission,
   PermissionAction as _PermissionAction,
   PermissionObject as _PermissionObject,
   PermissionRule as _PermissionRule,
-  Permission as _Permission,
-  Command as _Command,
-  Skills as _Skills,
-  Agent as _Agent,
-  Keybinds as _Keybinds,
-  Server as _Server,
-  Layout as _Layout,
   Provider as _Provider,
-  Info as _Info,
+  Server as _Server,
+  Skills as _Skills,
+  type Agent as AgentType,
+  type Command as CommandType,
+  type Info as InfoType,
+  type Layout as LayoutType,
   type McpOAuth as McpOAuthType,
   type Mcp as McpType,
   type PermissionAction as PermissionActionType,
   type PermissionObject as PermissionObjectType,
   type PermissionRule as PermissionRuleType,
   type Permission as PermissionType,
-  type Command as CommandType,
-  type Skills as SkillsType,
-  type Agent as AgentType,
-  type Layout as LayoutType,
   type Provider as ProviderType,
-  type Info as InfoType,
+  type Skills as SkillsType,
 } from "./schema"
+import {
+  applyLegacyToolsPermissions,
+  loadAccountConfig,
+  loadInlineConfig,
+  loadLibrecodeDirConfigs,
+  loadManagedConfig,
+  loadProjectFileConfigs,
+  loadWellKnownConfigs,
+  mergeConfigConcatArrays,
+  migrateModesToAgents,
+} from "./sources"
 
 export namespace Config {
   const log = Log.create({ service: "config" })
@@ -412,7 +412,7 @@ export namespace Config {
         .then(async (mod) => {
           const { provider, model, ...rest } = mod.default
           if (provider && model) result.model = `${provider}/${model}`
-          result["$schema"] = "https://github.com/techtoboggan/librecode/config.json"
+          result.$schema = "https://github.com/techtoboggan/librecode/config.json"
           result = mergeDeep(result, rest)
           await Filesystem.writeJson(path.join(Global.Path.config, "config.json"), result)
           await fs.unlink(legacy)
@@ -450,7 +450,7 @@ export namespace Config {
 
   function resolvePluginSpecifier(plugin: string, filePath: string): string {
     try {
-      return import.meta.resolve!(plugin, filePath)
+      return import.meta.resolve?.(plugin, filePath)
     } catch {
       try {
         // import.meta.resolve sometimes fails with newly created node_modules

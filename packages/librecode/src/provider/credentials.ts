@@ -1,6 +1,6 @@
 import { Database, eq } from "../storage/db"
-import { ProviderCredentialsTable } from "./credentials.sql"
 import { Log } from "../util/log"
+import { ProviderCredentialsTable } from "./credentials.sql"
 
 const log = Log.create({ service: "provider.credentials" })
 

@@ -1,13 +1,13 @@
-import path from "path"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { text } from "node:stream/consumers"
-import { Global } from "../global"
-import { Log } from "../util/log"
 import { BunProc } from "../bun"
-import { Filesystem } from "../util/filesystem"
-import { Instance } from "../project/instance"
 import { Flag } from "../flag/flag"
+import { Global } from "../global"
+import { Instance } from "../project/instance"
 import { Archive } from "../util/archive"
+import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
 import { Process } from "../util/process"
 import { which } from "../util/which"
 
@@ -73,8 +73,8 @@ export async function resolveLocalOrPathBin(
 
 export async function resolveOxlintLspBin(root: string): Promise<{ bin: string; useLsp: boolean } | undefined> {
   const ext = process.platform === "win32" ? ".cmd" : ""
-  const lintTarget = path.join("node_modules", ".bin", "oxlint" + ext)
-  const serverTarget = path.join("node_modules", ".bin", "oxc_language_server" + ext)
+  const lintTarget = path.join("node_modules", ".bin", `oxlint${ext}`)
+  const serverTarget = path.join("node_modules", ".bin", `oxc_language_server${ext}`)
 
   const lintBin = await resolveLocalOrPathBin(root, lintTarget, "oxlint")
   if (lintBin) {
@@ -235,7 +235,7 @@ export async function downloadZls(): Promise<string | undefined> {
   if (!ok) return undefined
 
   const platform = process.platform
-  const bin = path.join(Global.Path.bin, "zls" + (platform === "win32" ? ".exe" : ""))
+  const bin = path.join(Global.Path.bin, `zls${platform === "win32" ? ".exe" : ""}`)
   if (!(await Filesystem.exists(bin))) {
     log.error("Failed to extract zls binary")
     return undefined
@@ -250,14 +250,14 @@ export async function findClangdBin(): Promise<string | undefined> {
   if (fromPath) return fromPath
 
   const ext = process.platform === "win32" ? ".exe" : ""
-  const direct = path.join(Global.Path.bin, "clangd" + ext)
+  const direct = path.join(Global.Path.bin, `clangd${ext}`)
   if (await Filesystem.exists(direct)) return direct
 
   const entries = await fs.readdir(Global.Path.bin, { withFileTypes: true }).catch(() => [])
   for (const entry of entries) {
     if (!entry.isDirectory()) continue
     if (!entry.name.startsWith("clangd_")) continue
-    const candidate = path.join(Global.Path.bin, entry.name, "bin", "clangd" + ext)
+    const candidate = path.join(Global.Path.bin, entry.name, "bin", `clangd${ext}`)
     if (await Filesystem.exists(candidate)) return candidate
   }
   return undefined
@@ -348,7 +348,7 @@ export async function downloadClangd(): Promise<string | undefined> {
 
   const platform = process.platform
   const ext = platform === "win32" ? ".exe" : ""
-  const bin = path.join(Global.Path.bin, "clangd_" + tag, "bin", "clangd" + ext)
+  const bin = path.join(Global.Path.bin, `clangd_${tag}`, "bin", `clangd${ext}`)
   if (!(await Filesystem.exists(bin))) {
     log.error("Failed to extract clangd binary")
     return undefined
@@ -578,7 +578,7 @@ export async function downloadLuaLS(): Promise<string | undefined> {
   if (!extracted) return undefined
 
   const platform = process.platform
-  const bin = path.join(installDir, "bin", "lua-language-server" + (platform === "win32" ? ".exe" : ""))
+  const bin = path.join(installDir, "bin", `lua-language-server${platform === "win32" ? ".exe" : ""}`)
   return installLuaLSBin(bin, platform)
 }
 
@@ -627,7 +627,7 @@ export async function downloadTerraformLS(): Promise<string | undefined> {
   if (!ok) return undefined
   await fs.rm(tempPath, { force: true })
 
-  const bin = path.join(Global.Path.bin, "terraform-ls" + (platform === "win32" ? ".exe" : ""))
+  const bin = path.join(Global.Path.bin, `terraform-ls${platform === "win32" ? ".exe" : ""}`)
   if (!(await Filesystem.exists(bin))) {
     log.error("Failed to extract terraform-ls binary")
     return undefined
@@ -707,7 +707,7 @@ export async function downloadTexLab(): Promise<string | undefined> {
   if (!ok) return undefined
 
   const platform = process.platform
-  const bin = path.join(Global.Path.bin, "texlab" + (platform === "win32" ? ".exe" : ""))
+  const bin = path.join(Global.Path.bin, `texlab${platform === "win32" ? ".exe" : ""}`)
   if (!(await Filesystem.exists(bin))) {
     log.error("Failed to extract texlab binary")
     return undefined
@@ -776,7 +776,7 @@ export async function downloadTinymist(): Promise<string | undefined> {
   if (!ok) return undefined
 
   const platform = process.platform
-  const bin = path.join(Global.Path.bin, "tinymist" + (platform === "win32" ? ".exe" : ""))
+  const bin = path.join(Global.Path.bin, `tinymist${platform === "win32" ? ".exe" : ""}`)
   if (!(await Filesystem.exists(bin))) {
     log.error("Failed to extract tinymist binary")
     return undefined
@@ -786,4 +786,4 @@ export async function downloadTinymist(): Promise<string | undefined> {
   return bin
 }
 
-export { BunProc, Global, Filesystem, Instance, Flag, Process, which, log }
+export { BunProc, Filesystem, Flag, Global, Instance, log, Process, which }

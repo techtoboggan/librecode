@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core"
+import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 
 /**
  * Stores structured credentials for providers that need both a URL and an API key

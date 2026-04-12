@@ -1,8 +1,8 @@
-import { UI } from "../../ui"
-import { Process } from "@/util/process"
-import { git } from "@/util/git"
+import { spawn } from "node:child_process"
 import { Instance } from "@/project/instance"
-import { spawn } from "child_process"
+import { git } from "@/util/git"
+import { Process } from "@/util/process"
+import { UI } from "../../ui"
 
 export async function checkoutPrBranch(prNumber: number, localBranchName: string): Promise<boolean> {
   UI.println(`Fetching and checking out PR #${prNumber}...`)

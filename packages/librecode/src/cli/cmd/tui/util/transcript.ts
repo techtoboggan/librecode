@@ -62,7 +62,7 @@ export function formatAssistantHeader(msg: AssistantMessage, includeMetadata: bo
   }
 
   const duration =
-    msg.time.completed && msg.time.created ? ((msg.time.completed - msg.time.created) / 1000).toFixed(1) + "s" : ""
+    msg.time.completed && msg.time.created ? `${((msg.time.completed - msg.time.created) / 1000).toFixed(1)}s` : ""
 
   return `## Assistant (${Locale.titlecase(msg.agent)} · ${msg.modelID}${duration ? ` · ${duration}` : ""})\n\n`
 }

@@ -7,11 +7,11 @@
  * Migrated from Effect-ts to plain async per ADR-001.
  */
 
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import { SessionID, MessageID } from "@/session/schema"
+import { MessageID, SessionID } from "@/session/schema"
 import { Log } from "@/util/log"
-import z from "zod"
 import { QuestionID } from "./schema"
 
 const log = Log.create({ service: "question" })

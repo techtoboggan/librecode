@@ -1,12 +1,12 @@
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js"
 import type {
-  OAuthClientMetadata,
-  OAuthTokens,
   OAuthClientInformation,
   OAuthClientInformationFull,
+  OAuthClientMetadata,
+  OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js"
-import { McpAuth } from "./auth"
 import { Log } from "../util/log"
+import { McpAuth } from "./auth"
 
 const log = Log.create({ service: "mcp.oauth" })
 
@@ -182,4 +182,4 @@ export class McpOAuthProvider implements OAuthClientProvider {
   }
 }
 
-export { OAUTH_CALLBACK_PORT, OAUTH_CALLBACK_PATH }
+export { OAUTH_CALLBACK_PATH, OAUTH_CALLBACK_PORT }

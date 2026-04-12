@@ -1,7 +1,7 @@
 import { createOpencodeClient, type Event } from "@librecode/sdk/v2"
-import { createSimpleContext } from "./helper"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { batch, onCleanup, onMount } from "solid-js"
+import { createSimpleContext } from "./helper"
 
 export type EventSource = {
   on: (handler: (event: Event) => void) => () => void

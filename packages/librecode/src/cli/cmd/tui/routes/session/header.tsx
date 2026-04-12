@@ -1,14 +1,14 @@
-import { type Accessor, createMemo, createSignal, Match, Show, Switch } from "solid-js"
+import type { AssistantMessage, Session } from "@librecode/sdk/v2"
+import { useTerminalDimensions } from "@opentui/solid"
+import { SplitBorder } from "@tui/component/border"
+import { useCommandDialog } from "@tui/component/dialog-command"
 import { useRouteData } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
-import { pipe, sumBy } from "remeda"
 import { useTheme } from "@tui/context/theme"
-import { SplitBorder } from "@tui/component/border"
-import type { AssistantMessage, Session } from "@librecode/sdk/v2"
-import { useCommandDialog } from "@tui/component/dialog-command"
-import { useKeybind } from "../../context/keybind"
+import { pipe, sumBy } from "remeda"
+import { type Accessor, createMemo, createSignal, Match, Show, Switch } from "solid-js"
 import { Flag } from "@/flag/flag"
-import { useTerminalDimensions } from "@opentui/solid"
+import { useKeybind } from "../../context/keybind"
 
 const Title = (props: { session: Accessor<Session> }) => {
   const { theme } = useTheme()
@@ -66,7 +66,7 @@ export function Header() {
     const model = sync.data.provider.find((x) => x.id === last.providerID)?.models[last.modelID]
     let result = total.toLocaleString()
     if (model?.limit.context) {
-      result += "  " + Math.round((total / model.limit.context) * 100) + "%"
+      result += `  ${Math.round((total / model.limit.context) * 100)}%`
     }
     return result
   })

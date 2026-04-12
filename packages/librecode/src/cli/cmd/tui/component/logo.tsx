@@ -1,6 +1,6 @@
-import { TextAttributes, type RGBA } from "@opentui/core"
+import { type RGBA, TextAttributes } from "@opentui/core"
+import { tint, useTheme } from "@tui/context/theme"
 import { For, type JSX } from "solid-js"
-import { useTheme, tint } from "@tui/context/theme"
 import { logo, marks } from "@/cli/logo"
 
 // Shadow markers (rendered chars in parens):

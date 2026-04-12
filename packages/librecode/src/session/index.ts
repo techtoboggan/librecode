@@ -1,36 +1,34 @@
+import path from "node:path"
+import type { LanguageModelV2Usage } from "@ai-sdk/provider"
 import { Slug } from "@librecode/util/slug"
-import path from "path"
-import { BusEvent } from "@/bus/bus-event"
-import { Bus } from "@/bus"
+import type { ProviderMetadata } from "ai"
 import { Decimal } from "decimal.js"
 import z from "zod"
-import type { ProviderMetadata } from "ai"
-import { Config } from "../config/config"
-import { Flag } from "../flag/flag"
-import { Installation } from "../installation"
-
-import { Database, NotFoundError, eq, and, or, gte, isNull, desc, like, inArray, lt } from "../storage/db"
-import type { SQL } from "../storage/db"
-import { SessionTable, MessageTable, PartTable } from "./session.sql"
-import { ProjectTable } from "../project/project.sql"
-import { Storage } from "@/storage/storage"
-import { Log } from "../util/log"
-import { MessageV2 } from "./message-v2"
-import { Instance } from "../project/instance"
-import { SessionPrompt } from "./prompt"
-import { fn } from "@/util/fn"
-import { Command } from "../command"
-import { Snapshot } from "@/snapshot"
-import { WorkspaceContext } from "../control-plane/workspace-context"
-import { ProjectID } from "../project/schema"
-import { WorkspaceID } from "../control-plane/schema"
-import { SessionID, MessageID, PartID } from "./schema"
-
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
+import { Global } from "@/global"
+import { PermissionNext } from "@/permission/next"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
-import { PermissionNext } from "@/permission/next"
-import { Global } from "@/global"
-import type { LanguageModelV2Usage } from "@ai-sdk/provider"
+import { Snapshot } from "@/snapshot"
+import { Storage } from "@/storage/storage"
+import { fn } from "@/util/fn"
+import { Command } from "../command"
+import { Config } from "../config/config"
+import { WorkspaceID } from "../control-plane/schema"
+import { WorkspaceContext } from "../control-plane/workspace-context"
+import { Flag } from "../flag/flag"
+import { Installation } from "../installation"
+import { Instance } from "../project/instance"
+import { ProjectTable } from "../project/project.sql"
+import { ProjectID } from "../project/schema"
+import type { SQL } from "../storage/db"
+import { and, Database, desc, eq, gte, inArray, isNull, like, lt, NotFoundError, } from "../storage/db"
+import { Log } from "../util/log"
+import { MessageV2 } from "./message-v2"
+import { SessionPrompt } from "./prompt"
+import { MessageID, PartID, SessionID } from "./schema"
+import { MessageTable, PartTable, SessionTable } from "./session.sql"
 
 const log = Log.create({ service: "session" })
 
@@ -340,7 +338,7 @@ export function plan(input: { slug: string; time: { created: number } }) {
   const base = Instance.project.vcs
     ? path.join(Instance.worktree, ".librecode", "plans")
     : path.join(Global.Path.data, "plans")
-  return path.join(base, [input.time.created, input.slug].join("-") + ".md")
+  return path.join(base, `${[input.time.created, input.slug].join("-")}.md`)
 }
 
 export const get = fn(SessionID.zod, async (id) => {
@@ -656,7 +654,7 @@ export const children = fn(SessionID.zod, async (parentID) => {
 })
 
 export const remove = fn(SessionID.zod, async (sessionID) => {
-  const project = Instance.project
+  const _project = Instance.project
   try {
     const session = await get(sessionID)
     for (const child of await children(sessionID)) {
@@ -788,11 +786,11 @@ function safeNumber(value: number): number {
 
 function extractCacheWriteTokens(metadata: ProviderMetadata | undefined): number {
   return safeNumber(
-    (metadata?.["anthropic"]?.["cacheCreationInputTokens"] ??
+    (metadata?.anthropic?.cacheCreationInputTokens ??
       // @ts-expect-error
-      metadata?.["bedrock"]?.["usage"]?.["cacheWriteInputTokens"] ??
+      metadata?.bedrock?.usage?.cacheWriteInputTokens ??
       // @ts-expect-error
-      metadata?.["venice"]?.["usage"]?.["cacheCreationInputTokens"] ??
+      metadata?.venice?.usage?.cacheCreationInputTokens ??
       0) as number,
   )
 }
@@ -838,7 +836,7 @@ function extractTokenCounts(
   // AFAIK other providers (OpenRouter/OpenAI/Gemini etc.) do it the same way e.g. vercel/ai#8794 (comment)
   // Anthropic does it differently though - inputTokens doesn't include cached tokens.
   // It looks like LibreCode's cost calculation assumes all providers return inputTokens the same way Anthropic does (I'm guessing getUsage logic was originally implemented with anthropic), so it's causing incorrect cost calculation for OpenRouter and others.
-  const excludesCachedTokens = !!(metadata?.["anthropic"] || metadata?.["bedrock"])
+  const excludesCachedTokens = !!(metadata?.anthropic || metadata?.bedrock)
   const adjustedInput = safeNumber(
     excludesCachedTokens ? inputTokens : inputTokens - cacheReadInputTokens - cacheWriteInputTokens,
   )
@@ -906,7 +904,7 @@ export const initialize = fn(
     await SessionPrompt.command({
       sessionID: input.sessionID,
       messageID: input.messageID,
-      model: input.providerID + "/" + input.modelID,
+      model: `${input.providerID}/${input.modelID}`,
       command: Command.Default.INIT,
       arguments: "",
     })

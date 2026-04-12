@@ -1,12 +1,12 @@
-import { createMemo, createSignal, For, Show, Switch, Match } from "solid-js"
-import { Dynamic } from "solid-js/web"
-import { useTheme, selectedForeground } from "@tui/context/theme"
-import { useSync } from "@tui/context/sync"
-import { useLocal } from "@tui/context/local"
-import { useKeybind } from "@tui/context/keybind"
+import type { AssistantMessage as AssistantMsg, Part, UserMessage as UserMsg } from "@librecode/sdk/v2"
 import { SplitBorder } from "@tui/component/border"
+import { useKeybind } from "@tui/context/keybind"
+import { useLocal } from "@tui/context/local"
+import { useSync } from "@tui/context/sync"
+import { selectedForeground, useTheme } from "@tui/context/theme"
+import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { Dynamic } from "solid-js/web"
 import { Locale } from "@/util/locale"
-import type { AssistantMessage as AssistantMsg, UserMessage as UserMsg, Part } from "@librecode/sdk/v2"
 import { use } from "./context"
 import { PART_MAPPING } from "./parts"
 
@@ -130,7 +130,7 @@ export function AssistantMessage(props: { message: AssistantMsg; parts: Part[]; 
     if (!final()) return 0
     if (!props.message.time.completed) return 0
     const user = messages().find((x) => x.role === "user" && x.id === props.message.parentID)
-    if (!user || !user.time) return 0
+    if (!user?.time) return 0
     return props.message.time.completed - user.time.created
   })
 

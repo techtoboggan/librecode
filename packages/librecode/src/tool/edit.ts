@@ -3,20 +3,20 @@
 // https://github.com/google-gemini/gemini-cli/blob/main/packages/core/src/utils/editCorrector.ts
 // https://github.com/cline/cline/blob/main/evals/diff-edits/diff-apply/diff-06-26-25.ts
 
-import z from "zod"
-import * as path from "path"
-import { Tool } from "./tool"
-import { LSP } from "../lsp"
+import * as path from "node:path"
 import { createTwoFilesPatch, diffLines } from "diff"
-import DESCRIPTION from "./edit.txt"
-import { File } from "../file"
-import { FileWatcher } from "../file/watcher"
-import { Bus } from "../bus"
-import { FileTime } from "../file/time"
-import { Filesystem } from "../util/filesystem"
-import { Instance } from "../project/instance"
+import z from "zod"
 import type { Snapshot } from "@/snapshot"
+import { Bus } from "../bus"
+import { File } from "../file"
+import { FileTime } from "../file/time"
+import { FileWatcher } from "../file/watcher"
+import { LSP } from "../lsp"
+import { Instance } from "../project/instance"
+import { Filesystem } from "../util/filesystem"
+import DESCRIPTION from "./edit.txt"
 import { assertExternalDirectory } from "./external-directory"
+import { Tool } from "./tool"
 
 const MAX_DIAGNOSTICS_PER_FILE = 20
 

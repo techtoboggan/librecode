@@ -1,10 +1,10 @@
-import { createContext, useContext, type ParentProps, Show } from "solid-js"
-import { createStore } from "solid-js/store"
-import { useTheme } from "@tui/context/theme"
-import { useTerminalDimensions } from "@opentui/solid"
-import { SplitBorder } from "../component/border"
 import { TextAttributes } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/solid"
+import { useTheme } from "@tui/context/theme"
+import { createContext, type ParentProps, Show, useContext } from "solid-js"
+import { createStore } from "solid-js/store"
 import type z from "zod"
+import { SplitBorder } from "../component/border"
 import { TuiEvent } from "../event"
 
 export type ToastOptions = z.infer<typeof TuiEvent.ToastShow.properties>

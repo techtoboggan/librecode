@@ -1,18 +1,18 @@
-import { useDialog } from "@tui/ui/dialog"
-import { DialogSelect } from "@tui/ui/dialog-select"
+import type { Session } from "@librecode/sdk/v2"
 import { useRoute } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
-import { createMemo, createSignal, createResource, onMount, Show } from "solid-js"
+import { useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
+import { createMemo, createResource, createSignal, onMount, } from "solid-js"
 import { Locale } from "@/util/locale"
 import { useKeybind } from "../../context/keybind"
-import { useTheme } from "../../context/theme"
-import { useSDK } from "../../context/sdk"
-import { DialogSessionRename } from "../dialog-session-rename"
 import { useKV } from "../../context/kv"
-import { createDebouncedSignal } from "../../util/signal"
-import { Spinner } from "../spinner"
+import { useSDK } from "../../context/sdk"
+import { useTheme } from "../../context/theme"
 import { useToast } from "../../ui/toast"
-import type { Session } from "@librecode/sdk/v2"
+import { createDebouncedSignal } from "../../util/signal"
+import { DialogSessionRename } from "../dialog-session-rename"
+import { Spinner } from "../spinner"
 
 function sessionCategory(updatedAt: number): string {
   const today = new Date().toDateString()
@@ -40,7 +40,7 @@ export function DialogSessionList(props: { workspaceID?: string; localOnly?: boo
   const keybind = useKeybind()
   const { theme } = useTheme()
   const sdk = useSDK()
-  const kv = useKV()
+  const _kv = useKV()
   const toast = useToast()
   const [toDelete, setToDelete] = createSignal<string>()
   const [search, setSearch] = createDebouncedSignal("", 150)

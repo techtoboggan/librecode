@@ -21,8 +21,8 @@
  * 6. FORMAT — Structured output instructions (conditional)
  */
 
-import { Log } from "@/util/log"
 import z from "zod"
+import { Log } from "@/util/log"
 
 const log = Log.create({ service: "instruction-compiler" })
 

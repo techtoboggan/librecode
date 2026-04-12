@@ -1,14 +1,14 @@
-import { existsSync } from "fs"
-import type z from "zod"
+import { existsSync } from "node:fs"
 import { mergeDeep, unique } from "remeda"
-import { Config } from "./config"
-import { ConfigPaths } from "./paths"
-import { migrateTuiConfig } from "./migrate-tui-config"
-import { TuiInfo } from "./tui-schema"
-import { Instance } from "@/project/instance"
+import type z from "zod"
 import { Flag } from "@/flag/flag"
-import { Log } from "@/util/log"
 import { Global } from "@/global"
+import { Instance } from "@/project/instance"
+import { Log } from "@/util/log"
+import { Config } from "./config"
+import { migrateTuiConfig } from "./migrate-tui-config"
+import { ConfigPaths } from "./paths"
+import { TuiInfo } from "./tui-schema"
 
 export namespace TuiConfig {
   const log = Log.create({ service: "tui.config" })

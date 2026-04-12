@@ -12,10 +12,10 @@
  * State transition events are emitted for observability.
  */
 
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { Log } from "@/util/log"
-import z from "zod"
 import type { SessionID } from "./schema"
 
 const log = Log.create({ service: "agent-loop" })

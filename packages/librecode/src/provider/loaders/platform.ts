@@ -2,14 +2,14 @@
  * Loaders for platform-specific providers (GitLab).
  */
 
-import os from "os"
-import { Config } from "../../config/config"
+import os from "node:os"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
+import { VERSION as GITLAB_PROVIDER_VERSION } from "@gitlab/gitlab-ai-provider"
 import { Auth } from "../../auth"
+import { Config } from "../../config/config"
 import { Env } from "../../env"
 import { Installation } from "../../installation"
-import { VERSION as GITLAB_PROVIDER_VERSION } from "@gitlab/gitlab-ai-provider"
 import type { CustomLoader } from "./types"
-import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 export const gitlab: CustomLoader = async (input) => {
   const instanceUrl = Env.get("GITLAB_INSTANCE_URL") || "https://gitlab.com"
@@ -22,7 +22,7 @@ export const gitlab: CustomLoader = async (input) => {
   })()
 
   const config = await Config.get()
-  const providerConfig = config.provider?.["gitlab"]
+  const providerConfig = config.provider?.gitlab
 
   const aiGatewayHeaders = {
     "User-Agent": `librecode/${Installation.VERSION} gitlab-ai-provider/${GITLAB_PROVIDER_VERSION} (${os.platform()} ${os.release()}; ${os.arch()})`,

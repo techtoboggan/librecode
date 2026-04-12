@@ -1,11 +1,11 @@
-import path from "path"
-import { Global } from "@/global"
-import { Filesystem } from "@/util/filesystem"
+import { appendFile, writeFile } from "node:fs/promises"
+import path from "node:path"
+import type { AgentPart, FilePart, TextPart } from "@librecode/sdk/v2"
 import { onMount } from "solid-js"
 import { createStore, produce, unwrap } from "solid-js/store"
+import { Global } from "@/global"
+import { Filesystem } from "@/util/filesystem"
 import { createSimpleContext } from "../../context/helper"
-import { appendFile, writeFile } from "fs/promises"
-import type { AgentPart, FilePart, TextPart } from "@librecode/sdk/v2"
 
 export type PromptInfo = {
   input: string
@@ -50,7 +50,7 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
 
       // Rewrite file with only valid entries to self-heal corruption
       if (lines.length > 0) {
-        const content = lines.map((line) => JSON.stringify(line)).join("\n") + "\n"
+        const content = `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`
         writeFile(historyPath, content).catch(() => {})
       }
     })
@@ -96,12 +96,12 @@ export const { use: usePromptHistory, provider: PromptHistoryProvider } = create
         )
 
         if (trimmed) {
-          const content = store.history.map((line) => JSON.stringify(line)).join("\n") + "\n"
+          const content = `${store.history.map((line) => JSON.stringify(line)).join("\n")}\n`
           writeFile(historyPath, content).catch(() => {})
           return
         }
 
-        appendFile(historyPath, JSON.stringify(entry) + "\n").catch(() => {})
+        appendFile(historyPath, `${JSON.stringify(entry)}\n`).catch(() => {})
       },
     }
   },

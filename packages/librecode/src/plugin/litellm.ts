@@ -7,11 +7,11 @@
  * model discovery from the /v1/models endpoint.
  */
 
-import type { PluginInput, Hooks } from "@librecode/plugin"
-import { Log } from "../util/log"
+import type { Hooks, PluginInput } from "@librecode/plugin"
 import { Env } from "../env"
 import { ProviderCredentials } from "../provider/credentials"
 import { detectCapabilitiesFromId } from "../provider/detect-capabilities"
+import { Log } from "../util/log"
 
 const log = Log.create({ service: "plugin.litellm" })
 
@@ -21,7 +21,7 @@ const CONNECT_TIMEOUT_MS = 5000
 async function fetchModelsFromUrl(baseURL: string, apiKey?: string): Promise<{ id: string }[]> {
   const url = baseURL.replace(/\/+$/, "")
   const headers: Record<string, string> = {}
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), CONNECT_TIMEOUT_MS)

@@ -1,5 +1,5 @@
-import z from "zod"
 import { NamedError } from "@librecode/util/error"
+import z from "zod"
 import { ModelID, ProviderID } from "./schema"
 
 export const Model = z

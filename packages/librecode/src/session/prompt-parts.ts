@@ -1,29 +1,29 @@
-import path from "path"
-import os from "os"
-import fs from "fs/promises"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import { NamedError } from "@librecode/util/error"
+import { PermissionNext } from "@/permission/next"
+import type { Tool } from "@/tool/tool"
+import { decodeDataUrl } from "@/util/data-url"
+import { Agent } from "../agent/agent"
+import { Bus } from "../bus"
+import { ConfigMarkdown } from "../config/markdown"
+import { FileTime } from "../file/time"
+import { LSP } from "../lsp"
+import { MCP } from "../mcp"
+import { Plugin } from "../plugin"
+import { Instance } from "../project/instance"
+import { Provider } from "../provider/provider"
+import { ReadTool } from "../tool/read"
+import { defer } from "../util/defer"
 import { Filesystem } from "../util/filesystem"
-import { type SessionID, MessageID, PartID } from "./schema"
-import { MessageV2 } from "./message-v2"
 import { Log } from "../util/log"
 import { Session } from "."
-import { Agent } from "../agent/agent"
-import { Provider } from "../provider/provider"
-import { Instance } from "../project/instance"
-import { Bus } from "../bus"
 import { InstructionPrompt } from "./instruction"
-import { Plugin } from "../plugin"
-import { defer } from "../util/defer"
-import { MCP } from "../mcp"
-import { LSP } from "../lsp"
-import { ReadTool } from "../tool/read"
-import { FileTime } from "../file/time"
-import { pathToFileURL, fileURLToPath } from "url"
-import { ConfigMarkdown } from "../config/markdown"
-import { NamedError } from "@librecode/util/error"
-import type { Tool } from "@/tool/tool"
-import { PermissionNext } from "@/permission/next"
-import { decodeDataUrl } from "@/util/data-url"
-import type { PromptInputType, PartDraft, PartBuildCtx } from "./prompt-schema"
+import { MessageV2 } from "./message-v2"
+import type { PartBuildCtx, PartDraft, PromptInputType } from "./prompt-schema"
+import { MessageID, PartID, type SessionID } from "./schema"
 
 const log = Log.create({ service: "session.prompt" })
 
@@ -60,8 +60,8 @@ async function resolveFileReadRange(
 
   const rawEnd = url.searchParams.get("end")
   const filePathURI = partUrl.split("?")[0]
-  let start = parseInt(rawStart)
-  let end = rawEnd ? parseInt(rawEnd) : undefined
+  let start = parseInt(rawStart, 10)
+  let end = rawEnd ? parseInt(rawEnd, 10) : undefined
 
   const resolved = await resolveSymbolRange(filePathURI, start, end)
   start = resolved.start
@@ -218,7 +218,7 @@ async function processFileUrlFilePart(
       messageID: ctx.messageID,
       sessionID: ctx.sessionID,
       type: "file",
-      url: `data:${part.mime};base64,` + (await Filesystem.readBytes(filepath)).toString("base64"),
+      url: `data:${part.mime};base64,${(await Filesystem.readBytes(filepath)).toString("base64")}`,
       mime: part.mime,
       filename: part.filename!,
       source: part.source,

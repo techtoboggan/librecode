@@ -1,5 +1,5 @@
-import { BusEvent } from "@/bus/bus-event"
 import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
 
 export const Event = {
   Connected: BusEvent.define("server.connected", z.object({})),

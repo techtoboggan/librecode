@@ -1,39 +1,42 @@
-import { BusEvent } from "@/bus/bus-event"
-import { SessionID, MessageID, PartID } from "./schema"
-import z from "zod"
 import { NamedError } from "@librecode/util/error"
 import { APICallError, convertToModelMessages, LoadAPIKeyError, type ModelMessage, type UIMessage } from "ai"
-import { Snapshot } from "@/snapshot"
-import { fn } from "@/util/fn"
-import { Database, NotFoundError, and, desc, eq, inArray, lt, or } from "@/storage/db"
-import { MessageTable, PartTable, SessionTable } from "./session.sql"
-import { ProviderError } from "@/provider/error"
-import { iife } from "@/util/iife"
 import type { SystemError } from "bun"
+import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
+import { ProviderError } from "@/provider/error"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
-
+import { Snapshot } from "@/snapshot"
+import { and, Database, desc, eq, inArray, lt, NotFoundError, or } from "@/storage/db"
+import { fn } from "@/util/fn"
+import { iife } from "@/util/iife"
+import type {
+  FilePart as FilePart_,
+  Part as Part_,
+  ToolPart as ToolPart_,
+  ToolStateCompleted as ToolStateCompleted_,
+} from "./message-v2-parts"
 // Import everything from parts module for local use
 import {
-  OutputLengthError as _OutputLengthError,
   AbortedError as _AbortedError,
-  StructuredOutputError as _StructuredOutputError,
-  AuthError as _AuthError,
-  APIError as _APIError,
-  ContextOverflowError as _ContextOverflowError,
   AgentPart as _AgentPart,
+  APIError as _APIError,
+  AuthError as _AuthError,
   CompactionPart as _CompactionPart,
+  ContextOverflowError as _ContextOverflowError,
   FilePart as _FilePart,
   FilePartSource as _FilePartSource,
   FileSource as _FileSource,
-  PatchPart as _PatchPart,
+  OutputLengthError as _OutputLengthError,
   Part as _Part,
+  PatchPart as _PatchPart,
   ReasoningPart as _ReasoningPart,
   ResourceSource as _ResourceSource,
   RetryPart as _RetryPart,
   SnapshotPart as _SnapshotPart,
   StepFinishPart as _StepFinishPart,
   StepStartPart as _StepStartPart,
+  StructuredOutputError as _StructuredOutputError,
   SubtaskPart as _SubtaskPart,
   SymbolSource as _SymbolSource,
   TextPart as _TextPart,
@@ -44,43 +47,39 @@ import {
   ToolStatePending as _ToolStatePending,
   ToolStateRunning as _ToolStateRunning,
 } from "./message-v2-parts"
-import type {
-  FilePart as FilePart_,
-  ToolPart as ToolPart_,
-  ToolStateCompleted as ToolStateCompleted_,
-  Part as Part_,
-} from "./message-v2-parts"
+import { MessageID, PartID, SessionID } from "./schema"
+import { MessageTable, PartTable, SessionTable } from "./session.sql"
 
 // Re-export everything from parts module so callers don't need to change
 export {
-  OutputLengthError,
   AbortedError,
-  StructuredOutputError,
-  AuthError,
-  APIError,
-  ContextOverflowError,
-  SnapshotPart,
-  PatchPart,
-  TextPart,
-  ReasoningPart,
-  FileSource,
-  SymbolSource,
-  ResourceSource,
-  FilePartSource,
-  FilePart,
   AgentPart,
+  APIError,
+  AuthError,
   CompactionPart,
-  SubtaskPart,
+  ContextOverflowError,
+  FilePart,
+  FilePartSource,
+  FileSource,
+  OutputLengthError,
+  Part,
+  PatchPart,
+  ReasoningPart,
+  ResourceSource,
   RetryPart,
-  StepStartPart,
+  SnapshotPart,
   StepFinishPart,
-  ToolStatePending,
-  ToolStateRunning,
+  StepStartPart,
+  StructuredOutputError,
+  SubtaskPart,
+  SymbolSource,
+  TextPart,
+  ToolPart,
+  ToolState,
   ToolStateCompleted,
   ToolStateError,
-  ToolState,
-  ToolPart,
-  Part,
+  ToolStatePending,
+  ToolStateRunning,
 } from "./message-v2-parts"
 
 type _APIErrorData = z.infer<typeof _APIError.Schema>
@@ -409,7 +408,7 @@ function appendCompletedToolPart(
   const output = finalAttachments.length > 0 ? { text: outputText, attachments: finalAttachments } : outputText
 
   assistantMessage.parts.push({
-    type: ("tool-" + part.tool) as `tool-${string}`,
+    type: (`tool-${part.tool}`) as `tool-${string}`,
     state: "output-available",
     toolCallId: part.callID,
     input: part.state.input,
@@ -439,7 +438,7 @@ function appendToolPart(
   }
   if (part.state.status === "error") {
     assistantMessage.parts.push({
-      type: ("tool-" + part.tool) as `tool-${string}`,
+      type: (`tool-${part.tool}`) as `tool-${string}`,
       state: "output-error",
       toolCallId: part.callID,
       input: part.state.input,
@@ -452,7 +451,7 @@ function appendToolPart(
   // Anthropic/Claude APIs require every tool_use to have a corresponding tool_result
   if (part.state.status === "pending" || part.state.status === "running") {
     assistantMessage.parts.push({
-      type: ("tool-" + part.tool) as `tool-${string}`,
+      type: (`tool-${part.tool}`) as `tool-${string}`,
       state: "output-error",
       toolCallId: part.callID,
       input: part.state.input,

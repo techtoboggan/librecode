@@ -1,10 +1,10 @@
 import { Hono } from "hono"
-import { describeRoute, validator, resolver } from "hono-openapi"
-import { SessionID } from "@/session/schema"
+import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
+import { SessionID } from "@/session/schema"
+import { SessionStatus } from "@/session/status"
 import { Session } from "../../../session"
 import { Todo } from "../../../session/todo"
-import { SessionStatus } from "@/session/status"
 import { Log } from "../../../util/log"
 import { errors } from "../../error"
 

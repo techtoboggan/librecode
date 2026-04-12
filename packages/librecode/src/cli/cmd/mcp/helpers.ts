@@ -1,12 +1,12 @@
+import path from "node:path"
+import * as prompts from "@clack/prompts"
+import { applyEdits, modify } from "jsonc-parser"
+import type { Config } from "../../../config/config"
+import { Global } from "../../../global"
 import { MCP } from "../../../mcp"
 import { McpAuth } from "../../../mcp/auth"
-import type { Config } from "../../../config/config"
-import { modify, applyEdits } from "jsonc-parser"
-import { Filesystem } from "../../../util/filesystem"
-import { Global } from "../../../global"
 import { Instance } from "../../../project/instance"
-import path from "path"
-import * as prompts from "@clack/prompts"
+import { Filesystem } from "../../../util/filesystem"
 import { UI } from "../../ui"
 
 export function getAuthStatusIcon(status: MCP.AuthStatus): string {

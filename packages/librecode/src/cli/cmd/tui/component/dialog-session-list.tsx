@@ -1,15 +1,15 @@
-import { useDialog } from "@tui/ui/dialog"
-import { DialogSelect } from "@tui/ui/dialog-select"
 import { useRoute } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
-import { createMemo, createSignal, createResource, onMount, Show } from "solid-js"
+import { useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
+import { createMemo, createResource, createSignal, onMount, } from "solid-js"
 import { Locale } from "@/util/locale"
 import { useKeybind } from "../context/keybind"
-import { useTheme } from "../context/theme"
-import { useSDK } from "../context/sdk"
-import { DialogSessionRename } from "./dialog-session-rename"
 import { useKV } from "../context/kv"
+import { useSDK } from "../context/sdk"
+import { useTheme } from "../context/theme"
 import { createDebouncedSignal } from "../util/signal"
+import { DialogSessionRename } from "./dialog-session-rename"
 import { Spinner } from "./spinner"
 
 export function DialogSessionList() {
@@ -19,7 +19,7 @@ export function DialogSessionList() {
   const keybind = useKeybind()
   const { theme } = useTheme()
   const sdk = useSDK()
-  const kv = useKV()
+  const _kv = useKV()
 
   const [toDelete, setToDelete] = createSignal<string>()
   const [search, setSearch] = createDebouncedSignal("", 150)

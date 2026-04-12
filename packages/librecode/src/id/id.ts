@@ -1,5 +1,5 @@
+import { randomBytes } from "node:crypto"
 import z from "zod"
-import { randomBytes } from "crypto"
 
 export namespace Identifier {
   const prefixes = {
@@ -71,14 +71,14 @@ export namespace Identifier {
       timeBytes[i] = Number((now >> BigInt(40 - 8 * i)) & BigInt(0xff))
     }
 
-    return prefixes[prefix] + "_" + timeBytes.toString("hex") + randomBase62(LENGTH - 12)
+    return `${prefixes[prefix]}_${timeBytes.toString("hex")}${randomBase62(LENGTH - 12)}`
   }
 
   /** Extract timestamp from an ascending ID. Does not work with descending IDs. */
   export function timestamp(id: string): number {
     const prefix = id.split("_")[0]
     const hex = id.slice(prefix.length + 1, prefix.length + 13)
-    const encoded = BigInt("0x" + hex)
+    const encoded = BigInt(`0x${hex}`)
     return Number(encoded / BigInt(0x1000))
   }
 }

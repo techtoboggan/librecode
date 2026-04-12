@@ -1,17 +1,17 @@
+import { createReadStream } from "node:fs"
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
+import { createInterface } from "node:readline"
 import z from "zod"
-import { createReadStream } from "fs"
-import * as fs from "fs/promises"
-import * as path from "path"
-import { createInterface } from "readline"
-import { Tool } from "./tool"
-import { LSP } from "../lsp"
 import { FileTime } from "../file/time"
-import DESCRIPTION from "./read.txt"
+import { LSP } from "../lsp"
 import { Instance } from "../project/instance"
-import { assertExternalDirectory } from "./external-directory"
 import { InstructionPrompt } from "../session/instruction"
-import { Filesystem } from "../util/filesystem"
 import type { MessageV2 } from "../session/message-v2"
+import { Filesystem } from "../util/filesystem"
+import { assertExternalDirectory } from "./external-directory"
+import DESCRIPTION from "./read.txt"
+import { Tool } from "./tool"
 
 const DEFAULT_READ_LIMIT = 2000
 const MAX_LINE_LENGTH = 2000
@@ -56,10 +56,10 @@ async function readDirectory(filepath: string, title: string, limit: number, off
   const dirents = await fs.readdir(filepath, { withFileTypes: true })
   const entries = await Promise.all(
     dirents.map(async (dirent) => {
-      if (dirent.isDirectory()) return dirent.name + "/"
+      if (dirent.isDirectory()) return `${dirent.name}/`
       if (dirent.isSymbolicLink()) {
         const target = await fs.stat(path.join(filepath, dirent.name)).catch(() => undefined)
-        if (target?.isDirectory()) return dirent.name + "/"
+        if (target?.isDirectory()) return `${dirent.name}/`
       }
       return dirent.name
     }),
@@ -234,7 +234,7 @@ export const ReadTool = Tool.define("read", {
     const stat = Filesystem.stat(filepath)
 
     await assertExternalDirectory(ctx, filepath, {
-      bypass: Boolean(ctx.extra?.["bypassCwdCheck"]),
+      bypass: Boolean(ctx.extra?.bypassCwdCheck),
       kind: stat?.isDirectory() ? "directory" : "file",
     })
     await ctx.ask({ permission: "read", patterns: [filepath], always: ["*"], metadata: {} })
@@ -246,12 +246,12 @@ export const ReadTool = Tool.define("read", {
     const limit = params.limit ?? DEFAULT_READ_LIMIT
     const offset = params.offset ?? 1
 
-    if (stat!.isDirectory()) {
+    if (stat?.isDirectory()) {
       return readDirectory(filepath, title, limit, offset)
     }
 
     const instructions = await InstructionPrompt.resolve(ctx.messages, filepath, ctx.messageID)
-    const result = await readFileContent(filepath, title, limit, offset, Number(stat!.size), instructions)
+    const result = await readFileContent(filepath, title, limit, offset, Number(stat?.size), instructions)
     FileTime.read(ctx.sessionID, filepath)
     return result
   },

@@ -1,11 +1,10 @@
 import { Hono } from "hono"
-import { describeRoute, validator } from "hono-openapi"
-import { resolver } from "hono-openapi"
+import { describeRoute, resolver, validator } from "hono-openapi"
+import z from "zod"
 import { QuestionID } from "@/question/schema"
 import { Question } from "../../question"
-import z from "zod"
-import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { errors } from "../error"
 
 export const QuestionRoutes = lazy(() =>
   new Hono()

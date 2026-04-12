@@ -7,6 +7,7 @@
  * Migrated from Effect-ts to plain async per ADR-001.
  */
 
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { Instance } from "@/project/instance"
@@ -15,9 +16,8 @@ import { PermissionTable } from "@/session/session.sql"
 import { Database, eq } from "@/storage/db"
 import { Log } from "@/util/log"
 import { Wildcard } from "@/util/wildcard"
-import z from "zod"
-import { PermissionID } from "./schema"
 import * as Audit from "./audit"
+import { PermissionID } from "./schema"
 
 const log = Log.create({ service: "permission" })
 

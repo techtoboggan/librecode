@@ -1,13 +1,12 @@
 import { Hono } from "hono"
-import { describeRoute, validator } from "hono-openapi"
-import { resolver } from "hono-openapi"
+import { describeRoute, resolver, validator } from "hono-openapi"
+import z from "zod"
+import { InstanceBootstrap } from "../../project/bootstrap"
 import { Instance } from "../../project/instance"
 import { Project } from "../../project/project"
-import z from "zod"
 import { ProjectID } from "../../project/schema"
-import { errors } from "../error"
 import { lazy } from "../../util/lazy"
-import { InstanceBootstrap } from "../../project/bootstrap"
+import { errors } from "../error"
 
 export const ProjectRoutes = lazy(() =>
   new Hono()

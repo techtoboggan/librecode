@@ -1,11 +1,11 @@
+import { EOL } from "node:os"
 import type { Argv } from "yargs"
 import { Instance } from "../../project/instance"
+import { ModelsDev } from "../../provider/models"
 import { Provider } from "../../provider/provider"
 import { ProviderID } from "../../provider/schema"
-import { ModelsDev } from "../../provider/models"
-import { cmd } from "./cmd"
 import { UI } from "../ui"
-import { EOL } from "os"
+import { cmd } from "./cmd"
 
 export const ModelsCommand = cmd({
   command: "models [provider]",
@@ -29,7 +29,7 @@ export const ModelsCommand = cmd({
   handler: async (args) => {
     if (args.refresh) {
       await ModelsDev.refresh()
-      UI.println(UI.Style.TEXT_SUCCESS_BOLD + "Models cache refreshed" + UI.Style.TEXT_NORMAL)
+      UI.println(`${UI.Style.TEXT_SUCCESS_BOLD}Models cache refreshed${UI.Style.TEXT_NORMAL}`)
     }
 
     await Instance.provide({

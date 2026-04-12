@@ -1,17 +1,17 @@
-import { cmd } from "../cmd"
+import fs from "node:fs/promises"
+import { EOL } from "node:os"
+import path from "node:path"
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
-import { Agent } from "../../../agent/agent"
-import { Provider } from "../../../provider/provider"
-import path from "path"
-import fs from "fs/promises"
-import { Filesystem } from "../../../util/filesystem"
 import matter from "gray-matter"
-import { Instance } from "../../../project/instance"
-import { EOL } from "os"
 import type { Argv } from "yargs"
-import { AVAILABLE_TOOLS, resolveTargetPath, resolveDescription, resolveTools, resolveMode } from "./prompts"
+import { Agent } from "../../../agent/agent"
+import { Instance } from "../../../project/instance"
+import { Provider } from "../../../provider/provider"
+import { Filesystem } from "../../../util/filesystem"
+import { UI } from "../../ui"
+import { cmd } from "../cmd"
 import type { AgentMode } from "./prompts"
+import { AVAILABLE_TOOLS, resolveDescription, resolveMode, resolveTargetPath, resolveTools } from "./prompts"
 
 function buildDisabledTools(selected: string[]): Record<string, boolean> {
   const tools: Record<string, boolean> = {}
@@ -125,8 +125,8 @@ const AgentListCommand = cmd({
           return a.name.localeCompare(b.name)
         })
         for (const agent of sorted) {
-          process.stdout.write(`${agent.name} (${agent.mode})` + EOL)
-          process.stdout.write(`  ${JSON.stringify(agent.permission, null, 2)}` + EOL)
+          process.stdout.write(`${agent.name} (${agent.mode})${EOL}`)
+          process.stdout.write(`  ${JSON.stringify(agent.permission, null, 2)}${EOL}`)
         }
       },
     })

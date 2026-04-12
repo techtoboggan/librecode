@@ -1,11 +1,11 @@
-import { createMemo, For, Show, Switch, Match } from "solid-js"
 import { useTheme } from "@tui/context/theme"
-import type { WriteTool } from "@/tool/write"
-import type { ReadTool } from "@/tool/read"
-import type { EditTool } from "@/tool/edit"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
 import type { ApplyPatchTool } from "@/tool/apply_patch"
+import type { EditTool } from "@/tool/edit"
+import type { ReadTool } from "@/tool/read"
+import type { WriteTool } from "@/tool/write"
 import { use } from "../context"
-import { InlineTool, BlockTool, Diagnostics, normalizePath, inputDisplay, filetype, type ToolProps } from "./shared"
+import { BlockTool, Diagnostics, filetype, InlineTool, inputDisplay, normalizePath, type ToolProps } from "./shared"
 
 export function Write(props: ToolProps<typeof WriteTool>) {
   const { theme, syntax } = useTheme()
@@ -17,7 +17,7 @@ export function Write(props: ToolProps<typeof WriteTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diagnostics !== undefined}>
-        <BlockTool title={"# Wrote " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={`# Wrote ${normalizePath(props.input.filePath!)}`} part={props.part}>
           <line_number fg={theme.textMuted} minWidth={3} paddingRight={1}>
             <code
               conceal={false}
@@ -91,7 +91,7 @@ export function Edit(props: ToolProps<typeof EditTool>) {
   return (
     <Switch>
       <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={"← Edit " + normalizePath(props.input.filePath!)} part={props.part}>
+        <BlockTool title={`← Edit ${normalizePath(props.input.filePath!)}`} part={props.part}>
           <box paddingLeft={1}>
             <diff
               diff={diffContent()}
@@ -164,10 +164,10 @@ export function ApplyPatch(props: ToolProps<typeof ApplyPatchTool>) {
   }
 
   function patchTitle(file: { type: string; relativePath: string; filePath: string; deletions: number }) {
-    if (file.type === "delete") return "# Deleted " + file.relativePath
-    if (file.type === "add") return "# Created " + file.relativePath
-    if (file.type === "move") return "# Moved " + normalizePath(file.filePath) + " → " + file.relativePath
-    return "← Patched " + file.relativePath
+    if (file.type === "delete") return `# Deleted ${file.relativePath}`
+    if (file.type === "add") return `# Created ${file.relativePath}`
+    if (file.type === "move") return `# Moved ${normalizePath(file.filePath)} → ${file.relativePath}`
+    return `← Patched ${file.relativePath}`
   }
 
   return (

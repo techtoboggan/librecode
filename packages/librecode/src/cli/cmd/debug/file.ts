@@ -1,8 +1,8 @@
-import { EOL } from "os"
+import { EOL } from "node:os"
+import { Ripgrep } from "@/file/ripgrep"
 import { File } from "../../../file"
 import { bootstrap } from "../../bootstrap"
 import { cmd } from "../cmd"
-import { Ripgrep } from "@/file/ripgrep"
 
 const FileSearchCommand = cmd({
   command: "search <query>",

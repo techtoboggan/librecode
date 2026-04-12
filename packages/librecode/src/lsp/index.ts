@@ -1,15 +1,15 @@
-import { BusEvent } from "@/bus/bus-event"
+import { spawn } from "node:child_process"
+import path from "node:path"
+import { fileURLToPath, pathToFileURL } from "node:url"
+import z from "zod"
 import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
+import { Flag } from "@/flag/flag"
+import { Config } from "../config/config"
+import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import { LSPClient } from "./client"
-import path from "path"
-import { pathToFileURL, fileURLToPath } from "url"
 import { LSPServer } from "./server"
-import z from "zod"
-import { Config } from "../config/config"
-import { spawn } from "child_process"
-import { Instance } from "../project/instance"
-import { Flag } from "@/flag/flag"
 
 export namespace LSP {
   const log = Log.create({ service: "lsp" })
@@ -64,14 +64,14 @@ export namespace LSP {
   const filterExperimentalServers = (servers: Record<string, LSPServer.Info>) => {
     if (Flag.LIBRECODE_EXPERIMENTAL_LSP_TY) {
       // If experimental flag is enabled, disable pyright
-      if (servers["pyright"]) {
+      if (servers.pyright) {
         log.info("LSP server pyright is disabled because LIBRECODE_EXPERIMENTAL_LSP_TY is enabled")
-        delete servers["pyright"]
+        delete servers.pyright
       }
     } else {
       // If experimental flag is disabled, disable ty
-      if (servers["ty"]) {
-        delete servers["ty"]
+      if (servers.ty) {
+        delete servers.ty
       }
     }
   }

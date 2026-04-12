@@ -1,16 +1,15 @@
-import { Tool } from "./tool"
-import DESCRIPTION from "./task.txt"
 import z from "zod"
-import { Session } from "../session"
-import { SessionID, MessageID } from "../session/schema"
-import { MessageV2 } from "../session/message-v2"
-import { Identifier } from "../id/id"
-import { Agent } from "../agent/agent"
-import { SessionPrompt } from "../session/prompt"
-import { iife } from "@/util/iife"
-import { defer } from "@/util/defer"
-import { Config } from "../config/config"
 import { PermissionNext } from "@/permission/next"
+import { defer } from "@/util/defer"
+import { iife } from "@/util/iife"
+import { Agent } from "../agent/agent"
+import { Config } from "../config/config"
+import { Session } from "../session"
+import { MessageV2 } from "../session/message-v2"
+import { SessionPrompt } from "../session/prompt"
+import { MessageID, SessionID } from "../session/schema"
+import DESCRIPTION from "./task.txt"
+import { Tool } from "./tool"
 
 const parameters = z.object({
   description: z.string().describe("A short (3-5 words) description of the task"),
@@ -72,7 +71,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
 
         return await Session.create({
           parentID: ctx.sessionID,
-          title: params.description + ` (@${agent.name} subagent)`,
+          title: `${params.description} (@${agent.name} subagent)`,
           permission: [
             {
               permission: "todowrite",

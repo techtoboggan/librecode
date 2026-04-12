@@ -1,14 +1,14 @@
-import { Log } from "../util/log"
-import path from "path"
-import fs from "fs/promises"
-import { Global } from "../global"
-import { Filesystem } from "../util/filesystem"
-import { lazy } from "../util/lazy"
-import { Lock } from "../util/lock"
+import fs from "node:fs/promises"
+import path from "node:path"
 import { NamedError } from "@librecode/util/error"
 import z from "zod"
-import { Glob } from "../util/glob"
 import { git } from "@/util/git"
+import { Global } from "../global"
+import { Filesystem } from "../util/filesystem"
+import { Glob } from "../util/glob"
+import { lazy } from "../util/lazy"
+import { Lock } from "../util/lock"
+import { Log } from "../util/log"
 
 export namespace Storage {
   const log = Log.create({ service: "storage" })
@@ -99,7 +99,7 @@ export namespace Storage {
     const id = await resolveGitRootId(worktree)
     if (!id) return
 
-    await Filesystem.writeJson(path.join(dir, "project", id + ".json"), {
+    await Filesystem.writeJson(path.join(dir, "project", `${id}.json`), {
       id,
       vcs: "git",
       worktree,
@@ -136,8 +136,8 @@ export namespace Storage {
       if (!session.projectID) continue
       if (!session.summary?.diffs) continue
       const { diffs } = session.summary
-      await Filesystem.write(path.join(dir, "session_diff", session.id + ".json"), JSON.stringify(diffs))
-      await Filesystem.writeJson(path.join(dir, "session", session.projectID, session.id + ".json"), {
+      await Filesystem.write(path.join(dir, "session_diff", `${session.id}.json`), JSON.stringify(diffs))
+      await Filesystem.writeJson(path.join(dir, "session", session.projectID, `${session.id}.json`), {
         ...session,
         summary: {
           additions: diffs.reduce((sum, x) => sum + x.additions, 0),
@@ -152,7 +152,7 @@ export namespace Storage {
   const state = lazy(async () => {
     const dir = path.join(Global.Path.data, "storage")
     const migration = await Filesystem.readJson<string>(path.join(dir, "migration"))
-      .then((x) => parseInt(x))
+      .then((x) => parseInt(x, 10))
       .catch(() => 0)
     for (let index = migration; index < MIGRATIONS.length; index++) {
       log.info("running migration", { index })
@@ -167,7 +167,7 @@ export namespace Storage {
 
   export async function remove(key: string[]) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = `${path.join(dir, ...key)}.json`
     return withErrorHandling(async () => {
       await fs.unlink(target).catch(() => {})
     })
@@ -175,7 +175,7 @@ export namespace Storage {
 
   export async function read<T>(key: string[]) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = `${path.join(dir, ...key)}.json`
     return withErrorHandling(async () => {
       using _ = await Lock.read(target)
       const result = await Filesystem.readJson<T>(target)
@@ -185,7 +185,7 @@ export namespace Storage {
 
   export async function update<T>(key: string[], fn: (draft: T) => void) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = `${path.join(dir, ...key)}.json`
     return withErrorHandling(async () => {
       using _ = await Lock.write(target)
       const content = await Filesystem.readJson<T>(target)
@@ -197,7 +197,7 @@ export namespace Storage {
 
   export async function write<T>(key: string[], content: T) {
     const dir = await state().then((x) => x.dir)
-    const target = path.join(dir, ...key) + ".json"
+    const target = `${path.join(dir, ...key)}.json`
     return withErrorHandling(async () => {
       using _ = await Lock.write(target)
       await Filesystem.writeJson(target, content)

@@ -1,7 +1,6 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core"
-
-import type { AccessToken, AccountID, OrgID, RefreshToken } from "./schema"
+import { integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import { Timestamps } from "../storage/schema.sql"
+import type { AccessToken, AccountID, OrgID, RefreshToken } from "./schema"
 
 export const AccountTable = sqliteTable("account", {
   id: text().$type<AccountID>().primaryKey(),

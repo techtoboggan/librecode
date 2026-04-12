@@ -1,8 +1,8 @@
-import { Session } from "../../../session"
-import { Database } from "../../../storage/db"
-import { SessionTable } from "../../../session/session.sql"
 import { Instance } from "../../../project/instance"
-import type { SessionStats, SessionResult, ModelStats } from "./types"
+import { Session } from "../../../session"
+import { SessionTable } from "../../../session/session.sql"
+import { Database } from "../../../storage/db"
+import type { ModelStats, SessionResult, SessionStats } from "./types"
 
 const MS_IN_DAY = 24 * 60 * 60 * 1000
 

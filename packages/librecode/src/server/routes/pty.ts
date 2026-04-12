@@ -1,12 +1,12 @@
 import { Hono } from "hono"
-import { describeRoute, validator, resolver } from "hono-openapi"
 import { upgradeWebSocket } from "hono/bun"
+import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { Pty } from "@/pty"
 import { PtyID } from "@/pty/schema"
 import { NotFoundError } from "../../storage/db"
-import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { errors } from "../error"
 
 type RawSocket = {
   readyState: number

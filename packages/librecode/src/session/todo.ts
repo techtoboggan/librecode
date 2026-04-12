@@ -1,8 +1,8 @@
-import { BusEvent } from "@/bus/bus-event"
-import { Bus } from "@/bus"
-import { SessionID } from "./schema"
 import z from "zod"
-import { Database, eq, asc } from "../storage/db"
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
+import { asc, Database, eq } from "../storage/db"
+import { SessionID } from "./schema"
 import { TodoTable } from "./session.sql"
 
 export namespace Todo {

@@ -1,10 +1,10 @@
-import { createMemo, For, Switch, Match } from "solid-js"
+import { TodoItem } from "@tui/component/todo-item"
 import { useTheme } from "@tui/context/theme"
-import type { TodoWriteTool } from "@/tool/todo"
+import { createMemo, For, Match, Switch } from "solid-js"
 import type { QuestionTool } from "@/tool/question"
 import type { SkillTool } from "@/tool/skill"
-import { TodoItem } from "@tui/component/todo-item"
-import { InlineTool, BlockTool, type ToolProps } from "./shared"
+import type { TodoWriteTool } from "@/tool/todo"
+import { BlockTool, InlineTool, type ToolProps } from "./shared"
 
 export function TodoWrite(props: ToolProps<typeof TodoWriteTool>) {
   return (

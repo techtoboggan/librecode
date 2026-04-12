@@ -1,6 +1,6 @@
-import { GlobalBus } from "../../bus/global"
 import { Hono } from "hono"
 import { streamSSE } from "hono/streaming"
+import { GlobalBus } from "../../bus/global"
 
 export function WorkspaceServerRoutes() {
   return new Hono().get("/event", async (c) => {

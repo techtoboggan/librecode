@@ -1,9 +1,9 @@
-import z from "zod"
 import type { ZodType } from "zod"
+import z from "zod"
 import { Log } from "../util/log"
 
 export namespace BusEvent {
-  const log = Log.create({ service: "event" })
+  const _log = Log.create({ service: "event" })
 
   export type Definition = ReturnType<typeof define>
 
@@ -31,7 +31,7 @@ export namespace BusEvent {
                 properties: def.properties,
               })
               .meta({
-                ref: "Event" + "." + def.type,
+                ref: `Event.${def.type}`,
               })
           })
           .toArray() as any,

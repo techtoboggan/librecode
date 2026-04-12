@@ -1,10 +1,9 @@
-import { chmod, mkdir, readFile, writeFile } from "fs/promises"
-import { createWriteStream, existsSync, statSync } from "fs"
+import { createWriteStream, existsSync, realpathSync, statSync } from "node:fs"
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises"
+import { dirname, join, resolve as pathResolve, relative } from "node:path"
+import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
 import { lookup } from "mime-types"
-import { realpathSync } from "fs"
-import { dirname, join, relative, resolve as pathResolve } from "path"
-import { Readable } from "stream"
-import { pipeline } from "stream/promises"
 import { Glob } from "./glob"
 
 export namespace Filesystem {
@@ -142,7 +141,7 @@ export namespace Filesystem {
   export function overlaps(a: string, b: string) {
     const relA = relative(a, b)
     const relB = relative(b, a)
-    return !relA || !relA.startsWith("..") || !relB || !relB.startsWith("..")
+    return !relA?.startsWith("..") || !relB?.startsWith("..")
   }
 
   export function contains(parent: string, child: string) {

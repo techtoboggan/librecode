@@ -1,13 +1,13 @@
-import { EOL } from "os"
-import { basename } from "path"
+import { EOL } from "node:os"
+import { basename } from "node:path"
 import { Agent } from "../../../agent/agent"
+import { PermissionNext } from "../../../permission/next"
+import { Instance } from "../../../project/instance"
 import { Provider } from "../../../provider/provider"
 import { Session } from "../../../session"
 import type { MessageV2 } from "../../../session/message-v2"
 import { MessageID, PartID } from "../../../session/schema"
 import { ToolRegistry } from "../../../tool/registry"
-import { Instance } from "../../../project/instance"
-import { PermissionNext } from "../../../permission/next"
 import { iife } from "../../../util/iife"
 import { bootstrap } from "../../bootstrap"
 import { cmd } from "../cmd"
@@ -36,7 +36,7 @@ export const AgentCommand = cmd({
       const agent = await Agent.get(agentName)
       if (!agent) {
         process.stderr.write(
-          `Agent ${agentName} not found, run '${basename(process.execPath)} agent list' to get an agent list` + EOL,
+          `Agent ${agentName} not found, run '${basename(process.execPath)} agent list' to get an agent list${EOL}`,
         )
         process.exit(1)
       }
@@ -46,11 +46,11 @@ export const AgentCommand = cmd({
       if (toolID) {
         const tool = availableTools.find((item) => item.id === toolID)
         if (!tool) {
-          process.stderr.write(`Tool ${toolID} not found for agent ${agentName}` + EOL)
+          process.stderr.write(`Tool ${toolID} not found for agent ${agentName}${EOL}`)
           process.exit(1)
         }
         if (resolvedTools[toolID] === false) {
-          process.stderr.write(`Tool ${toolID} is disabled for agent ${agentName}` + EOL)
+          process.stderr.write(`Tool ${toolID} is disabled for agent ${agentName}${EOL}`)
           process.exit(1)
         }
         const params = parseToolParams(args.params as string | undefined)

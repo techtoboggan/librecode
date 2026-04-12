@@ -1,10 +1,10 @@
+import * as path from "node:path"
 import z from "zod"
-import { Tool } from "./tool"
-import * as path from "path"
-import DESCRIPTION from "./ls.txt"
-import { Instance } from "../project/instance"
 import { Ripgrep } from "../file/ripgrep"
+import { Instance } from "../project/instance"
 import { assertExternalDirectory } from "./external-directory"
+import DESCRIPTION from "./ls.txt"
+import { Tool } from "./tool"
 
 export const IGNORE_PATTERNS = [
   "node_modules/",
@@ -54,7 +54,7 @@ function buildDirStructure(files: string[]): DirStructure {
     }
 
     if (!filesByDir.has(dir)) filesByDir.set(dir, [])
-    filesByDir.get(dir)!.push(path.basename(file))
+    filesByDir.get(dir)?.push(path.basename(file))
   }
 
   return { dirs, filesByDir }
@@ -112,7 +112,7 @@ export const ListTool = Tool.define("list", {
     }
 
     const { dirs, filesByDir } = buildDirStructure(files)
-    const output = `${searchPath}/\n` + renderDir(".", 0, dirs, filesByDir)
+    const output = `${searchPath}/\n${renderDir(".", 0, dirs, filesByDir)}`
 
     return {
       title: path.relative(Instance.worktree, searchPath),

@@ -1,12 +1,12 @@
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import z from "zod"
-import { Tool } from "./tool"
-import path from "path"
 import { LSP } from "../lsp"
-import DESCRIPTION from "./lsp.txt"
 import { Instance } from "../project/instance"
-import { pathToFileURL } from "url"
-import { assertExternalDirectory } from "./external-directory"
 import { Filesystem } from "../util/filesystem"
+import { assertExternalDirectory } from "./external-directory"
+import DESCRIPTION from "./lsp.txt"
+import { Tool } from "./tool"
 
 const operations = [
   "goToDefinition",

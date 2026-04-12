@@ -24,13 +24,13 @@
  * ```
  */
 
-import { Log } from "@/util/log"
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import z from "zod"
-import { type SessionID, MessageID, PartID } from "./schema"
-import { MessageV2 } from "./message-v2"
+import { Log } from "@/util/log"
 import { Session } from "."
+import { MessageV2 } from "./message-v2"
+import { MessageID, PartID, type SessionID } from "./schema"
 
 const log = Log.create({ service: "session.branch" })
 

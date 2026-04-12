@@ -1,7 +1,7 @@
-import { Auth } from "../../../auth"
-import * as prompts from "@clack/prompts"
-import { Process } from "../../../util/process"
 import { text } from "node:stream/consumers"
+import * as prompts from "@clack/prompts"
+import { Auth } from "../../../auth"
+import { Process } from "../../../util/process"
 
 export async function loginWithUrl(url: string): Promise<void> {
   const normalized = url.replace(/\/+$/, "")
@@ -24,6 +24,6 @@ export async function loginWithUrl(url: string): Promise<void> {
     key: wellknown.auth.env,
     token: token.trim(),
   })
-  prompts.log.success("Logged into " + normalized)
+  prompts.log.success(`Logged into ${normalized}`)
   prompts.outro("Done")
 }

@@ -9,10 +9,10 @@
  * Env: LITELLM_API_KEY, LITELLM_BASE_URL
  */
 
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 import { Env } from "../../env"
 import { Log } from "../../util/log"
 import type { CustomLoader, ProviderLoadResult } from "./types"
-import type { LanguageModelV2 } from "@ai-sdk/provider"
 
 const log = Log.create({ service: "provider.litellm" })
 
@@ -23,7 +23,7 @@ async function fetchLiteLLMModels(baseURL: string, apiKey: string | undefined): 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DISCOVERY_TIMEOUT)
   const headers: Record<string, string> = {}
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
   try {
     const response = await fetch(`${baseURL}/models`, { headers, signal: controller.signal })
     clearTimeout(timeout)

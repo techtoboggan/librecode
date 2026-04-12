@@ -1,11 +1,11 @@
-import { createMemo, onMount } from "solid-js"
+import type { TextPart } from "@librecode/sdk/v2"
 import { useSync } from "@tui/context/sync"
 import { DialogSelect, type DialogSelectOption } from "@tui/ui/dialog-select"
-import type { TextPart } from "@librecode/sdk/v2"
+import { createMemo, onMount } from "solid-js"
 import { Locale } from "@/util/locale"
-import { DialogMessage } from "./dialog-message"
-import { useDialog } from "../../ui/dialog"
 import type { PromptInfo } from "../../component/prompt/history"
+import { useDialog } from "../../ui/dialog"
+import { DialogMessage } from "./dialog-message"
 
 export function DialogTimeline(props: {
   sessionID: string

@@ -1,12 +1,12 @@
-import { Instance } from "@/project/instance"
-import { Plugin } from "../plugin"
-import { filter, fromEntries, map, pipe } from "remeda"
 import type { AuthHook, AuthOuathResult } from "@librecode/plugin"
 import { NamedError } from "@librecode/util/error"
-import * as Auth from "@/auth/service"
-import { ProviderID } from "./schema"
-import { ProviderCredentials } from "./credentials"
+import { filter, fromEntries, map, pipe } from "remeda"
 import z from "zod"
+import * as Auth from "@/auth/service"
+import { Instance } from "@/project/instance"
+import { Plugin } from "../plugin"
+import { ProviderCredentials } from "./credentials"
+import { ProviderID } from "./schema"
 
 export const MethodPrompt = z
   .discriminatedUnion("type", [

@@ -1,15 +1,15 @@
-import type { TextareaRenderable, PasteEvent } from "@opentui/core"
-import type { SetStoreFunction } from "solid-js/store"
-import { produce } from "solid-js/store"
+import path from "node:path"
+import type { FilePart } from "@librecode/sdk/v2"
+import type { PasteEvent, TextareaRenderable } from "@opentui/core"
 import { useRenderer } from "@opentui/solid"
 import { useSync } from "@tui/context/sync"
-import { useCommandDialog } from "../dialog-command"
+import type { SetStoreFunction } from "solid-js/store"
+import { produce } from "solid-js/store"
 import { Filesystem } from "@/util/filesystem"
 import { Clipboard } from "../../util/clipboard"
-import type { FilePart } from "@librecode/sdk/v2"
-import path from "path"
-import { normalizeLineEndings } from "./prompt-helpers"
+import { useCommandDialog } from "../dialog-command"
 import type { PromptInfo } from "./history"
+import { normalizeLineEndings } from "./prompt-helpers"
 
 // ---------------------------------------------------------------------------
 // Paste handler logic extracted to reduce Prompt component size
@@ -39,7 +39,7 @@ export function usePromptPaste(deps: PasteHandlerDeps) {
     const extmarkStart = currentOffset
     const extmarkEnd = extmarkStart + virtualText.length
 
-    input.insertText(virtualText + " ")
+    input.insertText(`${virtualText} `)
 
     const extmarkId = input.extmarks.create({
       start: extmarkStart,
@@ -75,7 +75,7 @@ export function usePromptPaste(deps: PasteHandlerDeps) {
     const count = deps.store.prompt.parts.filter((x) => x.type === "file" && x.mime.startsWith("image/")).length
     const virtualText = `[Image ${count + 1}]`
     const extmarkEnd = extmarkStart + virtualText.length
-    const textToInsert = virtualText + " "
+    const textToInsert = `${virtualText} `
 
     input.insertText(textToInsert)
 

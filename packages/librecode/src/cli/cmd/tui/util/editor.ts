@@ -1,14 +1,14 @@
-import { defer } from "@/util/defer"
 import { rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { CliRenderer } from "@opentui/core"
+import { defer } from "@/util/defer"
 import { Filesystem } from "@/util/filesystem"
 import { Process } from "@/util/process"
 
 export namespace Editor {
   export async function open(opts: { value: string; renderer: CliRenderer }): Promise<string | undefined> {
-    const editor = process.env["VISUAL"] || process.env["EDITOR"]
+    const editor = process.env.VISUAL || process.env.EDITOR
     if (!editor) return
 
     const filepath = join(tmpdir(), `${Date.now()}.md`)

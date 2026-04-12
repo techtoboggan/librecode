@@ -1,21 +1,21 @@
-import { createStore } from "solid-js/store"
-import { createMemo, For, Match, Show, Switch } from "solid-js"
-import { Portal, useKeyboard, useRenderer, useTerminalDimensions, type JSX } from "@opentui/solid"
-import type { TextareaRenderable } from "@opentui/core"
-import { useKeybind } from "../../context/keybind"
-import { useTheme, selectedForeground } from "../../context/theme"
+import path from "node:path"
 import type { PermissionRequest } from "@librecode/sdk/v2"
-import { useSDK } from "../../context/sdk"
-import { SplitBorder } from "../../component/border"
-import { useSync } from "../../context/sync"
-import { useTextareaKeybindings } from "../../component/textarea-keybindings"
-import path from "path"
+import type { TextareaRenderable } from "@opentui/core"
+import { type JSX, Portal, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createStore } from "solid-js/store"
+import { Global } from "@/global"
 import { LANGUAGE_EXTENSIONS } from "@/lsp/language"
 import { Keybind } from "@/util/keybind"
 import { Locale } from "@/util/locale"
-import { Global } from "@/global"
-import { useDialog } from "../../ui/dialog"
+import { SplitBorder } from "../../component/border"
+import { useTextareaKeybindings } from "../../component/textarea-keybindings"
+import { useKeybind } from "../../context/keybind"
+import { useSDK } from "../../context/sdk"
+import { useSync } from "../../context/sync"
+import { selectedForeground, useTheme } from "../../context/theme"
 import { useTuiConfig } from "../../context/tui-config"
+import { useDialog } from "../../ui/dialog"
 
 type PermissionStage = "permission" | "always" | "reject"
 
@@ -158,7 +158,7 @@ function readPermissionInfo(ctx: PermissionContext): PermissionInfo {
     body: (
       <Show when={filePath}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.textMuted}>{"Path: " + normalizePath(filePath)}</text>
+          <text fg={ctx.theme.textMuted}>{`Path: ${normalizePath(filePath)}`}</text>
         </box>
       </Show>
     ),
@@ -166,7 +166,7 @@ function readPermissionInfo(ctx: PermissionContext): PermissionInfo {
 }
 
 function patternPermissionInfo(
-  permission: string,
+  _permission: string,
   icon: string,
   label: string,
   ctx: PermissionContext,
@@ -178,7 +178,7 @@ function patternPermissionInfo(
     body: (
       <Show when={pattern}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.textMuted}>{"Pattern: " + pattern}</text>
+          <text fg={ctx.theme.textMuted}>{`Pattern: ${pattern}`}</text>
         </box>
       </Show>
     ),
@@ -194,7 +194,7 @@ function listPermissionInfo(ctx: PermissionContext): PermissionInfo {
     body: (
       <Show when={dir}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.textMuted}>{"Path: " + normalizePath(dir)}</text>
+          <text fg={ctx.theme.textMuted}>{`Path: ${normalizePath(dir)}`}</text>
         </box>
       </Show>
     ),
@@ -211,7 +211,7 @@ function bashPermissionInfo(ctx: PermissionContext): PermissionInfo {
     body: (
       <Show when={command}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.text}>{"$ " + command}</text>
+          <text fg={ctx.theme.text}>{`$ ${command}`}</text>
         </box>
       </Show>
     ),
@@ -227,7 +227,7 @@ function taskPermissionInfo(ctx: PermissionContext): PermissionInfo {
     body: (
       <Show when={desc}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.text}>{"◉ " + desc}</text>
+          <text fg={ctx.theme.text}>{`◉ ${desc}`}</text>
         </box>
       </Show>
     ),
@@ -242,14 +242,14 @@ function webfetchPermissionInfo(ctx: PermissionContext): PermissionInfo {
     body: (
       <Show when={url}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.textMuted}>{"URL: " + url}</text>
+          <text fg={ctx.theme.textMuted}>{`URL: ${url}`}</text>
         </box>
       </Show>
     ),
   }
 }
 
-function queryPermissionInfo(permission: string, icon: string, label: string, ctx: PermissionContext): PermissionInfo {
+function queryPermissionInfo(_permission: string, icon: string, label: string, ctx: PermissionContext): PermissionInfo {
   const query = typeof ctx.data.query === "string" ? ctx.data.query : ""
   return {
     icon,
@@ -257,7 +257,7 @@ function queryPermissionInfo(permission: string, icon: string, label: string, ct
     body: (
       <Show when={query}>
         <box paddingLeft={1}>
-          <text fg={ctx.theme.textMuted}>{"Query: " + query}</text>
+          <text fg={ctx.theme.textMuted}>{`Query: ${query}`}</text>
         </box>
       </Show>
     ),
@@ -266,8 +266,8 @@ function queryPermissionInfo(permission: string, icon: string, label: string, ct
 
 function externalDirPermissionInfo(ctx: PermissionContext): PermissionInfo {
   const meta = ctx.request.metadata ?? {}
-  const parent = typeof meta["parentDir"] === "string" ? meta["parentDir"] : undefined
-  const filepath = typeof meta["filepath"] === "string" ? meta["filepath"] : undefined
+  const parent = typeof meta.parentDir === "string" ? meta.parentDir : undefined
+  const filepath = typeof meta.filepath === "string" ? meta.filepath : undefined
   const pattern = ctx.request.patterns?.[0]
   const derived = typeof pattern === "string" ? (pattern.includes("*") ? path.dirname(pattern) : pattern) : undefined
   const raw = parent ?? filepath ?? derived
@@ -281,7 +281,7 @@ function externalDirPermissionInfo(ctx: PermissionContext): PermissionInfo {
         <box paddingLeft={1} gap={1}>
           <text fg={ctx.theme.textMuted}>Patterns</text>
           <box>
-            <For each={patterns}>{(p) => <text fg={ctx.theme.text}>{"- " + p}</text>}</For>
+            <For each={patterns}>{(p) => <text fg={ctx.theme.text}>{`- ${p}`}</text>}</For>
           </box>
         </box>
       </Show>
@@ -320,7 +320,7 @@ function buildPermissionInfo(ctx: PermissionContext): PermissionInfo {
     title: `Call tool ${permission}`,
     body: (
       <box paddingLeft={1}>
-        <text fg={ctx.theme.textMuted}>{"Tool: " + permission}</text>
+        <text fg={ctx.theme.textMuted}>{`Tool: ${permission}`}</text>
       </box>
     ),
   }
@@ -413,7 +413,7 @@ export function PermissionPrompt(props: { request: PermissionRequest }) {
           body={
             <Switch>
               <Match when={props.request.always.length === 1 && props.request.always[0] === "*"}>
-                <TextBody title={"This will allow " + props.request.permission + " until LibreCode is restarted."} />
+                <TextBody title={`This will allow ${props.request.permission} until LibreCode is restarted.`} />
               </Match>
               <Match when={true}>
                 <box paddingLeft={1} gap={1}>
@@ -590,12 +590,12 @@ function Prompt<const T extends Record<string, string>>(props: {
   }
 
   function handlePromptNav(evt: Parameters<Parameters<typeof useKeyboard>[0]>[0]): boolean {
-    if (evt.name === "left" || evt.name == "h") {
+    if (evt.name === "left" || evt.name === "h") {
       evt.preventDefault()
       movePrev()
       return true
     }
-    if (evt.name === "right" || evt.name == "l") {
+    if (evt.name === "right" || evt.name === "l") {
       evt.preventDefault()
       moveNext()
       return true
@@ -628,7 +628,7 @@ function Prompt<const T extends Record<string, string>>(props: {
   })
 
   const hint = createMemo(() => (store.expanded ? "minimize" : "fullscreen"))
-  const renderer = useRenderer()
+  const _renderer = useRenderer()
 
   const content = () => (
     <box

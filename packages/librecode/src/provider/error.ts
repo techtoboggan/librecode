@@ -1,5 +1,5 @@
+import { STATUS_CODES } from "node:http"
 import type { APICallError } from "ai"
-import { STATUS_CODES } from "http"
 import { iife } from "@/util/iife"
 import type { ProviderID } from "./schema"
 
@@ -78,7 +78,7 @@ export namespace ProviderError {
     return `${msg}: ${e.responseBody}`
   }
 
-  function message(providerID: ProviderID, e: APICallError) {
+  function message(_providerID: ProviderID, e: APICallError) {
     return iife(() => {
       const msg = e.message
       if (msg === "") return resolveEmptyMessage(e)

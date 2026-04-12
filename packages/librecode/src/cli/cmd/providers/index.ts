@@ -1,14 +1,14 @@
-import { cmd } from "../cmd"
+import os from "node:os"
+import path from "node:path"
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
 import { Auth } from "../../../auth"
-import { ModelsDev } from "../../../provider/models"
-import path from "path"
-import os from "os"
 import { Global } from "../../../global"
 import { Instance } from "../../../project/instance"
-import { loginWithUrl } from "./login-url"
+import { ModelsDev } from "../../../provider/models"
+import { UI } from "../../ui"
+import { cmd } from "../cmd"
 import { loginInteractive } from "./login-interactive"
+import { loginWithUrl } from "./login-url"
 
 export { resolvePluginProviders } from "./select"
 
@@ -25,7 +25,7 @@ async function displayActiveEnvVars(database: Awaited<ReturnType<typeof ModelsDe
   for (const { provider, envVar } of activeEnvVars) {
     prompts.log.info(`${provider} ${UI.Style.TEXT_DIM}${envVar}`)
   }
-  prompts.outro(`${activeEnvVars.length} environment variable` + (activeEnvVars.length === 1 ? "" : "s"))
+  prompts.outro(`${activeEnvVars.length} environment variable${activeEnvVars.length === 1 ? "" : "s"}`)
 }
 
 export const ProvidersCommand = cmd({
@@ -110,7 +110,7 @@ export const ProvidersLogoutCommand = cmd({
     const providerID = await prompts.select({
       message: "Select provider",
       options: credentials.map(([key, value]) => ({
-        label: (database[key]?.name || key) + UI.Style.TEXT_DIM + " (" + value.type + ")",
+        label: `${(database[key]?.name || key) + UI.Style.TEXT_DIM} (${value.type})`,
         value: key,
       })),
     })

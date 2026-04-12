@@ -1,7 +1,7 @@
-import { Log } from "../util/log"
 import z from "zod"
-import { ModelsDev } from "../provider/models"
 import { LSPServer } from "../lsp/server"
+import { ModelsDev } from "../provider/models"
+import { Log } from "../util/log"
 
 // ---------------------------------------------------------------------------
 // Shared helper
@@ -208,7 +208,7 @@ export const Agent = z
     permission: Permission.optional(),
   })
   .catchall(z.any())
-  .transform((agent, ctx) => {
+  .transform((agent, _ctx) => {
     const knownKeys = new Set([
       "name",
       "model",

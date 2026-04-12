@@ -1,7 +1,7 @@
 import z from "zod"
-import { Tool } from "./tool"
-import { ProviderID, ModelID } from "../provider/schema"
+import { ModelID, ProviderID } from "../provider/schema"
 import DESCRIPTION from "./batch.txt"
+import { Tool } from "./tool"
 
 const DISALLOWED = new Set(["batch"])
 const FILTERED_FROM_SUGGESTIONS = new Set(["invalid", "patch", ...DISALLOWED])

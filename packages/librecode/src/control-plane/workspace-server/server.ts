@@ -1,15 +1,15 @@
 import { Hono } from "hono"
-import { Instance } from "../../project/instance"
 import { InstanceBootstrap } from "../../project/bootstrap"
+import { Instance } from "../../project/instance"
 import { SessionRoutes } from "../../server/routes/session"
-import { WorkspaceServerRoutes } from "./routes"
-import { WorkspaceContext } from "../workspace-context"
 import { WorkspaceID } from "../schema"
+import { WorkspaceContext } from "../workspace-context"
+import { WorkspaceServerRoutes } from "./routes"
 
 export namespace WorkspaceServer {
   export function App() {
     const session = new Hono()
-      .use(async (c, next) => {
+      .use(async (_c, next) => {
         // Right now, we need handle all requests because we don't
         // have syncing. In the future all GET requests will handled
         // by the control plane

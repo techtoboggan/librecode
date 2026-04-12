@@ -46,7 +46,7 @@ export namespace Terminal {
         }
         if (colorStr.startsWith("rgb(")) {
           const parts = colorStr.substring(4, colorStr.length - 1).split(",")
-          return RGBA.fromInts(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), 255)
+          return RGBA.fromInts(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2], 10), 255)
         }
         return null
       }
@@ -64,7 +64,7 @@ export namespace Terminal {
       function applyPaletteMatches(str: string): void {
         const paletteMatches = str.matchAll(/\x1b]4;(\d+);([^\x07\x1b]+)/g)
         for (const match of paletteMatches) {
-          const index = parseInt(match[1])
+          const index = parseInt(match[1], 10)
           const color = parseColor(match[2])
           if (color) paletteColors[index] = color
         }

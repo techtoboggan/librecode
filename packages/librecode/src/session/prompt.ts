@@ -1,60 +1,58 @@
-import path from "path"
-import z from "zod"
-import { type SessionID, MessageID, PartID } from "./schema"
-import { MessageV2 } from "./message-v2"
-import { Log } from "../util/log"
-import { SessionRevert } from "./revert"
-import { Session } from "."
-import { Agent } from "../agent/agent"
-import { Provider } from "../provider/provider"
-import { ModelID, ProviderID } from "../provider/schema"
-import { type Tool as AITool, tool, jsonSchema, type ToolCallOptions, asSchema } from "ai"
-import { SessionCompaction } from "./compaction"
-import { Instance } from "../project/instance"
-import { Bus } from "../bus"
-import { ProviderTransform } from "../provider/transform"
-import { Plugin } from "../plugin"
-import MAX_STEPS from "../session/prompt/max-steps.txt"
-import { defer } from "../util/defer"
-import { ToolRegistry } from "../tool/registry"
-import { MCP } from "../mcp"
-import { ulid } from "ulid"
-import { spawn } from "child_process"
-import { Command } from "../command"
-import { SessionSummary } from "./summary"
+import { spawn } from "node:child_process"
+import path from "node:path"
 import { NamedError } from "@librecode/util/error"
-import { fn } from "@/util/fn"
-import { SessionProcessor } from "./processor"
-import type { Tool } from "@/tool/tool"
+import { type Tool as AITool, asSchema, jsonSchema, type ToolCallOptions, tool } from "ai"
+import { ulid } from "ulid"
+import z from "zod"
 import { PermissionNext } from "@/permission/next"
-import { SessionStatus } from "./status"
 import { Shell } from "@/shell/shell"
-import { getShellArgs } from "./prompt/shell-invocations"
+import type { Tool } from "@/tool/tool"
+import { fn } from "@/util/fn"
+import { Agent } from "../agent/agent"
+import { Bus } from "../bus"
+import { Command } from "../command"
+import { MCP } from "../mcp"
+import { Plugin } from "../plugin"
+import { Instance } from "../project/instance"
+import { Provider } from "../provider/provider"
+import { ModelID, } from "../provider/schema"
+import { ProviderTransform } from "../provider/transform"
+import MAX_STEPS from "../session/prompt/max-steps.txt"
+import { ToolRegistry } from "../tool/registry"
+import { defer } from "../util/defer"
+import { Log } from "../util/log"
+import { Session } from "."
+import { SessionCompaction } from "./compaction"
 import { InstructionPrompt } from "./instruction"
-import { PromptInput, LoopInput, ShellInput, CommandInput, STRUCTURED_OUTPUT_DESCRIPTION } from "./prompt-schema"
-import type { LoopControl, ScanResult, NormalStepResult, PartDraft } from "./prompt-schema"
+import { MessageV2 } from "./message-v2"
+import { SessionProcessor } from "./processor"
+import { getShellArgs } from "./prompt/shell-invocations"
 import {
-  resolvePromptParts,
-  createUserMessage,
-  buildSystemPromptParts,
-  insertReminders,
-  wrapQueuedUserMessages,
+  argsRegex,
+  buildCommandParts,
   buildMcpToolExecute,
-  interpolateTemplate,
+  buildSystemPromptParts,
+  checkAndHandleOverflow,
+  createUserMessage,
+  ensureTitle,
+  executeSubtask,
   expandShellInTemplate,
+  insertReminders,
+  interpolateTemplate,
+  quoteTrimRegex,
   resolveCommandModel,
+  resolveCommandUserModelAndAgent,
+  resolvePromptParts,
   validateCommandAgent,
   validateModelExists,
-  buildCommandParts,
-  resolveCommandUserModelAndAgent,
-  checkAndHandleOverflow,
-  argsRegex,
-  quoteTrimRegex,
-  finalizeSubtaskResult,
-  addSubtaskSummaryMessage,
-  executeSubtask,
-  ensureTitle,
+  wrapQueuedUserMessages,
 } from "./prompt-builder"
+import type { LoopControl, NormalStepResult, ScanResult } from "./prompt-schema"
+import { CommandInput, LoopInput, PromptInput, ShellInput, STRUCTURED_OUTPUT_DESCRIPTION } from "./prompt-schema"
+import { SessionRevert } from "./revert"
+import { MessageID, PartID, type SessionID } from "./schema"
+import { SessionStatus } from "./status"
+import { SessionSummary } from "./summary"
 
 globalThis.AI_SDK_LOG_WARNINGS = false
 
@@ -87,8 +85,7 @@ export function assertNotBusy(sessionID: SessionID) {
 }
 
 // Re-export schemas and types for consumers that import from this module
-export { PromptInput, LoopInput, ShellInput, CommandInput }
-export { resolvePromptParts }
+export { CommandInput, LoopInput, PromptInput, resolvePromptParts, ShellInput }
 
 export const prompt = fn(PromptInput, async (input) => {
   const session = await Session.get(input.sessionID)
@@ -436,7 +433,7 @@ async function runNormalStep(input: {
 
   // Inject StructuredOutput tool if JSON schema mode enabled
   if (format.type === "json_schema") {
-    tools["StructuredOutput"] = createStructuredOutputTool({
+    tools.StructuredOutput = createStructuredOutputTool({
       schema: format.schema,
       onSuccess(output) {
         input.structuredOutput.value = output
@@ -782,7 +779,7 @@ export async function shell(input: z.infer<typeof ShellInput>) {
   })
 
   if (aborted) {
-    output += "\n\n" + ["<metadata>", "User aborted the command", "</metadata>"].join("\n")
+    output += `\n\n${["<metadata>", "User aborted the command", "</metadata>"].join("\n")}`
   }
   msg.time.completed = Date.now()
   await Session.updateMessage(msg)

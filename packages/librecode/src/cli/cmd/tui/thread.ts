@@ -1,19 +1,19 @@
-import { cmd } from "@/cli/cmd/cmd"
-import { tui } from "./app"
-import { Rpc } from "@/util/rpc"
-import type { rpc } from "./worker"
-import path from "path"
-import { fileURLToPath } from "url"
-import { UI } from "@/cli/ui"
-import { Log } from "@/util/log"
-import { withTimeout } from "@/util/timeout"
-import { withNetworkOptions, resolveNetworkOptions } from "@/cli/network"
-import { Filesystem } from "@/util/filesystem"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import type { Event } from "@librecode/sdk/v2"
-import type { EventSource } from "./context/sdk"
-import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
+import { cmd } from "@/cli/cmd/cmd"
+import { resolveNetworkOptions, withNetworkOptions } from "@/cli/network"
+import { UI } from "@/cli/ui"
 import { TuiConfig } from "@/config/tui"
 import { Instance } from "@/project/instance"
+import { Filesystem } from "@/util/filesystem"
+import { Log } from "@/util/log"
+import { Rpc } from "@/util/rpc"
+import { withTimeout } from "@/util/timeout"
+import { tui } from "./app"
+import type { EventSource } from "./context/sdk"
+import { win32DisableProcessedInput, win32InstallCtrlCGuard } from "./win32"
+import type { rpc } from "./worker"
 
 declare global {
   const LIBRECODE_WORKER_PATH: string
@@ -59,7 +59,7 @@ async function input(value?: string) {
   const piped = process.stdin.isTTY ? undefined : await Bun.stdin.text()
   if (!value) return piped
   if (!piped) return value
-  return piped + "\n" + value
+  return `${piped}\n${value}`
 }
 
 export const TuiThreadCommand = cmd({
@@ -123,7 +123,7 @@ export const TuiThreadCommand = cmd({
       try {
         process.chdir(next)
       } catch {
-        UI.error("Failed to change directory to " + next)
+        UI.error(`Failed to change directory to ${next}`)
         return
       }
       const cwd = Filesystem.resolve(process.cwd())
@@ -137,7 +137,7 @@ export const TuiThreadCommand = cmd({
         Log.Default.error(e)
       }
 
-      const client = Rpc.client<typeof rpc>(worker)
+      const client = Rpc.client<typeof rpc>(worker as Parameters<typeof Rpc.client>[0])
       const error = (e: unknown) => {
         Log.Default.error(e)
       }

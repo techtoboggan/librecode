@@ -3,12 +3,12 @@ import {
   type LanguageModelV2CallWarning,
   UnsupportedFunctionalityError,
 } from "@ai-sdk/provider"
+import type { OpenAIResponsesTool } from "./openai-responses-api-types"
 import { codeInterpreterArgsSchema } from "./tool/code-interpreter"
 import { fileSearchArgsSchema } from "./tool/file-search"
+import { imageGenerationArgsSchema } from "./tool/image-generation"
 import { webSearchArgsSchema } from "./tool/web-search"
 import { webSearchPreviewArgsSchema } from "./tool/web-search-preview"
-import { imageGenerationArgsSchema } from "./tool/image-generation"
-import type { OpenAIResponsesTool } from "./openai-responses-api-types"
 
 type ProviderDefinedTool = Extract<
   NonNullable<LanguageModelV2CallOptions["tools"]>[number],

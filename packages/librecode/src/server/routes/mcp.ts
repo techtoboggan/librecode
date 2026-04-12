@@ -1,10 +1,10 @@
 import { Hono } from "hono"
-import { describeRoute, validator, resolver } from "hono-openapi"
+import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
-import { MCP } from "../../mcp"
 import { Config } from "../../config/config"
-import { errors } from "../error"
+import { MCP } from "../../mcp"
 import { lazy } from "../../util/lazy"
+import { errors } from "../error"
 
 export const McpRoutes = lazy(() =>
   new Hono()

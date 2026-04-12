@@ -25,7 +25,9 @@
           "options": {
             "maxAllowedComplexity": 12
           }
-        }
+        },
+        "useLiteralKeys": "warn",
+        "useOptionalChain": "warn"
       },
       "suspicious": {
         "noExplicitAny": "warn",
@@ -36,17 +38,23 @@
         "noAsyncPromiseExecutor": "warn",
         "noRedeclare": "warn",
         "noShadowRestrictedNames": "warn",
-        "noGlobalAssign": "warn"
+        "noGlobalAssign": "warn",
+        "noGlobalIsNan": "warn"
       },
       "style": {
         "noNamespace": "warn",
         "noDefaultExport": "warn",
-        "useConst": "error"
+        "useConst": "error",
+        "useTemplate": "warn",
+        "useNodejsImportProtocol": "warn",
+        "noNonNullAssertion": "warn"
       },
       "correctness": {
         "noUnusedImports": "warn",
         "noUnusedVariables": "warn",
-        "noConstantCondition": "warn"
+        "noConstantCondition": "warn",
+        "useParseIntRadix": "warn",
+        "noUnusedFunctionParameters": "warn"
       },
       "performance": {
         "noDelete": "off"

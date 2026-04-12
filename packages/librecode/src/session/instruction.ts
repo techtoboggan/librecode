@@ -1,12 +1,12 @@
-import path from "path"
-import os from "os"
-import { Global } from "../global"
-import { Filesystem } from "../util/filesystem"
-import { Config } from "../config/config"
-import { Instance } from "../project/instance"
+import os from "node:os"
+import path from "node:path"
 import { Flag } from "@/flag/flag"
-import { Log } from "../util/log"
+import { Config } from "../config/config"
+import { Global } from "../global"
+import { Instance } from "../project/instance"
+import { Filesystem } from "../util/filesystem"
 import { Glob } from "../util/glob"
+import { Log } from "../util/log"
 import type { MessageV2 } from "./message-v2"
 
 const log = Log.create({ service: "instruction" })
@@ -132,7 +132,7 @@ export namespace InstructionPrompt {
 
     const files = Array.from(paths).map(async (p) => {
       const content = await Filesystem.readText(p).catch(() => "")
-      return content ? "Instructions from: " + p + "\n" + content : ""
+      return content ? `Instructions from: ${p}\n${content}` : ""
     })
 
     const urls: string[] = []
@@ -147,7 +147,7 @@ export namespace InstructionPrompt {
       fetch(url, { signal: AbortSignal.timeout(5000) })
         .then((res) => (res.ok ? res.text() : ""))
         .catch(() => "")
-        .then((x) => (x ? "Instructions from: " + url + "\n" + x : "")),
+        .then((x) => (x ? `Instructions from: ${url}\n${x}` : "")),
     )
 
     return Promise.all([...files, ...fetches]).then((result) => result.filter(Boolean))
@@ -206,7 +206,7 @@ export namespace InstructionPrompt {
         claim(messageID, found)
         const content = await Filesystem.readText(found).catch(() => undefined)
         if (content) {
-          results.push({ filepath: found, content: "Instructions from: " + found + "\n" + content })
+          results.push({ filepath: found, content: `Instructions from: ${found}\n${content}` })
         }
       }
       current = path.dirname(current)

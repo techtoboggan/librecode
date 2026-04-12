@@ -1,4 +1,4 @@
-import { glob, globSync, type GlobOptions } from "glob"
+import { type GlobOptions, glob, globSync } from "glob"
 import { minimatch } from "minimatch"
 
 export namespace Glob {

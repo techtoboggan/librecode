@@ -1,14 +1,13 @@
-import path from "path"
-import fs from "fs/promises"
-import { Filesystem } from "../util/filesystem"
-import { Log } from "../util/log"
-import { Flag } from "../flag/flag"
-import { Global } from "../global"
+import fs from "node:fs/promises"
+import path from "node:path"
 import z from "zod"
+import { Process } from "@/util/process"
 import { Config } from "../config/config"
+import { Global } from "../global"
 import { Instance } from "../project/instance"
 import { Scheduler } from "../scheduler"
-import { Process } from "@/util/process"
+import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
 
 export namespace Snapshot {
   const log = Log.create({ service: "snapshot" })
@@ -319,8 +318,8 @@ export namespace Snapshot {
     const isBinary = additions === "-" && deletions === "-"
     const before = isBinary ? "" : await fetchFileContent(git, from, file)
     const after = isBinary ? "" : await fetchFileContent(git, to, file)
-    const added = isBinary ? 0 : parseInt(additions)
-    const deleted = isBinary ? 0 : parseInt(deletions)
+    const added = isBinary ? 0 : parseInt(additions, 10)
+    const deleted = isBinary ? 0 : parseInt(deletions, 10)
     return {
       file,
       before,

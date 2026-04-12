@@ -1,8 +1,7 @@
-import { BusEvent } from "@/bus/bus-event"
-import { Bus } from "@/bus"
+import { NamedError } from "@librecode/util/error"
 import { spawn } from "bun"
 import z from "zod"
-import { NamedError } from "@librecode/util/error"
+import { BusEvent } from "@/bus/bus-event"
 import { Log } from "../util/log"
 
 const SUPPORTED_IDES = [
@@ -35,8 +34,8 @@ export namespace Ide {
   )
 
   export function ide() {
-    if (process.env["TERM_PROGRAM"] === "vscode") {
-      const v = process.env["GIT_ASKPASS"]
+    if (process.env.TERM_PROGRAM === "vscode") {
+      const v = process.env.GIT_ASKPASS
       for (const ide of SUPPORTED_IDES) {
         if (v?.includes(ide.name)) return ide.name
       }
@@ -45,7 +44,7 @@ export namespace Ide {
   }
 
   export function alreadyInstalled() {
-    return process.env["LIBRECODE_CALLER"] === "vscode" || process.env["LIBRECODE_CALLER"] === "vscode-insiders"
+    return process.env.LIBRECODE_CALLER === "vscode" || process.env.LIBRECODE_CALLER === "vscode-insiders"
   }
 
   export async function install(ide: (typeof SUPPORTED_IDES)[number]["name"]) {

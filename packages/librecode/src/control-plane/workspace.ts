@@ -1,16 +1,16 @@
 import z from "zod"
-import { fn } from "@/util/fn"
-import { Database, eq } from "@/storage/db"
-import type { Project } from "@/project/project"
 import { BusEvent } from "@/bus/bus-event"
 import { GlobalBus } from "@/bus/global"
-import { Log } from "@/util/log"
+import type { Project } from "@/project/project"
 import { ProjectID } from "@/project/schema"
-import { WorkspaceTable } from "./workspace.sql"
+import { Database, eq } from "@/storage/db"
+import { fn } from "@/util/fn"
+import { Log } from "@/util/log"
 import { getAdaptor } from "./adaptors"
-import { WorkspaceInfo } from "./types"
 import { WorkspaceID } from "./schema"
 import { parseSSE } from "./sse"
+import { WorkspaceInfo } from "./types"
+import { WorkspaceTable } from "./workspace.sql"
 
 export namespace Workspace {
   export const Event = {
@@ -116,7 +116,7 @@ export namespace Workspace {
     while (!stop.aborted) {
       const adaptor = await getAdaptor(space.type)
       const res = await adaptor.fetch(space, "/event", { method: "GET", signal: stop }).catch(() => undefined)
-      if (!res || !res.ok || !res.body) {
+      if (!res?.ok || !res.body) {
         await Bun.sleep(1000)
         continue
       }

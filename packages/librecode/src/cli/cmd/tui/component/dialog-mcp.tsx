@@ -1,12 +1,12 @@
-import { createMemo, createSignal } from "solid-js"
-import { useLocal } from "@tui/context/local"
-import { useSync } from "@tui/context/sync"
-import { map, pipe, entries, sortBy } from "remeda"
-import { DialogSelect, type DialogSelectRef, type DialogSelectOption } from "@tui/ui/dialog-select"
-import { useTheme } from "../context/theme"
-import { Keybind } from "@/util/keybind"
 import { TextAttributes } from "@opentui/core"
+import { useLocal } from "@tui/context/local"
 import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { DialogSelect, type DialogSelectOption, type DialogSelectRef } from "@tui/ui/dialog-select"
+import { entries, map, pipe, sortBy } from "remeda"
+import { createMemo, createSignal } from "solid-js"
+import { Keybind } from "@/util/keybind"
+import { useTheme } from "../context/theme"
 
 function Status(props: { enabled: boolean; loading: boolean }) {
   const { theme } = useTheme()
@@ -78,7 +78,7 @@ export function DialogMcp() {
       title="MCPs"
       options={options()}
       keybind={keybinds()}
-      onSelect={(option) => {
+      onSelect={(_option) => {
         // Don't close on select, only on escape
       }}
     />

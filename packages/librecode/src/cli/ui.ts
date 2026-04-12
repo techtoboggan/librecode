@@ -1,6 +1,6 @@
-import z from "zod"
-import { EOL } from "os"
+import { EOL } from "node:os"
 import { NamedError } from "@librecode/util/error"
+import z from "zod"
 import { logo as glyphs } from "./logo"
 
 function drawLogoLine(line: string, fg: string, shadow: string, bg: string, reset: string): string {
@@ -54,7 +54,7 @@ export namespace UI {
   let blank = false
   export function empty() {
     if (blank) return
-    println("" + Style.TEXT_NORMAL)
+    println(`${Style.TEXT_NORMAL}`)
     blank = true
   }
 
@@ -76,7 +76,7 @@ export namespace UI {
   }
 
   export async function input(prompt: string): Promise<string> {
-    const readline = require("readline")
+    const readline = require("node:readline")
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
@@ -94,7 +94,7 @@ export namespace UI {
     if (message.startsWith("Error: ")) {
       message = message.slice("Error: ".length)
     }
-    println(Style.TEXT_DANGER_BOLD + "Error: " + Style.TEXT_NORMAL + message)
+    println(`${Style.TEXT_DANGER_BOLD}Error: ${Style.TEXT_NORMAL}${message}`)
   }
 
   export function markdown(text: string): string {

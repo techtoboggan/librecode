@@ -1,15 +1,15 @@
 import type { Hooks, PluginInput, Plugin as PluginInstance } from "@librecode/plugin"
-import { Config } from "../config/config"
-import { Bus } from "../bus"
-import { Log } from "../util/log"
 import { createOpencodeClient } from "@librecode/sdk"
-import { Server } from "../server/server"
-import { BunProc } from "../bun"
-import { Instance } from "../project/instance"
-import { Flag } from "../flag/flag"
-import { CodexAuthPlugin } from "./codex"
-import { Session } from "../session"
 import { NamedError } from "@librecode/util/error"
+import { BunProc } from "../bun"
+import { Bus } from "../bus"
+import { Config } from "../config/config"
+import { Flag } from "../flag/flag"
+import { Instance } from "../project/instance"
+import { Server } from "../server/server"
+import { Session } from "../session"
+import { Log } from "../util/log"
+import { CodexAuthPlugin } from "./codex"
 import { CopilotAuthPlugin } from "./copilot"
 import { LiteLLMAuthPlugin } from "./litellm"
 import { OllamaAuthPlugin } from "./ollama"
@@ -171,7 +171,7 @@ export namespace Plugin {
     Bus.subscribeAll(async (input) => {
       const hooks = await state().then((x) => x.hooks)
       for (const hook of hooks) {
-        hook["event"]?.({
+        hook.event?.({
           event: input,
         })
       }

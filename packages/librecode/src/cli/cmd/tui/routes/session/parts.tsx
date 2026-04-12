@@ -1,21 +1,21 @@
-import { createMemo, Show, Switch, Match } from "solid-js"
-import { useTheme } from "@tui/context/theme"
-import { useSync } from "@tui/context/sync"
-import { SplitBorder } from "@tui/component/border"
 import type {
   AssistantMessage,
-  ToolPart as ToolPartType,
-  TextPart as TextPartType,
   ReasoningPart as ReasoningPartType,
+  TextPart as TextPartType,
+  ToolPart as ToolPartType,
 } from "@librecode/sdk/v2"
+import { SplitBorder } from "@tui/component/border"
+import { useSync } from "@tui/context/sync"
+import { useTheme } from "@tui/context/theme"
+import { createMemo, Match, Show, Switch } from "solid-js"
 import { Flag } from "@/flag/flag"
 import { use } from "./context"
+import { Task } from "./tools/agent"
+import { ApplyPatch, Edit, Read, Write } from "./tools/file-ops"
+import { Question, Skill, TodoWrite } from "./tools/misc"
+import { CodeSearch, Glob, Grep, List, WebFetch, WebSearch } from "./tools/search"
 import { GenericTool, type ToolProps } from "./tools/shared"
 import { Bash } from "./tools/shell"
-import { Glob, Grep, List, WebFetch, CodeSearch, WebSearch } from "./tools/search"
-import { Write, Read, Edit, ApplyPatch } from "./tools/file-ops"
-import { Task } from "./tools/agent"
-import { TodoWrite, Question, Skill } from "./tools/misc"
 
 export function ReasoningPart(props: { last: boolean; part: ReasoningPartType; message: AssistantMessage }) {
   const { theme, subtleSyntax } = useTheme()
@@ -28,7 +28,7 @@ export function ReasoningPart(props: { last: boolean; part: ReasoningPartType; m
   return (
     <Show when={content() && ctx.showThinking()}>
       <box
-        id={"text-" + props.part.id}
+        id={`text-${props.part.id}`}
         paddingLeft={2}
         marginTop={1}
         flexDirection="column"
@@ -41,7 +41,7 @@ export function ReasoningPart(props: { last: boolean; part: ReasoningPartType; m
           drawUnstyledText={false}
           streaming={true}
           syntaxStyle={subtleSyntax()}
-          content={"_Thinking:_ " + content()}
+          content={`_Thinking:_ ${content()}`}
           conceal={ctx.conceal()}
           fg={theme.textMuted}
         />
@@ -55,7 +55,7 @@ export function TextPart(props: { last: boolean; part: TextPartType; message: As
   const { theme, syntax } = useTheme()
   return (
     <Show when={props.part.text.trim()}>
-      <box id={"text-" + props.part.id} paddingLeft={3} marginTop={1} flexShrink={0}>
+      <box id={`text-${props.part.id}`} paddingLeft={3} marginTop={1} flexShrink={0}>
         <Switch>
           <Match when={Flag.LIBRECODE_EXPERIMENTAL_MARKDOWN}>
             <markdown

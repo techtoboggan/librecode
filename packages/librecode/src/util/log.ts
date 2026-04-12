@@ -1,8 +1,8 @@
-import path from "path"
-import fs from "fs/promises"
-import { createWriteStream } from "fs"
-import { Global } from "../global"
+import { createWriteStream } from "node:fs"
+import fs from "node:fs/promises"
+import path from "node:path"
 import z from "zod"
+import { Global } from "../global"
 import { Glob } from "./glob"
 
 export namespace Log {
@@ -63,7 +63,7 @@ export namespace Log {
     if (options.print) return
     logpath = path.join(
       Global.Path.log,
-      options.dev ? "dev.log" : new Date().toISOString().split(".")[0].replace(/:/g, "") + ".log",
+      options.dev ? "dev.log" : `${new Date().toISOString().split(".")[0].replace(/:/g, "")}.log`,
     )
     await fs.truncate(logpath).catch(() => {})
     const stream = createWriteStream(logpath, { flags: "a" })
@@ -92,7 +92,7 @@ export namespace Log {
   function formatError(error: Error, depth = 0): string {
     const result = error.message
     return error.cause instanceof Error && depth < 10
-      ? result + " Caused by: " + formatError(error.cause, depth + 1)
+      ? `${result} Caused by: ${formatError(error.cause, depth + 1)}`
       : result
   }
 
@@ -100,7 +100,7 @@ export namespace Log {
   export function create(tags?: Record<string, any>) {
     tags = tags || {}
 
-    const service = tags["service"]
+    const service = tags.service
     if (service && typeof service === "string") {
       const cached = loggers.get(service)
       if (cached) {
@@ -124,27 +124,27 @@ export namespace Log {
       const next = new Date()
       const diff = next.getTime() - last
       last = next.getTime()
-      return [next.toISOString().split(".")[0], "+" + diff + "ms", prefix, message].filter(Boolean).join(" ") + "\n"
+      return `${[next.toISOString().split(".")[0], `+${diff}ms`, prefix, message].filter(Boolean).join(" ")}\n`
     }
     const result: Logger = {
       debug(message?: any, extra?: Record<string, any>) {
         if (shouldLog("DEBUG")) {
-          write("DEBUG " + build(message, extra))
+          write(`DEBUG ${build(message, extra)}`)
         }
       },
       info(message?: any, extra?: Record<string, any>) {
         if (shouldLog("INFO")) {
-          write("INFO  " + build(message, extra))
+          write(`INFO  ${build(message, extra)}`)
         }
       },
       error(message?: any, extra?: Record<string, any>) {
         if (shouldLog("ERROR")) {
-          write("ERROR " + build(message, extra))
+          write(`ERROR ${build(message, extra)}`)
         }
       },
       warn(message?: any, extra?: Record<string, any>) {
         if (shouldLog("WARN")) {
-          write("WARN  " + build(message, extra))
+          write(`WARN  ${build(message, extra)}`)
         }
       },
       tag(key: string, value: string) {

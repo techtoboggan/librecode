@@ -1,8 +1,8 @@
-import { BusEvent } from "@/bus/bus-event"
+import z from "zod"
 import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
 import { Instance } from "@/project/instance"
 import { SessionID } from "./schema"
-import z from "zod"
 
 export namespace SessionStatus {
   export const Info = z

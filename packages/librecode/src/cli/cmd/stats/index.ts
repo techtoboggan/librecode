@@ -1,6 +1,6 @@
 import type { Argv } from "yargs"
-import { cmd } from "../cmd"
 import { bootstrap } from "../../bootstrap"
+import { cmd } from "../cmd"
 import { aggregateSessionStats } from "./aggregate"
 import { displayStats } from "./display"
 

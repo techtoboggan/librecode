@@ -1,12 +1,12 @@
-import { BusEvent } from "@/bus/bus-event"
-import path from "path"
-import z from "zod"
-import { NamedError } from "@librecode/util/error"
-import { Log } from "../util/log"
-import { iife } from "@/util/iife"
-import { Flag } from "../flag/flag"
-import { Process } from "@/util/process"
+import path from "node:path"
 import { buffer } from "node:stream/consumers"
+import { NamedError } from "@librecode/util/error"
+import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
+import { iife } from "@/util/iife"
+import { Process } from "@/util/process"
+import { Flag } from "../flag/flag"
+import { Log } from "../util/log"
 
 declare global {
   const LIBRECODE_VERSION: string

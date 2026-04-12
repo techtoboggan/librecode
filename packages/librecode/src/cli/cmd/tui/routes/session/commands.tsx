@@ -1,22 +1,22 @@
-import { batch } from "solid-js"
-import { useRoute, useRouteData } from "@tui/context/route"
-import { useSync } from "@tui/context/sync"
-import { useLocal } from "@tui/context/local"
-import { useSDK } from "@tui/context/sdk"
-import type { ScrollBoxRenderable, CliRenderer } from "@opentui/core"
+import path from "node:path"
+import type { Part } from "@librecode/sdk/v2"
+import type { CliRenderer, ScrollBoxRenderable } from "@opentui/core"
 import { useCommandDialog } from "@tui/component/dialog-command"
 import type { PromptRef } from "@tui/component/prompt"
+import { useLocal } from "@tui/context/local"
+import { useRoute, useRouteData } from "@tui/context/route"
+import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { batch } from "solid-js"
 import { DialogSessionRename } from "../../component/dialog-session-rename"
-import { DialogTimeline } from "./dialog-timeline"
-import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
-import { Clipboard } from "../../util/clipboard"
-import { DialogExportOptions } from "../../ui/dialog-export-options"
-import { formatTranscript } from "../../util/transcript"
-import { Editor } from "../../util/editor"
-import { useToast, type ToastContext } from "../../ui/toast"
 import type { PromptInfo } from "../../component/prompt/history"
-import type { Part } from "@librecode/sdk/v2"
-import path from "path"
+import { DialogExportOptions } from "../../ui/dialog-export-options"
+import type { ToastContext, } from "../../ui/toast"
+import { Clipboard } from "../../util/clipboard"
+import { Editor } from "../../util/editor"
+import { formatTranscript } from "../../util/transcript"
+import { DialogForkFromTimeline } from "./dialog-fork-from-timeline"
+import { DialogTimeline } from "./dialog-timeline"
 
 type CommandDeps = {
   session: () => any
@@ -100,7 +100,7 @@ export function useSessionCommands(deps: CommandDeps) {
         }
         await sdk.client.session
           .share({ sessionID: route.sessionID })
-          .then((res: any) => copy(res.data!.share!.url))
+          .then((res: any) => copy(res.data?.share?.url))
           .catch((error: any) => {
             deps.toast.show({
               message: error instanceof Error ? error.message : "Failed to share session",
@@ -433,7 +433,7 @@ export function useSessionCommands(deps: CommandDeps) {
       hidden: true,
       onSelect: () => {
         const msgs = sync.data.message[route.sessionID]
-        if (!msgs || !msgs.length) return
+        if (!msgs?.length) return
         deps.scrollToLastUserMessage(msgs, sync.data.part, deps.scroll())
       },
     },
@@ -514,7 +514,7 @@ export function useSessionCommands(deps: CommandDeps) {
           )
           await Clipboard.copy(transcript)
           deps.toast.show({ message: "Session transcript copied to clipboard!", variant: "success" })
-        } catch (error) {
+        } catch (_error) {
           deps.toast.show({ message: "Failed to copy session transcript", variant: "error" })
         }
         dialog.clear()
@@ -555,7 +555,7 @@ export function useSessionCommands(deps: CommandDeps) {
           } else {
             await saveTranscriptToFile(transcript, options.filename.trim(), deps.renderer, deps.toast)
           }
-        } catch (error) {
+        } catch (_error) {
           deps.toast.show({ message: "Failed to export session", variant: "error" })
         }
         dialog.clear()

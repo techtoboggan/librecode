@@ -1,7 +1,7 @@
-import type { Argv } from "yargs"
-import { UI } from "../ui"
 import * as prompts from "@clack/prompts"
+import type { Argv } from "yargs"
 import { Installation } from "../../installation"
+import { UI } from "../ui"
 
 function logUpgradeError(err: unknown, method: string): void {
   if (err instanceof Installation.UpgradeFailedError) {
@@ -54,7 +54,7 @@ export const UpgradeCommand = {
         return
       }
     }
-    prompts.log.info("Using method: " + method)
+    prompts.log.info(`Using method: ${method}`)
     const target = args.target ? args.target.replace(/^v/, "") : await Installation.latest()
 
     if (Installation.VERSION === target) {

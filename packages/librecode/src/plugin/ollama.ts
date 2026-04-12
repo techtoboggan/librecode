@@ -7,10 +7,10 @@
  * registers all available models.
  */
 
-import type { PluginInput, Hooks } from "@librecode/plugin"
-import { Log } from "../util/log"
+import type { Hooks, PluginInput } from "@librecode/plugin"
 import { ProviderCredentials } from "../provider/credentials"
 import { detectCapabilitiesFromId } from "../provider/detect-capabilities"
+import { Log } from "../util/log"
 
 const log = Log.create({ service: "plugin.ollama" })
 

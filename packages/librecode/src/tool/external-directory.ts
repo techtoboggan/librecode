@@ -1,6 +1,6 @@
-import path from "path"
-import type { Tool } from "./tool"
+import path from "node:path"
 import { Instance } from "../project/instance"
+import type { Tool } from "./tool"
 
 type Kind = "file" | "directory"
 

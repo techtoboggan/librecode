@@ -1,17 +1,17 @@
-import { BusEvent } from "@/bus/bus-event"
-import z from "zod"
+import fs from "node:fs"
+import path from "node:path"
 import { formatPatch, structuredPatch } from "diff"
-import path from "path"
-import fs from "fs"
-import ignore from "ignore"
-import { Log } from "../util/log"
-import { Filesystem } from "../util/filesystem"
-import { Instance } from "../project/instance"
-import { Ripgrep } from "./ripgrep"
 import fuzzysort from "fuzzysort"
-import { Global } from "../global"
+import ignore from "ignore"
+import z from "zod"
+import { BusEvent } from "@/bus/bus-event"
 import { git } from "@/util/git"
+import { Global } from "../global"
+import { Instance } from "../project/instance"
+import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
 import { Protected } from "./protected"
+import { Ripgrep } from "./ripgrep"
 
 export namespace File {
   const log = Log.create({ service: "file" })
@@ -294,7 +294,7 @@ export namespace File {
       heic: "image/heic",
       heif: "image/heif",
     }
-    return mimeTypes[ext] || "image/" + ext
+    return mimeTypes[ext] || `image/${ext}`
   }
 
   function isBinaryByExtension(filepath: string): boolean {
@@ -351,13 +351,13 @@ export namespace File {
     shouldIgnore: (name: string) => boolean,
   ): Promise<void> {
     if (shouldIgnore(entryName)) return
-    dirs.add(entryName + "/")
+    dirs.add(`${entryName}/`)
     const base = path.join(Instance.directory, entryName)
     const children = await fs.promises.readdir(base, { withFileTypes: true }).catch(() => [] as fs.Dirent[])
     for (const child of children) {
       if (!child.isDirectory()) continue
       if (shouldIgnoreNested(child.name)) continue
-      dirs.add(entryName + "/" + child.name + "/")
+      dirs.add(`${entryName}/${child.name}/`)
     }
   }
 
@@ -385,7 +385,7 @@ export namespace File {
         current = dir
         if (seen.has(dir)) continue
         seen.add(dir)
-        result.dirs.push(dir + "/")
+        result.dirs.push(`${dir}/`)
       }
     }
   }
@@ -497,7 +497,7 @@ export namespace File {
     return { type: "text", content: buffer.toString("base64"), mimeType: getImageMimeType(file), encoding: "base64" }
   }
 
-  async function readTextWithDiff(file: string, full: string, content: string): Promise<Content> {
+  async function readTextWithDiff(file: string, _full: string, content: string): Promise<Content> {
     let diff = (await git(["-c", "core.fsmonitor=false", "diff", "--", file], { cwd: Instance.directory })).text()
     if (!diff.trim()) {
       diff = (
@@ -584,7 +584,7 @@ export namespace File {
         path: relativePath,
         absolute: fullPath,
         type,
-        ignored: ignored(type === "directory" ? relativePath + "/" : relativePath),
+        ignored: ignored(type === "directory" ? `${relativePath}/` : relativePath),
       })
     }
     return nodes.sort(nodeSortComparator)

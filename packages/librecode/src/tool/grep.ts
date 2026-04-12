@@ -1,14 +1,13 @@
-import z from "zod"
+import path from "node:path"
 import { text } from "node:stream/consumers"
-import { Tool } from "./tool"
-import { Filesystem } from "../util/filesystem"
+import z from "zod"
 import { Ripgrep } from "../file/ripgrep"
-import { Process } from "../util/process"
-
-import DESCRIPTION from "./grep.txt"
 import { Instance } from "../project/instance"
-import path from "path"
+import { Filesystem } from "../util/filesystem"
+import { Process } from "../util/process"
 import { assertExternalDirectory } from "./external-directory"
+import DESCRIPTION from "./grep.txt"
+import { Tool } from "./tool"
 
 const MAX_LINE_LENGTH = 2000
 const GREP_RESULT_LIMIT = 100
@@ -34,7 +33,7 @@ function parseGrepLine(line: string): GrepMatch | null {
 }
 
 function truncateLineText(text: string): string {
-  return text.length > MAX_LINE_LENGTH ? text.substring(0, MAX_LINE_LENGTH) + "..." : text
+  return text.length > MAX_LINE_LENGTH ? `${text.substring(0, MAX_LINE_LENGTH)}...` : text
 }
 
 function buildRgArgs(pattern: string, include: string | undefined, searchPath: string): string[] {
@@ -53,7 +52,7 @@ async function runRipgrep(
   rgPath: string,
   args: string[],
   abort: AbortSignal,
-  pattern: string,
+  _pattern: string,
 ): Promise<{ noMatches: true } | ({ noMatches: false } & RipgrepResult)> {
   const proc = Process.spawn([rgPath, ...args], { stdout: "pipe", stderr: "pipe", abort })
   if (!proc.stdout || !proc.stderr) throw new Error("Process output not available")

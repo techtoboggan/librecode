@@ -3,7 +3,7 @@ import { GithubInstallCommand } from "./install"
 import { GithubRunCommand } from "./run"
 
 // Re-export utility functions (tests import these from "cmd/github")
-export { parseGitHubRemote, extractResponseText, formatPromptTooLargeError } from "./util"
+export { extractResponseText, formatPromptTooLargeError, parseGitHubRemote } from "./util"
 
 // ---------------------------------------------------------------------------
 // Top-level command

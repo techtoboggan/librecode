@@ -1,5 +1,5 @@
-import { createSimpleContext } from "./helper"
 import type { PromptRef } from "../component/prompt"
+import { createSimpleContext } from "./helper"
 
 export const { use: usePromptRef, provider: PromptRefProvider } = createSimpleContext({
   name: "PromptRef",

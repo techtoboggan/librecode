@@ -1,15 +1,15 @@
-import type { Config } from "../config/config"
 import { mapValues, mergeDeep, omit, pickBy } from "remeda"
-import { Log } from "../util/log"
-import { Plugin } from "../plugin"
-import type { ModelsDev } from "./models"
 import { Auth } from "../auth"
+import type { Config } from "../config/config"
 import { Env } from "../env"
 import { Flag } from "../flag/flag"
-import { ProviderTransform } from "./transform"
-import { ModelID, ProviderID } from "./schema"
+import { Plugin } from "../plugin"
+import { Log } from "../util/log"
 import { CUSTOM_LOADERS, type CustomModelLoader, type CustomVarsLoader } from "./loaders"
-import type { ModelType, InfoType } from "./types"
+import type { ModelsDev } from "./models"
+import { ModelID, ProviderID } from "./schema"
+import { ProviderTransform } from "./transform"
+import type { InfoType, ModelType } from "./types"
 
 const log = Log.create({ service: "provider" })
 
@@ -374,7 +374,7 @@ export async function loadCustomLoaderProviders(ctx: StateMutableCtx, disabled: 
     if (disabled.has(providerID)) continue
     const data = ctx.database[providerID]
     if (!data) {
-      log.error("Provider does not exist in model list " + providerID)
+      log.error(`Provider does not exist in model list ${providerID}`)
       continue
     }
     await applyCustomLoader(ctx, providerID, data, fn)
@@ -415,7 +415,7 @@ function shouldRemoveModel(
   if (providerID === ProviderID.openrouter && modelID === "openai/gpt-5-chat") return true
   if (model.status === "alpha" && !Flag.LIBRECODE_ENABLE_EXPERIMENTAL_MODELS) return true
   if (model.status === "deprecated") return true
-  if (configProvider?.blacklist && configProvider.blacklist.includes(modelID)) return true
+  if (configProvider?.blacklist?.includes(modelID)) return true
   if (configProvider?.whitelist && !configProvider.whitelist.includes(modelID)) return true
   return false
 }

@@ -1,22 +1,21 @@
-import z from "zod"
-import { spawn } from "child_process"
-import { Tool } from "./tool"
-import path from "path"
-import DESCRIPTION from "./bash.txt"
-import { Log } from "../util/log"
-import { Instance } from "../project/instance"
-import { lazy } from "@/util/lazy"
+import { spawn } from "node:child_process"
+import fs from "node:fs/promises"
+import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { Language } from "web-tree-sitter"
-import fs from "fs/promises"
-
-import { Filesystem } from "@/util/filesystem"
-import { fileURLToPath } from "url"
+import z from "zod"
 import { Flag } from "@/flag/flag.ts"
+import { BashArity } from "@/permission/arity"
+import { Plugin } from "@/plugin"
 import { Shell } from "@/shell/shell"
 
-import { BashArity } from "@/permission/arity"
+import { Filesystem } from "@/util/filesystem"
+import { lazy } from "@/util/lazy"
+import { Instance } from "../project/instance"
+import { Log } from "../util/log"
+import DESCRIPTION from "./bash.txt"
+import { Tool } from "./tool"
 import { Truncate } from "./truncation"
-import { Plugin } from "@/plugin"
 
 const MAX_METADATA_LENGTH = 30_000
 const DEFAULT_TIMEOUT = Flag.LIBRECODE_EXPERIMENTAL_BASH_DEFAULT_TIMEOUT_MS || 2 * 60 * 1000
@@ -72,7 +71,7 @@ async function processCommandNode(node: import("web-tree-sitter").Node, cwd: str
   return {
     dirs,
     commandText: addPattern ? commandText : null,
-    alwaysEntry: addPattern ? BashArity.prefix(command).join(" ") + " *" : null,
+    alwaysEntry: addPattern ? `${BashArity.prefix(command).join(" ")} *` : null,
   }
 }
 
@@ -175,14 +174,14 @@ function dirToGlob(dir: string): string {
 }
 
 function truncateOutput(output: string): string {
-  return output.length > MAX_METADATA_LENGTH ? output.slice(0, MAX_METADATA_LENGTH) + "\n\n..." : output
+  return output.length > MAX_METADATA_LENGTH ? `${output.slice(0, MAX_METADATA_LENGTH)}\n\n...` : output
 }
 
 function buildBashMetadataSuffix(timedOut: boolean, aborted: boolean, timeout: number): string {
   const parts: string[] = []
   if (timedOut) parts.push(`bash tool terminated command after exceeding timeout ${timeout} ms`)
   if (aborted) parts.push("User aborted the command")
-  return parts.length > 0 ? "\n\n<bash_metadata>\n" + parts.join("\n") + "\n</bash_metadata>" : ""
+  return parts.length > 0 ? `\n\n<bash_metadata>\n${parts.join("\n")}\n</bash_metadata>` : ""
 }
 
 export const log = Log.create({ service: "bash-tool" })

@@ -1,13 +1,13 @@
+import path from "node:path"
 import z from "zod"
-import path from "path"
-import { Tool } from "./tool"
+import { Instance } from "../project/instance"
+import { Provider } from "../provider/provider"
 import { Question } from "../question"
 import { Session } from "../session"
 import { MessageV2 } from "../session/message-v2"
-import { Provider } from "../provider/provider"
-import { Instance } from "../project/instance"
-import { type SessionID, MessageID, PartID } from "../session/schema"
+import { MessageID, PartID, type SessionID } from "../session/schema"
 import EXIT_DESCRIPTION from "./plan-exit.txt"
+import { Tool } from "./tool"
 
 async function getLastModel(sessionID: SessionID) {
   for await (const item of MessageV2.stream(sessionID)) {

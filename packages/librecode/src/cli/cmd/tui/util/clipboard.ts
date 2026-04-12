@@ -1,10 +1,9 @@
-import { platform, release } from "os"
+import fs from "node:fs/promises"
+import { platform, release, tmpdir } from "node:os"
+import path from "node:path"
 import clipboardy from "clipboardy"
-import { lazy } from "../../../../util/lazy.js"
-import { tmpdir } from "os"
-import path from "path"
-import fs from "fs/promises"
 import { Filesystem } from "../../../../util/filesystem"
+import { lazy } from "../../../../util/lazy.js"
 import { Process } from "../../../../util/process"
 import { which } from "../../../../util/which"
 
@@ -17,7 +16,7 @@ function writeOsc52(text: string): void {
   if (!process.stdout.isTTY) return
   const base64 = Buffer.from(text).toString("base64")
   const osc52 = `\x1b]52;c;${base64}\x07`
-  const passthrough = process.env["TMUX"] || process.env["STY"]
+  const passthrough = process.env.TMUX || process.env.STY
   const sequence = passthrough ? `\x1bPtmux;\x1b${osc52}\x1b\\` : osc52
   process.stdout.write(sequence)
 }
@@ -125,7 +124,7 @@ export namespace Clipboard {
 
   function makeLinuxCopier(): ((text: string) => Promise<void>) | null {
     if (platform() !== "linux") return null
-    if (process.env["WAYLAND_DISPLAY"] && which("wl-copy")) {
+    if (process.env.WAYLAND_DISPLAY && which("wl-copy")) {
       console.log("clipboard: using wl-copy")
       return (text: string) => pipeToProc(["wl-copy"], [], text)
     }

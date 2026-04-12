@@ -9,7 +9,7 @@ function formatModelNotFoundError(input: unknown): string | undefined {
   const { providerID, modelID, suggestions } = input.data
   return [
     `Model not found: ${providerID}/${modelID}`,
-    ...(Array.isArray(suggestions) && suggestions.length ? ["Did you mean: " + suggestions.join(", ")] : []),
+    ...(Array.isArray(suggestions) && suggestions.length ? [`Did you mean: ${suggestions.join(", ")}`] : []),
     `Try: \`librecode models\` to list available models`,
     `Or check your config (librecode.json) provider/model names`,
   ].join("\n")
@@ -20,7 +20,7 @@ function formatConfigInvalidError(input: unknown): string | undefined {
   const prefix = `Configuration is invalid${input.data.path && input.data.path !== "config" ? ` at ${input.data.path}` : ""}`
   return [
     prefix + (input.data.message ? `: ${input.data.message}` : ""),
-    ...(input.data.issues?.map((issue) => "↳ " + issue.message + " " + issue.path.join(".")) ?? []),
+    ...(input.data.issues?.map((issue) => `↳ ${issue.message} ${issue.path.join(".")}`) ?? []),
   ].join("\n")
 }
 
@@ -34,7 +34,7 @@ export function FormatError(input: unknown) {
   }
   if (Config.JsonError.isInstance(input)) {
     return (
-      `Config file at ${input.data.path} is not valid JSON(C)` + (input.data.message ? `: ${input.data.message}` : "")
+      `Config file at ${input.data.path} is not valid JSON(C)${input.data.message ? `: ${input.data.message}` : ""}`
     )
   }
   if (Config.ConfigDirectoryTypoError.isInstance(input)) {

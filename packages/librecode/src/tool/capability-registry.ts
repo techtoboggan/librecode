@@ -11,11 +11,11 @@
  */
 
 import {
+  declareCapabilities,
+  requireDependencies,
   type ToolCapabilities,
   type ToolDependencies,
   ToolProfiles,
-  declareCapabilities,
-  requireDependencies,
 } from "./capabilities"
 
 /**

@@ -1,18 +1,18 @@
-import type { BoxRenderable, TextareaRenderable, KeyEvent, ScrollBoxRenderable } from "@opentui/core"
+import type { BoxRenderable, KeyEvent, ScrollBoxRenderable, TextareaRenderable } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/solid"
+import { SplitBorder } from "@tui/component/border"
+import { useCommandDialog } from "@tui/component/dialog-command"
+import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { selectedForeground, useTheme } from "@tui/context/theme"
 import { pathToFileURL } from "bun"
 import fuzzysort from "fuzzysort"
 import { firstBy } from "remeda"
-import { createMemo, createResource, createEffect, onMount, onCleanup, Index, Show, createSignal } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, Index, onCleanup, onMount, Show } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useSDK } from "@tui/context/sdk"
-import { useSync } from "@tui/context/sync"
-import { useTheme, selectedForeground } from "@tui/context/theme"
-import { SplitBorder } from "@tui/component/border"
-import { useCommandDialog } from "@tui/component/dialog-command"
-import { useTerminalDimensions } from "@opentui/solid"
 import { Locale } from "@/util/locale"
-import type { PromptInfo } from "./history"
 import { useFrecency } from "./frecency"
+import type { PromptInfo } from "./history"
 
 function removeLineRange(input: string) {
   const hashIndex = input.lastIndexOf("#")
@@ -108,7 +108,7 @@ export function Autocomplete(props: {
 
   const position = createMemo(() => {
     if (!store.visible) return { x: 0, y: 0, width: 0 }
-    const dims = dimensions()
+    const _dims = dimensions()
     positionTick()
     const anchor = props.anchor()
     const parent = anchor.parent
@@ -231,7 +231,7 @@ export function Autocomplete(props: {
 
     const charAfterCursor = props.value.at(currentCursorOffset)
     const needsSpace = charAfterCursor !== " "
-    const append = "@" + text + (needsSpace ? " " : "")
+    const append = `@${text}${needsSpace ? " " : ""}`
 
     input.cursorOffset = store.index
     const startCursor = input.logicalCursor
@@ -241,7 +241,7 @@ export function Autocomplete(props: {
     input.deleteRange(startCursor.row, startCursor.col, endCursor.row, endCursor.col)
     input.insertText(append)
 
-    const virtualText = "@" + text
+    const virtualText = `@${text}`
     const extmarkStart = store.index
     const extmarkEnd = extmarkStart + Bun.stringWidth(virtualText)
 
@@ -348,7 +348,7 @@ export function Autocomplete(props: {
       .filter((agent) => !agent.hidden && agent.mode !== "primary")
       .map(
         (agent): AutocompleteOption => ({
-          display: "@" + agent.name,
+          display: `@${agent.name}`,
           onSelect: () => {
             insertPart(agent.name, {
               type: "agent",
@@ -371,10 +371,10 @@ export function Autocomplete(props: {
       if (serverCommand.source === "skill") continue
       const label = serverCommand.source === "mcp" ? ":mcp" : ""
       results.push({
-        display: "/" + serverCommand.name + label,
+        display: `/${serverCommand.name}${label}`,
         description: serverCommand.description,
         onSelect: () => {
-          const newText = "/" + serverCommand.name + " "
+          const newText = `/${serverCommand.name} `
           const cursor = props.input().logicalCursor
           props.input().deleteRange(0, 0, cursor.row, cursor.col)
           props.input().insertText(newText)
@@ -421,7 +421,7 @@ export function Autocomplete(props: {
       scoreFn: (objResults) => {
         const displayResult = objResults[0]
         let score = objResults.score
-        if (displayResult && displayResult.target.startsWith(store.visible + searchValue)) {
+        if (displayResult?.target.startsWith(store.visible + searchValue)) {
           score *= 2
         }
         const frecencyScore = objResults.obj.path ? frecency.getFrecency(objResults.obj.path) : 0
@@ -481,7 +481,7 @@ export function Autocomplete(props: {
     const endCursor = input.logicalCursor
 
     input.deleteRange(startCursor.row, startCursor.col, endCursor.row, endCursor.col)
-    input.insertText("@" + path)
+    input.insertText(`@${path}`)
 
     setStore("selected", 0)
   }

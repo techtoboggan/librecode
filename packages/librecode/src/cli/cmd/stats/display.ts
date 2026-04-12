@@ -1,4 +1,4 @@
-import type { SessionStats, ModelStats } from "./types"
+import type { ModelStats, SessionStats } from "./types"
 
 const BOX_WIDTH = 56
 const BORDER_TOP = "┌────────────────────────────────────────────────────────┐"
@@ -12,8 +12,8 @@ function renderRow(label: string, value: string): string {
 }
 
 export function formatNumber(num: number): string {
-  if (num >= 1_000_000) return (num / 1_000_000).toFixed(1) + "M"
-  if (num >= 1_000) return (num / 1_000).toFixed(1) + "K"
+  if (num >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
+  if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`
   return num.toString()
 }
 
@@ -29,10 +29,10 @@ function renderOverviewSection(stats: SessionStats): void {
 }
 
 function renderCostTokensSection(stats: SessionStats): void {
-  const cost = isNaN(stats.totalCost) ? 0 : stats.totalCost
-  const costPerDay = isNaN(stats.costPerDay) ? 0 : stats.costPerDay
-  const tokensPerSession = isNaN(stats.tokensPerSession) ? 0 : stats.tokensPerSession
-  const medianTokens = isNaN(stats.medianTokensPerSession) ? 0 : stats.medianTokensPerSession
+  const cost = Number.isNaN(stats.totalCost) ? 0 : stats.totalCost
+  const costPerDay = Number.isNaN(stats.costPerDay) ? 0 : stats.costPerDay
+  const tokensPerSession = Number.isNaN(stats.tokensPerSession) ? 0 : stats.tokensPerSession
+  const medianTokens = Number.isNaN(stats.medianTokensPerSession) ? 0 : stats.medianTokensPerSession
   console.log(BORDER_TOP)
   console.log("│                    COST & TOKENS                       │")
   console.log(BORDER_MID)
@@ -76,7 +76,7 @@ function renderToolRow(tool: string, count: number, maxCount: number, totalToolU
   const barLength = Math.max(1, Math.floor((count / maxCount) * 20))
   const bar = "█".repeat(barLength)
   const percentage = ((count / totalToolUsage) * 100).toFixed(1)
-  const truncated = tool.length > 18 ? tool.substring(0, 16) + ".." : tool
+  const truncated = tool.length > 18 ? `${tool.substring(0, 16)}..` : tool
   const toolName = truncated.padEnd(18)
   const content = ` ${toolName} ${bar.padEnd(20)} ${count.toString().padStart(3)} (${percentage.padStart(4)}%)`
   const padding = Math.max(0, BOX_WIDTH - content.length - 1)

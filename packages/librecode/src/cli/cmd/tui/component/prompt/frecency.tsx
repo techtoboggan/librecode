@@ -1,10 +1,10 @@
-import path from "path"
-import { Global } from "@/global"
-import { Filesystem } from "@/util/filesystem"
+import { appendFile, writeFile } from "node:fs/promises"
+import path from "node:path"
 import { onMount } from "solid-js"
 import { createStore } from "solid-js/store"
+import { Global } from "@/global"
+import { Filesystem } from "@/util/filesystem"
 import { createSimpleContext } from "../../context/helper"
-import { appendFile, writeFile } from "fs/promises"
 
 function calculateFrecency(entry?: { frequency: number; lastOpen: number }): number {
   if (!entry) return 0
@@ -53,7 +53,7 @@ export const { use: useFrecency, provider: FrecencyProvider } = createSimpleCont
       )
 
       if (sorted.length > 0) {
-        const content = sorted.map((entry) => JSON.stringify(entry)).join("\n") + "\n"
+        const content = `${sorted.map((entry) => JSON.stringify(entry)).join("\n")}\n`
         writeFile(frecencyPath, content).catch(() => {})
       }
     })
@@ -69,14 +69,14 @@ export const { use: useFrecency, provider: FrecencyProvider } = createSimpleCont
         lastOpen: Date.now(),
       }
       setStore("data", absolutePath, newEntry)
-      appendFile(frecencyPath, JSON.stringify({ path: absolutePath, ...newEntry }) + "\n").catch(() => {})
+      appendFile(frecencyPath, `${JSON.stringify({ path: absolutePath, ...newEntry })}\n`).catch(() => {})
 
       if (Object.keys(store.data).length > MAX_FRECENCY_ENTRIES) {
         const sorted = Object.entries(store.data)
           .sort(([, a], [, b]) => b.lastOpen - a.lastOpen)
           .slice(0, MAX_FRECENCY_ENTRIES)
         setStore("data", Object.fromEntries(sorted))
-        const content = sorted.map(([path, entry]) => JSON.stringify({ path, ...entry })).join("\n") + "\n"
+        const content = `${sorted.map(([path, entry]) => JSON.stringify({ path, ...entry })).join("\n")}\n`
         writeFile(frecencyPath, content).catch(() => {})
       }
     }

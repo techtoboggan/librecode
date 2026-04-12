@@ -1,7 +1,6 @@
-import type { Provider } from "./provider"
+
 import { iife } from "@/util/iife"
-import type { JSONSchema7 } from "@ai-sdk/provider"
-import type { JSONSchema } from "zod/v4/core"
+import type { Provider } from "./provider"
 
 const WIDELY_SUPPORTED_EFFORTS = ["low", "medium", "high"]
 const OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
@@ -47,7 +46,7 @@ export function buildOpenrouterVariants(model: Provider.Model): Record<string, R
 }
 
 export function buildGatewayAnthropicVariants(
-  model: Provider.Model,
+  _model: Provider.Model,
   isAnthropicAdaptive: boolean,
   adaptiveEfforts: string[],
 ): Record<string, Record<string, unknown>> {
@@ -277,27 +276,27 @@ export function applyOpenAIStoreOption(result: Record<string, unknown>, model: P
     model.api.npm === "@ai-sdk/openai" ||
     model.api.npm === "@ai-sdk/github-copilot"
   ) {
-    result["store"] = false
+    result.store = false
   }
 }
 
 export function applyOpenrouterOptions(result: Record<string, unknown>, model: Provider.Model): void {
   if (model.api.npm !== "@openrouter/ai-sdk-provider") return
-  result["usage"] = { include: true }
+  result.usage = { include: true }
   if (model.api.id.includes("gemini-3")) {
-    result["reasoning"] = { effort: "high" }
+    result.reasoning = { effort: "high" }
   }
 }
 
 export function applyBasetenOptions(result: Record<string, unknown>, model: Provider.Model): void {
   if (model.providerID === "baseten") {
-    result["chat_template_args"] = { enable_thinking: true }
+    result.chat_template_args = { enable_thinking: true }
   }
 }
 
 export function applyZhipuOptions(result: Record<string, unknown>, model: Provider.Model): void {
   if (["zai", "zhipuai"].includes(model.providerID) && model.api.npm === "@ai-sdk/openai-compatible") {
-    result["thinking"] = { type: "enabled", clear_thinking: false }
+    result.thinking = { type: "enabled", clear_thinking: false }
   }
 }
 
@@ -308,15 +307,15 @@ export function applyPromptCacheKeyOption(
   providerOptions?: Record<string, unknown>,
 ): void {
   if (model.providerID === "openai" || providerOptions?.setCacheKey) {
-    result["promptCacheKey"] = sessionID
+    result.promptCacheKey = sessionID
   }
 }
 
 export function applyGoogleThinkingOptions(result: Record<string, unknown>, model: Provider.Model): void {
   if (model.api.npm !== "@ai-sdk/google" && model.api.npm !== "@ai-sdk/google-vertex") return
-  result["thinkingConfig"] = { includeThoughts: true }
+  result.thinkingConfig = { includeThoughts: true }
   if (model.api.id.includes("gemini-3")) {
-    ;(result["thinkingConfig"] as Record<string, unknown>)["thinkingLevel"] = "high"
+    ;(result.thinkingConfig as Record<string, unknown>).thinkingLevel = "high"
   }
 }
 
@@ -327,7 +326,7 @@ export function applyKimiAnthropicThinkingOptions(result: Record<string, unknown
     (model.api.npm === "@ai-sdk/anthropic" || model.api.npm === "@ai-sdk/google-vertex/anthropic") &&
     (modelId.includes("k2p5") || modelId.includes("kimi-k2.5") || modelId.includes("kimi-k2p5"))
   ) {
-    result["thinking"] = {
+    result.thinking = {
       type: "enabled",
       budgetTokens: Math.min(16_000, Math.floor(model.limit.output / 2 - 1)),
     }
@@ -347,15 +346,15 @@ export function applyAlibabaCnThinkingOptions(result: Record<string, unknown>, m
     model.api.npm === "@ai-sdk/openai-compatible" &&
     !modelId.includes("kimi-k2-thinking")
   ) {
-    result["enable_thinking"] = true
+    result.enable_thinking = true
   }
 }
 
 export function applyGpt5Options(result: Record<string, unknown>, model: Provider.Model): void {
   if (!model.api.id.includes("gpt-5") || model.api.id.includes("gpt-5-chat")) return
   if (!model.api.id.includes("gpt-5-pro")) {
-    result["reasoningEffort"] = "medium"
-    result["reasoningSummary"] = "auto"
+    result.reasoningEffort = "medium"
+    result.reasoningSummary = "auto"
   }
   // Only set textVerbosity for non-chat gpt-5.x models
   // Chat models (e.g. gpt-5.2-chat-latest) only support "medium" verbosity
@@ -365,13 +364,13 @@ export function applyGpt5Options(result: Record<string, unknown>, model: Provide
     !model.api.id.includes("-chat") &&
     model.providerID !== "azure"
   ) {
-    result["textVerbosity"] = "low"
+    result.textVerbosity = "low"
   }
 }
 
 export function applyVeniceOptions(result: Record<string, unknown>, model: Provider.Model, sessionID: string): void {
   if (model.providerID === "venice") {
-    result["promptCacheKey"] = sessionID
+    result.promptCacheKey = sessionID
   }
 }
 
@@ -381,13 +380,13 @@ export function applyOpenrouterCacheOptions(
   sessionID: string,
 ): void {
   if (model.providerID === "openrouter") {
-    result["prompt_cache_key"] = sessionID
+    result.prompt_cache_key = sessionID
   }
 }
 
 export function applyGatewayOptions(result: Record<string, unknown>, model: Provider.Model): void {
   if (model.api.npm === "@ai-sdk/gateway") {
-    result["gateway"] = { caching: "auto" }
+    result.gateway = { caching: "auto" }
   }
 }
 
@@ -452,7 +451,7 @@ function hasSchemaIntent(node: unknown): boolean {
 }
 
 function sanitizeGeminiEnum(result: Record<string, unknown>, value: unknown[]): void {
-  result["enum"] = value.map((v) => String(v))
+  result.enum = value.map((v) => String(v))
   // If we have integer type with enum, change type to string
   if (result.type === "integer" || result.type === "number") {
     result.type = "string"

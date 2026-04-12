@@ -2,8 +2,8 @@
  * Loaders for OpenAI-compatible providers (OpenAI, GitHub Copilot, Azure).
  */
 
-import { Env } from "../../env"
 import { iife } from "@/util/iife"
+import { Env } from "../../env"
 import type { CustomLoader } from "./types"
 
 /** Detect if a model should use OpenAI Responses API (v5+) */
@@ -54,7 +54,7 @@ export const azure: CustomLoader = async (provider) => {
     autoload: false,
     async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
       if (useLanguageModel(sdk)) return sdk.languageModel(modelID)
-      if (options?.["useCompletionUrls"]) {
+      if (options?.useCompletionUrls) {
         return sdk.chat(modelID)
       } else {
         return sdk.responses(modelID)
@@ -75,7 +75,7 @@ export const azureCognitiveServices: CustomLoader = async () => {
     autoload: false,
     async getModel(sdk: any, modelID: string, options?: Record<string, any>) {
       if (useLanguageModel(sdk)) return sdk.languageModel(modelID)
-      if (options?.["useCompletionUrls"]) {
+      if (options?.useCompletionUrls) {
         return sdk.chat(modelID)
       } else {
         return sdk.responses(modelID)

@@ -1,13 +1,13 @@
-import type { Argv } from "yargs"
-import { UI } from "../ui"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import * as prompts from "@clack/prompts"
-import { Installation } from "../../installation"
+import type { Argv } from "yargs"
 import { Global } from "../../global"
-import fs from "fs/promises"
-import path from "path"
-import os from "os"
+import { Installation } from "../../installation"
 import { Filesystem } from "../../util/filesystem"
 import { Process } from "../../util/process"
+import { UI } from "../ui"
 
 interface UninstallArgs {
   keepConfig: boolean
@@ -113,7 +113,7 @@ async function showRemovalSummary(targets: RemovalTargets, method: Installation.
 
     const size = await getDirectorySize(dir.path)
     const sizeStr = formatSize(size)
-    const status = dir.keep ? UI.Style.TEXT_DIM + "(keeping)" : ""
+    const status = dir.keep ? `${UI.Style.TEXT_DIM}(keeping)` : ""
     const prefix = dir.keep ? "○" : "✓"
 
     prompts.log.info(`  ${prefix} ${dir.label}: ${shortenPath(dir.path)} ${UI.Style.TEXT_DIM}(${sizeStr})${status}`)
@@ -337,7 +337,7 @@ async function cleanShellConfig(file: string) {
     filtered.pop()
   }
 
-  const output = filtered.join("\n") + "\n"
+  const output = `${filtered.join("\n")}\n`
   await Filesystem.write(file, output)
 }
 

@@ -1,16 +1,16 @@
+import { EOL } from "node:os"
+import path from "node:path"
 import type { Argv } from "yargs"
-import { cmd } from "./cmd"
+import { Flag } from "../../flag/flag"
 import { Session } from "../../session"
 import { SessionID } from "../../session/schema"
+import { Filesystem } from "../../util/filesystem"
+import { Locale } from "../../util/locale"
+import { Process } from "../../util/process"
+import { which } from "../../util/which"
 import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
-import { Locale } from "../../util/locale"
-import { Flag } from "../../flag/flag"
-import { Filesystem } from "../../util/filesystem"
-import { Process } from "../../util/process"
-import { EOL } from "os"
-import path from "path"
-import { which } from "../../util/which"
+import { cmd } from "./cmd"
 
 function pagerCmd(): string[] {
   const lessOptions = ["-R", "-S"]
@@ -66,7 +66,7 @@ export const SessionDeleteCommand = cmd({
         process.exit(1)
       }
       await Session.remove(sessionID)
-      UI.println(UI.Style.TEXT_SUCCESS_BOLD + `Session ${args.sessionID} deleted` + UI.Style.TEXT_NORMAL)
+      UI.println(`${UI.Style.TEXT_SUCCESS_BOLD}Session ${args.sessionID} deleted${UI.Style.TEXT_NORMAL}`)
     })
   },
 })

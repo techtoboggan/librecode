@@ -1,7 +1,7 @@
 import z from "zod"
+import { abortAfterAny } from "../util/abort"
 import { Tool } from "./tool"
 import DESCRIPTION from "./websearch.txt"
-import { abortAfterAny } from "../util/abort"
 
 const API_CONFIG = {
   BASE_URL: "https://mcp.exa.ai",

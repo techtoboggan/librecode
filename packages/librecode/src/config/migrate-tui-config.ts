@@ -1,14 +1,14 @@
-import path from "path"
-import { type ParseError as JsoncParseError, applyEdits, modify, parse as parseJsonc } from "jsonc-parser"
+import path from "node:path"
+import { applyEdits, type ParseError as JsoncParseError, modify, parse as parseJsonc } from "jsonc-parser"
 import { unique } from "remeda"
 import z from "zod"
+import { Flag } from "@/flag/flag"
+import { Global } from "@/global"
+import { Instance } from "@/project/instance"
+import { Filesystem } from "@/util/filesystem"
+import { Log } from "@/util/log"
 import { ConfigPaths } from "./paths"
 import { TuiInfo, TuiOptions } from "./tui-schema"
-import { Instance } from "@/project/instance"
-import { Flag } from "@/flag/flag"
-import { Log } from "@/util/log"
-import { Filesystem } from "@/util/filesystem"
-import { Global } from "@/global"
 
 const log = Log.create({ service: "tui.migrate" })
 
@@ -121,7 +121,7 @@ function normalizeTui(data: Record<string, unknown>) {
 }
 
 async function backupAndStripLegacy(file: string, source: string) {
-  const backup = file + ".tui-migration.bak"
+  const backup = `${file}.tui-migration.bak`
   const hasBackup = await Filesystem.exists(backup)
   const backed = hasBackup
     ? true

@@ -1,4 +1,4 @@
-import { createContext, Show, useContext, type ParentProps } from "solid-js"
+import { createContext, type ParentProps, Show, useContext } from "solid-js"
 
 export function createSimpleContext<T, Props extends Record<string, any>>(input: {
   name: string

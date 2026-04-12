@@ -1,47 +1,44 @@
-import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
-import path from "path"
-import { useRoute, useRouteData } from "@tui/context/route"
-import { useSync } from "@tui/context/sync"
-import { SplitBorder } from "@tui/component/border"
-import { useTheme } from "@tui/context/theme"
+
+import type { AssistantMessage, Message, Part, UserMessage } from "@librecode/sdk/v2"
 import {
-  type ScrollBoxRenderable,
   addDefaultParsers,
   MacOSScrollAccel,
-  type ScrollAcceleration,
-  type CliRenderer,
   RGBA,
+  type ScrollAcceleration,
+  type ScrollBoxRenderable,
 } from "@opentui/core"
-import { Prompt, type PromptRef } from "@tui/component/prompt"
-import type { Message, Part } from "@librecode/sdk/v2"
-import type { UserMessage, AssistantMessage } from "@librecode/sdk/v2"
-import { useLocal } from "@tui/context/local"
-import { Locale } from "@/util/locale"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { useSDK } from "@tui/context/sdk"
-import type { DialogContext } from "@tui/ui/dialog"
-import { useKeybind } from "@tui/context/keybind"
+import { SplitBorder } from "@tui/component/border"
 import { useCommandDialog } from "@tui/component/dialog-command"
-import { Header } from "./header"
-import { parsePatch } from "diff"
-import { useDialog } from "../../ui/dialog"
-import { DialogMessage } from "./dialog-message"
-import type { PromptInfo } from "../../component/prompt/history"
+import { Prompt, type PromptRef } from "@tui/component/prompt"
+import { useKeybind } from "@tui/context/keybind"
+import { useLocal } from "@tui/context/local"
+import { useRoute, useRouteData } from "@tui/context/route"
+import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { useTheme } from "@tui/context/theme"
+import type { DialogContext } from "@tui/ui/dialog"
 import { DialogConfirm } from "@tui/ui/dialog-confirm"
-import { Sidebar } from "./sidebar"
+import { parsePatch } from "diff"
+import { createEffect, createMemo, createSignal, For, Match, on, Show, Switch } from "solid-js"
+import { UI } from "@/cli/ui.ts"
+import { Locale } from "@/util/locale"
 import parsers from "../../../../../../parsers-config.ts"
-import { Toast, useToast, type ToastContext } from "../../ui/toast"
-import { useKV } from "../../context/kv.tsx"
-import { Footer } from "./footer.tsx"
-import { usePromptRef } from "../../context/prompt"
+import type { PromptInfo } from "../../component/prompt/history"
 import { useExit } from "../../context/exit"
+import { useKV } from "../../context/kv.tsx"
+import { usePromptRef } from "../../context/prompt"
+import { useTuiConfig } from "../../context/tui-config"
+import { useDialog } from "../../ui/dialog"
+import { Toast, useToast } from "../../ui/toast"
+import { useSessionCommands } from "./commands"
+import { sessionContext } from "./context"
+import { DialogMessage } from "./dialog-message"
+import { Header } from "./header"
+import { AssistantMessage as AssistantMessageComponent, UserMessage as UserMessageComponent } from "./messages"
 import { PermissionPrompt } from "./permission"
 import { QuestionPrompt } from "./question"
-import { UI } from "@/cli/ui.ts"
-import { useTuiConfig } from "../../context/tui-config"
-import { sessionContext } from "./context"
-import { UserMessage as UserMessageComponent, AssistantMessage as AssistantMessageComponent } from "./messages"
-import { useSessionCommands } from "./commands"
+import { Sidebar } from "./sidebar"
 
 addDefaultParsers(parsers.parsers)
 
@@ -134,11 +131,11 @@ export function Session() {
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
   const [showDetails, setShowDetails] = kv.signal("tool_details_visibility", true)
-  const [showAssistantMetadata, setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
+  const [showAssistantMetadata, _setShowAssistantMetadata] = kv.signal("assistant_metadata_visibility", true)
   const [showScrollbar, setShowScrollbar] = kv.signal("scrollbar_visible", true)
   const [showHeader, setShowHeader] = kv.signal("header_visible", true)
   const [diffWrapMode] = kv.signal<"word" | "none">("diff_wrap_mode", "word")
-  const [animationsEnabled, setAnimationsEnabled] = kv.signal("animations_enabled", true)
+  const [_animationsEnabled, _setAnimationsEnabled] = kv.signal("animations_enabled", true)
   const [showGenericToolOutput, setShowGenericToolOutput] = kv.signal("generic_tool_output_visibility", false)
 
   const wide = createMemo(() => dimensions().width > 120)
@@ -382,7 +379,7 @@ export function Session() {
           ),
         }
       })
-    } catch (error) {
+    } catch (_error) {
       return []
     }
   })
@@ -484,14 +481,14 @@ export function Session() {
                               paddingLeft={2}
                               backgroundColor={hover() ? theme.backgroundElement : theme.backgroundPanel}
                             >
-                              <text fg={theme.textMuted}>{revert()!.reverted.length} message reverted</text>
+                              <text fg={theme.textMuted}>{revert()?.reverted.length} message reverted</text>
                               <text fg={theme.textMuted}>
                                 <span style={{ fg: theme.text }}>{keybind.print("messages_redo")}</span> or /redo to
                                 restore
                               </text>
-                              <Show when={revert()!.diffFiles?.length}>
+                              <Show when={revert()?.diffFiles?.length}>
                                 <box marginTop={1}>
-                                  <For each={revert()!.diffFiles}>
+                                  <For each={revert()?.diffFiles}>
                                     {(file) => (
                                       <text fg={theme.text}>
                                         {file.filename}
@@ -511,8 +508,8 @@ export function Session() {
                         )
                       })()}
                     </Match>
-                    <Match when={revert()?.messageID && message.id >= revert()!.messageID}>
-                      <></>
+                    <Match when={revertMessageID() !== undefined && message.id >= revertMessageID()!}>
+                      {null}
                     </Match>
                     <Match when={message.role === "user"}>
                       <UserMessageComponent

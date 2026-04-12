@@ -1,39 +1,34 @@
+import { EOL } from "node:os"
+import { NamedError } from "@librecode/util/error"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
-import { RunCommand } from "./cli/cmd/run"
-import { GenerateCommand } from "./cli/cmd/generate"
-import { Log } from "./util/log"
 import { ConsoleCommand } from "./cli/cmd/account"
-import { ProvidersCommand } from "./cli/cmd/providers"
+import { AcpCommand } from "./cli/cmd/acp"
 import { AgentCommand } from "./cli/cmd/agent"
-import { UpgradeCommand } from "./cli/cmd/upgrade"
-import { UninstallCommand } from "./cli/cmd/uninstall"
-import { ModelsCommand } from "./cli/cmd/models"
-import { UI } from "./cli/ui"
-import { Installation } from "./installation"
-import { NamedError } from "@librecode/util/error"
-import { FormatError } from "./cli/error"
-import { ServeCommand } from "./cli/cmd/serve"
-import { WorkspaceServeCommand } from "./cli/cmd/workspace-serve"
-import { Filesystem } from "./util/filesystem"
+import { DbCommand } from "./cli/cmd/db"
 import { DebugCommand } from "./cli/cmd/debug"
-import { StatsCommand } from "./cli/cmd/stats"
-import { McpCommand } from "./cli/cmd/mcp"
-import { GithubCommand } from "./cli/cmd/github"
 import { ExportCommand } from "./cli/cmd/export"
+import { GenerateCommand } from "./cli/cmd/generate"
+import { GithubCommand } from "./cli/cmd/github"
 import { ImportCommand } from "./cli/cmd/import"
+import { McpCommand } from "./cli/cmd/mcp"
+import { ModelsCommand } from "./cli/cmd/models"
+import { PrCommand } from "./cli/cmd/pr"
+import { ProvidersCommand } from "./cli/cmd/providers"
+import { RunCommand } from "./cli/cmd/run"
+import { ServeCommand } from "./cli/cmd/serve"
+import { SessionCommand } from "./cli/cmd/session"
+import { StatsCommand } from "./cli/cmd/stats"
 import { AttachCommand } from "./cli/cmd/tui/attach"
 import { TuiThreadCommand } from "./cli/cmd/tui/thread"
-import { AcpCommand } from "./cli/cmd/acp"
-import { EOL } from "os"
+import { UninstallCommand } from "./cli/cmd/uninstall"
+import { UpgradeCommand } from "./cli/cmd/upgrade"
 import { WebCommand } from "./cli/cmd/web"
-import { PrCommand } from "./cli/cmd/pr"
-import { SessionCommand } from "./cli/cmd/session"
-import { DbCommand } from "./cli/cmd/db"
-import path from "path"
-import { Global } from "./global"
-// JsonMigration removed (ADR-002) — LibreCode starts fresh with SQLite
-import { Database } from "./storage/db"
+import { WorkspaceServeCommand } from "./cli/cmd/workspace-serve"
+import { FormatError } from "./cli/error"
+import { UI } from "./cli/ui"
+import { Installation } from "./installation"
+import { Log } from "./util/log"
 
 process.on("unhandledRejection", (e) => {
   Log.Default.error("rejection", {
@@ -87,7 +82,7 @@ let cli = yargs(hideBin(process.argv))
     // Legacy JSON→SQLite migration removed (ADR-002).
     // LibreCode starts fresh with SQLite — no migration from pre-SQLite era.
   })
-  .usage("\n" + UI.logo())
+  .usage(`\n${UI.logo()}`)
   .completion("completion", "generate shell completion script")
   .command(AcpCommand)
   .command(McpCommand)
@@ -166,7 +161,7 @@ try {
   const formatted = FormatError(e)
   if (formatted) UI.error(formatted)
   if (formatted === undefined) {
-    UI.error("Unexpected error, check log file at " + Log.file() + " for more details" + EOL)
+    UI.error(`Unexpected error, check log file at ${Log.file()} for more details${EOL}`)
     process.stderr.write((e instanceof Error ? e.message : String(e)) + EOL)
   }
   process.exitCode = 1

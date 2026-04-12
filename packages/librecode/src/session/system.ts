@@ -1,18 +1,15 @@
-import { Ripgrep } from "../file/ripgrep"
-
-import { Instance } from "../project/instance"
-
-import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
-import PROMPT_ANTHROPIC_WITHOUT_TODO from "./prompt/qwen.txt"
-import PROMPT_BEAST from "./prompt/beast.txt"
-import PROMPT_GEMINI from "./prompt/gemini.txt"
-
-import PROMPT_CODEX from "./prompt/codex_header.txt"
-import PROMPT_TRINITY from "./prompt/trinity.txt"
-import type { Provider } from "@/provider/provider"
 import type { Agent } from "@/agent/agent"
 import { PermissionNext } from "@/permission/next"
+import type { Provider } from "@/provider/provider"
 import { Skill } from "@/skill"
+import { Ripgrep } from "../file/ripgrep"
+import { Instance } from "../project/instance"
+import PROMPT_ANTHROPIC from "./prompt/anthropic.txt"
+import PROMPT_BEAST from "./prompt/beast.txt"
+import PROMPT_CODEX from "./prompt/codex_header.txt"
+import PROMPT_GEMINI from "./prompt/gemini.txt"
+import PROMPT_ANTHROPIC_WITHOUT_TODO from "./prompt/qwen.txt"
+import PROMPT_TRINITY from "./prompt/trinity.txt"
 
 export namespace SystemPrompt {
   export function instructions() {

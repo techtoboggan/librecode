@@ -1,6 +1,7 @@
 import { Global } from "../../../global"
 import { bootstrap } from "../../bootstrap"
 import { cmd } from "../cmd"
+import { AgentCommand } from "./agent"
 import { ConfigCommand } from "./config"
 import { FileCommand } from "./file"
 import { LSPCommand } from "./lsp"
@@ -8,7 +9,6 @@ import { RipgrepCommand } from "./ripgrep"
 import { ScrapCommand } from "./scrap"
 import { SkillCommand } from "./skill"
 import { SnapshotCommand } from "./snapshot"
-import { AgentCommand } from "./agent"
 
 export const DebugCommand = cmd({
   command: "debug",

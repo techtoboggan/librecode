@@ -5,10 +5,10 @@
  * Emitted via Bus events for observability dashboards and debugging.
  */
 
-import { Log } from "@/util/log"
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
-import z from "zod"
+import { Log } from "@/util/log"
 import { getToolRisk } from "./capability-registry"
 
 const log = Log.create({ service: "tool.telemetry" })

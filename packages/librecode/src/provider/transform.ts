@@ -1,47 +1,47 @@
-import type { ModelMessage, TextPart, ImagePart, FilePart } from "ai"
-import { mergeDeep, unique } from "remeda"
 import type { JSONSchema7, SharedV2ProviderOptions } from "@ai-sdk/provider"
+import type { FilePart, ImagePart, ModelMessage, TextPart } from "ai"
+import { mergeDeep, unique } from "remeda"
 import type { JSONSchema } from "zod/v4/core"
-import type { Provider } from "./provider"
 import { Flag } from "@/flag/flag"
+import type { Provider } from "./provider"
 import {
   filterAnthropicEmptyMessages,
-  sanitizeClaudeToolCallIds,
-  isMistralModel,
-  normalizeMistralMessages,
-  normalizeInterleavedReasoning,
   filterUnsupportedPart,
+  isMistralModel,
+  normalizeInterleavedReasoning,
+  normalizeMistralMessages,
   remapProviderOptionsKeys,
+  sanitizeClaudeToolCallIds,
 } from "./transform-input"
 import {
-  checkIsAnthropicAdaptive,
-  isNonVariantModel,
-  buildGrokVariants,
-  buildOpenrouterVariants,
+  applyAlibabaCnThinkingOptions,
+  applyBasetenOptions,
+  applyGatewayOptions,
+  applyGoogleThinkingOptions,
+  applyGpt5Options,
+  applyKimiAnthropicThinkingOptions,
+  applyOpenAIStoreOption,
+  applyOpenrouterCacheOptions,
+  applyOpenrouterOptions,
+  applyPromptCacheKeyOption,
+  applyVeniceOptions,
+  applyZhipuOptions,
+  buildAnthropicVariants,
+  buildAzureVariants,
+  buildBedrockVariants,
   buildGatewayVariants,
   buildGithubCopilotVariants,
-  buildAzureVariants,
-  buildOpenAIVariants,
-  buildAnthropicVariants,
-  buildBedrockVariants,
-  buildGoogleVariants,
-  buildGroqVariants,
-  buildSapVariants,
-  applyOpenAIStoreOption,
-  applyOpenrouterOptions,
-  applyBasetenOptions,
-  applyZhipuOptions,
-  applyPromptCacheKeyOption,
-  applyGoogleThinkingOptions,
-  applyKimiAnthropicThinkingOptions,
-  applyAlibabaCnThinkingOptions,
-  applyGpt5Options,
-  applyVeniceOptions,
-  applyOpenrouterCacheOptions,
-  applyGatewayOptions,
-  buildOpenAISmallOptions,
   buildGoogleSmallOptions,
+  buildGoogleVariants,
+  buildGrokVariants,
+  buildGroqVariants,
+  buildOpenAISmallOptions,
+  buildOpenAIVariants,
   buildOpenrouterSmallOptions,
+  buildOpenrouterVariants,
+  buildSapVariants,
+  checkIsAnthropicAdaptive,
+  isNonVariantModel,
   sanitizeGeminiSchema,
 } from "./transform-output"
 
@@ -75,7 +75,7 @@ export namespace ProviderTransform {
   function normalizeMessages(
     msgs: ModelMessage[],
     model: Provider.Model,
-    options: Record<string, unknown>,
+    _options: Record<string, unknown>,
   ): ModelMessage[] {
     if (model.api.npm === "@ai-sdk/anthropic" || model.api.npm === "@ai-sdk/amazon-bedrock") {
       msgs = filterAnthropicEmptyMessages(msgs)
@@ -199,7 +199,7 @@ export namespace ProviderTransform {
   }
 
   const WIDELY_SUPPORTED_EFFORTS = ["low", "medium", "high"]
-  const OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
+  const _OPENAI_EFFORTS = ["none", "minimal", ...WIDELY_SUPPORTED_EFFORTS, "xhigh"]
 
   export function variants(model: Provider.Model): Record<string, Record<string, unknown>> {
     if (!model.capabilities.reasoning) return {}

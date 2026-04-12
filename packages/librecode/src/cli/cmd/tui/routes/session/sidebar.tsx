@@ -1,17 +1,14 @@
-import { useSync } from "@tui/context/sync"
-import { type RGBA } from "@opentui/core"
-import { createMemo, For, Show, Switch, Match } from "solid-js"
-import { createStore } from "solid-js/store"
-import { useTheme } from "../../context/theme"
-import { Locale } from "@/util/locale"
-import path from "path"
+
 import type { AssistantMessage } from "@librecode/sdk/v2"
-import { Global } from "@/global"
+import type { RGBA } from "@opentui/core"
+import { useSync } from "@tui/context/sync"
+import { createMemo, For, Match, Show, Switch } from "solid-js"
+import { createStore } from "solid-js/store"
 import { Installation } from "@/installation"
-import { useKeybind } from "../../context/keybind"
+import { TodoItem } from "../../component/todo-item"
 import { useDirectory } from "../../context/directory"
 import { useKV } from "../../context/kv"
-import { TodoItem } from "../../component/todo-item"
+import { useTheme } from "../../context/theme"
 
 type Theme = ReturnType<typeof useTheme>["theme"]
 type SyncData = ReturnType<typeof useSync>
@@ -317,7 +314,7 @@ export function Sidebar(props: { sessionID: string; overlay?: boolean }) {
                 <b>{session().title}</b>
               </text>
               <Show when={session().share?.url}>
-                <text fg={theme.textMuted}>{session().share!.url}</text>
+                <text fg={theme.textMuted}>{session().share?.url}</text>
               </Show>
             </box>
             <box>

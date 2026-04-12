@@ -1,27 +1,25 @@
-import { Installation } from "@/installation"
-import { Provider } from "@/provider/provider"
-import { Log } from "@/util/log"
 import {
-  streamText,
-  wrapLanguageModel,
+  jsonSchema,
   type ModelMessage,
   type StreamTextResult,
+  streamText,
   type Tool,
   type ToolSet,
   tool,
-  jsonSchema,
+  wrapLanguageModel,
 } from "ai"
 import { mergeDeep, pipe } from "remeda"
-import { ProviderTransform } from "@/provider/transform"
-import { Config } from "@/config/config"
-import { Instance } from "@/project/instance"
 import type { Agent } from "@/agent/agent"
-import type { MessageV2 } from "./message-v2"
-import { Plugin } from "@/plugin"
-import { SystemPrompt } from "./system"
-import { Flag } from "@/flag/flag"
-import { PermissionNext } from "@/permission/next"
 import { Auth } from "@/auth"
+import { Config } from "@/config/config"
+import { Installation } from "@/installation"
+import { PermissionNext } from "@/permission/next"
+import { Plugin } from "@/plugin"
+import { Provider } from "@/provider/provider"
+import { ProviderTransform } from "@/provider/transform"
+import { Log } from "@/util/log"
+import type { MessageV2 } from "./message-v2"
+import { SystemPrompt } from "./system"
 
 // ---------------------------------------------------------------------------
 // Module-level helpers (extracted to reduce stream() complexity)
@@ -85,7 +83,7 @@ function injectLiteLLMNoop(
   tools: Record<string, Tool>,
 ): void {
   const isLiteLLMProxy =
-    provider.options?.["litellmProxy"] === true ||
+    provider.options?.litellmProxy === true ||
     input.model.providerID.toLowerCase().includes("litellm") ||
     input.model.api.id.toLowerCase().includes("litellm")
 
@@ -93,7 +91,7 @@ function injectLiteLLMNoop(
 
   // LiteLLM and some Anthropic proxies require the tools parameter to be present
   // when message history contains tool calls, even if no tools are being used.
-  tools["_noop"] = tool({
+  tools._noop = tool({
     description:
       "Placeholder for LiteLLM/Anthropic proxy compatibility - required when message history contains tool calls but no active tools are needed",
     inputSchema: jsonSchema({ type: "object", properties: {} }),

@@ -1,18 +1,17 @@
 // Ripgrep utility functions
-import path from "path"
-import { Global } from "../global"
-import fs from "fs/promises"
-import z from "zod"
-import { NamedError } from "@librecode/util/error"
-import { lazy } from "../util/lazy"
 
+import fs from "node:fs/promises"
+import path from "node:path"
+import { text } from "node:stream/consumers"
+import { NamedError } from "@librecode/util/error"
+import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js"
+import z from "zod"
+import { Log } from "@/util/log"
+import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
+import { lazy } from "../util/lazy"
 import { Process } from "../util/process"
 import { which } from "../util/which"
-import { text } from "node:stream/consumers"
-
-import { ZipReader, BlobReader, BlobWriter } from "@zip.js/zip.js"
-import { Log } from "@/util/log"
 
 // ---------------------------------------------------------------------------
 // Module-level helpers (extracted to keep lazy() below complexity 12)
@@ -118,7 +117,7 @@ async function resolveRipgrepPath(): Promise<{ filepath: string }> {
     _rgLog.warn("bun.which returned invalid rg path", { filepath: system })
   }
 
-  const filepath = path.join(Global.Path.bin, "rg" + (process.platform === "win32" ? ".exe" : ""))
+  const filepath = path.join(Global.Path.bin, `rg${process.platform === "win32" ? ".exe" : ""}`)
   if (!(await Filesystem.exists(filepath))) {
     await downloadRipgrep(filepath)
   }

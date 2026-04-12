@@ -4,19 +4,19 @@
  * Migrated from Effect facade to direct re-exports per ADR-001.
  */
 
+import os from "node:os"
 import type { Config } from "@/config/config"
+import { getToolCapabilities, getToolRisk, isReadOnly } from "@/tool/capability-registry"
 import { fn } from "@/util/fn"
 import { Wildcard } from "@/util/wildcard"
-import { getToolCapabilities, getToolRisk, isReadOnly } from "@/tool/capability-registry"
-import os from "os"
-import * as S from "./service"
 import type {
   Action as ActionType,
   Reply as ReplyType,
   Request as RequestType,
-  Rule as RuleType,
   Ruleset as RulesetType,
+  Rule as RuleType,
 } from "./service"
+import * as S from "./service"
 
 export namespace PermissionNext {
   function expand(pattern: string): string {

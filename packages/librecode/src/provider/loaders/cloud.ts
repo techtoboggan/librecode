@@ -2,16 +2,15 @@
  * Loaders for cloud platform providers (AWS Bedrock, Google Vertex, SAP, Cloudflare).
  */
 
-import { Config } from "../../config/config"
-import { Auth } from "../../auth"
-import { Env } from "../../env"
-import { iife } from "@/util/iife"
+import type { AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
+import type { LanguageModelV2 } from "@ai-sdk/provider"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
 import { GoogleAuth } from "google-auth-library"
-import type { AmazonBedrockProviderSettings } from "@ai-sdk/amazon-bedrock"
-import type { CustomLoader } from "./types"
-import type { LanguageModelV2 } from "@ai-sdk/provider"
-import type { ProviderLoadResult } from "./types"
+import { iife } from "@/util/iife"
+import { Auth } from "../../auth"
+import { Config } from "../../config/config"
+import { Env } from "../../env"
+import type { CustomLoader, ProviderLoadResult } from "./types"
 
 const US_PREFIXED_MODELS = ["nova-micro", "nova-lite", "nova-pro", "nova-premier", "nova-2", "claude", "deepseek"]
 const EU_PREFIXED_MODELS = ["claude", "nova-lite", "nova-micro", "llama3", "pixtral"]

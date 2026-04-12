@@ -1,5 +1,4 @@
 import {
-  RequestError,
   type Agent as ACPAgent,
   type AgentSideConnection,
   type AuthenticateRequest,
@@ -14,6 +13,7 @@ import {
   type LoadSessionRequest,
   type NewSessionRequest,
   type PromptRequest,
+  RequestError,
   type ResumeSessionRequest,
   type ResumeSessionResponse,
   type SessionInfo,
@@ -22,30 +22,28 @@ import {
   type SetSessionModeResponse,
   type Usage,
 } from "@agentclientprotocol/sdk"
-
-import { Log } from "../util/log"
-import { ACPSessionManager } from "./session"
-import type { ACPConfig } from "./types"
-import { Agent as AgentModule } from "../agent/agent"
+import type { AssistantMessage, Event, OpencodeClient } from "@librecode/sdk/v2"
+import { LoadAPIKeyError } from "ai"
+import type { Config } from "@/config/config"
 import { Installation } from "@/installation"
 import { MessageV2 } from "@/session/message-v2"
-import type { Config } from "@/config/config"
-import { LoadAPIKeyError } from "ai"
-import type { AssistantMessage, Event, OpencodeClient } from "@librecode/sdk/v2"
-import { ProviderID } from "../provider/schema"
-import { ModelID } from "../provider/schema"
-import {
-  defaultModel,
-  sortProvidersByName,
-  modelVariantsFromProviders,
-  buildAvailableModels,
-  formatModelIdWithVariant,
-  buildVariantMeta,
-  parseModelSelection,
-  buildPromptParts,
-  PERMISSION_OPTIONS,
-} from "./agent-types"
+import { Agent as AgentModule } from "../agent/agent"
+import { ModelID, ProviderID } from "../provider/schema"
+import { Log } from "../util/log"
 import { AgentHandlers, sendUsageUpdate } from "./agent-handlers"
+import {
+  buildAvailableModels,
+  buildPromptParts,
+  buildVariantMeta,
+  defaultModel,
+  formatModelIdWithVariant,
+  modelVariantsFromProviders,
+  PERMISSION_OPTIONS,
+  parseModelSelection,
+  sortProvidersByName,
+} from "./agent-types"
+import { ACPSessionManager } from "./session"
+import type { ACPConfig } from "./types"
 
 const log = Log.create({ service: "acp-agent" })
 
@@ -449,8 +447,8 @@ export namespace ACP {
       const model = await defaultModel(this.config, directory)
       const sessionId = params.sessionId
 
-      const providers = await this.sdk.config.providers({ directory }).then((x) => x.data!.providers)
-      const entries = sortProvidersByName(providers)
+      const providers = await this.sdk.config.providers({ directory }).then((x) => x.data?.providers)
+      const entries = sortProvidersByName(providers ?? [])
       const availableVariants = modelVariantsFromProviders(entries, model)
       const currentVariant = this.sessionManager.getVariant(sessionId)
       if (currentVariant && !availableVariants.includes(currentVariant)) {
@@ -555,7 +553,7 @@ export namespace ACP {
       const session = this.sessionManager.get(params.sessionId)
       const providers = await this.sdk.config
         .providers({ directory: session.cwd }, { throwOnError: true })
-        .then((x) => x.data!.providers)
+        .then((x) => x.data?.providers)
 
       const selection = parseModelSelection(params.modelId, providers)
       this.sessionManager.setModel(session.id, selection.model)
@@ -573,13 +571,14 @@ export namespace ACP {
       }
     }
 
-    async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse | void> {
+    async setSessionMode(params: SetSessionModeRequest): Promise<SetSessionModeResponse | undefined> {
       const session = this.sessionManager.get(params.sessionId)
       const availableModes = await this.loadAvailableModes(session.cwd)
       if (!availableModes.some((mode) => mode.id === params.modeId)) {
         throw new Error(`Agent not found: ${params.modeId}`)
       }
       this.sessionManager.setMode(params.sessionId, params.modeId)
+      return undefined
     }
 
     async prompt(params: PromptRequest) {
@@ -650,13 +649,13 @@ export namespace ACP {
 
       const command = await this.config.sdk.command
         .list({ directory }, { throwOnError: true })
-        .then((x) => x.data!.find((c) => c.name === cmd.name))
+        .then((x) => x.data?.find((c) => c.name === cmd.name))
       if (command) {
         const response = await this.sdk.session.command({
           sessionID,
           command: command.name,
           arguments: cmd.args,
-          model: model.providerID + "/" + model.modelID,
+          model: `${model.providerID}/${model.modelID}`,
           agent,
           directory,
         })

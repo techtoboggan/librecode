@@ -1,7 +1,6 @@
 import type z from "zod"
-
-import type { Brand } from "@/util/brand"
 import { Identifier } from "@/id/id"
+import type { Brand } from "@/util/brand"
 
 export type WorkspaceID = Brand<string, "WorkspaceID">
 export const WorkspaceID = {

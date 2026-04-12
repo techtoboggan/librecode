@@ -1,20 +1,20 @@
-import { BusEvent } from "@/bus/bus-event"
+import z from "zod"
+import { Agent } from "@/agent/agent"
 import { Bus } from "@/bus"
-import { Session } from "."
-import { SessionID, MessageID, PartID } from "./schema"
+import { BusEvent } from "@/bus/bus-event"
+import { Config } from "@/config/config"
+import { Plugin } from "@/plugin"
+import { ModelID, ProviderID } from "@/provider/schema"
+import { ProviderTransform } from "@/provider/transform"
+import { fn } from "@/util/fn"
 import { Instance } from "../project/instance"
 import { Provider } from "../provider/provider"
-import { MessageV2 } from "./message-v2"
-import z from "zod"
-import { Token } from "../util/token"
 import { Log } from "../util/log"
+import { Token } from "../util/token"
+import { Session } from "."
+import { MessageV2 } from "./message-v2"
 import { SessionProcessor } from "./processor"
-import { fn } from "@/util/fn"
-import { Agent } from "@/agent/agent"
-import { Plugin } from "@/plugin"
-import { Config } from "@/config/config"
-import { ProviderTransform } from "@/provider/transform"
-import { ModelID, ProviderID } from "@/provider/schema"
+import { MessageID, PartID, SessionID } from "./schema"
 
 export namespace SessionCompaction {
   const log = Log.create({ service: "session.compaction" })
@@ -227,9 +227,9 @@ When constructing the summary, try to stick to this template:
       model: userMessage.model,
     })
     const text =
-      (overflow
+      `${overflow
         ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
-        : "") + "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+        : ""}Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.`
     await Session.updatePart({
       id: PartID.ascending(),
       messageID: continueMsg.id,
@@ -252,7 +252,7 @@ When constructing the summary, try to stick to this template:
     auto: boolean
     overflow?: boolean
   }) {
-    const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)!.info as MessageV2.User
+    const userMessage = input.messages.findLast((m) => m.info.id === input.parentID)?.info as MessageV2.User
 
     let messages = input.messages
     let replay: MessageV2.WithParts | undefined

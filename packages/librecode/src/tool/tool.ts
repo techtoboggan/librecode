@@ -1,8 +1,8 @@
 import z from "zod"
-import type { MessageV2 } from "../session/message-v2"
 import type { Agent } from "../agent/agent"
 import type { PermissionNext } from "../permission/next"
-import type { SessionID, MessageID } from "../session/schema"
+import type { MessageV2 } from "../session/message-v2"
+import type { MessageID, SessionID } from "../session/schema"
 import { Truncate } from "./truncation"
 
 export namespace Tool {

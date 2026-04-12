@@ -1,8 +1,8 @@
-import z from "zod"
-import { Tool } from "./tool"
 import TurndownService from "turndown"
-import DESCRIPTION from "./webfetch.txt"
+import z from "zod"
 import { abortAfterAny } from "../util/abort"
+import { Tool } from "./tool"
+import DESCRIPTION from "./webfetch.txt"
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024 // 5MB
 const DEFAULT_TIMEOUT = 30 * 1000 // 30 seconds
@@ -102,7 +102,7 @@ async function fetchWithCloudflareRetry(
 
 async function readResponseBody(response: Response): Promise<ArrayBuffer> {
   const contentLength = response.headers.get("content-length")
-  if (contentLength && parseInt(contentLength) > MAX_RESPONSE_SIZE) {
+  if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
     throw new Error("Response too large (exceeds 5MB limit)")
   }
   const arrayBuffer = await response.arrayBuffer()

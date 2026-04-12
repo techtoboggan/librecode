@@ -1,11 +1,11 @@
-import { createMemo, createSignal, Show, Switch, Match } from "solid-js"
-import { useTheme } from "@tui/context/theme"
+import path from "node:path"
 import { useSync } from "@tui/context/sync"
+import { useTheme } from "@tui/context/theme"
+import { createMemo, createSignal, Match, Show, Switch } from "solid-js"
+import stripAnsi from "strip-ansi"
 import { Global } from "@/global"
 import type { BashTool } from "@/tool/bash"
-import stripAnsi from "strip-ansi"
-import path from "path"
-import { InlineTool, BlockTool, type ToolProps } from "./shared"
+import { BlockTool, InlineTool, type ToolProps } from "./shared"
 
 export function Bash(props: ToolProps<typeof BashTool>) {
   const { theme } = useTheme()

@@ -1,27 +1,27 @@
-import { cmd } from "../cmd"
+import * as prompts from "@clack/prompts"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
-import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
+import { Bus } from "../../../bus"
+import { Config } from "../../../config/config"
+import { Installation } from "../../../installation"
 import { MCP } from "../../../mcp"
 import { McpAuth } from "../../../mcp/auth"
 import { McpOAuthProvider } from "../../../mcp/oauth-provider"
-import { Config } from "../../../config/config"
 import { Instance } from "../../../project/instance"
-import { Installation } from "../../../installation"
-import { Bus } from "../../../bus"
+import { UI } from "../../ui"
+import { cmd } from "../cmd"
 import {
-  isMcpConfigured,
-  isMcpRemote,
+  addMcpToConfig,
+  collectOAuthConfig,
+  confirmReauthIfNeeded,
   getAuthStatusIcon,
   getAuthStatusText,
-  selectOAuthServer,
-  confirmReauthIfNeeded,
-  collectOAuthConfig,
-  resolveAddConfigPath,
-  addMcpToConfig,
+  isMcpConfigured,
+  isMcpRemote,
   printDebugTokenInfo,
+  resolveAddConfigPath,
+  selectOAuthServer,
 } from "./helpers"
 
 export const McpCommand = cmd({
@@ -92,11 +92,11 @@ function buildServerStatusLine(
   } else if (status?.status === "needs_client_registration") {
     statusIcon = "✗"
     statusText = "needs client registration"
-    hint = "\n    " + status.error
+    hint = `\n    ${status.error}`
   } else if (status?.status === "failed") {
     statusIcon = "✗"
     statusText = "failed"
-    hint = "\n    " + (status as any).error
+    hint = `\n    ${(status as any).error}`
   }
 
   const typeHint = serverConfig.type === "remote" ? serverConfig.url : serverConfig.command.join(" ")
@@ -209,7 +209,7 @@ function reportAuthStatus(
     spinner.stop("Authentication failed", 1)
     prompts.log.error(status.error)
   } else {
-    spinner.stop("Unexpected status: " + status.status, 1)
+    spinner.stop(`Unexpected status: ${status.status}`, 1)
   }
 }
 

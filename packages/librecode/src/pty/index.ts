@@ -1,12 +1,12 @@
-import { BusEvent } from "@/bus/bus-event"
-import { Bus } from "@/bus"
+import { lazy } from "@librecode/util/lazy"
 import type { IPty } from "bun-pty"
 import z from "zod"
-import { Log } from "../util/log"
-import { Instance } from "../project/instance"
-import { lazy } from "@librecode/util/lazy"
-import { Shell } from "@/shell/shell"
+import { Bus } from "@/bus"
+import { BusEvent } from "@/bus/bus-event"
 import { Plugin } from "@/plugin"
+import { Shell } from "@/shell/shell"
+import { Instance } from "../project/instance"
+import { Log } from "../util/log"
 import { PtyID } from "./schema"
 
 // ---------------------------------------------------------------------------
@@ -85,7 +85,7 @@ function sendBufferedData(
 export namespace Pty {
   const log = Log.create({ service: "pty" })
 
-  const BUFFER_LIMIT = 1024 * 1024 * 2
+  const _BUFFER_LIMIT = 1024 * 1024 * 2
   const BUFFER_CHUNK = 64 * 1024
   const encoder = new TextEncoder()
 

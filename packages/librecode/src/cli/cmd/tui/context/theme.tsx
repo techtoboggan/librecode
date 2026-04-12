@@ -1,14 +1,12 @@
-import { RGBA } from "@opentui/core"
-import path from "path"
-import { createEffect, createMemo, onMount } from "solid-js"
-import { createSimpleContext } from "./helper"
-import { Glob } from "../../../../util/glob"
-import { useKV } from "./kv"
+import path from "node:path"
 import { useRenderer } from "@opentui/solid"
+import { createEffect, createMemo, onMount } from "solid-js"
 import { createStore, produce } from "solid-js/store"
 import { Global } from "@/global"
 import { Filesystem } from "@/util/filesystem"
-import { useTuiConfig } from "./tui-config"
+import { Glob } from "../../../../util/glob"
+import { createSimpleContext } from "./helper"
+import { useKV } from "./kv"
 import {
   DEFAULT_THEMES,
   generateSubtleSyntax,
@@ -19,10 +17,11 @@ import {
   type ThemeColors,
   type ThemeJson,
 } from "./theme-tokens"
+import { useTuiConfig } from "./tui-config"
 
+export { DEFAULT_THEMES, selectedForeground, tint } from "./theme-tokens"
 // Re-export types and utilities that callers depend on
 export type { Theme, ThemeColors, ThemeJson }
-export { DEFAULT_THEMES, tint, selectedForeground } from "./theme-tokens"
 
 export const { use: useTheme, provider: ThemeProvider } = createSimpleContext({
   name: "Theme",

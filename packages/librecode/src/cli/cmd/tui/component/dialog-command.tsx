@@ -1,16 +1,16 @@
+import { useKeyboard } from "@opentui/solid"
+import { type KeybindKey, useKeybind } from "@tui/context/keybind"
 import { useDialog } from "@tui/ui/dialog"
 import { DialogSelect, type DialogSelectOption, type DialogSelectRef } from "@tui/ui/dialog-select"
 import {
+  type Accessor,
   createContext,
   createMemo,
   createSignal,
   onCleanup,
-  useContext,
-  type Accessor,
   type ParentProps,
+  useContext,
 } from "solid-js"
-import { useKeyboard } from "@opentui/solid"
-import { type KeybindKey, useKeybind } from "@tui/context/keybind"
 
 type Context = ReturnType<typeof init>
 const ctx = createContext<Context>()
@@ -89,9 +89,9 @@ function init() {
         const slash = option.slash
         if (!slash) return []
         return {
-          display: "/" + slash.name,
+          display: `/${slash.name}`,
           description: option.description ?? option.title,
-          aliases: slash.aliases?.map((alias) => "/" + alias),
+          aliases: slash.aliases?.map((alias) => `/${alias}`),
           onSelect: () => result.trigger(option.value),
         }
       })

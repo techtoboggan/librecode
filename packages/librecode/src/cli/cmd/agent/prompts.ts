@@ -1,8 +1,8 @@
+import path from "node:path"
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
 import { Global } from "../../../global"
 import { Instance } from "../../../project/instance"
-import path from "path"
+import { UI } from "../../ui"
 
 export const AVAILABLE_TOOLS = [
   "bash",

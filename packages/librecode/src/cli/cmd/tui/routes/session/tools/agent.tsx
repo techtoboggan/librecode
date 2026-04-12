@@ -1,19 +1,19 @@
-import { createMemo, onMount } from "solid-js"
-import { useTheme } from "@tui/context/theme"
-import { useSync } from "@tui/context/sync"
-import { useRoute } from "@tui/context/route"
-import { useLocal } from "@tui/context/local"
-import { useKeybind } from "@tui/context/keybind"
-import { Locale } from "@/util/locale"
-import type { TaskTool } from "@/tool/task"
 import type { ToolPart } from "@librecode/sdk/v2"
+import { useKeybind } from "@tui/context/keybind"
+import { useLocal } from "@tui/context/local"
+import { useRoute } from "@tui/context/route"
+import { useSync } from "@tui/context/sync"
+import { useTheme } from "@tui/context/theme"
+import { createMemo, onMount } from "solid-js"
+import type { TaskTool } from "@/tool/task"
+import { Locale } from "@/util/locale"
 import { InlineTool, type ToolProps } from "./shared"
 
 export function Task(props: ToolProps<typeof TaskTool>) {
   const { theme } = useTheme()
-  const keybind = useKeybind()
+  const _keybind = useKeybind()
   const { navigate } = useRoute()
-  const local = useLocal()
+  const _local = useLocal()
   const sync = useSync()
 
   onMount(() => {
@@ -47,7 +47,7 @@ export function Task(props: ToolProps<typeof TaskTool>) {
     const content = [`Task ${props.input.description}`]
 
     if (isRunning() && tools().length > 0) {
-      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()!.state as any).title}`)
+      if (current()) content.push(`↳ ${Locale.titlecase(current()!.tool)} ${(current()?.state as any).title}`)
       else content.push(`↳ ${tools().length} toolcalls`)
     }
 

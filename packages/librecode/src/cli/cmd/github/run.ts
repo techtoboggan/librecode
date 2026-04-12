@@ -1,46 +1,45 @@
-import path from "path"
+import path from "node:path"
 import * as core from "@actions/core"
 import * as github from "@actions/github"
 import type { Context } from "@actions/github/lib/context"
+import { graphql } from "@octokit/graphql"
+import { Octokit } from "@octokit/rest"
 import type {
   IssueCommentEvent,
   IssuesEvent,
+  PullRequestEvent,
   PullRequestReviewCommentEvent,
   WorkflowDispatchEvent,
   WorkflowRunEvent,
-  PullRequestEvent,
 } from "@octokit/webhooks-types"
-import { Octokit } from "@octokit/rest"
-import { graphql } from "@octokit/graphql"
-import { UI } from "../../ui"
-import { cmd } from "../cmd"
-import { Instance } from "@/project/instance"
-import { bootstrap } from "../../bootstrap"
-import { Session } from "../../../session"
-import type { SessionID } from "../../../session/schema"
-import { MessageID, PartID } from "../../../session/schema"
-import { Provider } from "../../../provider/provider"
-import type { ModelID, ProviderID } from "../../../provider/schema"
-import { Bus } from "../../../bus"
-import { MessageV2 } from "../../../session/message-v2"
 import { SessionPrompt } from "@/session/prompt"
 import { Process } from "@/util/process"
-import type { GitHubPullRequest } from "./queries"
-import { fetchIssue, fetchPR, buildPromptDataForIssue, buildPromptDataForPR } from "./queries"
-import { extractResponseText, formatPromptTooLargeError } from "./util"
+import { Bus } from "../../../bus"
+import { Provider } from "../../../provider/provider"
+import type { ModelID, ProviderID } from "../../../provider/schema"
+import { Session } from "../../../session"
+import { MessageV2 } from "../../../session/message-v2"
+import type { SessionID } from "../../../session/schema"
+import { MessageID, PartID } from "../../../session/schema"
+import { bootstrap } from "../../bootstrap"
+import { UI } from "../../ui"
+import { cmd } from "../cmd"
+import { AGENT_USERNAME, addReaction, assertPermissions, createComment, createPR, removeReaction } from "./api-helpers"
 import {
-  gitText,
+  branchIsDirty,
+  checkoutForkBranch,
+  checkoutLocalBranch,
+  checkoutNewBranch,
   gitRun,
   gitStatus,
-  checkoutNewBranch,
-  checkoutLocalBranch,
-  checkoutForkBranch,
-  pushToNewBranch,
-  pushToLocalBranch,
+  gitText,
   pushToForkBranch,
-  branchIsDirty,
+  pushToLocalBranch,
+  pushToNewBranch,
 } from "./git-helpers"
-import { AGENT_USERNAME, assertPermissions, addReaction, removeReaction, createComment, createPR } from "./api-helpers"
+import type { GitHubPullRequest } from "./queries"
+import { buildPromptDataForIssue, buildPromptDataForPR, fetchIssue, fetchPR } from "./queries"
+import { extractResponseText, formatPromptTooLargeError } from "./util"
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -193,7 +192,7 @@ async function runGithubAction(args: { token?: string; event?: string }): Promis
 function buildInitialCtx(context: Context, isMock: string | undefined): RunCtx {
   const eventFlags = resolveEventFlags(context.eventName)
   const { providerID, modelID } = normalizeModel()
-  const variant = process.env["VARIANT"] || undefined
+  const variant = process.env.VARIANT || undefined
   const runId = normalizeRunId()
   const { owner, repo } = context.repo
   const payload = context.payload as
@@ -289,7 +288,7 @@ function resolveCommentType(isCommentEvent: boolean, eventName: string): "issue"
 // ---------------------------------------------------------------------------
 
 function normalizeModel(): { providerID: ProviderID; modelID: ModelID } {
-  const value = process.env["MODEL"]
+  const value = process.env.MODEL
   if (!value) throw new Error(`Environment variable "MODEL" is not set`)
   const { providerID, modelID } = Provider.parseModel(value)
   if (!providerID.length || !modelID.length)
@@ -298,13 +297,13 @@ function normalizeModel(): { providerID: ProviderID; modelID: ModelID } {
 }
 
 function normalizeRunId(): string {
-  const value = process.env["GITHUB_RUN_ID"]
+  const value = process.env.GITHUB_RUN_ID
   if (!value) throw new Error(`Environment variable "GITHUB_RUN_ID" is not set`)
   return value
 }
 
 function normalizeShare(): boolean | undefined {
-  const value = process.env["SHARE"]
+  const value = process.env.SHARE
   if (!value) return undefined
   if (value === "true") return true
   if (value === "false") return false
@@ -312,7 +311,7 @@ function normalizeShare(): boolean | undefined {
 }
 
 function normalizeUseGithubToken(): boolean {
-  const value = process.env["USE_GITHUB_TOKEN"]
+  const value = process.env.USE_GITHUB_TOKEN
   if (!value) return false
   if (value === "true") return true
   if (value === "false") return false
@@ -320,7 +319,7 @@ function normalizeUseGithubToken(): boolean {
 }
 
 function normalizeOidcBaseUrl(): string {
-  const value = process.env["OIDC_BASE_URL"]
+  const value = process.env.OIDC_BASE_URL
   if (!value) return "https://api.librecode.ai"
   return value.replace(/\/+$/, "")
 }
@@ -402,7 +401,7 @@ function extractCommentPrompt(
     return body
   }
 
-  throw new Error(`Comments must mention ${mentions.map((m) => "`" + m + "`").join(" or ")}`)
+  throw new Error(`Comments must mention ${mentions.map((m) => `\`${m}\``).join(" or ")}`)
 }
 
 async function downloadPromptImages(
@@ -462,7 +461,7 @@ async function getUserPrompt(
   appToken: string,
   eventName: string,
 ): Promise<{ userPrompt: string; promptFiles: PromptFile[] }> {
-  const customPrompt = process.env["PROMPT"]
+  const customPrompt = process.env.PROMPT
   // For repo events and issues events, PROMPT is required since there's no comment to extract from
   if (isRepoEvent || isIssuesEvent) {
     if (!customPrompt) {
@@ -475,7 +474,7 @@ async function getUserPrompt(
   if (customPrompt) return { userPrompt: customPrompt, promptFiles: [] }
 
   const reviewContext = getReviewCommentContext(eventName, payload)
-  const mentions = parseMentions(process.env["MENTIONS"])
+  const mentions = parseMentions(process.env.MENTIONS)
   const rawPrompt = extractCommentPrompt(isCommentEvent, payload, mentions, reviewContext)
 
   const { prompt, files } = await downloadPromptImages(rawPrompt, appToken)
@@ -516,8 +515,8 @@ const SESSION_TOOL_LABELS: Record<string, [string, string]> = {
 
 function printSessionEvent(color: string, type: string, title: string): void {
   UI.println(
-    color + `|`,
-    UI.Style.TEXT_NORMAL + UI.Style.TEXT_DIM + ` ${type.padEnd(7, " ")}`,
+    `${color}|`,
+    `${UI.Style.TEXT_NORMAL + UI.Style.TEXT_DIM} ${type.padEnd(7, " ")}`,
     "",
     UI.Style.TEXT_NORMAL + title,
   )
@@ -686,7 +685,7 @@ async function resolveAppToken(
   repo: string,
 ): Promise<string> {
   if (useGithubToken) {
-    const githubToken = process.env["GITHUB_TOKEN"]
+    const githubToken = process.env.GITHUB_TOKEN
     if (!githubToken) {
       throw new Error(
         "GITHUB_TOKEN environment variable is not set. When using use_github_token, you must provide GITHUB_TOKEN.",

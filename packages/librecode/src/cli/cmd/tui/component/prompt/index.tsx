@@ -1,46 +1,41 @@
-import {
-  type BoxRenderable,
-  type TextareaRenderable,
-  type MouseEvent,
-  type PasteEvent,
-  type KeyEvent,
-  type ParsedKey,
-  t,
-  dim,
-  fg,
+import type {
+  BoxRenderable,
+  KeyEvent,
+  MouseEvent,
+  PasteEvent,
+  TextareaRenderable,
 } from "@opentui/core"
-import { createEffect, createMemo, type JSX, onMount, createSignal, onCleanup, on, Show, Switch, Match } from "solid-js"
+import { createEffect, createMemo, type JSX, Match, on, Show, Switch } from "solid-js"
 import "opentui-spinner/solid"
-import { useLocal } from "@tui/context/local"
-import { useTheme } from "@tui/context/theme"
-import { EmptyBorder } from "@tui/component/border"
-import { useSDK } from "@tui/context/sdk"
-import { useRoute } from "@tui/context/route"
-import { useSync } from "@tui/context/sync"
-import { MessageID, PartID } from "@/session/schema"
-import { createStore, produce } from "solid-js/store"
-import { useKeybind } from "@tui/context/keybind"
-import { usePromptHistory, type PromptInfo } from "./history"
-import { usePromptStash } from "./stash"
-import { DialogStash } from "../dialog-stash"
-import { type AutocompleteRef, Autocomplete } from "./autocomplete"
-import { useCommandDialog } from "../dialog-command"
 import { useRenderer } from "@opentui/solid"
-import { Editor } from "@tui/util/editor"
-import { useExit } from "../../context/exit"
-import type { SessionStatus } from "@librecode/sdk/v2"
-import { TuiEvent } from "../../event"
-import { Locale } from "@/util/locale"
-import { createColors, createFrames } from "../../ui/spinner.ts"
+import { EmptyBorder } from "@tui/component/border"
+import { useKeybind } from "@tui/context/keybind"
+import { useLocal } from "@tui/context/local"
+import { useRoute } from "@tui/context/route"
+import { useSDK } from "@tui/context/sdk"
+import { useSync } from "@tui/context/sync"
+import { useTheme } from "@tui/context/theme"
 import { useDialog } from "@tui/ui/dialog"
-import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
-import { useToast } from "../../ui/toast"
+import { Editor } from "@tui/util/editor"
+import { createStore, produce } from "solid-js/store"
+import { MessageID, PartID } from "@/session/schema"
+import { Locale } from "@/util/locale"
+import { useExit } from "../../context/exit"
 import { useKV } from "../../context/kv"
-import { useTextareaKeybindings } from "../textarea-keybindings"
+import { TuiEvent } from "../../event"
+import { createColors, createFrames } from "../../ui/spinner.ts"
+import { useToast } from "../../ui/toast"
+import { useCommandDialog } from "../dialog-command"
+import { DialogProvider as DialogProviderConnect } from "../dialog-provider"
 import { DialogSkill } from "../dialog-skill"
+import { DialogStash } from "../dialog-stash"
+import { useTextareaKeybindings } from "../textarea-keybindings"
+import { Autocomplete, type AutocompleteRef } from "./autocomplete"
+import { type PromptInfo, usePromptHistory } from "./history"
 import { buildCommandArgs, isKnownSlashCommand, updatedPartPositionInContent } from "./prompt-helpers"
-import { RetryStatusDisplay } from "./prompt-status"
 import { usePromptPaste } from "./prompt-paste"
+import { RetryStatusDisplay } from "./prompt-status"
+import { usePromptStash } from "./stash"
 
 export type PromptProps = {
   sessionID?: string
@@ -614,7 +609,7 @@ export function Prompt(props: PromptProps) {
     }
   }
 
-  function afterSubmitCleanup(currentMode: string, sessionID: string): void {
+  function afterSubmitCleanup(_currentMode: string, sessionID: string): void {
     input.extmarks.clear()
     setStore("prompt", { input: "", parts: [] })
     setStore("extmarkToPartIndex", new Map())
@@ -706,7 +701,7 @@ export function Prompt(props: PromptProps) {
     input.cursorOffset = direction === -1 ? 0 : input.plainText.length
   }
 
-  function handleHistoryNavigation(isPrev: boolean, isNext: boolean, e: KeyEvent): void {
+  function handleHistoryNavigation(isPrev: boolean, _isNext: boolean, e: KeyEvent): void {
     const direction: -1 | 1 = isPrev ? -1 : 1
     const item = history.move(direction, input.plainText)
     if (item) applyHistoryItem(item, direction, e)

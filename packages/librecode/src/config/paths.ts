@@ -1,11 +1,11 @@
-import path from "path"
-import os from "os"
-import z from "zod"
-import { type ParseError as JsoncParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
+import os from "node:os"
+import path from "node:path"
 import { NamedError } from "@librecode/util/error"
-import { Filesystem } from "@/util/filesystem"
+import { type ParseError as JsoncParseError, parse as parseJsonc, printParseErrorCode } from "jsonc-parser"
+import z from "zod"
 import { Flag } from "@/flag/flag"
 import { Global } from "@/global"
+import { Filesystem } from "@/util/filesystem"
 
 export namespace ConfigPaths {
   export async function projectFiles(name: string, directory: string, worktree: string) {
@@ -123,7 +123,7 @@ export namespace ConfigPaths {
             throw new InvalidError(
               {
                 path: configSource,
-                message: errMsg + ` ${resolvedPath} does not exist`,
+                message: `${errMsg} ${resolvedPath} does not exist`,
               },
               { cause: error },
             )

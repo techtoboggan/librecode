@@ -1,10 +1,10 @@
 import { Hono } from "hono"
-import { describeRoute, validator, resolver } from "hono-openapi"
+import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { PermissionNext } from "@/permission/next"
 import { PermissionID } from "@/permission/schema"
-import { errors } from "../error"
 import { lazy } from "../../util/lazy"
+import { errors } from "../error"
 
 export const PermissionRoutes = lazy(() =>
   new Hono()

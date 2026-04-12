@@ -1,15 +1,15 @@
-import { Bus } from "@/bus"
+import type * as SDK from "@librecode/sdk/v2"
 import { Account } from "@/account"
+import { Bus } from "@/bus"
 import { Config } from "@/config/config"
 import { Provider } from "@/provider/provider"
-import { ProviderID, ModelID } from "@/provider/schema"
+import { ModelID, ProviderID } from "@/provider/schema"
 import { Session } from "@/session"
-import type { SessionID } from "@/session/schema"
 import { MessageV2 } from "@/session/message-v2"
+import type { SessionID } from "@/session/schema"
 import { Database, eq } from "@/storage/db"
-import { SessionShareTable } from "./share.sql"
 import { Log } from "@/util/log"
-import type * as SDK from "@librecode/sdk/v2"
+import { SessionShareTable } from "./share.sql"
 
 export namespace ShareNext {
   const log = Log.create({ service: "share-next" })
@@ -56,12 +56,12 @@ export namespace ShareNext {
       throw new Error("No active account token available for sharing")
     }
 
-    headers["authorization"] = `Bearer ${token}`
+    headers.authorization = `Bearer ${token}`
     headers["x-org-id"] = active.active_org_id
     return { headers, api: consoleApi, baseUrl: active.url }
   }
 
-  const disabled = process.env["LIBRECODE_DISABLE_SHARE"] === "true" || process.env["LIBRECODE_DISABLE_SHARE"] === "1"
+  const disabled = process.env.LIBRECODE_DISABLE_SHARE === "true" || process.env.LIBRECODE_DISABLE_SHARE === "1"
 
   export async function init() {
     if (disabled) return

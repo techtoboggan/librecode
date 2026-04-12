@@ -7,7 +7,6 @@ import {
   type Account,
   type AccountID,
   DeviceCode,
-  type RefreshToken,
   Login,
   Org,
   OrgID,
@@ -18,6 +17,7 @@ import {
   type PollResult,
   PollSlow,
   PollSuccess,
+  type RefreshToken,
   UserCode,
 } from "./schema"
 
@@ -106,7 +106,7 @@ async function resolveToken(row: AccountRow): Promise<AccessToken> {
   return parsed.access_token as AccessToken
 }
 
-function resolveAccess(accountID: AccountID): { account: AccountRow; accessToken: AccessToken } | undefined {
+function _resolveAccess(accountID: AccountID): { account: AccountRow; accessToken: AccessToken } | undefined {
   const row = AccountRepo.getRow(accountID)
   if (!row) return undefined
   // Note: token resolution is sync-safe when token hasn't expired.

@@ -1,10 +1,10 @@
-import { createMemo } from "solid-js"
-import { Keybind } from "@/util/keybind"
-import { pipe, mapValues } from "remeda"
-import type { TuiConfig } from "@/config/tui"
 import type { ParsedKey, Renderable } from "@opentui/core"
-import { createStore } from "solid-js/store"
 import { useKeyboard, useRenderer } from "@opentui/solid"
+import { mapValues, pipe } from "remeda"
+import { createMemo } from "solid-js"
+import { createStore } from "solid-js/store"
+import type { TuiConfig } from "@/config/tui"
+import { Keybind } from "@/util/keybind"
 import { createSimpleContext } from "./helper"
 import { useTuiConfig } from "./tui-config"
 
@@ -94,7 +94,8 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
         const first = keybinds()[key]?.at(0)
         if (!first) return ""
         const result = Keybind.toString(first)
-        return result.replace("<leader>", Keybind.toString(keybinds().leader![0]!))
+        const leader = keybinds().leader?.[0]
+        return leader ? result.replace("<leader>", Keybind.toString(leader)) : result
       },
     }
     return result

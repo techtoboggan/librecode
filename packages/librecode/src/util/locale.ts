@@ -30,9 +30,9 @@ export namespace Locale {
 
   export function number(num: number): string {
     if (num >= 1000000) {
-      return (num / 1000000).toFixed(1) + "M"
+      return `${(num / 1000000).toFixed(1)}M`
     } else if (num >= 1000) {
-      return (num / 1000).toFixed(1) + "K"
+      return `${(num / 1000).toFixed(1)}K`
     }
     return num.toString()
   }
@@ -61,7 +61,7 @@ export namespace Locale {
 
   export function truncate(str: string, len: number): string {
     if (str.length <= len) return str
-    return str.slice(0, len - 1) + "…"
+    return `${str.slice(0, len - 1)}…`
   }
 
   export function truncateMiddle(str: string, maxLength: number = 35): string {

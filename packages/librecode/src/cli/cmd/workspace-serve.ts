@@ -1,6 +1,6 @@
-import { cmd } from "./cmd"
-import { withNetworkOptions, resolveNetworkOptions } from "../network"
 import { WorkspaceServer } from "../../control-plane/workspace-server/server"
+import { resolveNetworkOptions, withNetworkOptions } from "../network"
+import { cmd } from "./cmd"
 
 export const WorkspaceServeCommand = cmd({
   command: "workspace-serve",

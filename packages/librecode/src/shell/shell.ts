@@ -1,10 +1,10 @@
-import { Flag } from "@/flag/flag"
-import { lazy } from "@/util/lazy"
-import { Filesystem } from "@/util/filesystem"
-import { which } from "@/util/which"
-import path from "path"
-import { spawn, type ChildProcess } from "child_process"
+import { type ChildProcess, spawn } from "node:child_process"
+import path from "node:path"
 import { setTimeout as sleep } from "node:timers/promises"
+import { Flag } from "@/flag/flag"
+import { Filesystem } from "@/util/filesystem"
+import { lazy } from "@/util/lazy"
+import { which } from "@/util/which"
 
 const SIGKILL_TIMEOUT_MS = 200
 

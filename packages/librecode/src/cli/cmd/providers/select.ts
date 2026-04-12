@@ -1,10 +1,10 @@
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
-import { ModelsDev } from "../../../provider/models"
+import type { Hooks } from "@librecode/plugin"
 import { map, pipe, sortBy, values } from "remeda"
 import { Config } from "../../../config/config"
 import { Plugin } from "../../../plugin"
-import type { Hooks } from "@librecode/plugin"
+import { ModelsDev } from "../../../provider/models"
+import { UI } from "../../ui"
 
 function isProviderIncluded(
   id: string,

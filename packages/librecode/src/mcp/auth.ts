@@ -1,4 +1,4 @@
-import path from "path"
+import path from "node:path"
 import z from "zod"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"

@@ -1,5 +1,5 @@
-import type { Octokit } from "@octokit/rest"
 import { setTimeout as sleep } from "node:timers/promises"
+import type { Octokit } from "@octokit/rest"
 import { hasNewCommits } from "./git-helpers"
 
 // These constants are shared with run.ts for git config

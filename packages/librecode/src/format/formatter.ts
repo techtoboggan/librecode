@@ -1,10 +1,10 @@
 import { text } from "node:stream/consumers"
+import { Flag } from "@/flag/flag"
 import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
 import { Filesystem } from "../util/filesystem"
 import { Process } from "../util/process"
 import { which } from "../util/which"
-import { Flag } from "@/flag/flag"
 
 export interface Info {
   name: string
@@ -232,7 +232,7 @@ export const rlang: Info = {
       const hasR = firstLine.includes("R language")
       const hasFormatter = firstLine.includes("formatter")
       return hasR && hasFormatter
-    } catch (error) {
+    } catch (_error) {
       return false
     }
   },

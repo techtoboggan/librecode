@@ -1,14 +1,14 @@
-import { useDialog } from "@tui/ui/dialog"
-import { DialogSelect } from "@tui/ui/dialog-select"
+import type { Session } from "@librecode/sdk/v2"
+import { createOpencodeClient } from "@librecode/sdk/v2"
 import { useRoute } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
+import { useDialog } from "@tui/ui/dialog"
+import { DialogSelect } from "@tui/ui/dialog-select"
 import { createEffect, createMemo, createSignal, onMount } from "solid-js"
-import type { Session } from "@librecode/sdk/v2"
+import { useKeybind } from "../context/keybind"
 import { useSDK } from "../context/sdk"
 import { useToast } from "../ui/toast"
-import { useKeybind } from "../context/keybind"
 import { DialogSessionList } from "./workspace/dialog-session-list"
-import { createOpencodeClient } from "@librecode/sdk/v2"
 
 async function openWorkspace(input: {
   dialog: ReturnType<typeof useDialog>

@@ -1,11 +1,11 @@
+import { EOL } from "node:os"
+import * as prompts from "@clack/prompts"
 import type { Argv } from "yargs"
 import { Session } from "../../session"
 import { SessionID } from "../../session/schema"
-import { cmd } from "./cmd"
 import { bootstrap } from "../bootstrap"
 import { UI } from "../ui"
-import * as prompts from "@clack/prompts"
-import { EOL } from "os"
+import { cmd } from "./cmd"
 
 async function selectSessionInteractive(): Promise<SessionID | undefined> {
   UI.empty()

@@ -1,4 +1,4 @@
-import path from "path"
+import path from "node:path"
 import z from "zod"
 import { Global } from "../global"
 import { Filesystem } from "../util/filesystem"
@@ -59,7 +59,7 @@ export async function set(key: string, info: Info): Promise<void> {
   const norm = key.replace(/\/+$/, "")
   const data = await all()
   if (norm !== key) delete data[key]
-  delete data[norm + "/"]
+  delete data[`${norm}/`]
   await Filesystem.writeJson(file, { ...data, [norm]: info }, 0o600)
 }
 

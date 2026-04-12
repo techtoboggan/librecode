@@ -1,6 +1,6 @@
 import { createStore } from "solid-js/store"
-import { createSimpleContext } from "./helper"
 import type { PromptInfo } from "../component/prompt/history"
+import { createSimpleContext } from "./helper"
 
 export type HomeRoute = {
   type: "home"
@@ -20,8 +20,8 @@ export const { use: useRoute, provider: RouteProvider } = createSimpleContext({
   name: "Route",
   init: () => {
     const [store, setStore] = createStore<Route>(
-      process.env["LIBRECODE_ROUTE"]
-        ? JSON.parse(process.env["LIBRECODE_ROUTE"])
+      process.env.LIBRECODE_ROUTE
+        ? JSON.parse(process.env.LIBRECODE_ROUTE)
         : {
             type: "home",
           },

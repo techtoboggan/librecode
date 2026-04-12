@@ -16,17 +16,17 @@ import {
   type FetchFunction,
   generateId,
   isParsableJson,
-  parseProviderOptions,
   type ParseResult,
+  parseProviderOptions,
   postJsonToApi,
   type ResponseHandler,
 } from "@ai-sdk/provider-utils"
 import { z } from "zod/v4"
+import { defaultOpenAICompatibleErrorStructure, type ProviderErrorStructure } from "../openai-compatible-error"
 import { convertToOpenAICompatibleChatMessages } from "./convert-to-openai-compatible-chat-messages"
 import { getResponseMetadata } from "./get-response-metadata"
 import { mapOpenAICompatibleFinishReason } from "./map-openai-compatible-finish-reason"
 import { type OpenAICompatibleChatModelId, openaiCompatibleProviderOptions } from "./openai-compatible-chat-options"
-import { defaultOpenAICompatibleErrorStructure, type ProviderErrorStructure } from "../openai-compatible-error"
 import type { MetadataExtractor } from "./openai-compatible-metadata-extractor"
 import { prepareTools } from "./openai-compatible-prepare-tools"
 

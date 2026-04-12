@@ -1,44 +1,43 @@
-import path from "path"
-import fs from "fs/promises"
-import { Filesystem } from "../util/filesystem"
-import { type SessionID, MessageID, PartID } from "./schema"
-import { MessageV2 } from "./message-v2"
-import { Log } from "../util/log"
-import { Session } from "."
+import fs from "node:fs/promises"
+import path from "node:path"
+import { NamedError } from "@librecode/util/error"
+import { $ } from "bun"
+import { ulid } from "ulid"
+import { PermissionNext } from "@/permission/next"
+import { TaskTool } from "@/tool/task"
+import type { Tool } from "@/tool/tool"
+import { iife } from "@/util/iife"
 import { Agent } from "../agent/agent"
+import { Bus } from "../bus"
+import type { Command } from "../command"
+import { ConfigMarkdown } from "../config/markdown"
+import { Flag } from "../flag/flag"
+import { Plugin } from "../plugin"
+import { Instance } from "../project/instance"
 import { Provider } from "../provider/provider"
 import type { ModelID, ProviderID } from "../provider/schema"
-import { SessionCompaction } from "./compaction"
-import { Instance } from "../project/instance"
-import { Bus } from "../bus"
-import { SystemPrompt } from "./system"
-import { InstructionPrompt } from "./instruction"
-import { Plugin } from "../plugin"
-import PROMPT_PLAN from "../session/prompt/plan.txt"
 import BUILD_SWITCH from "../session/prompt/build-switch.txt"
-import { defer } from "../util/defer"
-import { Flag } from "../flag/flag"
-import type { Command } from "../command"
-import { $ } from "bun"
-import { ConfigMarkdown } from "../config/markdown"
-import { NamedError } from "@librecode/util/error"
-import type { Tool } from "@/tool/tool"
-import { PermissionNext } from "@/permission/next"
-import { planModeTemplate } from "./prompt/plan-mode-template"
-import { TaskTool } from "@/tool/task"
-import { ulid } from "ulid"
+import PROMPT_PLAN from "../session/prompt/plan.txt"
+import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
+import { Session } from "."
+import { SessionCompaction } from "./compaction"
+import { InstructionPrompt } from "./instruction"
 import { LLM } from "./llm"
-import { iife } from "@/util/iife"
+import { MessageV2 } from "./message-v2"
+import { planModeTemplate } from "./prompt/plan-mode-template"
 import { resolvePromptParts } from "./prompt-parts"
-export { resolvePromptParts, createUserMessage } from "./prompt-parts"
+import { MessageID, PartID, type SessionID } from "./schema"
+import { SystemPrompt } from "./system"
+
+export { createUserMessage, resolvePromptParts } from "./prompt-parts"
+
 import type {
-  PromptInputType,
-  CommandInputType,
-  PartDraft,
-  PartBuildCtx,
-  McpToolContent,
-  McpParsedOutput,
   BuildMcpToolOpts,
+  CommandInputType,
+  McpParsedOutput,
+  McpToolContent,
+  PromptInputType,
 } from "./prompt-schema"
 import { STRUCTURED_OUTPUT_SYSTEM_PROMPT } from "./prompt-schema"
 
@@ -215,7 +214,7 @@ async function insertPlanModeReminder(
         messageID: userMessage.info.id,
         sessionID: userMessage.info.sessionID,
         type: "text",
-        text: BUILD_SWITCH + "\n\n" + `A plan file exists at ${plan}. You should execute on the plan defined within it`,
+        text: `${BUILD_SWITCH}\n\nA plan file exists at ${plan}. You should execute on the plan defined within it`,
         synthetic: true,
       })
       userMessage.parts.push(part)
@@ -287,7 +286,7 @@ export async function interpolateTemplate(
   let template = withArgs.replaceAll("$ARGUMENTS", rawArguments)
 
   if (placeholders.length === 0 && !usesArgumentsPlaceholder && rawArguments.trim()) {
-    template = template + "\n\n" + rawArguments
+    template = `${template}\n\n${rawArguments}`
   }
   return template
 }
@@ -650,7 +649,7 @@ export async function ensureTitle(input: {
       .find((line) => line.length > 0)
     if (!cleaned) return
 
-    const title = cleaned.length > 100 ? cleaned.substring(0, 97) + "..." : cleaned
+    const title = cleaned.length > 100 ? `${cleaned.substring(0, 97)}...` : cleaned
     return Session.setTitle({ sessionID: input.session.id, title })
   }
 }

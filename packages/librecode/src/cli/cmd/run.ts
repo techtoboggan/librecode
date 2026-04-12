@@ -1,44 +1,42 @@
-import type { Argv } from "yargs"
-import path from "path"
-import { pathToFileURL } from "url"
-import { UI } from "../ui"
-import { cmd } from "./cmd"
-import { Flag } from "../../flag/flag"
-import { bootstrap } from "../bootstrap"
-import { EOL } from "os"
-import { Filesystem } from "../../util/filesystem"
+import { EOL } from "node:os"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import {
   createOpencodeClient,
   type Event,
   type EventMessagePartUpdated,
   type EventMessageUpdated,
-  type EventPermissionAsked,
   type EventSessionError,
-  type Message,
   type OpencodeClient,
   type ReasoningPart,
   type TextPart,
   type ToolPart,
 } from "@librecode/sdk/v2"
-import { Server } from "../../server/server"
-import { Provider } from "../../provider/provider"
+import type { Argv } from "yargs"
 import { Agent } from "../../agent/agent"
+import { Flag } from "../../flag/flag"
 import type { PermissionNext } from "../../permission/next"
-import type { Tool } from "../../tool/tool"
+import { Provider } from "../../provider/provider"
+import { Server } from "../../server/server"
+import type { BashTool } from "../../tool/bash"
+import type { CodeSearchTool } from "../../tool/codesearch"
+import type { EditTool } from "../../tool/edit"
 import type { GlobTool } from "../../tool/glob"
 import type { GrepTool } from "../../tool/grep"
 import type { ListTool } from "../../tool/ls"
 import type { ReadTool } from "../../tool/read"
-import type { WebFetchTool } from "../../tool/webfetch"
-import type { EditTool } from "../../tool/edit"
-import type { WriteTool } from "../../tool/write"
-import type { CodeSearchTool } from "../../tool/codesearch"
-import type { WebSearchTool } from "../../tool/websearch"
-import type { TaskTool } from "../../tool/task"
 import type { SkillTool } from "../../tool/skill"
-import type { BashTool } from "../../tool/bash"
+import type { TaskTool } from "../../tool/task"
 import type { TodoWriteTool } from "../../tool/todo"
+import type { Tool } from "../../tool/tool"
+import type { WebFetchTool } from "../../tool/webfetch"
+import type { WebSearchTool } from "../../tool/websearch"
+import type { WriteTool } from "../../tool/write"
+import { Filesystem } from "../../util/filesystem"
 import { Locale } from "../../util/locale"
+import { bootstrap } from "../bootstrap"
+import { UI } from "../ui"
+import { cmd } from "./cmd"
 
 type ToolProps<T extends Tool.Info> = {
   input: Tool.InferParameters<T>
@@ -62,7 +60,7 @@ type Inline = {
 }
 
 function inline(info: Inline) {
-  const suffix = info.description ? UI.Style.TEXT_DIM + ` ${info.description}` + UI.Style.TEXT_NORMAL : ""
+  const suffix = info.description ? `${UI.Style.TEXT_DIM} ${info.description}${UI.Style.TEXT_NORMAL}` : ""
   UI.println(UI.Style.TEXT_NORMAL + info.icon, UI.Style.TEXT_NORMAL + info.title + suffix)
 }
 
@@ -257,7 +255,7 @@ function dispatchTool(part: ToolPart): void {
 }
 
 function warnAgent(msg: string): void {
-  UI.println(UI.Style.TEXT_WARNING_BOLD + "!", UI.Style.TEXT_NORMAL, msg)
+  UI.println(`${UI.Style.TEXT_WARNING_BOLD}!`, UI.Style.TEXT_NORMAL, msg)
 }
 
 async function resolveAgentRemote(
@@ -332,7 +330,7 @@ function resolveDirectory(dir: string | undefined, attach: string | undefined): 
     process.chdir(dir)
     return process.cwd()
   } catch {
-    UI.error("Failed to change directory to " + dir)
+    UI.error(`Failed to change directory to ${dir}`)
     process.exit(1)
   }
 }
@@ -424,7 +422,7 @@ async function handlePermissionAsked(
 ): Promise<void> {
   if (permission.sessionID !== sessionID) return
   UI.println(
-    UI.Style.TEXT_WARNING_BOLD + "!",
+    `${UI.Style.TEXT_WARNING_BOLD}!`,
     UI.Style.TEXT_NORMAL +
       `permission requested: ${permission.permission} (${permission.patterns.join(", ")}); auto-rejecting`,
   )
@@ -617,7 +615,7 @@ export const RunCommand = cmd({
     const filePaths = args.file ? (Array.isArray(args.file) ? args.file : [args.file]) : []
     const files = await buildFileAttachments(filePaths)
 
-    if (!process.stdin.isTTY) message += "\n" + (await Bun.stdin.text())
+    if (!process.stdin.isTTY) message += `\n${await Bun.stdin.text()}`
 
     if (message.trim().length === 0 && !args.command) {
       UI.error("You must provide a message or a command")
@@ -674,12 +672,12 @@ export const RunCommand = cmd({
       if (cfg.data.share !== "auto" && !Flag.LIBRECODE_AUTO_SHARE && !args.share) return
       const res = await sdk.session.share({ sessionID }).catch((error) => {
         if (error instanceof Error && error.message.includes("disabled")) {
-          UI.println(UI.Style.TEXT_DANGER_BOLD + "!  " + error.message)
+          UI.println(`${UI.Style.TEXT_DANGER_BOLD}!  ${error.message}`)
         }
         return { error }
       })
       if (!res.error && "data" in res && res.data?.share?.url) {
-        UI.println(UI.Style.TEXT_INFO_BOLD + "~  " + res.data.share.url)
+        UI.println(`${UI.Style.TEXT_INFO_BOLD}~  ${res.data.share.url}`)
       }
     }
 

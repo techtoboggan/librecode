@@ -8,13 +8,12 @@
  * and what patterns were involved.
  */
 
-import { Log } from "@/util/log"
+import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import type { SessionID } from "@/session/schema"
 import { getToolCapabilities, getToolRisk } from "@/tool/capability-registry"
-import type { ToolCapabilities } from "@/tool/capabilities"
-import z from "zod"
+import { Log } from "@/util/log"
 
 const log = Log.create({ service: "permission.audit" })
 

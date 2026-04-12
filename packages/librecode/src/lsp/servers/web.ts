@@ -1,17 +1,17 @@
-import path from "path"
-import { spawn as launch, type ChildProcessWithoutNullStreams } from "child_process"
+import { type ChildProcessWithoutNullStreams, spawn as launch } from "node:child_process"
+import path from "node:path"
 import { Module } from "@librecode/util/module"
 import {
   BunProc,
-  Global,
-  Filesystem,
-  Instance,
-  Flag,
-  Process,
-  which,
-  log,
   downloadEslintServer,
+  Filesystem,
+  Flag,
+  Global,
+  Instance,
+  log,
+  Process,
   resolveOxlintLspBin,
+  which,
 } from "../install"
 
 const spawn = ((cmd, args, opts) => {

@@ -14,21 +14,21 @@ import {
   createEventSourceResponseHandler,
   createJsonResponseHandler,
   generateId,
-  parseProviderOptions,
   type ParseResult,
+  parseProviderOptions,
   postJsonToApi,
 } from "@ai-sdk/provider-utils"
 import { z } from "zod/v4"
-import type { OpenAIConfig } from "./openai-config"
-import { openaiFailedResponseHandler } from "./openai-error"
-import type { codeInterpreterInputSchema, codeInterpreterOutputSchema } from "./tool/code-interpreter"
-import type { fileSearchOutputSchema } from "./tool/file-search"
-import type { imageGenerationOutputSchema } from "./tool/image-generation"
 import { convertToOpenAIResponsesInput } from "./convert-to-openai-responses-input"
 import { mapOpenAIResponseFinishReason } from "./map-openai-responses-finish-reason"
+import type { OpenAIConfig } from "./openai-config"
+import { openaiFailedResponseHandler } from "./openai-error"
 import type { OpenAIResponsesIncludeOptions, OpenAIResponsesIncludeValue } from "./openai-responses-api-types"
 import { prepareResponsesTools } from "./openai-responses-prepare-tools"
 import type { OpenAIResponsesModelId } from "./openai-responses-settings"
+import type { codeInterpreterInputSchema, codeInterpreterOutputSchema } from "./tool/code-interpreter"
+import type { fileSearchOutputSchema } from "./tool/file-search"
+import type { imageGenerationOutputSchema } from "./tool/image-generation"
 import type { localShellInputSchema } from "./tool/local-shell"
 
 const webSearchCallItem = z.object({

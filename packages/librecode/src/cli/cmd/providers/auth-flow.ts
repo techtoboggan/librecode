@@ -1,7 +1,7 @@
-import { Auth } from "../../../auth"
 import * as prompts from "@clack/prompts"
-import { UI } from "../../ui"
 import type { AuthHook, AuthOuathResult } from "@librecode/plugin"
+import { Auth } from "../../../auth"
+import { UI } from "../../ui"
 
 type AuthMethod = AuthHook["methods"][number]
 
@@ -25,7 +25,7 @@ async function selectAuthMethod(methods: AuthHook["methods"], methodName?: strin
       options: methods.map((x, i) => ({ label: x.label, value: i.toString() })),
     })
     if (prompts.isCancel(method)) throw new UI.CancelledError()
-    index = parseInt(method)
+    index = parseInt(method, 10)
   }
   return methods[index]
 }
@@ -43,7 +43,7 @@ async function collectSingleInput(
   const value = await prompts.text({
     message: prompt.message,
     placeholder: prompt.placeholder,
-    validate: prompt.validate ? (v) => prompt.validate!(v ?? "") : undefined,
+    validate: prompt.validate ? (v) => prompt.validate?.(v ?? "") : undefined,
   })
   if (prompts.isCancel(value)) throw new UI.CancelledError()
   return value
@@ -110,7 +110,7 @@ async function handleOAuthMethod(
   provider: string,
 ): Promise<void> {
   const authorize = await method.authorize(inputs)
-  if (authorize.url) prompts.log.info("Go to: " + authorize.url)
+  if (authorize.url) prompts.log.info(`Go to: ${authorize.url}`)
   if (authorize.method === "auto") await handleOAuthAuto(authorize, provider)
   if (authorize.method === "code") await handleOAuthCode(authorize, provider)
   prompts.outro("Done")

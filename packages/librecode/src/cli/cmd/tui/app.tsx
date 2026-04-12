@@ -1,46 +1,45 @@
-import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { Clipboard } from "@tui/util/clipboard"
-import { Selection } from "@tui/util/selection"
+import { writeHeapSnapshot } from "node:v8"
 import { MouseButton, TextAttributes } from "@opentui/core"
-import { RouteProvider, useRoute } from "@tui/context/route"
-import { Switch, Match, createEffect, untrack, ErrorBoundary, createSignal, onMount, batch, Show, on } from "solid-js"
-import { win32DisableProcessedInput, win32FlushInputBuffer, win32InstallCtrlCGuard } from "./win32"
-import { Installation } from "@/installation"
-import { Flag } from "@/flag/flag"
-import { DialogProvider, useDialog } from "@tui/ui/dialog"
-import { DialogProvider as DialogProviderList } from "@tui/component/dialog-provider"
-import { SDKProvider, useSDK } from "@tui/context/sdk"
-import { SyncProvider, useSync } from "@tui/context/sync"
-import { LocalProvider, useLocal } from "@tui/context/local"
-import { DialogModel, useConnected } from "@tui/component/dialog-model"
+import { render, useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { DialogAgent } from "@tui/component/dialog-agent"
+import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
 import { DialogMcp } from "@tui/component/dialog-mcp"
+import { DialogModel, useConnected } from "@tui/component/dialog-model"
+import { DialogProvider as DialogProviderList } from "@tui/component/dialog-provider"
+import { DialogSessionList } from "@tui/component/dialog-session-list"
 import { DialogStatus } from "@tui/component/dialog-status"
 import { DialogThemeList } from "@tui/component/dialog-theme-list"
-import { DialogHelp } from "./ui/dialog-help"
-import { CommandProvider, useCommandDialog } from "@tui/component/dialog-command"
-import { DialogAgent } from "@tui/component/dialog-agent"
-import { DialogSessionList } from "@tui/component/dialog-session-list"
 import { DialogWorkspaceList } from "@tui/component/dialog-workspace-list"
 import { KeybindProvider } from "@tui/context/keybind"
+import { LocalProvider, useLocal } from "@tui/context/local"
+import { RouteProvider, useRoute } from "@tui/context/route"
+import { SDKProvider, useSDK } from "@tui/context/sdk"
+import { SyncProvider, useSync } from "@tui/context/sync"
 import { ThemeProvider, useTheme } from "@tui/context/theme"
 import { Home } from "@tui/routes/home"
 import { Session } from "@tui/routes/session"
-import { PromptHistoryProvider } from "./component/prompt/history"
-import { FrecencyProvider } from "./component/prompt/frecency"
-import { PromptStashProvider } from "./component/prompt/stash"
-import { DialogAlert } from "./ui/dialog-alert"
-import { ToastProvider, useToast } from "./ui/toast"
-import { ExitProvider, useExit } from "./context/exit"
-import { Session as SessionApi } from "@/session"
-import { TuiEvent } from "./event"
-import { KVProvider, useKV } from "./context/kv"
-import { Provider } from "@/provider/provider"
-import { ArgsProvider, useArgs, type Args } from "./context/args"
+import { DialogProvider, useDialog } from "@tui/ui/dialog"
+import { Clipboard } from "@tui/util/clipboard"
+import { Selection } from "@tui/util/selection"
 import open from "open"
-import { writeHeapSnapshot } from "v8"
+import { batch, createEffect, createSignal, ErrorBoundary, Match, on, onMount, Switch, } from "solid-js"
+import type { TuiConfig } from "@/config/tui"
+import { Flag } from "@/flag/flag"
+import { Installation } from "@/installation"
+import { Provider } from "@/provider/provider"
+import { Session as SessionApi } from "@/session"
+import { FrecencyProvider } from "./component/prompt/frecency"
+import { PromptHistoryProvider } from "./component/prompt/history"
+import { PromptStashProvider } from "./component/prompt/stash"
+import { type Args, ArgsProvider, useArgs } from "./context/args"
+import { ExitProvider, useExit } from "./context/exit"
+import { KVProvider, useKV } from "./context/kv"
 import { PromptRefProvider, usePromptRef } from "./context/prompt"
 import { TuiConfigProvider } from "./context/tui-config"
-import type { TuiConfig } from "@/config/tui"
+import { TuiEvent } from "./event"
+import { DialogHelp } from "./ui/dialog-help"
+import { ToastProvider, useToast } from "./ui/toast"
+import { win32DisableProcessedInput, win32FlushInputBuffer, win32InstallCtrlCGuard } from "./win32"
 
 type Rgb = { r: number; g: number; b: number }
 
@@ -62,7 +61,7 @@ function parseColorComponents(color: string): Rgb {
   }
   if (color.startsWith("rgb(")) {
     const parts = color.substring(4, color.length - 1).split(",")
-    return { r: parseInt(parts[0]), g: parseInt(parts[1]), b: parseInt(parts[2]) }
+    return { r: parseInt(parts[0], 10), g: parseInt(parts[1], 10), b: parseInt(parts[2], 10) }
   }
   return { r: 0, g: 0, b: 0 }
 }
@@ -267,7 +266,7 @@ function App() {
   function resolveSessionTitle(sessionID: string): string {
     const session = sync.session.get(sessionID)
     if (!session || SessionApi.isDefaultTitle(session.title)) return "LibreCode"
-    const title = session.title.length > 40 ? session.title.slice(0, 37) + "..." : session.title
+    const title = session.title.length > 40 ? `${session.title.slice(0, 37)}...` : session.title
     return `OC | ${title}`
   }
 
@@ -804,7 +803,7 @@ function ErrorComponent(props: {
   if (props.error.stack) {
     issueURL.searchParams.set(
       "description",
-      "```\n" + props.error.stack.substring(0, 6000 - issueURL.toString().length) + "...\n```",
+      `\`\`\`\n${props.error.stack.substring(0, 6000 - issueURL.toString().length)}...\n\`\`\``,
     )
   }
 

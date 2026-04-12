@@ -1,20 +1,17 @@
-import { fn } from "@/util/fn"
 import z from "zod"
-import { Session } from "."
-
-import type { MessageV2 } from "./message-v2"
-import { Identifier } from "@/id/id"
-import { SessionID, MessageID } from "./schema"
-import { Snapshot } from "@/snapshot"
-
-import { Storage } from "@/storage/storage"
 import { Bus } from "@/bus"
+import { Snapshot } from "@/snapshot"
+import { Storage } from "@/storage/storage"
+import { fn } from "@/util/fn"
+import { Session } from "."
+import type { MessageV2 } from "./message-v2"
+import { MessageID, SessionID } from "./schema"
 
 export namespace SessionSummary {
   function unquoteOctalEscape(body: string, i: number): { byte: number; advance: number } {
     const chunk = body.slice(i + 1, i + 4)
     const match = chunk.match(/^[0-7]{1,3}/)
-    if (!match) return { byte: body[i + 1]!.charCodeAt(0), advance: 1 }
+    if (!match) return { byte: body[i + 1]?.charCodeAt(0), advance: 1 }
     return { byte: parseInt(match[0], 8), advance: match[0].length }
   }
 

@@ -1,4 +1,4 @@
-import { sortBy, pipe } from "remeda"
+import { pipe, sortBy } from "remeda"
 
 export namespace Wildcard {
   export function match(str: string, pattern: string) {
@@ -12,11 +12,11 @@ export namespace Wildcard {
     // If pattern ends with " *" (space + wildcard), make the trailing part optional
     // This allows "ls *" to match both "ls" and "ls -la"
     if (escaped.endsWith(" .*")) {
-      escaped = escaped.slice(0, -3) + "( .*)?"
+      escaped = `${escaped.slice(0, -3)}( .*)?`
     }
 
     const flags = process.platform === "win32" ? "si" : "s"
-    return new RegExp("^" + escaped + "$", flags).test(str)
+    return new RegExp(`^${escaped}$`, flags).test(str)
   }
 
   export function all(input: string, patterns: Record<string, any>) {

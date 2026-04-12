@@ -1,11 +1,11 @@
-import { Global } from "../global"
-import { Log } from "../util/log"
-import path from "path"
+import path from "node:path"
 import z from "zod"
-import { Installation } from "../installation"
-import { Flag } from "../flag/flag"
 import { lazy } from "@/util/lazy"
+import { Flag } from "../flag/flag"
+import { Global } from "../global"
+import { Installation } from "../installation"
 import { Filesystem } from "../util/filesystem"
+import { Log } from "../util/log"
 
 // Try to import bundled snapshot (generated at build time)
 // Falls back to undefined in dev mode when snapshot doesn't exist
@@ -87,7 +87,6 @@ export namespace ModelsDev {
   export const Data = lazy(async () => {
     const result = await Filesystem.readJson(Flag.LIBRECODE_MODELS_PATH ?? filepath).catch(() => {})
     if (result) return result
-    // @ts-ignore — models-snapshot is a gitignored bundled file; may not exist
     const snapshot = await import("./models-snapshot")
       .then((m) => m.snapshot as Record<string, unknown>)
       .catch(() => undefined)
@@ -113,7 +112,7 @@ export namespace ModelsDev {
         error: e,
       })
     })
-    if (result && result.ok) {
+    if (result?.ok) {
       await Filesystem.write(filepath, await result.text())
       ModelsDev.Data.reset()
     }

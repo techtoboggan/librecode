@@ -1,22 +1,20 @@
+import { pathToFileURL } from "node:url"
 import type { AgentSideConnection, PermissionOption, PlanEntry } from "@agentclientprotocol/sdk"
-import { Log } from "../util/log"
-import { pathToFileURL } from "url"
-import { Filesystem } from "../util/filesystem"
-import { Hash } from "../util/hash"
-import { z } from "zod"
-import { Todo } from "@/session/todo"
-import type {
+import type {AssistantMessage, 
   Event,
   OpencodeClient,
   SessionMessageResponse,
   ToolPart,
   ToolStateCompleted,
-  ToolStateError,
+  ToolStateError
 } from "@librecode/sdk/v2"
-import { toToolKind, toLocations, buildEditDiffContent, getNewContent, getContextLimit } from "./agent-types"
-import type { AssistantMessage } from "@librecode/sdk/v2"
-import type { ProviderID } from "../provider/schema"
-import type { ModelID } from "../provider/schema"
+import { z } from "zod"
+import { Todo } from "@/session/todo"
+import type { ModelID, ProviderID } from "../provider/schema"
+import { Filesystem } from "../util/filesystem"
+import { Hash } from "../util/hash"
+import { Log } from "../util/log"
+import { buildEditDiffContent, getContextLimit, getNewContent, toLocations, toToolKind } from "./agent-types"
 
 const log = Log.create({ service: "acp-agent" })
 
@@ -124,7 +122,7 @@ export class AgentHandlers {
       return
     }
 
-    if (res.outcome.optionId !== "reject" && permission.permission == "edit") {
+    if (res.outcome.optionId !== "reject" && permission.permission === "edit") {
       await this.applyEditPreview(session.id, permission.metadata || {})
     }
 
@@ -164,8 +162,8 @@ export class AgentHandlers {
   }
 
   private async applyEditPreview(sessionId: string, metadata: Record<string, unknown>): Promise<void> {
-    const filepath = typeof metadata["filepath"] === "string" ? metadata["filepath"] : ""
-    const diff = typeof metadata["diff"] === "string" ? metadata["diff"] : ""
+    const filepath = typeof metadata.filepath === "string" ? metadata.filepath : ""
+    const diff = typeof metadata.diff === "string" ? metadata.diff : ""
     const content = (await Filesystem.exists(filepath)) ? await Filesystem.readText(filepath) : ""
     const newContent = getNewContent(content, diff)
     if (newContent) {
@@ -601,7 +599,7 @@ export class AgentHandlers {
   bashOutput(part: ToolPart): string | undefined {
     if (part.tool !== "bash") return
     if (!("metadata" in part.state) || !part.state.metadata || typeof part.state.metadata !== "object") return
-    const output = (part.state.metadata as Record<string, unknown>)["output"]
+    const output = (part.state.metadata as Record<string, unknown>).output
     if (typeof output !== "string") return
     return output
   }

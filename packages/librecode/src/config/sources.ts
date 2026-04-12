@@ -1,20 +1,20 @@
-import { Log } from "../util/log"
-import path from "path"
-import { pathToFileURL } from "url"
-import { mergeDeep, unique } from "remeda"
+import { existsSync } from "node:fs"
+import path from "node:path"
+import { pathToFileURL } from "node:url"
 import { NamedError } from "@librecode/util/error"
-import { Flag } from "../flag/flag"
+import { mergeDeep, unique } from "remeda"
+import { Account } from "@/account"
+import { Bus } from "@/bus"
+import { iife } from "@/util/iife"
 import type { Auth } from "../auth"
 import { Env } from "../env"
+import { Flag } from "../flag/flag"
 import { Instance } from "../project/instance"
-import { Bus } from "@/bus"
 import { Glob } from "../util/glob"
-import { Account } from "@/account"
-import { ConfigPaths } from "./paths"
+import { Log } from "../util/log"
 import { ConfigMarkdown } from "./markdown"
-import { existsSync } from "fs"
-import { iife } from "@/util/iife"
-import type { Info, Agent, Command, PermissionAction } from "./schema"
+import { ConfigPaths } from "./paths"
+import type { Agent, Command, Info, PermissionAction } from "./schema"
 
 const log = Log.create({ service: "config" })
 
@@ -268,7 +268,7 @@ export async function loadLibrecodeDirConfigs(
     result.command = mergeDeep(result.command ?? {}, await loadCommand(dir, InvalidError))
     result.agent = mergeDeep(result.agent ?? {}, await loadAgent(dir, InvalidError))
     result.agent = mergeDeep(result.agent ?? {}, await loadMode(dir))
-    result.plugin!.push(...(await loadPlugin(dir)))
+    result.plugin?.push(...(await loadPlugin(dir)))
   }
   return { result, deps }
 }
@@ -301,7 +301,7 @@ export async function loadAccountConfig(
       Account.token(active.id),
     ])
     if (token) {
-      process.env["LIBRECODE_CONSOLE_TOKEN"] = token
+      process.env.LIBRECODE_CONSOLE_TOKEN = token
       Env.set("LIBRECODE_CONSOLE_TOKEN", token)
     }
     if (config) {

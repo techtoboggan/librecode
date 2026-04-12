@@ -40,7 +40,7 @@ export namespace Rpc {
   }
 
   export function client<T extends Definition>(target: {
-    postMessage: (data: string) => void | null
+    postMessage: (data: string) => undefined | null
     onmessage: ((this: Worker, ev: MessageEvent<any>) => any) | null
   }) {
     const pending = new Map<number, (result: any) => void>()
@@ -65,7 +65,7 @@ export namespace Rpc {
         }
         handlers.add(handler)
         return () => {
-          handlers!.delete(handler)
+          handlers?.delete(handler)
         }
       },
     }

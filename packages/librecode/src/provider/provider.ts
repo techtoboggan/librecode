@@ -1,53 +1,53 @@
-import fuzzysort from "fuzzysort"
-import { Config } from "../config/config"
-import { mapValues, sortBy } from "remeda"
-import { NoSuchModelError, type Provider as SDK } from "ai"
-import { Log } from "../util/log"
-import { BunProc } from "../bun"
-import { Hash } from "../util/hash"
-import { Env } from "../env"
-import { Instance } from "../project/instance"
-import { Global } from "../global"
-import path from "path"
-import { Filesystem } from "../util/filesystem"
-
 // Direct imports for bundled providers
+
+import path from "node:path"
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { createAzure } from "@ai-sdk/azure"
+import { createCerebras } from "@ai-sdk/cerebras"
+import { createCohere } from "@ai-sdk/cohere"
+import { createDeepInfra } from "@ai-sdk/deepinfra"
+import { createGateway } from "@ai-sdk/gateway"
 import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { createVertex } from "@ai-sdk/google-vertex"
 import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic"
+import { createGroq } from "@ai-sdk/groq"
+import { createMistral } from "@ai-sdk/mistral"
 import { createOpenAI } from "@ai-sdk/openai"
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible"
-import { createOpenRouter, type LanguageModelV2 } from "@openrouter/ai-sdk-provider"
-import { createOpenaiCompatible as createGitHubCopilotOpenAICompatible } from "./sdk/copilot"
-import { createXai } from "@ai-sdk/xai"
-import { createMistral } from "@ai-sdk/mistral"
-import { createGroq } from "@ai-sdk/groq"
-import { createDeepInfra } from "@ai-sdk/deepinfra"
-import { createCerebras } from "@ai-sdk/cerebras"
-import { createCohere } from "@ai-sdk/cohere"
-import { createGateway } from "@ai-sdk/gateway"
-import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createPerplexity } from "@ai-sdk/perplexity"
+import { createTogetherAI } from "@ai-sdk/togetherai"
 import { createVercel } from "@ai-sdk/vercel"
+import { createXai } from "@ai-sdk/xai"
 import { createGitLab } from "@gitlab/gitlab-ai-provider"
-import { ModelID, ProviderID } from "./schema"
+import { createOpenRouter, type LanguageModelV2 } from "@openrouter/ai-sdk-provider"
+import { NoSuchModelError, type Provider as SDK } from "ai"
+import fuzzysort from "fuzzysort"
+import { mapValues, sortBy } from "remeda"
+import { BunProc } from "../bun"
+import { Config } from "../config/config"
+import { Env } from "../env"
+import { Global } from "../global"
+import { Instance } from "../project/instance"
+import { Filesystem } from "../util/filesystem"
+import { Hash } from "../util/hash"
+import { Log } from "../util/log"
 import type { CustomVarsLoader } from "./loaders"
-import { Model, Info, ModelNotFoundError, InitError, type ModelType, type InfoType } from "./types"
+import { ModelsDev } from "./models"
+import { ModelID, ProviderID } from "./schema"
+import { createOpenaiCompatible as createGitHubCopilotOpenAICompatible } from "./sdk/copilot"
 import {
-  fromModelsDevProvider,
-  extendDatabaseFromConfig,
-  loadEnvProviders,
-  loadApiKeyProviders,
-  loadPluginProviders,
-  loadCustomLoaderProviders,
   applyConfigOverrides,
+  extendDatabaseFromConfig,
   filterAndFinalizeProviders,
+  fromModelsDevProvider,
+  loadApiKeyProviders,
+  loadCustomLoaderProviders,
+  loadEnvProviders,
+  loadPluginProviders,
   type StateMutableCtx,
 } from "./state-loader"
-import { ModelsDev } from "./models"
+import { Info, type InfoType, InitError, Model, ModelNotFoundError, type ModelType } from "./types"
 
 const DEFAULT_CHUNK_TIMEOUT = 300_000
 
@@ -135,8 +135,8 @@ const state = Instance.state(async () => {
   const database = mapValues(modelsDev, fromModelsDevProvider)
 
   // Add LiteLLM as a built-in provider (not from models.dev)
-  if (!modelsDev["litellm"]) {
-    modelsDev["litellm"] = {
+  if (!modelsDev.litellm) {
+    modelsDev.litellm = {
       id: "litellm",
       name: "LiteLLM",
       api: "http://localhost:4000/v1",
@@ -204,14 +204,14 @@ function resolveBaseURL(
   modelApiURL: string | undefined,
   varsLoader: CustomVarsLoader | undefined,
 ): string | undefined {
-  let url = typeof options["baseURL"] === "string" && options["baseURL"] !== "" ? options["baseURL"] : modelApiURL
+  let url = typeof options.baseURL === "string" && options.baseURL !== "" ? options.baseURL : modelApiURL
   if (!url) return undefined
 
   // some models/providers have variable urls, ex: "https://${AZURE_RESOURCE_NAME}.services.ai.azure.com/anthropic/v1"
   if (varsLoader) {
     const vars = varsLoader(options)
     for (const [key, value] of Object.entries(vars)) {
-      url = url.replaceAll("${" + key + "}", value)
+      url = url.replaceAll(`\${${key}}`, value)
     }
   }
 
@@ -299,28 +299,28 @@ async function getSDK(model: ModelType): Promise<SDK> {
     const options: Record<string, unknown> = { ...provider.options }
 
     if (model.providerID === "google-vertex" && !model.api.npm.includes("@ai-sdk/openai-compatible")) {
-      delete options["fetch"]
+      delete options.fetch
     }
 
-    if (model.api.npm.includes("@ai-sdk/openai-compatible") && options["includeUsage"] !== false) {
-      options["includeUsage"] = true
+    if (model.api.npm.includes("@ai-sdk/openai-compatible") && options.includeUsage !== false) {
+      options.includeUsage = true
     }
 
     const baseURL = resolveBaseURL(options, model.api.url, s.varsLoaders[model.providerID])
-    if (baseURL !== undefined) options["baseURL"] = baseURL
-    if (options["apiKey"] === undefined && provider.key) options["apiKey"] = provider.key
+    if (baseURL !== undefined) options.baseURL = baseURL
+    if (options.apiKey === undefined && provider.key) options.apiKey = provider.key
     if (model.headers)
-      options["headers"] = { ...(options["headers"] as Record<string, string> | undefined), ...model.headers }
+      options.headers = { ...(options.headers as Record<string, string> | undefined), ...model.headers }
 
     const key = Hash.fast(JSON.stringify({ providerID: model.providerID, npm: model.api.npm, options }))
     const existing = s.sdk.get(key)
     if (existing) return existing
 
-    const customFetch = options["fetch"]
-    const chunkTimeout = (options["chunkTimeout"] as number | undefined) || DEFAULT_CHUNK_TIMEOUT
-    delete options["chunkTimeout"]
+    const customFetch = options.fetch
+    const chunkTimeout = (options.chunkTimeout as number | undefined) || DEFAULT_CHUNK_TIMEOUT
+    delete options.chunkTimeout
 
-    options["fetch"] = buildCustomFetch(model, customFetch, chunkTimeout, options["timeout"])
+    options.fetch = buildCustomFetch(model, customFetch, chunkTimeout, options.timeout)
 
     const loaded = await loadSDKProvider(model, options)
     s.sdk.set(key, loaded)
@@ -415,7 +415,7 @@ async function findBedrockSmallModel(
   const globalMatch = candidates.find((m) => m.startsWith("global."))
   if (globalMatch) return getModel(providerID, ModelID.make(globalMatch))
 
-  const region = provider.options?.["region"] as string | undefined
+  const region = provider.options?.region as string | undefined
   if (region) {
     const regionPrefix = region.split("-")[0]
     if (regionPrefix === "us" || regionPrefix === "eu") {
@@ -516,7 +516,7 @@ export function parseModel(model: string): { providerID: ProviderID; modelID: Mo
   }
 }
 
-export { Model, Info, ModelNotFoundError, InitError, fromModelsDevProvider }
+export { fromModelsDevProvider, Info, InitError, Model, ModelNotFoundError }
 
 export const Provider = {
   Model,

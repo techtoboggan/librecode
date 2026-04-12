@@ -3,32 +3,32 @@
 // NearestRoot are intentionally omitted so Object.values(LSPServer) returns
 // only server definitions.
 
-// Web / JS / TS servers
-export { Deno, Typescript, Vue, ESLint, Oxlint, Biome, Svelte, Astro } from "./servers/web"
-
-// Compiled / systems-language servers
-export { Gopls, Rubocop, ElixirLS, Zls, CSharp, FSharp, SourceKit, RustAnalyzer, Clangd } from "./servers/systems"
 
 // Scripting / data / misc language servers
 export {
-  Ty,
-  Pyright,
-  JDTLS,
-  KotlinLS,
-  YamlLS,
-  LuaLS,
-  PHPIntelephense,
-  Prisma,
-  Dart,
-  Ocaml,
   BashLS,
-  TerraformLS,
-  TexLab,
+  Clojure,
+  Dart,
   DockerfileLS,
   Gleam,
-  Clojure,
-  Nixd,
-  Tinymist,
   HLS,
+  JDTLS,
   JuliaLS,
+  KotlinLS,
+  LuaLS,
+  Nixd,
+  Ocaml,
+  PHPIntelephense,
+  Prisma,
+  Pyright,
+  TerraformLS,
+  TexLab,
+  Tinymist,
+  Ty,
+  YamlLS,
 } from "./servers/scripting"
+
+// Compiled / systems-language servers
+export { Clangd, CSharp, ElixirLS, FSharp, Gopls, Rubocop, RustAnalyzer, SourceKit, Zls } from "./servers/systems"
+// Web / JS / TS servers
+export { Astro, Biome, Deno, ESLint, Oxlint, Svelte, Typescript, Vue } from "./servers/web"

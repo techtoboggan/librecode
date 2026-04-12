@@ -1,15 +1,15 @@
 import { Hono } from "hono"
-import { describeRoute, validator, resolver } from "hono-openapi"
+import { describeRoute, resolver, validator } from "hono-openapi"
+import { mapValues } from "remeda"
 import z from "zod"
 import { Config } from "../../config/config"
-import { Provider } from "../../provider/provider"
-import { ModelsDev } from "../../provider/models"
 import { ProviderAuth } from "../../provider/auth"
+import { ModelsDev } from "../../provider/models"
+import { Provider } from "../../provider/provider"
 import { ProviderID } from "../../provider/schema"
-import { mapValues } from "remeda"
-import { errors } from "../error"
 import { lazy } from "../../util/lazy"
 import { Log } from "../../util/log"
+import { errors } from "../error"
 
 const log = Log.create({ service: "server.routes.provider" })
 
@@ -57,8 +57,8 @@ function guessServerName(hostName: string, port: number): string {
 }
 
 function ensureLocalFirstProviders(allProviders: Record<string, ModelsDev.Provider>): void {
-  if (!allProviders["litellm"]) {
-    allProviders["litellm"] = {
+  if (!allProviders.litellm) {
+    allProviders.litellm = {
       id: "litellm",
       name: "LiteLLM",
       api: "http://localhost:4000/v1",
@@ -67,8 +67,8 @@ function ensureLocalFirstProviders(allProviders: Record<string, ModelsDev.Provid
       models: {},
     }
   }
-  if (!allProviders["ollama"]) {
-    allProviders["ollama"] = {
+  if (!allProviders.ollama) {
+    allProviders.ollama = {
       id: "ollama",
       name: "Ollama",
       api: "http://localhost:11434/v1",

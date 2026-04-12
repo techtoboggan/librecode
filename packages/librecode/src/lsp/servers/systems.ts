@@ -1,19 +1,19 @@
-import path from "path"
-import { spawn as launch } from "child_process"
+import { spawn as launch } from "node:child_process"
+import path from "node:path"
 import {
-  Global,
+  downloadClangd,
+  downloadZls,
   Filesystem,
-  Instance,
   Flag,
+  findClangdBin,
+  Global,
+  Instance,
+  installElixirLS,
+  log,
   Process,
   which,
-  log,
-  installElixirLS,
-  downloadZls,
-  findClangdBin,
-  downloadClangd,
 } from "../install"
-import { type Handle, type Info, NearestRoot } from "./web"
+import { type Info, NearestRoot } from "./web"
 
 const spawn = ((cmd, args, opts) => {
   if (Array.isArray(args)) return launch(cmd, [...args], { ...(opts ?? {}), windowsHide: true })
@@ -30,7 +30,7 @@ export const Gopls: Info = {
   extensions: [".go"],
   async spawn(root) {
     let bin = which("gopls", {
-      PATH: process.env["PATH"] + path.delimiter + Global.Path.bin,
+      PATH: process.env.PATH + path.delimiter + Global.Path.bin,
     })
     if (!bin) {
       if (!which("go")) return
@@ -48,7 +48,7 @@ export const Gopls: Info = {
         log.error("Failed to install gopls")
         return
       }
-      bin = path.join(Global.Path.bin, "gopls" + (process.platform === "win32" ? ".exe" : ""))
+      bin = path.join(Global.Path.bin, `gopls${process.platform === "win32" ? ".exe" : ""}`)
       log.info(`installed gopls`, {
         bin,
       })
@@ -67,7 +67,7 @@ export const Rubocop: Info = {
   extensions: [".rb", ".rake", ".gemspec", ".ru"],
   async spawn(root) {
     let bin = which("rubocop", {
-      PATH: process.env["PATH"] + path.delimiter + Global.Path.bin,
+      PATH: process.env.PATH + path.delimiter + Global.Path.bin,
     })
     if (!bin) {
       const ruby = which("ruby")
@@ -88,7 +88,7 @@ export const Rubocop: Info = {
         log.error("Failed to install rubocop")
         return
       }
-      bin = path.join(Global.Path.bin, "rubocop" + (process.platform === "win32" ? ".exe" : ""))
+      bin = path.join(Global.Path.bin, `rubocop${process.platform === "win32" ? ".exe" : ""}`)
       log.info(`installed rubocop`, {
         bin,
       })
@@ -120,7 +120,7 @@ export const Zls: Info = {
   extensions: [".zig", ".zon"],
   root: NearestRoot(["build.zig"]),
   async spawn(root) {
-    const bin = which("zls", { PATH: process.env["PATH"] + path.delimiter + Global.Path.bin }) ?? (await downloadZls())
+    const bin = which("zls", { PATH: process.env.PATH + path.delimiter + Global.Path.bin }) ?? (await downloadZls())
     if (!bin) return
 
     return {
@@ -135,7 +135,7 @@ export const CSharp: Info = {
   extensions: [".cs"],
   async spawn(root) {
     let bin = which("csharp-ls", {
-      PATH: process.env["PATH"] + path.delimiter + Global.Path.bin,
+      PATH: process.env.PATH + path.delimiter + Global.Path.bin,
     })
     if (!bin) {
       if (!which("dotnet")) {
@@ -156,7 +156,7 @@ export const CSharp: Info = {
         return
       }
 
-      bin = path.join(Global.Path.bin, "csharp-ls" + (process.platform === "win32" ? ".exe" : ""))
+      bin = path.join(Global.Path.bin, `csharp-ls${process.platform === "win32" ? ".exe" : ""}`)
       log.info(`installed csharp-ls`, { bin })
     }
 
@@ -174,7 +174,7 @@ export const FSharp: Info = {
   extensions: [".fs", ".fsi", ".fsx", ".fsscript"],
   async spawn(root) {
     let bin = which("fsautocomplete", {
-      PATH: process.env["PATH"] + path.delimiter + Global.Path.bin,
+      PATH: process.env.PATH + path.delimiter + Global.Path.bin,
     })
     if (!bin) {
       if (!which("dotnet")) {
@@ -195,7 +195,7 @@ export const FSharp: Info = {
         return
       }
 
-      bin = path.join(Global.Path.bin, "fsautocomplete" + (process.platform === "win32" ? ".exe" : ""))
+      bin = path.join(Global.Path.bin, `fsautocomplete${process.platform === "win32" ? ".exe" : ""}`)
       log.info(`installed fsautocomplete`, { bin })
     }
 
@@ -259,7 +259,7 @@ export const RustAnalyzer: Info = {
         if (cargoTomlContent.includes("[workspace]")) {
           return currentDir
         }
-      } catch (err) {
+      } catch (_err) {
         // File doesn't exist or can't be read, continue searching up
       }
 

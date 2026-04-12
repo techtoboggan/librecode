@@ -1,13 +1,13 @@
-import z from "zod"
-import { Global } from "../global"
-import { Log } from "../util/log"
-import path from "path"
-import { Filesystem } from "../util/filesystem"
+import path from "node:path"
 import { NamedError } from "@librecode/util/error"
-import { Lock } from "../util/lock"
-import { PackageRegistry } from "./registry"
+import z from "zod"
 import { proxied } from "@/util/proxied"
+import { Global } from "../global"
+import { Filesystem } from "../util/filesystem"
+import { Lock } from "../util/lock"
+import { Log } from "../util/log"
 import { Process } from "../util/process"
+import { PackageRegistry } from "./registry"
 
 export namespace BunProc {
   const log = Log.create({ service: "bun" })
@@ -91,7 +91,7 @@ export namespace BunProc {
       ...(proxied() || process.env.CI ? ["--no-cache"] : []),
       "--cwd",
       Global.Path.cache,
-      pkg + "@" + version,
+      `${pkg}@${version}`,
     ]
 
     // Let Bun handle registry resolution:

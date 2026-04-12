@@ -1,28 +1,28 @@
-import { dynamicTool, type Tool, jsonSchema, type JSONSchema7 } from "ai"
+import { NamedError } from "@librecode/util/error"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
 import {
   CallToolResultSchema,
   type Tool as MCPToolDef,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { Config } from "../config/config"
-import { Log } from "../util/log"
-import { NamedError } from "@librecode/util/error"
+import { dynamicTool, type JSONSchema7, jsonSchema, type Tool } from "ai"
+import open from "open"
 import z from "zod/v4"
-import { Instance } from "../project/instance"
-import { Installation } from "../installation"
-import { withTimeout } from "@/util/timeout"
-import { McpOAuthProvider } from "./oauth-provider"
-import { McpOAuthCallback } from "./oauth-callback"
-import { McpAuth } from "./auth"
-import { BusEvent } from "../bus/bus-event"
 import { Bus } from "@/bus"
 import { TuiEvent } from "@/cli/cmd/tui/event"
-import open from "open"
+import { withTimeout } from "@/util/timeout"
+import { BusEvent } from "../bus/bus-event"
+import { Config } from "../config/config"
+import { Installation } from "../installation"
+import { Instance } from "../project/instance"
+import { Log } from "../util/log"
+import { McpAuth } from "./auth"
+import { McpOAuthCallback } from "./oauth-callback"
+import { McpOAuthProvider } from "./oauth-provider"
 
 export namespace MCP {
   const log = Log.create({ service: "mcp" })
@@ -173,7 +173,7 @@ export namespace MCP {
       if (code !== 0) continue
       for (const tok of out.trim().split(/\s+/)) {
         const cpid = parseInt(tok, 10)
-        if (!isNaN(cpid) && pids.indexOf(cpid) === -1) {
+        if (!Number.isNaN(cpid) && pids.indexOf(cpid) === -1) {
           pids.push(cpid)
           queue.push(cpid)
         }
@@ -262,7 +262,7 @@ export namespace MCP {
     for (const prompt of prompts.prompts) {
       const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
       const sanitizedPromptName = prompt.name.replace(/[^a-zA-Z0-9_-]/g, "_")
-      const key = sanitizedClientName + ":" + sanitizedPromptName
+      const key = `${sanitizedClientName}:${sanitizedPromptName}`
 
       commands[key] = { ...prompt, client: clientName }
     }
@@ -284,7 +284,7 @@ export namespace MCP {
     for (const resource of resources.resources) {
       const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
       const sanitizedResourceName = resource.name.replace(/[^a-zA-Z0-9_-]/g, "_")
-      const key = sanitizedClientName + ":" + sanitizedResourceName
+      const key = `${sanitizedClientName}:${sanitizedResourceName}`
 
       commands[key] = { ...resource, client: clientName }
     }
@@ -633,7 +633,7 @@ export namespace MCP {
       for (const mcpTool of toolsResult.tools) {
         const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
         const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
-        result[sanitizedClientName + "_" + sanitizedToolName] = await convertMcpTool(mcpTool, client, timeout)
+        result[`${sanitizedClientName}_${sanitizedToolName}`] = await convertMcpTool(mcpTool, client, timeout)
       }
     }
     return result

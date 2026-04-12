@@ -1,9 +1,9 @@
+import { EOL } from "node:os"
+import { setTimeout as sleep } from "node:timers/promises"
 import { LSP } from "../../../lsp"
+import { Log } from "../../../util/log"
 import { bootstrap } from "../../bootstrap"
 import { cmd } from "../cmd"
-import { Log } from "../../../util/log"
-import { EOL } from "os"
-import { setTimeout as sleep } from "node:timers/promises"
 
 export const LSPCommand = cmd({
   command: "lsp",

@@ -1,6 +1,6 @@
 import { Instance } from "@/project/instance"
-import { Process } from "@/util/process"
 import { git } from "@/util/git"
+import { Process } from "@/util/process"
 import type { GitHubPullRequest } from "./queries"
 
 // ---------------------------------------------------------------------------
@@ -152,7 +152,7 @@ export async function hasNewCommits(base: string, head: string): Promise<boolean
     await gitStatus(["fetch", "origin", base, "--depth=1"])
     const retry = await gitStatus(["rev-list", "--count", `origin/${base}..${head}`])
     if (retry.exitCode !== 0) return true // assume dirty if we can't tell
-    return parseInt(retry.stdout.toString().trim()) > 0
+    return parseInt(retry.stdout.toString().trim(), 10) > 0
   }
-  return parseInt(result.stdout.toString().trim()) > 0
+  return parseInt(result.stdout.toString().trim(), 10) > 0
 }

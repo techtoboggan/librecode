@@ -70,60 +70,6 @@ jobs:
           # --nowait: return immediately; COPR queues the build asynchronously
           copr-cli build techtoboggan/librecode "$SRPM" --nowait
 
-  copr-desktop:
-    name: Submit desktop to COPR
-    if: github.event_name == 'release' || inputs.package == 'desktop' || inputs.package == 'both'
-    runs-on: ubuntu-latest
-    container:
-      image: fedora:latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install tools
-        run: dnf install -y --setopt=install_weak_deps=False copr-cli rpm-build rpm2cpio curl jq
-
-      - name: Configure COPR credentials
-        run: |
-          mkdir -p ~/.config
-          printf '[copr-cli]\nlogin = %s\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
-            "${{ secrets.COPR_API_LOGIN }}" "${{ secrets.COPR_API_TOKEN }}" > ~/.config/copr
-          chmod 600 ~/.config/copr
-
-      - name: Build SRPM and submit
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            VERSION="${{ inputs.version }}"
-            TAG="v${VERSION}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-            VERSION="${TAG#v}"
-          fi
-          echo "Submitting librecode-desktop $VERSION to COPR"
-
-          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
-
-          # Download the Tauri-built RPM from the GitHub release.
-          # Use the API to find the exact filename (version-stamped by tag).
-          RPM_URL=$(curl -fsSL \
-            "https://api.github.com/repos/techtoboggan/librecode/releases/tags/${TAG}" \
-            | jq -r '.assets[] | select(.name | endswith(".x86_64.rpm")) | .browser_download_url')
-          echo "Downloading: $RPM_URL"
-          curl -fL -o /tmp/desktop.rpm "$RPM_URL"
-
-          # Extract the RPM contents and repack as a plain tarball so the
-          # COPR mock can install without needing network access.
-          mkdir -p /tmp/desktop-root
-          cd /tmp/desktop-root
-          rpm2cpio /tmp/desktop.rpm | cpio -idm
-          tar -czf ~/rpmbuild/SOURCES/librecode-desktop-x86_64.tar.gz .
-
-          # Inject the real version into the spec file
-          sed "s/^Version:.*/Version:        ${VERSION}/" \
-            "$OLDPWD/packages/rpm/librecode-desktop.spec" > ~/rpmbuild/SPECS/librecode-desktop.spec
-
-          rpmbuild -bs ~/rpmbuild/SPECS/librecode-desktop.spec
-
-          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-desktop-${VERSION}-*.src.rpm)
-          echo "Submitting: $SRPM"
-          copr-cli build techtoboggan/librecode "$SRPM" --nowait
+  # Desktop COPR submission is handled in desktop.yml directly after the
+  # linux build, where the RPM is already on disk (avoids the draft-release
+  # API problem). This job is intentionally absent from copr.yml.

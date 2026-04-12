@@ -1,34 +1,33 @@
-import type {
-  Message,
-  Agent,
-  Provider,
-  Session,
-  Part,
-  Config,
-  Todo,
-  Command,
-  PermissionRequest,
-  QuestionRequest,
-  LspStatus,
-  McpStatus,
-  McpResource,
-  FormatterStatus,
-  SessionStatus,
-  ProviderListResponse,
-  ProviderAuthMethod,
-  VcsInfo,
-} from "@librecode/sdk/v2"
-import { createStore, produce, reconcile } from "solid-js/store"
-import { useSDK } from "@tui/context/sdk"
-import { Binary } from "@librecode/util/binary"
-import { createSimpleContext } from "./helper"
-import type { Snapshot } from "@/snapshot"
-import { useExit } from "./exit"
-import { useArgs } from "./args"
-import { batch, onMount } from "solid-js"
-import { Log } from "@/util/log"
 import type { Path } from "@librecode/sdk"
-import type { Workspace } from "@librecode/sdk/v2"
+import type {
+  Agent,
+  Command,
+  Config,
+  FormatterStatus,
+  LspStatus,
+  McpResource,
+  McpStatus,
+  Message,
+  Part,
+  PermissionRequest,
+  Provider,
+  ProviderAuthMethod,
+  ProviderListResponse,
+  QuestionRequest,
+  Session,
+  SessionStatus,
+  Todo,
+  VcsInfo,Workspace 
+} from "@librecode/sdk/v2"
+import { Binary } from "@librecode/util/binary"
+import { useSDK } from "@tui/context/sdk"
+import { batch, onMount } from "solid-js"
+import { createStore, produce, reconcile } from "solid-js/store"
+import type { Snapshot } from "@/snapshot"
+import { Log } from "@/util/log"
+import { useArgs } from "./args"
+import { useExit } from "./exit"
+import { createSimpleContext } from "./helper"
 
 export const { use: useSync, provider: SyncProvider } = createSimpleContext({
   name: "Sync",
@@ -498,7 +497,7 @@ export const { use: useSync, provider: SyncProvider } = createSimpleContext({
               if (match.found) draft.session[match.index] = session.data!
               if (!match.found) draft.session.splice(match.index, 0, session.data!)
               draft.todo[sessionID] = todo.data ?? []
-              draft.message[sessionID] = messages.data!.map((x) => x.info)
+              draft.message[sessionID] = messages.data?.map((x) => x.info) ?? []
               for (const message of messages.data!) {
                 draft.part[message.info.id] = message.parts
               }

@@ -1,11 +1,11 @@
-import type { Hooks, PluginInput } from "@librecode/plugin"
-import { Log } from "../util/log"
-import { Installation } from "../installation"
-import { Auth, OAUTH_DUMMY_KEY } from "../auth"
-import os from "os"
-import { ProviderTransform } from "@/provider/transform"
-import { ModelID, ProviderID } from "@/provider/schema"
+import os from "node:os"
 import { setTimeout as sleep } from "node:timers/promises"
+import type { Hooks, PluginInput } from "@librecode/plugin"
+import { ModelID, ProviderID } from "@/provider/schema"
+import { ProviderTransform } from "@/provider/transform"
+import { OAUTH_DUMMY_KEY } from "../auth"
+import { Installation } from "../installation"
+import { Log } from "../util/log"
 
 const log = Log.create({ service: "plugin.codex" })
 
@@ -350,8 +350,8 @@ function stripAuthorizationHeader(init: RequestInit | undefined): void {
   } else if (Array.isArray(init.headers)) {
     init.headers = (init.headers as Array<[string, string]>).filter(([key]) => key.toLowerCase() !== "authorization")
   } else {
-    delete (init.headers as Record<string, string>)["authorization"]
-    delete (init.headers as Record<string, string>)["Authorization"]
+    delete (init.headers as Record<string, string>).authorization
+    delete (init.headers as Record<string, string>).Authorization
   }
 }
 
@@ -606,7 +606,7 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
               user_code: string
               interval: string
             }
-            const interval = Math.max(parseInt(deviceData.interval) || 5, 1) * 1000
+            const interval = Math.max(parseInt(deviceData.interval, 10) || 5, 1) * 1000
 
             return {
               url: `${ISSUER}/codex/device`,

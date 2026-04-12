@@ -1,11 +1,11 @@
-import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
-import { batch, createContext, Show, useContext, type JSX, type ParentProps } from "solid-js"
-import { useTheme } from "@tui/context/theme"
 import { MouseButton, type Renderable, RGBA } from "@opentui/core"
-import { createStore } from "solid-js/store"
-import { useToast } from "./toast"
-import { Flag } from "@/flag/flag"
+import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
+import { useTheme } from "@tui/context/theme"
 import { Selection } from "@tui/util/selection"
+import { batch, createContext, type JSX, type ParentProps, Show, useContext } from "solid-js"
+import { createStore } from "solid-js/store"
+import { Flag } from "@/flag/flag"
+import { useToast } from "./toast"
 
 export function Dialog(
   props: ParentProps<{
@@ -168,7 +168,7 @@ export function DialogProvider(props: ParentProps) {
       >
         <Show when={value.stack.length}>
           <Dialog onClose={() => value.clear()} size={value.size}>
-            {value.stack.at(-1)!.element}
+            {value.stack.at(-1)?.element}
           </Dialog>
         </Show>
       </box>

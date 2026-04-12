@@ -14,12 +14,12 @@
  * - platform:     Platform-specific providers (gitlab)
  */
 
-import type { CustomLoader } from "./types"
-import * as simple from "./simple"
-import * as openaiCompat from "./openai-compat"
 import * as cloud from "./cloud"
-import * as platform from "./platform"
 import * as litellmLoader from "./litellm"
+import * as openaiCompat from "./openai-compat"
+import * as platform from "./platform"
+import * as simple from "./simple"
+import type { CustomLoader } from "./types"
 
 export type { CustomLoader, CustomModelLoader, CustomVarsLoader, ProviderInfo, ProviderLoadResult } from "./types"
 
