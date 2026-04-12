@@ -146,10 +146,8 @@ function treeCount(node: TreeNode): number {
   return total
 }
 
-async function assertDirectoryExists(dir: string): Promise<void> {
-  if (!(await fs.stat(dir).catch(() => undefined))?.isDirectory()) {
-    throw Object.assign(new Error(`No such file or directory: '${dir}'`), { code: "ENOENT", errno: -2, path: dir })
-  }
+async function assertDirectoryExists(dir: string): Promise<boolean> {
+  return (await fs.stat(dir).catch(() => undefined))?.isDirectory() === true
 }
 
 function buildFilesArgs(
@@ -307,7 +305,7 @@ export namespace Ripgrep {
     input.signal?.throwIfAborted()
     const rgPath = await filepath()
     const args = buildFilesArgs(rgPath, input)
-    await assertDirectoryExists(input.cwd)
+    if (!(await assertDirectoryExists(input.cwd))) return
     const proc = Process.spawn(args, { cwd: input.cwd, stdout: "pipe", stderr: "ignore", abort: input.signal })
     yield* streamProcLines(proc, input.signal)
     input.signal?.throwIfAborted()
