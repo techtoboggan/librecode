@@ -25,8 +25,29 @@ import { SystemPrompt } from "./system"
 // Module-level helpers (extracted to reduce stream() complexity)
 // ---------------------------------------------------------------------------
 
+const llmLog = Log.create({ service: "llm" })
+export const LLM_OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
+
+export type LLMStreamInput = {
+  user: MessageV2.User
+  sessionID: string
+  model: Provider.Model
+  agent: AgentInfo
+  system: string[]
+  abort: AbortSignal
+  messages: ModelMessage[]
+  small?: boolean
+  tools: Record<string, Tool>
+  retries?: number
+  toolChoice?: "auto" | "required" | "none"
+}
+
+export type LLMStreamOutput = StreamTextResult<ToolSet, unknown>
+
+type ProviderInfo = NonNullable<Awaited<ReturnType<typeof Provider.getProvider>>>
+
 async function buildSystemPrompt(
-  input: Pick<LLM.StreamInput, "sessionID" | "model" | "agent" | "user" | "system">,
+  input: Pick<LLMStreamInput, "sessionID" | "model" | "agent" | "user" | "system">,
   isCodex: boolean,
 ): Promise<string[]> {
   const system: string[] = []
@@ -55,10 +76,8 @@ async function buildSystemPrompt(
   return system
 }
 
-type ProviderInfo = NonNullable<Awaited<ReturnType<typeof Provider.getProvider>>>
-
 function buildModelOptions(
-  input: Pick<LLM.StreamInput, "sessionID" | "model" | "agent" | "user" | "small">,
+  input: Pick<LLMStreamInput, "sessionID" | "model" | "agent" | "user" | "small">,
   provider: ProviderInfo,
   isCodex: boolean,
 ): Record<string, unknown> {
@@ -79,7 +98,7 @@ function buildModelOptions(
 
 function injectLiteLLMNoop(
   provider: ProviderInfo,
-  input: Pick<LLM.StreamInput, "model" | "messages">,
+  input: Pick<LLMStreamInput, "model" | "messages">,
   tools: Record<string, Tool>,
 ): void {
   const isLiteLLMProxy =
@@ -87,7 +106,7 @@ function injectLiteLLMNoop(
     input.model.providerID.toLowerCase().includes("litellm") ||
     input.model.api.id.toLowerCase().includes("litellm")
 
-  if (!isLiteLLMProxy || Object.keys(tools).length !== 0 || !LLM.hasToolCalls(input.messages)) return
+  if (!isLiteLLMProxy || Object.keys(tools).length !== 0 || !llmHasToolCalls(input.messages)) return
 
   // LiteLLM and some Anthropic proxies require the tools parameter to be present
   // when message history contains tool calls, even if no tools are being used.
@@ -99,147 +118,137 @@ function injectLiteLLMNoop(
   })
 }
 
-export namespace LLM {
-  const log = Log.create({ service: "llm" })
-  export const OUTPUT_TOKEN_MAX = ProviderTransform.OUTPUT_TOKEN_MAX
-
-  export type StreamInput = {
-    user: MessageV2.User
-    sessionID: string
-    model: Provider.Model
-    agent: AgentInfo
-    system: string[]
-    abort: AbortSignal
-    messages: ModelMessage[]
-    small?: boolean
-    tools: Record<string, Tool>
-    retries?: number
-    toolChoice?: "auto" | "required" | "none"
+async function resolveTools(input: Pick<LLMStreamInput, "tools" | "agent" | "user">): Promise<Record<string, Tool>> {
+  const disabled = PermissionNext.disabled(Object.keys(input.tools), input.agent.permission)
+  for (const t of Object.keys(input.tools)) {
+    if (input.user.tools?.[t] === false || disabled.has(t)) {
+      delete input.tools[t]
+    }
   }
+  return input.tools
+}
 
-  export type StreamOutput = StreamTextResult<ToolSet, unknown>
+export async function llmStream(input: LLMStreamInput): Promise<LLMStreamOutput> {
+  const l = llmLog
+    .clone()
+    .tag("providerID", input.model.providerID)
+    .tag("modelID", input.model.id)
+    .tag("sessionID", input.sessionID)
+    .tag("small", (input.small ?? false).toString())
+    .tag("agent", input.agent.name)
+    .tag("mode", input.agent.mode)
+  l.info("stream", { modelID: input.model.id, providerID: input.model.providerID })
 
-  export async function stream(input: StreamInput): Promise<StreamOutput> {
-    const l = log
-      .clone()
-      .tag("providerID", input.model.providerID)
-      .tag("modelID", input.model.id)
-      .tag("sessionID", input.sessionID)
-      .tag("small", (input.small ?? false).toString())
-      .tag("agent", input.agent.name)
-      .tag("mode", input.agent.mode)
-    l.info("stream", { modelID: input.model.id, providerID: input.model.providerID })
+  const [language, cfg, providerOrUndefined, auth] = await Promise.all([
+    Provider.getLanguage(input.model),
+    Config.get(),
+    Provider.getProvider(input.model.providerID),
+    Auth.get(input.model.providerID),
+  ])
+  if (!providerOrUndefined) throw new Error(`Provider not found: ${input.model.providerID}`)
+  const provider: ProviderInfo = providerOrUndefined
+  const isCodex = provider.id === "openai" && auth?.type === "oauth"
 
-    const [language, cfg, providerOrUndefined, auth] = await Promise.all([
-      Provider.getLanguage(input.model),
-      Config.get(),
-      Provider.getProvider(input.model.providerID),
-      Auth.get(input.model.providerID),
-    ])
-    if (!providerOrUndefined) throw new Error(`Provider not found: ${input.model.providerID}`)
-    const provider: ProviderInfo = providerOrUndefined
-    const isCodex = provider.id === "openai" && auth?.type === "oauth"
+  const system = await buildSystemPrompt(input, isCodex)
+  const options = buildModelOptions(input, provider, isCodex)
 
-    const system = await buildSystemPrompt(input, isCodex)
-    const options = buildModelOptions(input, provider, isCodex)
+  const params = await Plugin.trigger(
+    "chat.params",
+    { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
+    {
+      temperature: input.model.capabilities.temperature
+        ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
+        : undefined,
+      topP: input.agent.topP ?? ProviderTransform.topP(input.model),
+      topK: ProviderTransform.topK(input.model),
+      options,
+    },
+  )
 
-    const params = await Plugin.trigger(
-      "chat.params",
-      { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
-      {
-        temperature: input.model.capabilities.temperature
-          ? (input.agent.temperature ?? ProviderTransform.temperature(input.model))
-          : undefined,
-        topP: input.agent.topP ?? ProviderTransform.topP(input.model),
-        topK: ProviderTransform.topK(input.model),
-        options,
-      },
-    )
+  const { headers } = await Plugin.trigger(
+    "chat.headers",
+    { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
+    { headers: {} },
+  )
 
-    const { headers } = await Plugin.trigger(
-      "chat.headers",
-      { sessionID: input.sessionID, agent: input.agent, model: input.model, provider, message: input.user },
-      { headers: {} },
-    )
+  const maxOutputTokens =
+    isCodex || provider.id.includes("github-copilot") ? undefined : ProviderTransform.maxOutputTokens(input.model)
 
-    const maxOutputTokens =
-      isCodex || provider.id.includes("github-copilot") ? undefined : ProviderTransform.maxOutputTokens(input.model)
+  const tools = await resolveTools(input)
+  injectLiteLLMNoop(provider, input, tools)
 
-    const tools = await resolveTools(input)
-    injectLiteLLMNoop(provider, input, tools)
-
-    return streamText({
-      onError(error) {
-        l.error("stream error", { error })
-      },
-      async experimental_repairToolCall(failed) {
-        const lower = failed.toolCall.toolName.toLowerCase()
-        if (lower !== failed.toolCall.toolName && tools[lower]) {
-          l.info("repairing tool call", { tool: failed.toolCall.toolName, repaired: lower })
-          return { ...failed.toolCall, toolName: lower }
-        }
-        return {
-          ...failed.toolCall,
-          input: JSON.stringify({ tool: failed.toolCall.toolName, error: failed.error.message }),
-          toolName: "invalid",
-        }
-      },
-      temperature: params.temperature,
-      topP: params.topP,
-      topK: params.topK,
-      providerOptions: ProviderTransform.providerOptions(input.model, params.options),
-      activeTools: Object.keys(tools).filter((x) => x !== "invalid"),
-      tools,
-      toolChoice: input.toolChoice,
-      maxOutputTokens,
-      abortSignal: input.abort,
-      headers: {
-        ...(input.model.providerID !== "anthropic" ? { "User-Agent": `librecode/${Installation.VERSION}` } : undefined),
-        ...input.model.headers,
-        ...headers,
-      },
-      maxRetries: input.retries ?? 0,
-      messages: [...system.map((x): ModelMessage => ({ role: "system", content: x })), ...input.messages],
-      model: wrapLanguageModel({
-        model: language,
-        middleware: [
-          {
-            async transformParams(args) {
-              if (args.type === "stream") {
-                // @ts-expect-error
-                args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
-              }
-              return args.params
-            },
+  return streamText({
+    onError(error) {
+      l.error("stream error", { error })
+    },
+    async experimental_repairToolCall(failed) {
+      const lower = failed.toolCall.toolName.toLowerCase()
+      if (lower !== failed.toolCall.toolName && tools[lower]) {
+        l.info("repairing tool call", { tool: failed.toolCall.toolName, repaired: lower })
+        return { ...failed.toolCall, toolName: lower }
+      }
+      return {
+        ...failed.toolCall,
+        input: JSON.stringify({ tool: failed.toolCall.toolName, error: failed.error.message }),
+        toolName: "invalid",
+      }
+    },
+    temperature: params.temperature,
+    topP: params.topP,
+    topK: params.topK,
+    providerOptions: ProviderTransform.providerOptions(input.model, params.options),
+    activeTools: Object.keys(tools).filter((x) => x !== "invalid"),
+    tools,
+    toolChoice: input.toolChoice,
+    maxOutputTokens,
+    abortSignal: input.abort,
+    headers: {
+      ...(input.model.providerID !== "anthropic" ? { "User-Agent": `librecode/${Installation.VERSION}` } : undefined),
+      ...input.model.headers,
+      ...headers,
+    },
+    maxRetries: input.retries ?? 0,
+    messages: [...system.map((x): ModelMessage => ({ role: "system", content: x })), ...input.messages],
+    model: wrapLanguageModel({
+      model: language,
+      middleware: [
+        {
+          async transformParams(args) {
+            if (args.type === "stream") {
+              // @ts-expect-error
+              args.params.prompt = ProviderTransform.message(args.params.prompt, input.model, options)
+            }
+            return args.params
           },
-        ],
-      }),
-      experimental_telemetry: {
-        isEnabled: cfg.experimental?.openTelemetry,
-        metadata: { userId: cfg.username ?? "unknown", sessionId: input.sessionID },
-      },
-    })
-  }
+        },
+      ],
+    }),
+    experimental_telemetry: {
+      isEnabled: cfg.experimental?.openTelemetry,
+      metadata: { userId: cfg.username ?? "unknown", sessionId: input.sessionID },
+    },
+  })
+}
 
-  async function resolveTools(input: Pick<StreamInput, "tools" | "agent" | "user">) {
-    const disabled = PermissionNext.disabled(Object.keys(input.tools), input.agent.permission)
-    for (const tool of Object.keys(input.tools)) {
-      if (input.user.tools?.[tool] === false || disabled.has(tool)) {
-        delete input.tools[tool]
-      }
+// Check if messages contain any tool-call content
+// Used to determine if a dummy tool should be added for LiteLLM proxy compatibility
+export function llmHasToolCalls(messages: ModelMessage[]): boolean {
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) continue
+    for (const part of msg.content) {
+      if (part.type === "tool-call" || part.type === "tool-result") return true
     }
-    return input.tools
   }
+  return false
+}
 
-  // Check if messages contain any tool-call content
-  // Used to determine if a dummy tool should be added for LiteLLM proxy compatibility
-  export function hasToolCalls(messages: ModelMessage[]): boolean {
-    for (const msg of messages) {
-      if (!Array.isArray(msg.content)) continue
-      for (const part of msg.content) {
-        if (part.type === "tool-call" || part.type === "tool-result") return true
-      }
-    }
-    return false
-  }
+export const LLM = {
+  OUTPUT_TOKEN_MAX: LLM_OUTPUT_TOKEN_MAX,
+  stream: llmStream,
+  hasToolCalls: llmHasToolCalls,
+} as const
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace LLM {
+  type StreamInput = LLMStreamInput
+  type StreamOutput = LLMStreamOutput
 }

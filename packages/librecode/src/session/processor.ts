@@ -46,51 +46,55 @@ type StreamState = {
   shouldBreak: boolean
 }
 
-export namespace SessionProcessor {
-  export type Info = Awaited<ReturnType<typeof create>>
-  export type Result = Awaited<ReturnType<Info["process"]>>
-
-  export function create(input: {
-    assistantMessage: MessageV2.Assistant
-    sessionID: SessionID
-    model: Provider.Model
-    abort: AbortSignal
-  }) {
-    const state: StreamState = {
-      toolcalls: {},
-      snapshot: undefined,
-      blocked: false,
-      needsCompaction: false,
-      currentText: undefined,
-      reasoningMap: {},
-      shouldBreak: false,
-    }
-    let attempt = 0
-
-    const result = {
-      get message() {
-        return input.assistantMessage
-      },
-      partFromToolCall(toolCallID: string) {
-        return state.toolcalls[toolCallID]
-      },
-      async process(streamInput: LLM.StreamInput) {
-        processorLog.info("process")
-        state.needsCompaction = false
-        state.shouldBreak = (await Config.get()).experimental?.continue_loop_on_deny !== true
-        return runProcessLoop(
-          streamInput,
-          state,
-          input,
-          () => attempt,
-          (n) => {
-            attempt = n
-          },
-        )
-      },
-    }
-    return result
+export function sessionProcessorCreate(input: {
+  assistantMessage: MessageV2.Assistant
+  sessionID: SessionID
+  model: Provider.Model
+  abort: AbortSignal
+}) {
+  const state: StreamState = {
+    toolcalls: {},
+    snapshot: undefined,
+    blocked: false,
+    needsCompaction: false,
+    currentText: undefined,
+    reasoningMap: {},
+    shouldBreak: false,
   }
+  let attempt = 0
+
+  const result = {
+    get message() {
+      return input.assistantMessage
+    },
+    partFromToolCall(toolCallID: string) {
+      return state.toolcalls[toolCallID]
+    },
+    async process(streamInput: LLM.StreamInput) {
+      processorLog.info("process")
+      state.needsCompaction = false
+      state.shouldBreak = (await Config.get()).experimental?.continue_loop_on_deny !== true
+      return runProcessLoop(
+        streamInput,
+        state,
+        input,
+        () => attempt,
+        (n) => {
+          attempt = n
+        },
+      )
+    },
+  }
+  return result
+}
+
+export const SessionProcessor = {
+  create: sessionProcessorCreate,
+} as const
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace SessionProcessor {
+  type Info = Awaited<ReturnType<typeof sessionProcessorCreate>>
+  type Result = Awaited<ReturnType<Info["process"]>>
 }
 
 type ProcessInput = {
