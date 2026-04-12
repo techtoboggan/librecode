@@ -93,9 +93,9 @@ export const { use: useKeybind, provider: KeybindProvider } = createSimpleContex
       print(key: KeybindKey) {
         const first = keybinds()[key]?.at(0)
         if (!first) return ""
-        const result = Keybind.toString(first)
+        const result = Keybind.toDisplayString(first)
         const leader = keybinds().leader?.[0]
-        return leader ? result.replace("<leader>", Keybind.toString(leader)) : result
+        return leader ? result.replace("<leader>", Keybind.toDisplayString(leader)) : result
       },
     }
     return result

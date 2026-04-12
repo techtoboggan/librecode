@@ -13,7 +13,7 @@ export async function assertPermissions(
   actor: string | undefined,
 ): Promise<void> {
   console.log(`Asserting permissions for user ${actor}...`)
-  let permission
+  let permission: string
   try {
     const response = await octoRest.repos.getCollaboratorPermissionLevel({ owner, repo, username: actor! })
     permission = response.data.permission

@@ -1,4 +1,3 @@
-import type z from "zod"
 import { Worktree } from "@/worktree"
 import { type Adaptor, WorkspaceInfo } from "../types"
 
@@ -7,8 +6,6 @@ const Config = WorkspaceInfo.extend({
   branch: WorkspaceInfo.shape.branch.unwrap(),
   directory: WorkspaceInfo.shape.directory.unwrap(),
 })
-
-type Config = z.infer<typeof Config>
 
 export const WorktreeAdaptor: Adaptor = {
   async configure(info) {

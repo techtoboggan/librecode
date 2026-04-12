@@ -223,7 +223,6 @@ function ApiMethod(props: ApiMethodProps) {
   const dialog = useDialog()
   const sdk = useSDK()
   const sync = useSync()
-  const { theme } = useTheme()
 
   return (
     <DialogPrompt

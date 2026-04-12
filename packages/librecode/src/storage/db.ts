@@ -70,7 +70,7 @@ export namespace Database {
     const sql = dirs
       .map((name) => {
         const file = path.join(dir, name, "migration.sql")
-        if (!existsSync(file)) return
+        if (!existsSync(file)) return undefined
         return {
           sql: readFileSync(file, "utf-8"),
           timestamp: time(name),

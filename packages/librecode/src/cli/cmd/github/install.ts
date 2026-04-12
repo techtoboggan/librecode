@@ -84,7 +84,7 @@ export const GithubInstallCommand = cmd({
           printNextSteps()
 
           function printNextSteps() {
-            let step2
+            let step2: string
             if (provider === "amazon-bedrock") {
               step2 =
                 "Configure OIDC in AWS - https://docs.github.com/en/actions/how-tos/security-for-github-actions/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"

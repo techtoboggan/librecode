@@ -436,7 +436,7 @@ export function DialogSelect<T>(props: DialogSelectProps<T>) {
                 <span style={{ fg: theme.text }}>
                   <b>{item.title}</b>{" "}
                 </span>
-                <span style={{ fg: theme.textMuted }}>{Keybind.toString(item.keybind)}</span>
+                <span style={{ fg: theme.textMuted }}>{Keybind.toDisplayString(item.keybind)}</span>
               </text>
             )}
           </For>

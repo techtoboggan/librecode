@@ -32,7 +32,7 @@ export namespace Keybind {
     }
   }
 
-  export function toString(info: Info | undefined): string {
+  export function toDisplayString(info: Info | undefined): string {
     if (!info) return ""
     const parts: string[] = []
 

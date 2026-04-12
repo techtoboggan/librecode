@@ -1,30 +1,30 @@
 import { describe, expect, test } from "bun:test"
 import { Keybind } from "../src/util/keybind"
 
-describe("Keybind.toString", () => {
+describe("Keybind.toDisplayString", () => {
   test("should convert simple key to string", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: false, leader: false, name: "f" }
-    expect(Keybind.toString(info)).toBe("f")
+    expect(Keybind.toDisplayString(info)).toBe("f")
   })
 
   test("should convert ctrl modifier to string", () => {
     const info: Keybind.Info = { ctrl: true, meta: false, shift: false, leader: false, name: "x" }
-    expect(Keybind.toString(info)).toBe("ctrl+x")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl+x")
   })
 
   test("should convert leader key to string", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: false, leader: true, name: "f" }
-    expect(Keybind.toString(info)).toBe("<leader> f")
+    expect(Keybind.toDisplayString(info)).toBe("<leader> f")
   })
 
   test("should convert multiple modifiers to string", () => {
     const info: Keybind.Info = { ctrl: true, meta: true, shift: false, leader: false, name: "g" }
-    expect(Keybind.toString(info)).toBe("ctrl+alt+g")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl+alt+g")
   })
 
   test("should convert all modifiers to string", () => {
     const info: Keybind.Info = { ctrl: true, meta: true, shift: true, leader: true, name: "h" }
-    expect(Keybind.toString(info)).toBe("<leader> ctrl+alt+shift+h")
+    expect(Keybind.toDisplayString(info)).toBe("<leader> ctrl+alt+shift+h")
   })
 
   test("should convert shift modifier to string", () => {
@@ -35,12 +35,12 @@ describe("Keybind.toString", () => {
       leader: false,
       name: "return",
     }
-    expect(Keybind.toString(info)).toBe("shift+return")
+    expect(Keybind.toDisplayString(info)).toBe("shift+return")
   })
 
   test("should convert function key to string", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: false, leader: false, name: "f2" }
-    expect(Keybind.toString(info)).toBe("f2")
+    expect(Keybind.toDisplayString(info)).toBe("f2")
   })
 
   test("should convert special key to string", () => {
@@ -51,47 +51,47 @@ describe("Keybind.toString", () => {
       leader: false,
       name: "pgup",
     }
-    expect(Keybind.toString(info)).toBe("pgup")
+    expect(Keybind.toDisplayString(info)).toBe("pgup")
   })
 
   test("should handle empty name", () => {
     const info: Keybind.Info = { ctrl: true, meta: false, shift: false, leader: false, name: "" }
-    expect(Keybind.toString(info)).toBe("ctrl")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl")
   })
 
   test("should handle only modifiers", () => {
     const info: Keybind.Info = { ctrl: true, meta: true, shift: true, leader: true, name: "" }
-    expect(Keybind.toString(info)).toBe("<leader> ctrl+alt+shift")
+    expect(Keybind.toDisplayString(info)).toBe("<leader> ctrl+alt+shift")
   })
 
   test("should handle only leader with no other parts", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: false, leader: true, name: "" }
-    expect(Keybind.toString(info)).toBe("<leader>")
+    expect(Keybind.toDisplayString(info)).toBe("<leader>")
   })
 
   test("should convert super modifier to string", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: false, super: true, leader: false, name: "z" }
-    expect(Keybind.toString(info)).toBe("super+z")
+    expect(Keybind.toDisplayString(info)).toBe("super+z")
   })
 
   test("should convert super+shift modifier to string", () => {
     const info: Keybind.Info = { ctrl: false, meta: false, shift: true, super: true, leader: false, name: "z" }
-    expect(Keybind.toString(info)).toBe("super+shift+z")
+    expect(Keybind.toDisplayString(info)).toBe("super+shift+z")
   })
 
   test("should handle super with ctrl modifier", () => {
     const info: Keybind.Info = { ctrl: true, meta: false, shift: false, super: true, leader: false, name: "a" }
-    expect(Keybind.toString(info)).toBe("ctrl+super+a")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl+super+a")
   })
 
   test("should handle super with all modifiers", () => {
     const info: Keybind.Info = { ctrl: true, meta: true, shift: true, super: true, leader: false, name: "x" }
-    expect(Keybind.toString(info)).toBe("ctrl+alt+super+shift+x")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl+alt+super+shift+x")
   })
 
   test("should handle undefined super field (omitted)", () => {
     const info: Keybind.Info = { ctrl: true, meta: false, shift: false, leader: false, name: "c" }
-    expect(Keybind.toString(info)).toBe("ctrl+c")
+    expect(Keybind.toDisplayString(info)).toBe("ctrl+c")
   })
 })
 

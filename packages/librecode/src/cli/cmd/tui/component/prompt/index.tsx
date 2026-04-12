@@ -175,7 +175,7 @@ export function Prompt(props: PromptProps) {
   // Paste handlers — via extracted hook
   // ---------------------------------------------------------------------------
 
-  const { pasteText, pasteImage, handleKeyDownPaste, onPaste } = usePromptPaste({
+  const { pasteText: _pasteText, pasteImage, handleKeyDownPaste, onPaste } = usePromptPaste({
     getInput: () => input,
     store,
     setStore: setStore as unknown as Parameters<typeof usePromptPaste>[0]["setStore"],

@@ -10,7 +10,7 @@ import { Locale } from "@/util/locale"
 import { InlineTool, type ToolProps } from "./shared"
 
 export function Task(props: ToolProps<typeof TaskTool>) {
-  const { theme } = useTheme()
+  const { theme: _theme } = useTheme()
   const _keybind = useKeybind()
   const { navigate } = useRoute()
   const _local = useLocal()

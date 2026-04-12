@@ -370,7 +370,7 @@ function copyObjectHeaders(headers: Record<string, string | undefined>, dest: He
 function copyInitHeaders(init: RequestInit | undefined, dest: Headers): void {
   if (!init?.headers) return
   if (init.headers instanceof Headers) {
-    init.headers.forEach((value, key) => dest.set(key, value))
+    init.headers.forEach((value, key) => void dest.set(key, value))
   } else if (Array.isArray(init.headers)) {
     copyArrayHeaders(init.headers as Array<[string, string | undefined]>, dest)
   } else {

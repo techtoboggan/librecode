@@ -1,11 +1,11 @@
 import { Context } from "../util/context"
 import type { WorkspaceID } from "./schema"
 
-interface Context {
+interface WorkspaceData {
   workspaceID?: WorkspaceID
 }
 
-const context = Context.create<Context>("workspace")
+const context = Context.create<WorkspaceData>("workspace")
 
 export const WorkspaceContext = {
   async provide<R>(input: { workspaceID?: WorkspaceID; fn: () => R }): Promise<R> {

@@ -48,7 +48,7 @@ import type { ACPConfig } from "./types"
 const log = Log.create({ service: "acp-agent" })
 
 type ModeOption = { id: string; name: string; description?: string }
-type ModelOption = { modelId: string; name: string }
+type _ModelOption = { modelId: string; name: string }
 
 export namespace ACP {
   export async function init({ sdk: _sdk }: { sdk: OpencodeClient }) {

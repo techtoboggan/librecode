@@ -6,13 +6,13 @@ import { Context } from "../util/context"
 import { Project } from "./project"
 import { State } from "./state"
 
-interface Context {
+interface InstanceData {
   directory: string
   worktree: string
   project: Project.Info
 }
-const context = Context.create<Context>("instance")
-const cache = new Map<string, Promise<Context>>()
+const context = Context.create<InstanceData>("instance")
+const cache = new Map<string, Promise<InstanceData>>()
 
 const disposal = {
   all: undefined as Promise<void> | undefined,
@@ -51,7 +51,7 @@ function boot(input: { directory: string; init?: () => Promise<any>; project?: P
   })
 }
 
-function track(directory: string, next: Promise<Context>) {
+function track(directory: string, next: Promise<InstanceData>) {
   const task = next.catch((error) => {
     if (cache.get(directory) === task) cache.delete(directory)
     throw error
@@ -60,7 +60,7 @@ function track(directory: string, next: Promise<Context>) {
   return task
 }
 
-async function disposeOneInstance(key: string, value: Promise<Context>): Promise<void> {
+async function disposeOneInstance(key: string, value: Promise<InstanceData>): Promise<void> {
   if (cache.get(key) !== value) return
 
   const ctx = await value.catch((error) => {

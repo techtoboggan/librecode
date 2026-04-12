@@ -47,7 +47,7 @@ async function addProjectFilePaths(paths: Set<string>): Promise<void> {
   for (const file of FILES) {
     const matches = await Filesystem.findUp(file, Instance.directory, Instance.worktree)
     if (matches.length > 0) {
-      matches.forEach((p) => paths.add(path.resolve(p)))
+      matches.forEach((p) => void paths.add(path.resolve(p)))
       break
     }
   }
@@ -81,7 +81,7 @@ async function resolveConfigInstruction(instruction: string): Promise<string[]> 
 async function addConfigInstructionPaths(paths: Set<string>, instructions: string[]): Promise<void> {
   for (const instruction of instructions) {
     const matches = await resolveConfigInstruction(instruction)
-    matches.forEach((p) => paths.add(path.resolve(p)))
+    matches.forEach((p) => void paths.add(path.resolve(p)))
   }
 }
 
