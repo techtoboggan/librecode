@@ -6,60 +6,63 @@ import { WorkspaceID } from "../schema"
 import { WorkspaceContext } from "../workspace-context"
 import { WorkspaceServerRoutes } from "./routes"
 
-export namespace WorkspaceServer {
-  export function App() {
-    const session = new Hono()
-      .use(async (_c, next) => {
-        // Right now, we need handle all requests because we don't
-        // have syncing. In the future all GET requests will handled
-        // by the control plane
-        //
-        // if (c.req.method === "GET") return c.notFound()
-        await next()
-      })
-      .route("/", SessionRoutes())
-
-    return new Hono()
-      .use(async (c, next) => {
-        const rawWorkspaceID = c.req.query("workspace") || c.req.header("x-librecode-workspace")
-        const raw = c.req.query("directory") || c.req.header("x-librecode-directory")
-        if (rawWorkspaceID == null) {
-          throw new Error("workspaceID parameter is required")
-        }
-        if (raw == null) {
-          throw new Error("directory parameter is required")
-        }
-
-        const directory = (() => {
-          try {
-            return decodeURIComponent(raw)
-          } catch {
-            return raw
-          }
-        })()
-
-        return WorkspaceContext.provide({
-          workspaceID: WorkspaceID.make(rawWorkspaceID),
-          async fn() {
-            return Instance.provide({
-              directory,
-              init: InstanceBootstrap,
-              async fn() {
-                return next()
-              },
-            })
-          },
-        })
-      })
-      .route("/session", session)
-      .route("/", WorkspaceServerRoutes())
-  }
-
-  export function Listen(opts: { hostname: string; port: number }) {
-    return Bun.serve({
-      hostname: opts.hostname,
-      port: opts.port,
-      fetch: App().fetch,
+function workspaceServerApp() {
+  const session = new Hono()
+    .use(async (_c, next) => {
+      // Right now, we need handle all requests because we don't
+      // have syncing. In the future all GET requests will handled
+      // by the control plane
+      //
+      // if (c.req.method === "GET") return c.notFound()
+      await next()
     })
-  }
+    .route("/", SessionRoutes())
+
+  return new Hono()
+    .use(async (c, next) => {
+      const rawWorkspaceID = c.req.query("workspace") || c.req.header("x-librecode-workspace")
+      const raw = c.req.query("directory") || c.req.header("x-librecode-directory")
+      if (rawWorkspaceID == null) {
+        throw new Error("workspaceID parameter is required")
+      }
+      if (raw == null) {
+        throw new Error("directory parameter is required")
+      }
+
+      const directory = (() => {
+        try {
+          return decodeURIComponent(raw)
+        } catch {
+          return raw
+        }
+      })()
+
+      return WorkspaceContext.provide({
+        workspaceID: WorkspaceID.make(rawWorkspaceID),
+        async fn() {
+          return Instance.provide({
+            directory,
+            init: InstanceBootstrap,
+            async fn() {
+              return next()
+            },
+          })
+        },
+      })
+    })
+    .route("/session", session)
+    .route("/", WorkspaceServerRoutes())
 }
+
+function workspaceServerListen(opts: { hostname: string; port: number }) {
+  return Bun.serve({
+    hostname: opts.hostname,
+    port: opts.port,
+    fetch: workspaceServerApp().fetch,
+  })
+}
+
+export const WorkspaceServer = {
+  App: workspaceServerApp,
+  Listen: workspaceServerListen,
+} as const

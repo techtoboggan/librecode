@@ -9,125 +9,130 @@ import { Log } from "../util/log"
 import { Process } from "../util/process"
 import { PackageRegistry } from "./registry"
 
-export namespace BunProc {
-  const log = Log.create({ service: "bun" })
+const log = Log.create({ service: "bun" })
 
-  export async function run(cmd: string[], options?: Process.RunOptions) {
-    const full = [which(), ...cmd]
-    log.info("running", {
-      cmd: full,
-      ...options,
-    })
-    const result = await Process.run(full, {
-      cwd: options?.cwd,
-      abort: options?.abort,
-      kill: options?.kill,
-      timeout: options?.timeout,
-      nothrow: options?.nothrow,
-      env: {
-        ...process.env,
-        ...options?.env,
-        BUN_BE_BUN: "1",
-      },
-    })
-    log.info("done", {
-      code: result.code,
-      stdout: result.stdout.toString(),
-      stderr: result.stderr.toString(),
-    })
-    return result
-  }
-
-  export function which() {
-    return process.execPath
-  }
-
-  export const InstallFailedError = NamedError.create(
-    "BunInstallFailedError",
-    z.object({
-      pkg: z.string(),
-      version: z.string(),
-    }),
-  )
-
-  async function shouldSkipInstall(
-    modExists: boolean,
-    cachedVersion: string | undefined,
-    version: string,
-    pkg: string,
-  ): Promise<boolean> {
-    if (!modExists || !cachedVersion) return false
-    if (version !== "latest" && cachedVersion === version) return true
-    if (version !== "latest") return false
-    const isOutdated = await PackageRegistry.isOutdated(pkg, cachedVersion, Global.Path.cache)
-    if (isOutdated) {
-      log.info("Cached version is outdated, proceeding with install", { pkg, cachedVersion })
-      return false
-    }
-    return true
-  }
-
-  export async function install(pkg: string, version = "latest") {
-    // Use lock to ensure only one install at a time
-    using _ = await Lock.write("bun-install")
-
-    const mod = path.join(Global.Path.cache, "node_modules", pkg)
-    const pkgjsonPath = path.join(Global.Path.cache, "package.json")
-    const parsed = await Filesystem.readJson<{ dependencies: Record<string, string> }>(pkgjsonPath).catch(async () => {
-      const result = { dependencies: {} as Record<string, string> }
-      await Filesystem.writeJson(pkgjsonPath, result)
-      return result
-    })
-    if (!parsed.dependencies) parsed.dependencies = {} as Record<string, string>
-    const modExists = await Filesystem.exists(mod)
-    if (await shouldSkipInstall(modExists, parsed.dependencies[pkg], version, pkg)) return mod
-
-    // Build command arguments
-    const args = [
-      "add",
-      "--force",
-      "--exact",
-      // TODO: get rid of this case (see: https://github.com/oven-sh/bun/issues/19936)
-      ...(proxied() || process.env.CI ? ["--no-cache"] : []),
-      "--cwd",
-      Global.Path.cache,
-      `${pkg}@${version}`,
-    ]
-
-    // Let Bun handle registry resolution:
-    // - If .npmrc files exist, Bun will use them automatically
-    // - If no .npmrc files exist, Bun will default to https://registry.npmjs.org
-    // - No need to pass --registry flag
-    log.info("installing package using Bun's default registry resolution", {
-      pkg,
-      version,
-    })
-
-    await BunProc.run(args, {
-      cwd: Global.Path.cache,
-    }).catch((e) => {
-      throw new InstallFailedError(
-        { pkg, version },
-        {
-          cause: e,
-        },
-      )
-    })
-
-    // Resolve actual version from installed package when using "latest"
-    // This ensures subsequent starts use the cached version until explicitly updated
-    let resolvedVersion = version
-    if (version === "latest") {
-      const installedPkg = await Filesystem.readJson<{ version?: string }>(path.join(mod, "package.json")).catch(
-        () => null,
-      )
-      if (installedPkg?.version) {
-        resolvedVersion = installedPkg.version
-      }
-    }
-
-    parsed.dependencies[pkg] = resolvedVersion
-    await Filesystem.writeJson(pkgjsonPath, parsed)
-    return mod
-  }
+async function bunProcRun(cmd: string[], options?: Process.RunOptions) {
+  const full = [bunProcWhich(), ...cmd]
+  log.info("running", {
+    cmd: full,
+    ...options,
+  })
+  const result = await Process.run(full, {
+    cwd: options?.cwd,
+    abort: options?.abort,
+    kill: options?.kill,
+    timeout: options?.timeout,
+    nothrow: options?.nothrow,
+    env: {
+      ...process.env,
+      ...options?.env,
+      BUN_BE_BUN: "1",
+    },
+  })
+  log.info("done", {
+    code: result.code,
+    stdout: result.stdout.toString(),
+    stderr: result.stderr.toString(),
+  })
+  return result
 }
+
+function bunProcWhich() {
+  return process.execPath
+}
+
+export const InstallFailedError = NamedError.create(
+  "BunInstallFailedError",
+  z.object({
+    pkg: z.string(),
+    version: z.string(),
+  }),
+)
+
+async function shouldSkipInstall(
+  modExists: boolean,
+  cachedVersion: string | undefined,
+  version: string,
+  pkg: string,
+): Promise<boolean> {
+  if (!modExists || !cachedVersion) return false
+  if (version !== "latest" && cachedVersion === version) return true
+  if (version !== "latest") return false
+  const isOutdated = await PackageRegistry.isOutdated(pkg, cachedVersion, Global.Path.cache)
+  if (isOutdated) {
+    log.info("Cached version is outdated, proceeding with install", { pkg, cachedVersion })
+    return false
+  }
+  return true
+}
+
+async function bunProcInstall(pkg: string, version = "latest") {
+  // Use lock to ensure only one install at a time
+  using _ = await Lock.write("bun-install")
+
+  const mod = path.join(Global.Path.cache, "node_modules", pkg)
+  const pkgjsonPath = path.join(Global.Path.cache, "package.json")
+  const parsed = await Filesystem.readJson<{ dependencies: Record<string, string> }>(pkgjsonPath).catch(async () => {
+    const result = { dependencies: {} as Record<string, string> }
+    await Filesystem.writeJson(pkgjsonPath, result)
+    return result
+  })
+  if (!parsed.dependencies) parsed.dependencies = {} as Record<string, string>
+  const modExists = await Filesystem.exists(mod)
+  if (await shouldSkipInstall(modExists, parsed.dependencies[pkg], version, pkg)) return mod
+
+  // Build command arguments
+  const args = [
+    "add",
+    "--force",
+    "--exact",
+    // TODO: get rid of this case (see: https://github.com/oven-sh/bun/issues/19936)
+    ...(proxied() || process.env.CI ? ["--no-cache"] : []),
+    "--cwd",
+    Global.Path.cache,
+    `${pkg}@${version}`,
+  ]
+
+  // Let Bun handle registry resolution:
+  // - If .npmrc files exist, Bun will use them automatically
+  // - If no .npmrc files exist, Bun will default to https://registry.npmjs.org
+  // - No need to pass --registry flag
+  log.info("installing package using Bun's default registry resolution", {
+    pkg,
+    version,
+  })
+
+  await bunProcRun(args, {
+    cwd: Global.Path.cache,
+  }).catch((e) => {
+    throw new InstallFailedError(
+      { pkg, version },
+      {
+        cause: e,
+      },
+    )
+  })
+
+  // Resolve actual version from installed package when using "latest"
+  // This ensures subsequent starts use the cached version until explicitly updated
+  let resolvedVersion = version
+  if (version === "latest") {
+    const installedPkg = await Filesystem.readJson<{ version?: string }>(path.join(mod, "package.json")).catch(
+      () => null,
+    )
+    if (installedPkg?.version) {
+      resolvedVersion = installedPkg.version
+    }
+  }
+
+  parsed.dependencies[pkg] = resolvedVersion
+  await Filesystem.writeJson(pkgjsonPath, parsed)
+  return mod
+}
+
+export const BunProc = {
+  run: bunProcRun,
+  which: bunProcWhich,
+  install: bunProcInstall,
+  InstallFailedError,
+} as const

@@ -1,15 +1,4 @@
-export namespace BashArity {
-  export function prefix(tokens: string[]) {
-    for (let len = tokens.length; len > 0; len--) {
-      const prefix = tokens.slice(0, len).join(" ")
-      const arity = ARITY[prefix]
-      if (arity !== undefined) return tokens.slice(0, arity)
-    }
-    if (tokens.length === 0) return []
-    return tokens.slice(0, 1)
-  }
-
-  /* Generated with following prompt:
+/* Generated with following prompt:
 You are generating a dictionary of command-prefix arities for bash-style commands.
 This dictionary is used to identify the "human-understandable command" from an input shell command.### **RULES (follow strictly)**1. Each entry maps a **command prefix string → number**, representing how many **tokens** define the command.
 2. **Flags NEVER count as tokens**. Only subcommands count.
@@ -22,7 +11,7 @@ This dictionary is used to identify the "human-understandable command" from an i
 * `npm run dev` → `npm run dev` (because `npm run` has arity 3)
 * `python script.py` → `python script.py` (default: whole input, not in dictionary)### **Now generate the dictionary.**
 */
-  const ARITY: Record<string, number> = {
+const ARITY: Record<string, number> = {
     cat: 1, // cat file.txt
     cd: 1, // cd /path/to/dir
     chmod: 1, // chmod 755 script.sh
@@ -159,5 +148,18 @@ This dictionary is used to identify the "human-understandable command" from an i
     yarn: 2, // yarn add react
     "yarn dlx": 3, // yarn dlx create-react-app
     "yarn run": 3, // yarn run dev
-  }
 }
+
+function bashArityPrefix(tokens: string[]): string[] {
+  for (let len = tokens.length; len > 0; len--) {
+    const prefix = tokens.slice(0, len).join(" ")
+    const arity = ARITY[prefix]
+    if (arity !== undefined) return tokens.slice(0, arity)
+  }
+  if (tokens.length === 0) return []
+  return tokens.slice(0, 1)
+}
+
+export const BashArity = {
+  prefix: bashArityPrefix,
+} as const

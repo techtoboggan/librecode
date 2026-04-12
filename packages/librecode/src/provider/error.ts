@@ -198,6 +198,7 @@ export const ProviderError = {
   parseAPICallError,
 } as const
 
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
 // Type companion — gives consumers access to ProviderError.ParsedStreamError etc.
 export declare namespace ProviderError {
   type ParsedStreamError = import("./error").ParsedStreamError

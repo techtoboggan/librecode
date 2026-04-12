@@ -29,145 +29,158 @@ export const NotFoundError = NamedError.create(
 
 const log = Log.create({ service: "db" })
 
-export namespace Database {
-  export const Path = iife(() => {
-    const channel = Installation.CHANNEL
-    if (["latest", "beta"].includes(channel) || Flag.LIBRECODE_DISABLE_CHANNEL_DB)
-      return path.join(Global.Path.data, "librecode.db")
-    const safe = channel.replace(/[^a-zA-Z0-9._-]/g, "-")
-    return path.join(Global.Path.data, `librecode-${safe}.db`)
-  })
+const DatabasePath = iife(() => {
+  const channel = Installation.CHANNEL
+  if (["latest", "beta"].includes(channel) || Flag.LIBRECODE_DISABLE_CHANNEL_DB)
+    return path.join(Global.Path.data, "librecode.db")
+  const safe = channel.replace(/[^a-zA-Z0-9._-]/g, "-")
+  return path.join(Global.Path.data, `librecode-${safe}.db`)
+})
 
-  type Schema = typeof schema
-  export type Transaction = SQLiteTransaction<"sync", void, Schema>
+type Schema = typeof schema
+type DatabaseTransaction = SQLiteTransaction<"sync", void, Schema>
 
-  type Client = SQLiteBunDatabase
+type Client = SQLiteBunDatabase
 
-  type Journal = { sql: string; timestamp: number; name: string }[]
+type Journal = { sql: string; timestamp: number; name: string }[]
 
-  const state = {
-    sqlite: undefined as BunDatabase | undefined,
+const databaseState = {
+  sqlite: undefined as BunDatabase | undefined,
+}
+
+function time(tag: string) {
+  const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(tag)
+  if (!match) return 0
+  return Date.UTC(
+    Number(match[1]),
+    Number(match[2]) - 1,
+    Number(match[3]),
+    Number(match[4]),
+    Number(match[5]),
+    Number(match[6]),
+  )
+}
+
+function migrations(dir: string): Journal {
+  const dirs = readdirSync(dir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+
+  const sql = dirs
+    .map((name) => {
+      const file = path.join(dir, name, "migration.sql")
+      if (!existsSync(file)) return undefined
+      return {
+        sql: readFileSync(file, "utf-8"),
+        timestamp: time(name),
+        name,
+      }
+    })
+    .filter(Boolean) as Journal
+
+  return sql.sort((a, b) => a.timestamp - b.timestamp)
+}
+
+const DatabaseClient = lazy(() => {
+  log.info("opening database", { path: DatabasePath })
+
+  const sqlite = new BunDatabase(DatabasePath, { create: true })
+  databaseState.sqlite = sqlite
+
+  sqlite.run("PRAGMA journal_mode = WAL")
+  sqlite.run("PRAGMA synchronous = NORMAL")
+  sqlite.run("PRAGMA busy_timeout = 5000")
+  sqlite.run("PRAGMA cache_size = -64000")
+  sqlite.run("PRAGMA foreign_keys = ON")
+  sqlite.run("PRAGMA wal_checkpoint(PASSIVE)")
+
+  const db = drizzle({ client: sqlite })
+
+  // Apply schema migrations
+  const entries =
+    typeof LIBRECODE_MIGRATIONS !== "undefined"
+      ? LIBRECODE_MIGRATIONS
+      : migrations(path.join(import.meta.dirname, "../../migration"))
+  if (entries.length > 0) {
+    log.info("applying migrations", {
+      count: entries.length,
+      mode: typeof LIBRECODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
+    })
+    if (Flag.LIBRECODE_SKIP_MIGRATIONS) {
+      for (const item of entries) {
+        item.sql = "select 1;"
+      }
+    }
+    migrate(db, entries)
   }
 
-  function time(tag: string) {
-    const match = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/.exec(tag)
-    if (!match) return 0
-    return Date.UTC(
-      Number(match[1]),
-      Number(match[2]) - 1,
-      Number(match[3]),
-      Number(match[4]),
-      Number(match[5]),
-      Number(match[6]),
-    )
+  return db
+})
+
+function databaseClose() {
+  const sqlite = databaseState.sqlite
+  if (!sqlite) return
+  sqlite.close()
+  databaseState.sqlite = undefined
+  DatabaseClient.reset()
+}
+
+type TxOrDb = SQLiteTransaction<"sync", void, any, any> | Client
+
+const ctx = Context.create<{
+  tx: TxOrDb
+  effects: (() => void | Promise<void>)[]
+}>("database")
+
+function databaseUse<T>(callback: (trx: TxOrDb) => T): T {
+  try {
+    return callback(ctx.use().tx)
+  } catch (err) {
+    if (err instanceof Context.NotFound) {
+      const effects: (() => void | Promise<void>)[] = []
+      const result = ctx.provide({ effects, tx: DatabaseClient() }, () => callback(DatabaseClient()))
+      for (const effect of effects) effect()
+      return result
+    }
+    throw err
   }
+}
 
-  function migrations(dir: string): Journal {
-    const dirs = readdirSync(dir, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name)
+function databaseEffect(fn: () => any | Promise<any>) {
+  try {
+    ctx.use().effects.push(fn)
+  } catch {
+    fn()
+  }
+}
 
-    const sql = dirs
-      .map((name) => {
-        const file = path.join(dir, name, "migration.sql")
-        if (!existsSync(file)) return undefined
-        return {
-          sql: readFileSync(file, "utf-8"),
-          timestamp: time(name),
-          name,
-        }
+function databaseTransaction<T>(callback: (tx: TxOrDb) => T): T {
+  try {
+    return callback(ctx.use().tx)
+  } catch (err) {
+    if (err instanceof Context.NotFound) {
+      const effects: (() => void | Promise<void>)[] = []
+      const result = (DatabaseClient().transaction as any)((tx: TxOrDb) => {
+        return ctx.provide({ tx, effects }, () => callback(tx))
       })
-      .filter(Boolean) as Journal
-
-    return sql.sort((a, b) => a.timestamp - b.timestamp)
-  }
-
-  export const Client = lazy(() => {
-    log.info("opening database", { path: Path })
-
-    const sqlite = new BunDatabase(Path, { create: true })
-    state.sqlite = sqlite
-
-    sqlite.run("PRAGMA journal_mode = WAL")
-    sqlite.run("PRAGMA synchronous = NORMAL")
-    sqlite.run("PRAGMA busy_timeout = 5000")
-    sqlite.run("PRAGMA cache_size = -64000")
-    sqlite.run("PRAGMA foreign_keys = ON")
-    sqlite.run("PRAGMA wal_checkpoint(PASSIVE)")
-
-    const db = drizzle({ client: sqlite })
-
-    // Apply schema migrations
-    const entries =
-      typeof LIBRECODE_MIGRATIONS !== "undefined"
-        ? LIBRECODE_MIGRATIONS
-        : migrations(path.join(import.meta.dirname, "../../migration"))
-    if (entries.length > 0) {
-      log.info("applying migrations", {
-        count: entries.length,
-        mode: typeof LIBRECODE_MIGRATIONS !== "undefined" ? "bundled" : "dev",
-      })
-      if (Flag.LIBRECODE_SKIP_MIGRATIONS) {
-        for (const item of entries) {
-          item.sql = "select 1;"
-        }
-      }
-      migrate(db, entries)
+      for (const effect of effects) effect()
+      return result
     }
-
-    return db
-  })
-
-  export function close() {
-    const sqlite = state.sqlite
-    if (!sqlite) return
-    sqlite.close()
-    state.sqlite = undefined
-    Client.reset()
+    throw err
   }
+}
 
-  export type TxOrDb = SQLiteTransaction<"sync", void, any, any> | Client
+export const Database = {
+  Path: DatabasePath,
+  Client: DatabaseClient,
+  close: databaseClose,
+  use: databaseUse,
+  effect: databaseEffect,
+  transaction: databaseTransaction,
+} as const
 
-  const ctx = Context.create<{
-    tx: TxOrDb
-    effects: (() => void | Promise<void>)[]
-  }>("database")
-
-  export function use<T>(callback: (trx: TxOrDb) => T): T {
-    try {
-      return callback(ctx.use().tx)
-    } catch (err) {
-      if (err instanceof Context.NotFound) {
-        const effects: (() => void | Promise<void>)[] = []
-        const result = ctx.provide({ effects, tx: Client() }, () => callback(Client()))
-        for (const effect of effects) effect()
-        return result
-      }
-      throw err
-    }
-  }
-
-  export function effect(fn: () => any | Promise<any>) {
-    try {
-      ctx.use().effects.push(fn)
-    } catch {
-      fn()
-    }
-  }
-
-  export function transaction<T>(callback: (tx: TxOrDb) => T): T {
-    try {
-      return callback(ctx.use().tx)
-    } catch (err) {
-      if (err instanceof Context.NotFound) {
-        const effects: (() => void | Promise<void>)[] = []
-        const result = (Client().transaction as any)((tx: TxOrDb) => {
-          return ctx.provide({ tx, effects }, () => callback(tx))
-        })
-        for (const effect of effects) effect()
-        return result
-      }
-      throw err
-    }
-  }
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Database {
+  type Transaction = DatabaseTransaction
+  type TxOrDb = SQLiteTransaction<"sync", void, any, any> | Client
 }

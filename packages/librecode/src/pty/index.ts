@@ -82,262 +82,289 @@ function sendBufferedData(
   }
 }
 
-export namespace Pty {
-  const log = Log.create({ service: "pty" })
+// ---------------------------------------------------------------------------
+// Module-level state (shared across all exported functions)
+// ---------------------------------------------------------------------------
 
-  const _BUFFER_LIMIT = 1024 * 1024 * 2
-  const BUFFER_CHUNK = 64 * 1024
-  const encoder = new TextEncoder()
+const _ptyLog = Log.create({ service: "pty" })
 
-  type Socket = {
-    readyState: number
-    data?: unknown
-    send: (data: string | Uint8Array | ArrayBuffer) => void
-    close: (code?: number, reason?: string) => void
-  }
+const _BUFFER_CHUNK = 64 * 1024
+const _encoder = new TextEncoder()
 
-  // WebSocket control frame: 0x00 + UTF-8 JSON.
-  const meta = (cursor: number) => {
-    const json = JSON.stringify({ cursor })
-    const bytes = encoder.encode(json)
-    const out = new Uint8Array(bytes.length + 1)
-    out[0] = 0
-    out.set(bytes, 1)
-    return out
-  }
+type PtySocket = {
+  readyState: number
+  data?: unknown
+  send: (data: string | Uint8Array | ArrayBuffer) => void
+  close: (code?: number, reason?: string) => void
+}
 
-  const pty = lazy(async () => {
-    const { spawn } = await import("bun-pty")
-    return spawn
+// WebSocket control frame: 0x00 + UTF-8 JSON.
+const _meta = (cursor: number) => {
+  const json = JSON.stringify({ cursor })
+  const bytes = _encoder.encode(json)
+  const out = new Uint8Array(bytes.length + 1)
+  out[0] = 0
+  out.set(bytes, 1)
+  return out
+}
+
+const _ptySpawn = lazy(async () => {
+  const { spawn } = await import("bun-pty")
+  return spawn
+})
+
+export const Info = z
+  .object({
+    id: PtyID.zod,
+    title: z.string(),
+    command: z.string(),
+    args: z.array(z.string()),
+    cwd: z.string(),
+    status: z.enum(["running", "exited"]),
+    pid: z.number(),
   })
+  .meta({ ref: "Pty" })
 
-  export const Info = z
+export type Info = z.infer<typeof Info>
+
+export const CreateInput = z.object({
+  command: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  cwd: z.string().optional(),
+  title: z.string().optional(),
+  env: z.record(z.string(), z.string()).optional(),
+})
+
+export type CreateInput = z.infer<typeof CreateInput>
+
+export const UpdateInput = z.object({
+  title: z.string().optional(),
+  size: z
     .object({
-      id: PtyID.zod,
-      title: z.string(),
-      command: z.string(),
-      args: z.array(z.string()),
-      cwd: z.string(),
-      status: z.enum(["running", "exited"]),
-      pid: z.number(),
+      rows: z.number(),
+      cols: z.number(),
     })
-    .meta({ ref: "Pty" })
+    .optional(),
+})
 
-  export type Info = z.infer<typeof Info>
+export type UpdateInput = z.infer<typeof UpdateInput>
 
-  export const CreateInput = z.object({
-    command: z.string().optional(),
-    args: z.array(z.string()).optional(),
-    cwd: z.string().optional(),
-    title: z.string().optional(),
-    env: z.record(z.string(), z.string()).optional(),
-  })
+export const Event = {
+  Created: BusEvent.define("pty.created", z.object({ info: Info })),
+  Updated: BusEvent.define("pty.updated", z.object({ info: Info })),
+  Exited: BusEvent.define("pty.exited", z.object({ id: PtyID.zod, exitCode: z.number() })),
+  Deleted: BusEvent.define("pty.deleted", z.object({ id: PtyID.zod })),
+}
 
-  export type CreateInput = z.infer<typeof CreateInput>
+interface ActiveSession {
+  info: Info
+  process: IPty
+  buffer: string
+  bufferCursor: number
+  cursor: number
+  subscribers: Map<unknown, PtySocket>
+}
 
-  export const UpdateInput = z.object({
-    title: z.string().optional(),
-    size: z
-      .object({
-        rows: z.number(),
-        cols: z.number(),
-      })
-      .optional(),
-  })
-
-  export type UpdateInput = z.infer<typeof UpdateInput>
-
-  export const Event = {
-    Created: BusEvent.define("pty.created", z.object({ info: Info })),
-    Updated: BusEvent.define("pty.updated", z.object({ info: Info })),
-    Exited: BusEvent.define("pty.exited", z.object({ id: PtyID.zod, exitCode: z.number() })),
-    Deleted: BusEvent.define("pty.deleted", z.object({ id: PtyID.zod })),
-  }
-
-  interface ActiveSession {
-    info: Info
-    process: IPty
-    buffer: string
-    bufferCursor: number
-    cursor: number
-    subscribers: Map<unknown, Socket>
-  }
-
-  const state = Instance.state(
-    () => new Map<PtyID, ActiveSession>(),
-    async (sessions) => {
-      for (const session of sessions.values()) {
+const _state = Instance.state(
+  () => new Map<PtyID, ActiveSession>(),
+  async (sessions) => {
+    for (const session of sessions.values()) {
+      try {
+        session.process.kill()
+      } catch {}
+      for (const [key, ws] of session.subscribers.entries()) {
         try {
-          session.process.kill()
-        } catch {}
-        for (const [key, ws] of session.subscribers.entries()) {
-          try {
-            if (ws.data === key) ws.close()
-          } catch {
-            // ignore
-          }
+          if (ws.data === key) ws.close()
+        } catch {
+          // ignore
         }
       }
-      sessions.clear()
-    },
-  )
+    }
+    sessions.clear()
+  },
+)
 
-  export function list() {
-    return Array.from(state().values()).map((s) => s.info)
+function ptyList(): Info[] {
+  return Array.from(_state().values()).map((s) => s.info)
+}
+
+function ptyGet(id: PtyID): Info | undefined {
+  return _state().get(id)?.info
+}
+
+async function ptyCreate(input: CreateInput): Promise<Info> {
+  const id = PtyID.ascending()
+  const command = input.command || Shell.preferred()
+  const args = input.args || []
+  if (command.endsWith("sh")) {
+    args.push("-l")
   }
 
-  export function get(id: PtyID) {
-    return state().get(id)?.info
+  const cwd = input.cwd || Instance.directory
+  const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
+  const env = {
+    ...process.env,
+    ...input.env,
+    ...shellEnv.env,
+    TERM: "xterm-256color",
+    LIBRECODE_TERMINAL: "1",
+  } as Record<string, string>
+
+  if (process.platform === "win32") {
+    env.LC_ALL = "C.UTF-8"
+    env.LC_CTYPE = "C.UTF-8"
+    env.LANG = "C.UTF-8"
   }
+  _ptyLog.info("creating session", { id, cmd: command, args, cwd })
 
-  export async function create(input: CreateInput) {
-    const id = PtyID.ascending()
-    const command = input.command || Shell.preferred()
-    const args = input.args || []
-    if (command.endsWith("sh")) {
-      args.push("-l")
-    }
+  const spawn = await _ptySpawn()
+  const ptyProcess = spawn(command, args, {
+    name: "xterm-256color",
+    cwd,
+    env,
+  })
 
-    const cwd = input.cwd || Instance.directory
-    const shellEnv = await Plugin.trigger("shell.env", { cwd }, { env: {} })
-    const env = {
-      ...process.env,
-      ...input.env,
-      ...shellEnv.env,
-      TERM: "xterm-256color",
-      LIBRECODE_TERMINAL: "1",
-    } as Record<string, string>
-
-    if (process.platform === "win32") {
-      env.LC_ALL = "C.UTF-8"
-      env.LC_CTYPE = "C.UTF-8"
-      env.LANG = "C.UTF-8"
-    }
-    log.info("creating session", { id, cmd: command, args, cwd })
-
-    const spawn = await pty()
-    const ptyProcess = spawn(command, args, {
-      name: "xterm-256color",
-      cwd,
-      env,
-    })
-
-    const info = {
-      id,
-      title: input.title || `Terminal ${id.slice(-4)}`,
-      command,
-      args,
-      cwd,
-      status: "running",
-      pid: ptyProcess.pid,
-    } as const
-    const session: ActiveSession = {
-      info,
-      process: ptyProcess,
-      buffer: "",
-      bufferCursor: 0,
-      cursor: 0,
-      subscribers: new Map(),
-    }
-    state().set(id, session)
-    ptyProcess.onData((chunk) => handlePtyData(session, chunk))
-    ptyProcess.onExit(({ exitCode }) => {
-      if (session.info.status === "exited") return
-      log.info("session exited", { id, exitCode })
-      session.info.status = "exited"
-      Bus.publish(Event.Exited, { id, exitCode })
-      remove(id)
-    })
-    Bus.publish(Event.Created, { info })
-    return info
+  const info = {
+    id,
+    title: input.title || `Terminal ${id.slice(-4)}`,
+    command,
+    args,
+    cwd,
+    status: "running",
+    pid: ptyProcess.pid,
+  } as const
+  const session: ActiveSession = {
+    info,
+    process: ptyProcess,
+    buffer: "",
+    bufferCursor: 0,
+    cursor: 0,
+    subscribers: new Map(),
   }
+  _state().set(id, session)
+  ptyProcess.onData((chunk) => handlePtyData(session, chunk))
+  ptyProcess.onExit(({ exitCode }) => {
+    if (session.info.status === "exited") return
+    _ptyLog.info("session exited", { id, exitCode })
+    session.info.status = "exited"
+    Bus.publish(Event.Exited, { id, exitCode })
+    ptyRemove(id)
+  })
+  Bus.publish(Event.Created, { info })
+  return info
+}
 
-  export async function update(id: PtyID, input: UpdateInput) {
-    const session = state().get(id)
-    if (!session) return
-    if (input.title) {
-      session.info.title = input.title
-    }
-    if (input.size) {
-      session.process.resize(input.size.cols, input.size.rows)
-    }
-    Bus.publish(Event.Updated, { info: session.info })
-    return session.info
+async function ptyUpdate(id: PtyID, input: UpdateInput): Promise<Info | undefined> {
+  const session = _state().get(id)
+  if (!session) return
+  if (input.title) {
+    session.info.title = input.title
   }
+  if (input.size) {
+    session.process.resize(input.size.cols, input.size.rows)
+  }
+  Bus.publish(Event.Updated, { info: session.info })
+  return session.info
+}
 
-  export async function remove(id: PtyID) {
-    const session = state().get(id)
-    if (!session) return
-    state().delete(id)
-    log.info("removing session", { id })
+async function ptyRemove(id: PtyID): Promise<void> {
+  const session = _state().get(id)
+  if (!session) return
+  _state().delete(id)
+  _ptyLog.info("removing session", { id })
+  try {
+    session.process.kill()
+  } catch {}
+  for (const [key, ws] of session.subscribers.entries()) {
     try {
-      session.process.kill()
-    } catch {}
-    for (const [key, ws] of session.subscribers.entries()) {
-      try {
-        if (ws.data === key) ws.close()
-      } catch {
-        // ignore
-      }
-    }
-    session.subscribers.clear()
-    Bus.publish(Event.Deleted, { id: session.info.id })
-  }
-
-  export function resize(id: PtyID, cols: number, rows: number) {
-    const session = state().get(id)
-    if (session && session.info.status === "running") {
-      session.process.resize(cols, rows)
-    }
-  }
-
-  export function write(id: PtyID, data: string) {
-    const session = state().get(id)
-    if (session && session.info.status === "running") {
-      session.process.write(data)
-    }
-  }
-
-  export function connect(id: PtyID, ws: Socket, cursor?: number) {
-    const session = state().get(id)
-    if (!session) {
-      ws.close()
-      return
-    }
-    log.info("client connected to session", { id })
-
-    // Use ws.data as the unique key for this connection lifecycle.
-    // If ws.data is undefined, fallback to ws object.
-    const connectionKey = ws.data && typeof ws.data === "object" ? ws.data : ws
-    session.subscribers.delete(connectionKey)
-    session.subscribers.set(connectionKey, ws)
-
-    const cleanup = () => {
-      session.subscribers.delete(connectionKey)
-    }
-
-    const end = session.cursor
-    const from = resolveCursorFrom(cursor, end)
-    const data = sliceBufferedData(session, from)
-
-    if (data && !sendBufferedData(ws, data, BUFFER_CHUNK, cleanup)) return
-
-    try {
-      ws.send(meta(end))
+      if (ws.data === key) ws.close()
     } catch {
-      cleanup()
-      ws.close()
-      return
-    }
-
-    return {
-      onMessage: (message: string | ArrayBuffer) => {
-        session.process.write(String(message))
-      },
-      onClose: () => {
-        log.info("client disconnected from session", { id })
-        cleanup()
-      },
+      // ignore
     }
   }
+  session.subscribers.clear()
+  Bus.publish(Event.Deleted, { id: session.info.id })
+}
+
+function ptyResize(id: PtyID, cols: number, rows: number): void {
+  const session = _state().get(id)
+  if (session && session.info.status === "running") {
+    session.process.resize(cols, rows)
+  }
+}
+
+function ptyWrite(id: PtyID, data: string): void {
+  const session = _state().get(id)
+  if (session && session.info.status === "running") {
+    session.process.write(data)
+  }
+}
+
+function ptyConnect(
+  id: PtyID,
+  ws: PtySocket,
+  cursor?: number,
+): { onMessage: (message: string | ArrayBuffer) => void; onClose: () => void } | undefined {
+  const session = _state().get(id)
+  if (!session) {
+    ws.close()
+    return
+  }
+  _ptyLog.info("client connected to session", { id })
+
+  // Use ws.data as the unique key for this connection lifecycle.
+  // If ws.data is undefined, fallback to ws object.
+  const connectionKey = ws.data && typeof ws.data === "object" ? ws.data : ws
+  session.subscribers.delete(connectionKey)
+  session.subscribers.set(connectionKey, ws)
+
+  const cleanup = () => {
+    session.subscribers.delete(connectionKey)
+  }
+
+  const end = session.cursor
+  const from = resolveCursorFrom(cursor, end)
+  const data = sliceBufferedData(session, from)
+
+  if (data && !sendBufferedData(ws, data, _BUFFER_CHUNK, cleanup)) return
+
+  try {
+    ws.send(_meta(end))
+  } catch {
+    cleanup()
+    ws.close()
+    return
+  }
+
+  return {
+    onMessage: (message: string | ArrayBuffer) => {
+      session.process.write(String(message))
+    },
+    onClose: () => {
+      _ptyLog.info("client disconnected from session", { id })
+      cleanup()
+    },
+  }
+}
+
+export const Pty = {
+  list: ptyList,
+  get: ptyGet,
+  create: ptyCreate,
+  update: ptyUpdate,
+  remove: ptyRemove,
+  resize: ptyResize,
+  write: ptyWrite,
+  connect: ptyConnect,
+  Info,
+  CreateInput,
+  UpdateInput,
+  Event,
+} as const
+
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Pty {
+  type Info = z.infer<typeof Info>
+  type CreateInput = z.infer<typeof CreateInput>
+  type UpdateInput = z.infer<typeof UpdateInput>
 }

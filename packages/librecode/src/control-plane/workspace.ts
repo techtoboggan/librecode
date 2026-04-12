@@ -12,142 +12,156 @@ import { parseSSE } from "./sse"
 import { WorkspaceInfo } from "./types"
 import { WorkspaceTable } from "./workspace.sql"
 
-export namespace Workspace {
-  export const Event = {
-    Ready: BusEvent.define(
-      "workspace.ready",
-      z.object({
-        name: z.string(),
-      }),
-    ),
-    Failed: BusEvent.define(
-      "workspace.failed",
-      z.object({
-        message: z.string(),
-      }),
-    ),
+const WorkspaceEvent = {
+  Ready: BusEvent.define(
+    "workspace.ready",
+    z.object({
+      name: z.string(),
+    }),
+  ),
+  Failed: BusEvent.define(
+    "workspace.failed",
+    z.object({
+      message: z.string(),
+    }),
+  ),
+}
+
+const WorkspaceInfoSchema = WorkspaceInfo.meta({
+  ref: "Workspace",
+})
+type WorkspaceInfoType = z.infer<typeof WorkspaceInfoSchema>
+
+function fromRow(row: typeof WorkspaceTable.$inferSelect): WorkspaceInfoType {
+  return {
+    id: row.id,
+    type: row.type,
+    branch: row.branch,
+    name: row.name,
+    directory: row.directory,
+    extra: row.extra,
+    projectID: row.project_id,
+  }
+}
+
+const CreateInput = z.object({
+  id: WorkspaceID.zod.optional(),
+  type: WorkspaceInfoSchema.shape.type,
+  branch: WorkspaceInfoSchema.shape.branch,
+  projectID: ProjectID.zod,
+  extra: WorkspaceInfoSchema.shape.extra,
+})
+
+const workspaceCreate = fn(CreateInput, async (input) => {
+  const id = WorkspaceID.ascending(input.id)
+  const adaptor = await getAdaptor(input.type)
+
+  const config = await adaptor.configure({ ...input, id, name: null, directory: null })
+
+  const info: WorkspaceInfoType = {
+    id,
+    type: config.type,
+    branch: config.branch ?? null,
+    name: config.name ?? null,
+    directory: config.directory ?? null,
+    extra: config.extra ?? null,
+    projectID: input.projectID,
   }
 
-  export const Info = WorkspaceInfo.meta({
-    ref: "Workspace",
-  })
-  export type Info = z.infer<typeof Info>
-
-  function fromRow(row: typeof WorkspaceTable.$inferSelect): Info {
-    return {
-      id: row.id,
-      type: row.type,
-      branch: row.branch,
-      name: row.name,
-      directory: row.directory,
-      extra: row.extra,
-      projectID: row.project_id,
-    }
-  }
-
-  const CreateInput = z.object({
-    id: WorkspaceID.zod.optional(),
-    type: Info.shape.type,
-    branch: Info.shape.branch,
-    projectID: ProjectID.zod,
-    extra: Info.shape.extra,
+  Database.use((db) => {
+    db.insert(WorkspaceTable)
+      .values({
+        id: info.id,
+        type: info.type,
+        branch: info.branch,
+        name: info.name,
+        directory: info.directory,
+        extra: info.extra,
+        project_id: info.projectID,
+      })
+      .run()
   })
 
-  export const create = fn(CreateInput, async (input) => {
-    const id = WorkspaceID.ascending(input.id)
-    const adaptor = await getAdaptor(input.type)
+  await adaptor.create(config)
+  return info
+})
 
-    const config = await adaptor.configure({ ...input, id, name: null, directory: null })
+function workspaceList(project: Project.Info) {
+  const rows = Database.use((db) =>
+    db.select().from(WorkspaceTable).where(eq(WorkspaceTable.project_id, project.id)).all(),
+  )
+  return rows.map(fromRow).sort((a, b) => a.id.localeCompare(b.id))
+}
 
-    const info: Info = {
-      id,
-      type: config.type,
-      branch: config.branch ?? null,
-      name: config.name ?? null,
-      directory: config.directory ?? null,
-      extra: config.extra ?? null,
-      projectID: input.projectID,
-    }
+const workspaceGet = fn(WorkspaceID.zod, async (id) => {
+  const row = Database.use((db) => db.select().from(WorkspaceTable).where(eq(WorkspaceTable.id, id)).get())
+  if (!row) return
+  return fromRow(row)
+})
 
-    Database.use((db) => {
-      db.insert(WorkspaceTable)
-        .values({
-          id: info.id,
-          type: info.type,
-          branch: info.branch,
-          name: info.name,
-          directory: info.directory,
-          extra: info.extra,
-          project_id: info.projectID,
-        })
-        .run()
-    })
-
-    await adaptor.create(config)
+const workspaceRemove = fn(WorkspaceID.zod, async (id) => {
+  const row = Database.use((db) => db.select().from(WorkspaceTable).where(eq(WorkspaceTable.id, id)).get())
+  if (row) {
+    const info = fromRow(row)
+    const adaptor = await getAdaptor(row.type)
+    adaptor.remove(info)
+    Database.use((db) => db.delete(WorkspaceTable).where(eq(WorkspaceTable.id, id)).run())
     return info
-  })
-
-  export function list(project: Project.Info) {
-    const rows = Database.use((db) =>
-      db.select().from(WorkspaceTable).where(eq(WorkspaceTable.project_id, project.id)).all(),
-    )
-    return rows.map(fromRow).sort((a, b) => a.id.localeCompare(b.id))
   }
+})
 
-  export const get = fn(WorkspaceID.zod, async (id) => {
-    const row = Database.use((db) => db.select().from(WorkspaceTable).where(eq(WorkspaceTable.id, id)).get())
-    if (!row) return
-    return fromRow(row)
-  })
+const log = Log.create({ service: "workspace-sync" })
 
-  export const remove = fn(WorkspaceID.zod, async (id) => {
-    const row = Database.use((db) => db.select().from(WorkspaceTable).where(eq(WorkspaceTable.id, id)).get())
-    if (row) {
-      const info = fromRow(row)
-      const adaptor = await getAdaptor(row.type)
-      adaptor.remove(info)
-      Database.use((db) => db.delete(WorkspaceTable).where(eq(WorkspaceTable.id, id)).run())
-      return info
+async function workspaceEventLoop(space: WorkspaceInfoType, stop: AbortSignal) {
+  while (!stop.aborted) {
+    const adaptor = await getAdaptor(space.type)
+    const res = await adaptor.fetch(space, "/event", { method: "GET", signal: stop }).catch(() => undefined)
+    if (!res?.ok || !res.body) {
+      await Bun.sleep(1000)
+      continue
     }
-  })
-  const log = Log.create({ service: "workspace-sync" })
-
-  async function workspaceEventLoop(space: Info, stop: AbortSignal) {
-    while (!stop.aborted) {
-      const adaptor = await getAdaptor(space.type)
-      const res = await adaptor.fetch(space, "/event", { method: "GET", signal: stop }).catch(() => undefined)
-      if (!res?.ok || !res.body) {
-        await Bun.sleep(1000)
-        continue
-      }
-      await parseSSE(res.body, stop, (event) => {
-        GlobalBus.emit("event", {
-          directory: space.id,
-          payload: event,
-        })
-      })
-      // Wait 250ms and retry if SSE connection fails
-      await Bun.sleep(250)
-    }
-  }
-
-  export function startSyncing(project: Project.Info) {
-    const stop = new AbortController()
-    const spaces = list(project).filter((space) => space.type !== "worktree")
-
-    spaces.forEach((space) => {
-      void workspaceEventLoop(space, stop.signal).catch((error) => {
-        log.warn("workspace sync listener failed", {
-          workspaceID: space.id,
-          error,
-        })
+    await parseSSE(res.body, stop, (event) => {
+      GlobalBus.emit("event", {
+        directory: space.id,
+        payload: event,
       })
     })
-
-    return {
-      async stop() {
-        stop.abort()
-      },
-    }
+    // Wait 250ms and retry if SSE connection fails
+    await Bun.sleep(250)
   }
+}
+
+function workspaceStartSyncing(project: Project.Info) {
+  const stop = new AbortController()
+  const spaces = workspaceList(project).filter((space) => space.type !== "worktree")
+
+  spaces.forEach((space) => {
+    void workspaceEventLoop(space, stop.signal).catch((error) => {
+      log.warn("workspace sync listener failed", {
+        workspaceID: space.id,
+        error,
+      })
+    })
+  })
+
+  return {
+    async stop() {
+      stop.abort()
+    },
+  }
+}
+
+export const Workspace = {
+  Event: WorkspaceEvent,
+  Info: WorkspaceInfoSchema,
+  create: workspaceCreate,
+  list: workspaceList,
+  get: workspaceGet,
+  remove: workspaceRemove,
+  startSyncing: workspaceStartSyncing,
+} as const
+
+// biome-ignore lint/style/noNamespace: type companion for declaration merging
+export declare namespace Workspace {
+  type Info = WorkspaceInfoType
 }
