@@ -273,8 +273,7 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
       "/path",
       describeRoute({
         summary: "Get paths",
-        description:
-          "Retrieve the current working directory and related path information for the LibreCode instance.",
+        description: "Retrieve the current working directory and related path information for the LibreCode instance.",
         operationId: "path.get",
         responses: {
           200: {
@@ -313,8 +312,7 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
       "/vcs",
       describeRoute({
         summary: "Get VCS info",
-        description:
-          "Retrieve version control system (VCS) information for the current project, such as git branch.",
+        description: "Retrieve version control system (VCS) information for the current project, such as git branch.",
         operationId: "vcs.get",
         responses: {
           200: {

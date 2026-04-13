@@ -84,7 +84,10 @@ async function filesystemWriteStream(
     await mkdir(dir, { recursive: true })
   }
 
-  const nodeStream = stream instanceof ReadableStream ? Readable.fromWeb(stream as unknown as Parameters<typeof Readable.fromWeb>[0]) : stream
+  const nodeStream =
+    stream instanceof ReadableStream
+      ? Readable.fromWeb(stream as unknown as Parameters<typeof Readable.fromWeb>[0])
+      : stream
   const ws = createWriteStream(p)
   await pipeline(nodeStream, ws)
 
@@ -162,7 +165,11 @@ async function filesystemFindUp(target: string, start: string, stop?: string): P
   return result
 }
 
-async function* filesystemUp(options: { targets: string[]; start: string; stop?: string }): AsyncGenerator<string, void> {
+async function* filesystemUp(options: {
+  targets: string[]
+  start: string
+  stop?: string
+}): AsyncGenerator<string, void> {
   const { targets, start, stop } = options
   let current = start
   while (true) {

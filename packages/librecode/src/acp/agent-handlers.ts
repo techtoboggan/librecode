@@ -1,12 +1,13 @@
 import { pathToFileURL } from "node:url"
 import type { AgentSideConnection, PermissionOption, PlanEntry } from "@agentclientprotocol/sdk"
-import type {AssistantMessage, 
+import type {
+  AssistantMessage,
   Event,
   OpencodeClient,
   SessionMessageResponse,
   ToolPart,
   ToolStateCompleted,
-  ToolStateError
+  ToolStateError,
 } from "@librecode/sdk/v2"
 import { z } from "zod"
 import { Todo } from "@/session/todo"

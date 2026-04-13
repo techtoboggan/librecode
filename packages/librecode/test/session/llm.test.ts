@@ -156,25 +156,24 @@ afterAll(() => {
 })
 
 function createChatStream(text: string) {
-  const payload =
-    `${[
-      `data: ${JSON.stringify({
-        id: "chatcmpl-1",
-        object: "chat.completion.chunk",
-        choices: [{ delta: { role: "assistant" } }],
-      })}`,
-      `data: ${JSON.stringify({
-        id: "chatcmpl-1",
-        object: "chat.completion.chunk",
-        choices: [{ delta: { content: text } }],
-      })}`,
-      `data: ${JSON.stringify({
-        id: "chatcmpl-1",
-        object: "chat.completion.chunk",
-        choices: [{ delta: {}, finish_reason: "stop" }],
-      })}`,
-      "data: [DONE]",
-    ].join("\n\n")}\n\n`
+  const payload = `${[
+    `data: ${JSON.stringify({
+      id: "chatcmpl-1",
+      object: "chat.completion.chunk",
+      choices: [{ delta: { role: "assistant" } }],
+    })}`,
+    `data: ${JSON.stringify({
+      id: "chatcmpl-1",
+      object: "chat.completion.chunk",
+      choices: [{ delta: { content: text } }],
+    })}`,
+    `data: ${JSON.stringify({
+      id: "chatcmpl-1",
+      object: "chat.completion.chunk",
+      choices: [{ delta: {}, finish_reason: "stop" }],
+    })}`,
+    "data: [DONE]",
+  ].join("\n\n")}\n\n`
 
   const encoder = new TextEncoder()
   return new ReadableStream<Uint8Array>({

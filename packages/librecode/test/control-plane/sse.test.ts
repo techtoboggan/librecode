@@ -10,7 +10,9 @@ function stream(chunks: string[]) {
   return new ReadableStream<Uint8Array>({
     start(controller) {
       const encoder = new TextEncoder()
-      chunks.forEach((chunk) => { controller.enqueue(encoder.encode(chunk)) })
+      chunks.forEach((chunk) => {
+        controller.enqueue(encoder.encode(chunk))
+      })
       controller.close()
     },
   })

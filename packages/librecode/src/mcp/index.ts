@@ -408,8 +408,7 @@ async function tryConnectTransport(
     const authClass = classifyAuthError(lastError, authProvider)
     if (authClass !== null) {
       log.info("mcp server requires authentication", { key, transport: transportName })
-      const status =
-        authClass === "registration" ? handleRegistrationError(key) : handleNeedsAuthError(key, transport)
+      const status = authClass === "registration" ? handleRegistrationError(key) : handleNeedsAuthError(key, transport)
       return { connected: false, status, stop: true }
     }
     log.debug("transport connection failed", { key, transport: transportName, url, error: lastError.message })

@@ -153,9 +153,7 @@ export async function instructionPromptSystem(): Promise<string[]> {
 }
 
 function isLoadedReadPart(part: MessageV2.Part): boolean {
-  return (
-    part.type === "tool" && part.tool === "read" && part.state.status === "completed" && !part.state.time.compacted
-  )
+  return part.type === "tool" && part.tool === "read" && part.state.status === "completed" && !part.state.time.compacted
 }
 
 function collectLoadedFromPart(part: MessageV2.Part, paths: Set<string>): void {

@@ -199,9 +199,9 @@ function stripHeredoc(input: string): string {
 }
 
 function parsePatch(patchText: string): { hunks: PatchHunk[] } {
-const cleaned = stripHeredoc(patchText.trim())
-const lines = cleaned.split("\n")
-const hunks: PatchHunk[] = []
+  const cleaned = stripHeredoc(patchText.trim())
+  const lines = cleaned.split("\n")
+  const hunks: PatchHunk[] = []
   let i = 0
 
   // Look for Begin/End patch markers

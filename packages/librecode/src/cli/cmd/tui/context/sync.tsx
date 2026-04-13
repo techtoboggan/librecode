@@ -17,7 +17,8 @@ import type {
   Session,
   SessionStatus,
   Todo,
-  VcsInfo,Workspace 
+  VcsInfo,
+  Workspace,
 } from "@librecode/sdk/v2"
 import { Binary } from "@librecode/util/binary"
 import { useSDK } from "@tui/context/sdk"

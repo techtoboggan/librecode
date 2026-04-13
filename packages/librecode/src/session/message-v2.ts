@@ -408,7 +408,7 @@ function appendCompletedToolPart(
   const output = finalAttachments.length > 0 ? { text: outputText, attachments: finalAttachments } : outputText
 
   assistantMessage.parts.push({
-    type: (`tool-${part.tool}`) as `tool-${string}`,
+    type: `tool-${part.tool}` as `tool-${string}`,
     state: "output-available",
     toolCallId: part.callID,
     input: part.state.input,
@@ -438,7 +438,7 @@ function appendToolPart(
   }
   if (part.state.status === "error") {
     assistantMessage.parts.push({
-      type: (`tool-${part.tool}`) as `tool-${string}`,
+      type: `tool-${part.tool}` as `tool-${string}`,
       state: "output-error",
       toolCallId: part.callID,
       input: part.state.input,
@@ -451,7 +451,7 @@ function appendToolPart(
   // Anthropic/Claude APIs require every tool_use to have a corresponding tool_result
   if (part.state.status === "pending" || part.state.status === "running") {
     assistantMessage.parts.push({
-      type: (`tool-${part.tool}`) as `tool-${string}`,
+      type: `tool-${part.tool}` as `tool-${string}`,
       state: "output-error",
       toolCallId: part.callID,
       input: part.state.input,

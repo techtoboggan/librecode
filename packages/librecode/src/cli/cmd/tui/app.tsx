@@ -22,7 +22,7 @@ import { DialogProvider, useDialog } from "@tui/ui/dialog"
 import { Clipboard } from "@tui/util/clipboard"
 import { Selection } from "@tui/util/selection"
 import open from "open"
-import { batch, createEffect, createSignal, ErrorBoundary, Match, on, onMount, Switch, } from "solid-js"
+import { batch, createEffect, createSignal, ErrorBoundary, Match, on, onMount, Switch } from "solid-js"
 import type { TuiConfig } from "@/config/tui"
 import { Flag } from "@/flag/flag"
 import { Installation } from "@/installation"
@@ -202,7 +202,6 @@ export async function tui(input: {
     )
   })
 }
-
 
 function App() {
   const route = useRoute()

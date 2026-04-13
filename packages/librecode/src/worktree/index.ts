@@ -49,10 +49,7 @@ type WorktreeInfoType = z.infer<typeof WorktreeInfo>
 const WorktreeCreateInput = z
   .object({
     name: z.string().optional(),
-    startCommand: z
-      .string()
-      .optional()
-      .describe("Additional startup script to run after the project's start command"),
+    startCommand: z.string().optional().describe("Additional startup script to run after the project's start command"),
   })
   .meta({
     ref: "WorktreeCreateInput",
@@ -535,10 +532,7 @@ async function verifyCleanWorktree(cwd: string): Promise<void> {
   }
 }
 
-async function resolveDefaultBranch(
-  remote: string,
-  cwd: string,
-): Promise<{ target: string; remoteBranch: string }> {
+async function resolveDefaultBranch(remote: string, cwd: string): Promise<{ target: string; remoteBranch: string }> {
   const remoteHead = remote
     ? await git(["symbolic-ref", `refs/remotes/${remote}/HEAD`], { cwd })
     : { exitCode: 1, stdout: undefined, stderr: undefined }

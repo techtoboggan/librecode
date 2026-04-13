@@ -56,9 +56,7 @@ type Row = typeof ProjectTable.$inferSelect
 
 function projectFromRow(row: Row): ProjectInfoType {
   const icon =
-    row.icon_url || row.icon_color
-      ? { url: row.icon_url ?? undefined, color: row.icon_color ?? undefined }
-      : undefined
+    row.icon_url || row.icon_color ? { url: row.icon_url ?? undefined, color: row.icon_color ?? undefined } : undefined
   return {
     id: ProjectID.make(row.id),
     worktree: row.worktree,
@@ -208,8 +206,7 @@ async function projectFromDirectory(directory: string) {
       updated: Date.now(),
     },
   }
-  if (data.sandbox !== result.worktree && !result.sandboxes.includes(data.sandbox))
-    result.sandboxes.push(data.sandbox)
+  if (data.sandbox !== result.worktree && !result.sandboxes.includes(data.sandbox)) result.sandboxes.push(data.sandbox)
   result.sandboxes = result.sandboxes.filter((x) => existsSync(x))
   const insert = {
     id: result.id,

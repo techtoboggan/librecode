@@ -116,11 +116,7 @@ async function touchLspFiles(fileChanges: FileChange[]): Promise<void> {
   }
 }
 
-async function processHunk(
-  hunk: PatchHunk,
-  filePath: string,
-  ctx: import("./tool").Tool.Context,
-): Promise<FileChange> {
+async function processHunk(hunk: PatchHunk, filePath: string, ctx: import("./tool").Tool.Context): Promise<FileChange> {
   if (hunk.type === "add") return processAddHunk(hunk as PatchHunk & { type: "add" }, filePath)
   if (hunk.type === "delete") return processDeleteHunk(filePath)
   if (hunk.type === "update") {

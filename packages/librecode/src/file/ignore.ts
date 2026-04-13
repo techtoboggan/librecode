@@ -1,4 +1,3 @@
-
 import { Glob } from "../util/glob"
 
 const FOLDERS = new Set([

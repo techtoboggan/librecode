@@ -77,11 +77,7 @@ export function buildEditDiffContent(input: Record<string, unknown>): Extract<To
   const filePath = typeof input.filePath === "string" ? input.filePath : ""
   const oldText = typeof input.oldString === "string" ? input.oldString : ""
   const newText =
-    typeof input.newString === "string"
-      ? input.newString
-      : typeof input.content === "string"
-        ? input.content
-        : ""
+    typeof input.newString === "string" ? input.newString : typeof input.content === "string" ? input.content : ""
   return { type: "diff", path: filePath, oldText, newText }
 }
 

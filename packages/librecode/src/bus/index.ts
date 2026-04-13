@@ -72,10 +72,7 @@ function busSubscribe<Definition extends BusEventDefinition>(
 
 function busOnce<Definition extends BusEventDefinition>(
   def: Definition,
-  callback: (event: {
-    type: Definition["type"]
-    properties: z.infer<Definition["properties"]>
-  }) => "done" | undefined,
+  callback: (event: { type: Definition["type"]; properties: z.infer<Definition["properties"]> }) => "done" | undefined,
 ) {
   const unsub = busSubscribe(def, (event) => {
     if (callback(event)) unsub()

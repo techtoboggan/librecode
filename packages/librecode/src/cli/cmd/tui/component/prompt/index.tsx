@@ -1,10 +1,4 @@
-import type {
-  BoxRenderable,
-  KeyEvent,
-  MouseEvent,
-  PasteEvent,
-  TextareaRenderable,
-} from "@opentui/core"
+import type { BoxRenderable, KeyEvent, MouseEvent, PasteEvent, TextareaRenderable } from "@opentui/core"
 import { createEffect, createMemo, type JSX, Match, on, Show, Switch } from "solid-js"
 import "opentui-spinner/solid"
 import { useRenderer } from "@opentui/solid"
@@ -178,7 +172,12 @@ export function Prompt(props: PromptProps) {
   // Paste handlers — via extracted hook
   // ---------------------------------------------------------------------------
 
-  const { pasteText: _pasteText, pasteImage, handleKeyDownPaste, onPaste } = usePromptPaste({
+  const {
+    pasteText: _pasteText,
+    pasteImage,
+    handleKeyDownPaste,
+    onPaste,
+  } = usePromptPaste({
     getInput: () => input,
     store,
     setStore: setStore as unknown as Parameters<typeof usePromptPaste>[0]["setStore"],

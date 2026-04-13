@@ -28,7 +28,11 @@ async function applyProjectFilter(sessions: Session.Info[], projectFilter?: stri
 
 type TokenCounts = MessageV2.Assistant["tokens"]
 
-function accumulateTokenCounts(tokenInfo: TokenCounts | undefined, tokens: SessionResult["sessionTokens"], mu: ModelStats): void {
+function accumulateTokenCounts(
+  tokenInfo: TokenCounts | undefined,
+  tokens: SessionResult["sessionTokens"],
+  mu: ModelStats,
+): void {
   if (!tokenInfo) return
   tokens.input += tokenInfo.input || 0
   tokens.output += tokenInfo.output || 0

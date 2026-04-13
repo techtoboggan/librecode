@@ -108,7 +108,7 @@ jobs:
 
           # Install RPM build tools and COPR CLI
           sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
-          pip3 install --quiet copr-cli
+          pip3 install --quiet --break-system-packages copr-cli
 
           # Configure COPR credentials
           mkdir -p ~/.config

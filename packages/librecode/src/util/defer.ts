@@ -8,6 +8,6 @@ export function defer<T extends () => void | Promise<void>>(
     [Symbol.asyncDispose]() {
       return Promise.resolve(fn())
     },
-  // biome-ignore lint/suspicious/noExplicitAny: conditional return type requires cast through any
+    // biome-ignore lint/suspicious/noExplicitAny: conditional return type requires cast through any
   } as any
 }

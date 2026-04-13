@@ -1,4 +1,4 @@
-import { onCleanup, } from "solid-js"
+import { onCleanup } from "solid-js"
 import { useTheme } from "../context/theme"
 import { useDialog } from "../ui/dialog"
 import { DialogSelect, type DialogSelectRef } from "../ui/dialog-select"

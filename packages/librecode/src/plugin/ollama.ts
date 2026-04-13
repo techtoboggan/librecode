@@ -24,10 +24,12 @@ function parseOllamaResponse(data: Record<string, unknown>): Array<{ id: string 
   }
   // Ollama native format: { models: [{ name, model }] }
   if (Array.isArray(data.models)) {
-    return (data.models as Array<{ name?: string; model?: string }>)
-      .filter((m) => m.name || m.model)
-      // biome-ignore lint/style/noNonNullAssertion: filter above ensures at least one of name/model is defined
-      .map((m) => ({ id: (m.name ?? m.model)! }))
+    return (
+      (data.models as Array<{ name?: string; model?: string }>)
+        .filter((m) => m.name || m.model)
+        // biome-ignore lint/style/noNonNullAssertion: filter above ensures at least one of name/model is defined
+        .map((m) => ({ id: (m.name ?? m.model)! }))
+    )
   }
   return []
 }

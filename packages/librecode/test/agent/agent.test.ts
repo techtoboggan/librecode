@@ -54,7 +54,10 @@ test("plan agent denies edits except .librecode/plans/*", async () => {
       // Wildcard is denied
       expect(evalPerm(plan, "edit")).toBe("deny")
       // But specific path is allowed
-      expect(PermissionNext.evaluate("edit", ".librecode/plans/foo.md", (plan as NonNullable<typeof plan>).permission).action).toBe("allow")
+      expect(
+        PermissionNext.evaluate("edit", ".librecode/plans/foo.md", (plan as NonNullable<typeof plan>).permission)
+          .action,
+      ).toBe("allow")
     },
   })
 })
@@ -84,7 +87,9 @@ test("explore agent asks for external directories and allows Truncate.GLOB", asy
       const explore = await Agent.get("explore")
       expect(explore).toBeDefined()
       const exploreAgent = explore as NonNullable<typeof explore>
-      expect(PermissionNext.evaluate("external_directory", "/some/other/path", exploreAgent.permission).action).toBe("ask")
+      expect(PermissionNext.evaluate("external_directory", "/some/other/path", exploreAgent.permission).action).toBe(
+        "ask",
+      )
       expect(PermissionNext.evaluate("external_directory", Truncate.GLOB, exploreAgent.permission).action).toBe("allow")
     },
   })
@@ -217,7 +222,9 @@ test("agent permission config merges with defaults", async () => {
       const build = await Agent.get("build")
       expect(build).toBeDefined()
       // Specific pattern is denied
-      expect(PermissionNext.evaluate("bash", "rm -rf *", (build as NonNullable<typeof build>).permission).action).toBe("deny")
+      expect(PermissionNext.evaluate("bash", "rm -rf *", (build as NonNullable<typeof build>).permission).action).toBe(
+        "deny",
+      )
       // Edit still allowed
       expect(evalPerm(build, "edit")).toBe("allow")
     },
@@ -479,7 +486,9 @@ test("Truncate.GLOB is allowed even when user denies external_directory globally
       const buildAgent = build as NonNullable<typeof build>
       expect(PermissionNext.evaluate("external_directory", Truncate.GLOB, buildAgent.permission).action).toBe("allow")
       expect(PermissionNext.evaluate("external_directory", Truncate.DIR, buildAgent.permission).action).toBe("deny")
-      expect(PermissionNext.evaluate("external_directory", "/some/other/path", buildAgent.permission).action).toBe("deny")
+      expect(PermissionNext.evaluate("external_directory", "/some/other/path", buildAgent.permission).action).toBe(
+        "deny",
+      )
     },
   })
 })
@@ -504,7 +513,9 @@ test("Truncate.GLOB is allowed even when user denies external_directory per-agen
       const buildAgent = build as NonNullable<typeof build>
       expect(PermissionNext.evaluate("external_directory", Truncate.GLOB, buildAgent.permission).action).toBe("allow")
       expect(PermissionNext.evaluate("external_directory", Truncate.DIR, buildAgent.permission).action).toBe("deny")
-      expect(PermissionNext.evaluate("external_directory", "/some/other/path", buildAgent.permission).action).toBe("deny")
+      expect(PermissionNext.evaluate("external_directory", "/some/other/path", buildAgent.permission).action).toBe(
+        "deny",
+      )
     },
   })
 })

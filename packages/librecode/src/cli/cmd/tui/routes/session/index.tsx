@@ -1,4 +1,3 @@
-
 import type { AssistantMessage, Message, Part, UserMessage } from "@librecode/sdk/v2"
 import {
   addDefaultParsers,
@@ -509,9 +508,7 @@ export function Session() {
                       })()}
                     </Match>
                     {/* biome-ignore lint/style/noNonNullAssertion: revertMessageID() !== undefined guard above */}
-                    <Match when={revertMessageID() !== undefined && message.id >= revertMessageID()!}>
-                      {null}
-                    </Match>
+                    <Match when={revertMessageID() !== undefined && message.id >= revertMessageID()!}>{null}</Match>
                     <Match when={message.role === "user"}>
                       <UserMessageComponent
                         index={index()}

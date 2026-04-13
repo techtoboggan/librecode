@@ -54,18 +54,28 @@ type SearchInput = { query?: string }
 type CodeSearchMetadata = { results?: number }
 type WebSearchMetadata = { numResults?: number }
 
-export function CodeSearch(props: { input: SearchInput; metadata: CodeSearchMetadata; part: ToolProps<Tool.Info>["part"] }) {
+export function CodeSearch(props: {
+  input: SearchInput
+  metadata: CodeSearchMetadata
+  part: ToolProps<Tool.Info>["part"]
+}) {
   return (
     <InlineTool icon="◇" pending="Searching code..." complete={props.input.query} part={props.part}>
-      Exa Code Search "{props.input.query}" <Show when={props.metadata.results}>({props.metadata.results} results)</Show>
+      Exa Code Search "{props.input.query}"{" "}
+      <Show when={props.metadata.results}>({props.metadata.results} results)</Show>
     </InlineTool>
   )
 }
 
-export function WebSearch(props: { input: SearchInput; metadata: WebSearchMetadata; part: ToolProps<Tool.Info>["part"] }) {
+export function WebSearch(props: {
+  input: SearchInput
+  metadata: WebSearchMetadata
+  part: ToolProps<Tool.Info>["part"]
+}) {
   return (
     <InlineTool icon="◈" pending="Searching web..." complete={props.input.query} part={props.part}>
-      Exa Web Search "{props.input.query}" <Show when={props.metadata.numResults}>({props.metadata.numResults} results)</Show>
+      Exa Web Search "{props.input.query}"{" "}
+      <Show when={props.metadata.numResults}>({props.metadata.numResults} results)</Show>
     </InlineTool>
   )
 }

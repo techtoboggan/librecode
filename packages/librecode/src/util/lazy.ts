@@ -4,9 +4,9 @@ export function lazy<T>(fn: () => T) {
 
   const result = (): T => {
     if (loaded) return value as T
-      value = fn()
-      loaded = true
-      return value as T
+    value = fn()
+    loaded = true
+    return value as T
   }
 
   result.reset = () => {

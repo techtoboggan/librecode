@@ -49,7 +49,9 @@ describe("pty", () => {
           // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
-          off.forEach((x) => { x() })
+          off.forEach((x) => {
+            x()
+          })
           if (id) await Pty.remove(id)
         }
       },
@@ -84,7 +86,9 @@ describe("pty", () => {
           // biome-ignore lint/style/noNonNullAssertion: id is assigned just above via Pty.create
           expect(pick(log, id!)).toEqual(["created", "exited", "deleted"])
         } finally {
-          off.forEach((x) => { x() })
+          off.forEach((x) => {
+            x()
+          })
           if (id) await Pty.remove(id)
         }
       },

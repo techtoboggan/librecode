@@ -1,4 +1,3 @@
-
 import { Flag } from "../../flag/flag"
 import { Server } from "../../server/server"
 import { resolveNetworkOptions, withNetworkOptions } from "../network"

@@ -3,7 +3,6 @@
 // NearestRoot are intentionally omitted so Object.values(LSPServer) returns
 // only server definitions.
 
-
 // Scripting / data / misc language servers
 export {
   BashLS,

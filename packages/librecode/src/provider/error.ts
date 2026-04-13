@@ -185,9 +185,7 @@ function parseAPICallError(input: { providerID: ProviderID; error: APICallError 
     type: "api_error",
     message: m,
     statusCode: input.error.statusCode,
-    isRetryable: input.providerID.startsWith("openai")
-      ? isOpenAiErrorRetryable(input.error)
-      : input.error.isRetryable,
+    isRetryable: input.providerID.startsWith("openai") ? isOpenAiErrorRetryable(input.error) : input.error.isRetryable,
     responseHeaders: input.error.responseHeaders,
     responseBody: input.error.responseBody,
     metadata,

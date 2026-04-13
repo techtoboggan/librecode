@@ -972,7 +972,7 @@ test("provider.sort prioritizes preferred models", () => {
     { id: "claude-sonnet-4-latest", name: "Claude Sonnet 4" },
     { id: "gpt-5-turbo", name: "GPT-5 Turbo" },
     { id: "other-model", name: "Other" },
-  // biome-ignore lint/suspicious/noExplicitAny: minimal model stubs for sort test
+    // biome-ignore lint/suspicious/noExplicitAny: minimal model stubs for sort test
   ] as any[]
 
   const sorted = Provider.sort(models)
@@ -1531,7 +1531,7 @@ test("ModelNotFoundError includes suggestions for typos", async () => {
       try {
         await Provider.getModel(ProviderID.anthropic, ModelID.make("claude-sonet-4")) // typo: sonet instead of sonnet
         expect(true).toBe(false) // Should not reach here
-      // biome-ignore lint/suspicious/noExplicitAny: catch clause needs data access
+        // biome-ignore lint/suspicious/noExplicitAny: catch clause needs data access
       } catch (e: any) {
         expect(e.data.suggestions).toBeDefined()
         expect(e.data.suggestions.length).toBeGreaterThan(0)
@@ -1560,7 +1560,7 @@ test("ModelNotFoundError for provider includes suggestions", async () => {
       try {
         await Provider.getModel(ProviderID.make("antropic"), ModelID.make("claude-sonnet-4")) // typo: antropic
         expect(true).toBe(false) // Should not reach here
-      // biome-ignore lint/suspicious/noExplicitAny: catch clause needs data access
+        // biome-ignore lint/suspicious/noExplicitAny: catch clause needs data access
       } catch (e: any) {
         expect(e.data.suggestions).toBeDefined()
         expect(e.data.suggestions).toContain("anthropic")

@@ -132,14 +132,7 @@ async function snapshotRestore(snapshot: string): Promise<void> {
   snapshotLog.info("restore", { commit: snapshot })
   const git = snapshotGitdir()
   const result = await Process.run(
-    [
-      "git",
-      "-c",
-      "core.longpaths=true",
-      "-c",
-      "core.symlinks=true",
-      ...snapshotArgs(git, ["read-tree", snapshot]),
-    ],
+    ["git", "-c", "core.longpaths=true", "-c", "core.symlinks=true", ...snapshotArgs(git, ["read-tree", snapshot])],
     {
       cwd: Instance.worktree,
       nothrow: true,

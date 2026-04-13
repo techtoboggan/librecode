@@ -1,4 +1,3 @@
-
 import type { AssistantMessage } from "@librecode/sdk/v2"
 import type { RGBA } from "@opentui/core"
 import { useSync } from "@tui/context/sync"

@@ -92,7 +92,11 @@ function hasTaskTool(agent?: AgentInfo): boolean {
   return rule.action !== "deny"
 }
 
-async function truncateOutput(text: string, options: Truncate.Options = {}, agent?: AgentInfo): Promise<Truncate.Result> {
+async function truncateOutput(
+  text: string,
+  options: Truncate.Options = {},
+  agent?: AgentInfo,
+): Promise<Truncate.Result> {
   const maxLines = options.maxLines ?? TRUNCATE_MAX_LINES
   const maxBytes = options.maxBytes ?? TRUNCATE_MAX_BYTES
   const direction = options.direction ?? "head"

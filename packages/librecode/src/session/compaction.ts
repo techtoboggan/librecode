@@ -108,8 +108,7 @@ export async function sessionCompactionIsOverflow(input: {
   if (context === 0) return false
 
   const count =
-    input.tokens.total ||
-    input.tokens.input + input.tokens.output + input.tokens.cache.read + input.tokens.cache.write
+    input.tokens.total || input.tokens.input + input.tokens.output + input.tokens.cache.read + input.tokens.cache.write
 
   const reserved =
     config.compaction?.reserved ?? Math.min(COMPACTION_BUFFER, ProviderTransform.maxOutputTokens(input.model))
@@ -228,10 +227,11 @@ async function injectContinueMessage(
     agent: userMessage.agent,
     model: userMessage.model,
   })
-  const text =
-    `${overflow
+  const text = `${
+    overflow
       ? "The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.\n\n"
-      : ""}Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.`
+      : ""
+  }Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed.`
   await Session.updatePart({
     id: PartID.ascending(),
     messageID: continueMsg.id,
