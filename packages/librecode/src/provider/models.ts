@@ -86,8 +86,11 @@ function _modelsDevUrl(): string {
 export const Data = lazy(async () => {
   const result = await Filesystem.readJson(Flag.LIBRECODE_MODELS_PATH ?? _modelsDevFilepath).catch(() => {})
   if (result) return result
-  const snapshot = await import("./models-snapshot")
-    .then((m) => m.snapshot as Record<string, unknown>)
+  // Use a variable so TS resolves this as `any` — the file is generated at
+  // build time and gitignored; .catch handles the missing-file case at runtime
+  const snapshotPath = "./models-snapshot"
+  const snapshot = await import(snapshotPath)
+    .then((m: { snapshot?: Record<string, unknown> }) => m.snapshot)
     .catch(() => undefined)
   if (snapshot) return snapshot
   if (Flag.LIBRECODE_DISABLE_MODELS_FETCH) return {}
