@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-11 | ~170 commits | Tests: 1385 pass, 0 fail | v0.3.1
+> Last updated: 2026-04-13 | ~184 commits | Tests: 1385 pass, 0 fail | v0.3.8
 
 ---
 
@@ -179,13 +179,13 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 
 | Metric                       | Value                                                                                                      |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Total commits                | ~165                                                                                                       |
+| Total commits                | ~184                                                                                                       |
 | Tests passing                | 1,385                                                                                                      |
 | Tests failing                | 0                                                                                                          |
 | Test files                   | 113                                                                                                        |
 | Complexity violations        | 0                                                                                                          |
 | Source files over 1000 lines | 0                                                                                                          |
-| Lint warnings total          | ~40 (down from 1,244)                                                                                      |
+| Lint warnings total          | 0 (down from 1,933)                                                                                        |
 | ADRs                         | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts)                                                           |
 | npm packages                 | 7 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle, i18n) |
 | Sister repos                 | librecode-3rdparty-providers, librecode-i18n                                                               |
