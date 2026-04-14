@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-13 | ~184 commits | Tests: 1385 pass, 0 fail | v0.3.8
+> Last updated: 2026-04-13 | ~184 commits | Tests: 1385 pass, 0 fail | v0.3.11
 
 ---
 
@@ -165,6 +165,15 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 ---
 
 ## v0.3.x Roadmap
+
+### Phase 13: Zero Lint Warnings ✅
+
+| Item                                          | Description                                                                              | Status  |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------- | ------- |
+| **1,933 → 0 lint warnings**                   | All `noExplicitAny`, `noNonNullAssertion`, `noNamespace`, and 13 other rules eliminated  | ✅ Done |
+| **TypeScript dynamic import fix**             | `models-snapshot` gitignored file — variable path trick prevents CI typecheck failure    | ✅ Done |
+| **COPR CI fix**                               | `grep -v src` was filtering built RPM (path contained "src-tauri") → `grep -v '\.src\.rpm'` | ✅ Done |
+| **pip3 Ubuntu 24.04 fix**                     | Added `--break-system-packages` for Python 3.12 externally-managed-environment           | ✅ Done |
 
 ### Nice to Have
 
