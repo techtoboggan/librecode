@@ -175,6 +175,53 @@ All v0.2.0 items complete. 1385 tests pass, 0 complexity violations, 0 source fi
 | **COPR CI fix**                               | `grep -v src` was filtering built RPM (path contained "src-tauri") → `grep -v '\.src\.rpm'` | ✅ Done |
 | **pip3 Ubuntu 24.04 fix**                     | Added `--break-system-packages` for Python 3.12 externally-managed-environment           | ✅ Done |
 
+### Phase 14: Security & Stability ✅
+
+| Item                                    | Description                                                                                                       | Status  |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------- |
+| **Symlink escape fix**                  | `Filesystem.containsSafe()` uses `realpath` before comparison; `Instance.containsPath()` updated                 | ✅ Done |
+| **Windows cross-drive bypass**          | Same `realpathSync` fix normalises drive letters on Windows                                                       | ✅ Done |
+| **Linux auto-update disabled**          | CLI returns early on `process.platform === "linux"`; Tauri `UPDATER_ENABLED` gated on `!cfg!(target_os = "linux")` | ✅ Done |
+| **Dead code removed**                   | `TodoReadTool` (definition + registry comment), `PlanEnterTool` (commented-out block) deleted                     | ✅ Done |
+| **Node.js 20 → 24 in CI**              | `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` added to all 7 workflows                                               | ✅ Done |
+
+---
+
+## v0.4 Roadmap — MCP Apps (Development Operating System)
+
+### Phase 15: MCP Apps Host — Protocol Layer
+
+**Context:** MCP Apps is an official protocol extension (`io.modelcontextprotocol/ui`, SEP-1865), live since Jan 2026. Ships in Claude Desktop, VS Code Copilot, Cursor. LibreCode must implement the **host** side. MCP servers expose a `ui://` resource with `mimeType: "text/html;profile=mcp-app"`. Host fetches it, renders in sandboxed iframe, communicates via JSON-RPC 2.0 over `postMessage`.
+
+| Item | Description | Files | Effort |
+| ---- | ----------- | ----- | ------ |
+| **Declare `ui` capability** | Add `io.modelcontextprotocol/ui` + `elicitation` to `Client` init capabilities | `src/mcp/index.ts` | Tiny |
+| **`MCP.uiResources()`** | Filter `listResources()` to `text/html;profile=mcp-app` mime type | `src/mcp/index.ts` | Small |
+| **`MCP.fetchAppHtml()`** | Call `readResource` on `ui://` URI, return HTML string | `src/mcp/index.ts` | Small |
+| **Tool visibility filter** | Skip tools with `visibility: ["app"]` (no `"model"`) from agent tool list | `src/mcp/index.ts` | Small |
+| **`mcp.app.*` bus events** | `mcp.app.registered`, `mcp.app.tool_called` for routing UI tool calls | `src/bus/` | Small |
+| **Elicitation handler** | Handle `elicitation/create` from server — render form dialog in TUI + app | `src/mcp/index.ts`, dialogs | Medium |
+
+### Phase 16: MCP Apps Host — Desktop Rendering
+
+| Item | Description | Files | Effort |
+| ---- | ----------- | ----- | ------ |
+| **`McpAppPanel` component** | Sandboxed `<iframe srcdoc=...>` + full postMessage host (`ui/initialize`, `tools/call` proxy, `ui/message`, size tracking) | `packages/app/src/components/mcp-app-panel.tsx` (new) | Large |
+| **CSP injection** | Inject `<meta http-equiv="Content-Security-Policy">` from `_meta.ui.csp` before iframe render; required since WebkitGTK can't intercept iframe headers | `McpAppPanel` | Medium |
+| **Host context / theme tokens** | Pass LibreCode theme CSS variables as `styles.variables` in `HostContext` so apps inherit the active theme | `McpAppPanel` | Small |
+| **Inline tool-result rendering** | When tool result has `_meta.ui.resourceUri`, replace text block with `McpAppPanel` | `packages/app/src/components/session/` | Medium |
+| **`@modelcontextprotocol/ext-apps` dep** | Add to `packages/app` and `packages/librecode` — provides `AppBridge` and `PostMessageTransport` | `package.json` | Tiny |
+
+### Phase 17: MCP Apps — Persistent Side Panel + Activity Visualization
+
+| Item | Description | Files | Effort |
+| ---- | ----------- | ----- | ------ |
+| **Pinnable MCP Apps panel** | Persistent side panel tab for MCP servers with `listResources` `ui://` entries not tied to a tool call | `packages/app/src/pages/layout/sidebar-panel.tsx` | Medium |
+| **Activity tracker** | `ActivityTracker` module — maps file paths and agents to real-time activity state from bus events | `src/session/activity-tracker.ts` (new) | Medium |
+| **Activity panel (desktop)** | Canvas-based grid: each cell = a file, colored by read/write/search/error/idle, agent status bar for parallel sub-agents | `packages/app/src/components/activity-grid.tsx` (new) | Large |
+| **Activity view (TUI)** | Character-cell grid toggle via `<leader>a`, agent status line, truecolor cells | `src/cli/cmd/tui/routes/session/activity.tsx` (new) | Large |
+| **Port preview panel** | `<iframe src="http://localhost:PORT">` for running project services; detect ports from bash tool child processes | sidebar | Medium |
+
 ### Nice to Have
 
 | Item                   | Description                                                                                                                 | Effort | Priority |
