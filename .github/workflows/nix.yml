@@ -15,6 +15,9 @@ on:
       - "nix/**"
       - "packages/librecode/**"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   check:
     name: Nix Flake Check
