@@ -517,8 +517,6 @@ async function fileRead(file: string): Promise<FileContentType> {
   const project = Instance.project
   const full = path.join(Instance.directory, file)
 
-  // TODO: Filesystem.contains is lexical only - symlinks inside the project can escape.
-  // TODO: On Windows, cross-drive paths bypass this check. Consider realpath canonicalization.
   if (!Instance.containsPath(full)) {
     throw new Error(`Access denied: path escapes project directory`)
   }
@@ -566,8 +564,6 @@ async function fileList(dir?: string): Promise<FileNodeType[]> {
   const ignored = Instance.project.vcs === "git" ? await buildIgnoreFn() : (_: string) => false
   const resolved = dir ? path.join(Instance.directory, dir) : Instance.directory
 
-  // TODO: Filesystem.contains is lexical only - symlinks inside the project can escape.
-  // TODO: On Windows, cross-drive paths bypass this check. Consider realpath canonicalization.
   if (!Instance.containsPath(resolved)) {
     throw new Error(`Access denied: path escapes project directory`)
   }

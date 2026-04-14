@@ -112,7 +112,6 @@ async function all(): Promise<Tool.Info[]> {
     TaskTool,
     WebFetchTool,
     TodoWriteTool,
-    // TodoReadTool,
     WebSearchTool,
     CodeSearchTool,
     SkillTool,

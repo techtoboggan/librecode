@@ -151,6 +151,23 @@ function filesystemContains(parent: string, child: string): boolean {
   return !relative(parent, child).startsWith("..")
 }
 
+/**
+ * Symlink-safe containment check. Resolves both paths through realpath
+ * before comparing, preventing symlink escapes and Windows cross-drive
+ * bypasses. Falls back to lexical check if realpath fails (e.g. path
+ * doesn't exist yet for a write operation).
+ */
+function filesystemContainsSafe(parent: string, child: string): boolean {
+  try {
+    const realParent = realpathSync(parent)
+    const realChild = realpathSync(child)
+    return !relative(realParent, realChild).startsWith("..")
+  } catch {
+    // Path doesn't exist yet (e.g. file being created) — fall back to lexical check
+    return filesystemContains(parent, child)
+  }
+}
+
 async function filesystemFindUp(target: string, start: string, stop?: string): Promise<string[]> {
   let current = start
   const result = []
@@ -225,6 +242,7 @@ export const Filesystem = {
   windowsPath: filesystemWindowsPath,
   overlaps: filesystemOverlaps,
   contains: filesystemContains,
+  containsSafe: filesystemContainsSafe,
   findUp: filesystemFindUp,
   up: filesystemUp,
   globUp: filesystemGlobUp,
