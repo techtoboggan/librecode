@@ -117,8 +117,8 @@ jobs:
             "$COPR_API_LOGIN" "$COPR_API_TOKEN" > ~/.config/copr
           chmod 600 ~/.config/copr
 
-          # Find the Tauri-built RPM (name depends on version)
-          RPM=$(ls packages/desktop/src-tauri/target/release/bundle/rpm/*.rpm | grep -v src)
+          # Find the Tauri-built RPM (exclude .src.rpm source packages)
+          RPM=$(ls packages/desktop/src-tauri/target/release/bundle/rpm/*.rpm | grep -v '\.src\.rpm')
           echo "Found RPM: $RPM"
 
           # Extract the RPM contents into a staging directory
