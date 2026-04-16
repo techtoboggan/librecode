@@ -15,6 +15,7 @@ env:
 jobs:
   publish-sdk:
     name: Publish @librecode/sdk
+    needs: publish-i18n
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +56,13 @@ jobs:
 
       - name: Publish
         working-directory: packages/sdk/js
-        run: npm publish --access public --provenance
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view @librecode/sdk@$VERSION version 2>/dev/null; then
+            echo "@librecode/sdk@$VERSION already published, skipping"
+          else
+            npm publish --access public --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -86,7 +93,13 @@ jobs:
           "
 
       - name: Publish
-        run: npm publish --access public
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view @librecode/i18n@$VERSION version 2>/dev/null; then
+            echo "@librecode/i18n@$VERSION already published, skipping"
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -150,6 +163,12 @@ jobs:
 
       - name: Publish
         working-directory: packages/plugin
-        run: npm publish --access public --provenance
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if npm view @librecode/plugin@$VERSION version 2>/dev/null; then
+            echo "@librecode/plugin@$VERSION already published, skipping"
+          else
+            npm publish --access public --provenance
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
