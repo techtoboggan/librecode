@@ -50,6 +50,7 @@ jobs:
       # doesn't fail with "no matching version found".
       - name: Wait for @librecode/i18n on npm
         if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Waiting for @librecode/i18n@$VERSION..."
