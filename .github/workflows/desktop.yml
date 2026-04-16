@@ -23,8 +23,9 @@ jobs:
             os: ubuntu-latest
             cli_src: packages/librecode/dist/librecode-linux-x64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
-            # AppImage works on GH Actions via APPIMAGE_EXTRACT_AND_RUN=1 (see env below).
-            bundles: deb,rpm,appimage
+            # AppImage omitted: linuxdeploy itself is an AppImage that requires FUSE or
+            # a static linuxdeploy binary. Use Flatpak or the RPM/DEB for now.
+            bundles: deb,rpm
             sign: false
           - platform: macos-arm64
             os: macos-14
