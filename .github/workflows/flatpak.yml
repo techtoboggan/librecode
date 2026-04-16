@@ -51,9 +51,12 @@ jobs:
           LIBRECODE_VERSION: ${{ github.ref_name }}
         run: |
           bun install --frozen-lockfile
-          # Build the CLI sidecar binary
+          # Build the CLI sidecar binary for linux-x64 (Flatpak is x64-only).
+          # --target linux-x64 produces dist/librecode-linux-x64/bin/librecode.
+          # Copy to the flat path the Flatpak manifest expects.
           cd packages/librecode
-          bun run script/build.ts --single
+          bun run script/build.ts --target linux-x64
+          cp dist/librecode-linux-x64/bin/librecode dist/librecode-cli-linux-x64
           cd ../..
           # Build the desktop frontend (vite)
           cd packages/desktop
