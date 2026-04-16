@@ -214,31 +214,38 @@ jobs:
       - name: Stage installer artifacts
         shell: bash
         run: |
-          STAGE="${GITHUB_WORKSPACE}/dist-stage"
+          set -x
+          STAGE="dist-stage"
           mkdir -p "$STAGE"
           BUNDLE="packages/desktop/src-tauri/target/release/bundle"
           VERSION="${GITHUB_REF_NAME#v}"
 
-          find "$BUNDLE/deb"  -name "*.deb"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
-          find "$BUNDLE/rpm"  -name "*.rpm" ! -name "*.src.rpm" -exec cp {} "$STAGE/" \; 2>/dev/null || true
-          find "$BUNDLE/nsis" -name "*.exe"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
-          find "$BUNDLE/dmg"  -name "*.dmg"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
+          echo "Bundle directory contents:"
+          ls -R "$BUNDLE" 2>/dev/null | head -40 || echo "(bundle dir not found)"
+
+          # Copy platform-specific installers (globs that don't match are harmless with nullglob)
+          shopt -s nullglob
+          for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$STAGE/"; done
+          for f in "$BUNDLE"/rpm/*.rpm; do [[ "$f" != *.src.rpm ]] && cp "$f" "$STAGE/"; done
+          for f in "$BUNDLE"/nsis/*.exe; do cp "$f" "$STAGE/"; done
+          for f in "$BUNDLE"/dmg/*.dmg; do cp "$f" "$STAGE/"; done
 
           # .app bundle (directory) → tar.gz so it can be a GitHub Release asset
-          APP=$(find "$BUNDLE/macos" -maxdepth 1 -name "*.app" -type d 2>/dev/null | head -1)
-          if [[ -n "$APP" ]]; then
-            STEM=$(basename "$APP" .app)   # e.g. LibreCode
+          for app in "$BUNDLE"/macos/*.app; do
+            STEM=$(basename "$app" .app)
             tar -czf "$STAGE/${STEM}_${VERSION}_aarch64.app.tar.gz" \
-              -C "$(dirname "$APP")" "$(basename "$APP")"
-          fi
+              -C "$(dirname "$app")" "$(basename "$app")"
+          done
+          shopt -u nullglob
 
           echo "Staged artifacts:"
-          ls -lh "$STAGE/"
+          ls -lh "$STAGE/" || echo "(empty)"
 
       - uses: actions/upload-artifact@v4
         with:
           name: librecode-desktop-${{ matrix.platform }}
           path: dist-stage/
+          if-no-files-found: warn
           retention-days: 7
 
   release:
