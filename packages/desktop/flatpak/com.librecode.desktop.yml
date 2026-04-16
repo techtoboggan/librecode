@@ -145,6 +145,7 @@ modules:
         /app/share/icons/hicolor/256x256/apps/com.librecode.desktop.png
       # .desktop file (used by app launcher and deep-link protocol handler)
       - |
+        mkdir -p /app/share/applications
         cat > /app/share/applications/com.librecode.desktop.desktop << 'EOF'
         [Desktop Entry]
         Type=Application
