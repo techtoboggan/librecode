@@ -138,6 +138,14 @@ jobs:
             -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           rm /tmp/certificate.p12
 
+          # Diagnostics — verify the cert was loaded and codesign can access it
+          echo "=== Codesigning identities in build.keychain ==="
+          security find-identity -v -p codesigning build.keychain
+          echo "=== Keychain list ==="
+          security list-keychains
+          echo "=== Keychain info ==="
+          security show-keychain-info build.keychain 2>&1 || true
+
       - name: Build Desktop (signed — macOS)
         if: matrix.sign == true
         env:
@@ -145,7 +153,14 @@ jobs:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: cargo tauri build --config tauri.prod.conf.json --bundles ${{ matrix.bundles }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          # Re-unlock the keychain right before build to prevent codesign hangs.
+          # If the keychain auto-locks between import and build (Rust compile takes
+          # 5+ minutes), codesign tries to show a UI prompt that can't appear in CI.
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -t 3600 build.keychain
+          cargo tauri build --config tauri.prod.conf.json --bundles ${{ matrix.bundles }}
         working-directory: packages/desktop/src-tauri
 
       - name: Build Desktop (unsigned — Linux / Windows)
