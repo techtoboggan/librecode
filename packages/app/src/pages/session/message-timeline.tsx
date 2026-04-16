@@ -10,7 +10,6 @@ import { Binary } from "@librecode/util/binary"
 import { shouldMarkBoundaryGesture, normalizeWheelDelta } from "@/pages/session/message-gesture"
 import { useLanguage } from "@/context/language"
 import { useSessionKey } from "@/pages/session/session-layout"
-import { useGlobalSDK } from "@/context/global-sdk"
 import { usePlatform } from "@/context/platform"
 import { useSettings } from "@/context/settings"
 import { useSDK } from "@/context/sdk"
@@ -203,7 +202,6 @@ export function MessageTimeline(props: {
   let titleRef: HTMLInputElement | undefined
 
   const navigate = useNavigate()
-  const globalSDK = useGlobalSDK()
   const sdk = useSDK()
   const sync = useSync()
   const settings = useSettings()
@@ -290,8 +288,6 @@ export function MessageTimeline(props: {
     return sync.session.get(id)
   })
   const titleValue = createMemo(() => info()?.title)
-  const shareUrl = createMemo(() => info()?.share?.url)
-  const shareEnabled = createMemo(() => sync.data.config.share !== "disabled")
   const parentID = createMemo(() => info()?.parentID)
   const showHeader = createMemo(() => !!(titleValue() || parentID()))
   const stageCfg = { init: 1, batch: 3 }
@@ -308,15 +304,7 @@ export function MessageTimeline(props: {
     saving: false,
     menuOpen: false,
     pendingRename: false,
-    pendingShare: false,
   })
-
-  const [share, setShare] = createStore({
-    open: false,
-    dismiss: null as "escape" | "outside" | null,
-  })
-
-  const [req, setReq] = createStore({ share: false, unshare: false })
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "data" in err) {
@@ -337,7 +325,6 @@ export function MessageTimeline(props: {
           saving: false,
           menuOpen: false,
           pendingRename: false,
-          pendingShare: false,
         }),
       { defer: true },
     ),
@@ -493,42 +480,6 @@ export function MessageTimeline(props: {
     navigate(`/${params.dir}/session/${id}`)
   }
 
-  const shareSession = () => {
-    const id = sessionID()
-    if (!id || req.share) return
-    if (!shareEnabled()) return
-    setReq("share", true)
-    globalSDK.client.session
-      .share({ sessionID: id, directory: sdk.directory })
-      .catch((err: unknown) => {
-        console.error("Failed to share session", err)
-      })
-      .finally(() => {
-        setReq("share", false)
-      })
-  }
-
-  const unshareSession = () => {
-    const id = sessionID()
-    if (!id || req.unshare) return
-    if (!shareEnabled()) return
-    setReq("unshare", true)
-    globalSDK.client.session
-      .unshare({ sessionID: id, directory: sdk.directory })
-      .catch((err: unknown) => {
-        console.error("Failed to unshare session", err)
-      })
-      .finally(() => {
-        setReq("unshare", false)
-      })
-  }
-
-  const viewShare = () => {
-    const url = shareUrl()
-    if (!url) return
-    platform.openLink(url)
-  }
-
   return (
     <Show
       when={!props.mobileChanges}
@@ -607,14 +558,10 @@ export function MessageTimeline(props: {
                 centered={props.centered}
                 sessionID={sessionID}
                 titleValue={titleValue}
-                shareUrl={shareUrl}
-                shareEnabled={shareEnabled}
                 parentID={parentID}
                 slot={slot}
                 tint={tint}
                 title={title}
-                share={share}
-                req={req}
                 moreRef={(el) => {
                   more = el
                 }}
@@ -633,34 +580,12 @@ export function MessageTimeline(props: {
                   setTitle("pendingRename", true)
                   setTitle("menuOpen", false)
                 }}
-                onSelectShare={() => {
-                  setTitle({ pendingShare: true, menuOpen: false })
-                }}
                 onPendingRename={() => {
                   setTitle("pendingRename", false)
                   openTitleEditor()
                 }}
-                onPendingShare={() => {
-                  requestAnimationFrame(() => {
-                    setShare({ open: true, dismiss: null })
-                    setTitle("pendingShare", false)
-                  })
-                }}
                 onArchiveSession={archiveSession}
                 onDeleteSession={deleteSession}
-                onShareSession={shareSession}
-                onUnshareSession={unshareSession}
-                onViewShare={viewShare}
-                onShareOpenChange={(open) => {
-                  if (open) setShare("dismiss", null)
-                  setShare("open", open)
-                }}
-                onShareDismissEscape={() => setShare({ dismiss: "escape", open: false })}
-                onShareDismissOutside={() => setShare({ dismiss: "outside", open: false })}
-                onShareCloseAutoFocus={(event) => {
-                  if (share.dismiss === "outside") event.preventDefault()
-                  setShare("dismiss", null)
-                }}
               />
             </Show>
 

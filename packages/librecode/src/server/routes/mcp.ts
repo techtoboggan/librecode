@@ -6,6 +6,14 @@ import { MCP } from "../../mcp"
 import { lazy } from "../../util/lazy"
 import { errors } from "../error"
 
+const AppResource = z.object({
+  server: z.string(),
+  name: z.string(),
+  uri: z.string(),
+  description: z.string().optional(),
+  mimeType: z.string().optional(),
+})
+
 export const McpRoutes = lazy(() =>
   new Hono()
     .get(
@@ -197,6 +205,72 @@ export const McpRoutes = lazy(() =>
         const { name } = c.req.valid("param")
         await MCP.connect(name)
         return c.json(true)
+      },
+    )
+    .get(
+      "/apps",
+      describeRoute({
+        summary: "List MCP App UI resources",
+        description:
+          "Returns all UI resources (mimeType text/html;profile=mcp-app) across connected MCP servers. " +
+          "Each entry represents an MCP App that can be rendered in a sandboxed iframe.",
+        operationId: "mcp.apps.list",
+        responses: {
+          200: {
+            description: "List of available MCP App UI resources",
+            content: {
+              "application/json": {
+                schema: resolver(z.array(AppResource)),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const all = await MCP.uiResources()
+        const result = Object.entries(all).map(([, r]) => ({
+          server: r.client,
+          name: r.name,
+          uri: r.uri,
+          description: r.description,
+          mimeType: r.mimeType,
+        }))
+        return c.json(result)
+      },
+    )
+    .get(
+      "/apps/html",
+      describeRoute({
+        summary: "Fetch MCP App HTML",
+        description:
+          "Fetches the HTML content for a specific MCP App UI resource identified by server name and uri.",
+        operationId: "mcp.apps.html",
+        responses: {
+          200: {
+            description: "HTML content of the MCP App",
+            content: {
+              "text/html": {
+                schema: resolver(z.string()),
+              },
+            },
+          },
+          ...errors(400, 404),
+        },
+      }),
+      validator(
+        "query",
+        z.object({
+          server: z.string().describe("MCP server name"),
+          uri: z.string().describe("UI resource URI (ui://...)"),
+        }),
+      ),
+      async (c) => {
+        const { server, uri } = c.req.valid("query")
+        const html = await MCP.fetchAppHtml(server, uri)
+        if (!html) {
+          return c.json({ error: `MCP App resource not found: ${uri} on server ${server}` }, 404)
+        }
+        return c.text(html, 200, { "Content-Type": "text/html; charset=utf-8" })
       },
     )
     .post(

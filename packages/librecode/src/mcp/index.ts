@@ -9,6 +9,7 @@ import {
   type Tool as MCPToolDef,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
+import { RESOURCE_MIME_TYPE, getToolUiResourceUri, isToolVisibilityAppOnly } from "@modelcontextprotocol/ext-apps/app-bridge"
 import { dynamicTool, type JSONSchema7, jsonSchema, type Tool } from "ai"
 import open from "open"
 import z from "zod/v4"
@@ -49,6 +50,24 @@ const BrowserOpenFailed = BusEvent.define(
   z.object({
     mcpName: z.string(),
     url: z.string(),
+  }),
+)
+
+const AppRegistered = BusEvent.define(
+  "mcp.app.registered",
+  z.object({
+    server: z.string(),
+    resourceUri: z.string(),
+    title: z.string().optional(),
+  }),
+)
+
+const AppToolCalled = BusEvent.define(
+  "mcp.app.tool_called",
+  z.object({
+    server: z.string(),
+    toolName: z.string(),
+    resourceUri: z.string(),
   }),
 )
 
@@ -125,11 +144,15 @@ async function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: 
     additionalProperties: false,
   }
 
+  // If the tool has an associated MCP App UI resource, surface its URI so the
+  // frontend can render the app panel inline in the session timeline.
+  const uiResourceUri = getToolUiResourceUri(mcpTool)
+
   return dynamicTool({
     description: mcpTool.description ?? "",
     inputSchema: jsonSchema(schema),
     execute: async (args: unknown) => {
-      return client.callTool(
+      const result = await client.callTool(
         {
           name: mcpTool.name,
           arguments: (args || {}) as Record<string, unknown>,
@@ -140,6 +163,12 @@ async function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: 
           timeout,
         },
       )
+      // Attach the UI resource URI and server lookup info to the result so the
+      // frontend can find and render the MCP App panel for this tool call.
+      if (uiResourceUri) {
+        return { ...result, _meta: { ...((result as Record<string, unknown>)._meta ?? {}), ui: { resourceUri: uiResourceUri } } }
+      }
+      return result
     },
   })
 }
@@ -629,6 +658,9 @@ async function tools() {
     const entry = isMcpConfigured(mcpConfig) ? mcpConfig : undefined
     const timeout = entry?.timeout ?? defaultTimeout
     for (const mcpTool of toolsResult.tools) {
+      // Skip tools that are exclusively for app-side rendering — they should
+      // not be offered to the language model as callable tools.
+      if (isToolVisibilityAppOnly(mcpTool)) continue
       const sanitizedClientName = clientName.replace(/[^a-zA-Z0-9_-]/g, "_")
       const sanitizedToolName = mcpTool.name.replace(/[^a-zA-Z0-9_-]/g, "_")
       result[`${sanitizedClientName}_${sanitizedToolName}`] = await convertMcpTool(mcpTool, client, timeout)
@@ -732,6 +764,46 @@ async function readResource(clientName: string, resourceUri: string) {
     })
 
   return result
+}
+
+/**
+ * List all MCP App UI resources across connected clients.
+ * Returns resources with mimeType "text/html;profile=mcp-app".
+ */
+async function uiResources() {
+  const all = await resources()
+  return Object.fromEntries(Object.entries(all).filter(([, r]) => r.mimeType === RESOURCE_MIME_TYPE))
+}
+
+/**
+ * Fetch the HTML for an MCP App UI resource.
+ * Returns the HTML string, or undefined if the resource cannot be fetched.
+ */
+async function fetchAppHtml(clientName: string, resourceUri: string): Promise<string | undefined> {
+  const result = await readResource(clientName, resourceUri)
+  if (!result) return undefined
+
+  for (const content of result.contents) {
+    if (!("text" in content)) continue
+    if (content.mimeType === RESOURCE_MIME_TYPE) {
+      return content.text
+    }
+    // Some servers omit mimeType on the content item — accept any text content from a ui:// URI
+    if (resourceUri.startsWith("ui://")) {
+      return content.text
+    }
+  }
+
+  log.warn("fetchAppHtml: no text content found in resource", { clientName, resourceUri })
+  return undefined
+}
+
+/**
+ * Get the UI resource URI for a tool if it has one.
+ * Returns undefined if the tool has no associated MCP App.
+ */
+function getAppResourceUri(tool: MCPToolDef): string | undefined {
+  return getToolUiResourceUri(tool)
 }
 
 /**
@@ -969,6 +1041,8 @@ export const MCP = {
   Resource,
   ToolsChanged,
   BrowserOpenFailed,
+  AppRegistered,
+  AppToolCalled,
   Failed,
   Status,
   add,
@@ -979,6 +1053,9 @@ export const MCP = {
   tools,
   prompts,
   resources,
+  uiResources,
+  fetchAppHtml,
+  getAppResourceUri,
   getPrompt,
   readResource,
   startAuth,

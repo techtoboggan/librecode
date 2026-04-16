@@ -5,86 +5,12 @@ import { Instance } from "../../project/instance"
 import { Session } from "../../session"
 import { MessageV2 } from "../../session/message-v2"
 import { MessageTable, PartTable, SessionTable } from "../../session/session.sql"
-import { ShareNext } from "../../share/share-next"
 import { Database } from "../../storage/db"
 import { Filesystem } from "../../util/filesystem"
 import { bootstrap } from "../bootstrap"
 import { cmd } from "./cmd"
 
-/** Discriminated union returned by the ShareNext API (GET /api/shares/:id/data) */
-export type ShareData =
-  | { type: "session"; data: SDKSession }
-  | { type: "message"; data: Message }
-  | { type: "part"; data: Part }
-  | { type: "session_diff"; data: unknown }
-  | { type: "model"; data: unknown }
-
 type ExportData = { info: SDKSession; messages: Array<{ info: Message; parts: Part[] }> }
-
-/** Extract share ID from a share URL like https://opncd.ai/share/abc123 */
-export function parseShareUrl(url: string): string | null {
-  const match = url.match(/^https?:\/\/[^/]+\/share\/([a-zA-Z0-9_-]+)$/)
-  return match ? match[1] : null
-}
-
-export function shouldAttachShareAuthHeaders(shareUrl: string, accountBaseUrl: string): boolean {
-  try {
-    return new URL(shareUrl).origin === new URL(accountBaseUrl).origin
-  } catch {
-    return false
-  }
-}
-
-export function transformShareData(shareData: ShareData[]): ExportData | null {
-  const sessionItem = shareData.find((d) => d.type === "session")
-  if (!sessionItem) return null
-
-  const messageMap = new Map<string, Message>()
-  const partMap = new Map<string, Part[]>()
-
-  for (const item of shareData) {
-    if (item.type === "message") {
-      messageMap.set(item.data.id, item.data)
-    } else if (item.type === "part") {
-      if (!partMap.has(item.data.messageID)) partMap.set(item.data.messageID, [])
-      partMap.get(item.data.messageID)?.push(item.data)
-    }
-  }
-
-  if (messageMap.size === 0) return null
-  return {
-    info: sessionItem.data,
-    messages: Array.from(messageMap.values()).map((msg) => ({ info: msg, parts: partMap.get(msg.id) ?? [] })),
-  }
-}
-
-async function importFromUrl(url: string): Promise<ExportData | null> {
-  const slug = parseShareUrl(url)
-  if (!slug) {
-    const baseUrl = await ShareNext.url()
-    process.stdout.write(`Invalid URL format. Expected: ${baseUrl}/share/<slug>${EOL}`)
-    return null
-  }
-  const parsed = new URL(url)
-  const req = await ShareNext.request()
-  const headers = shouldAttachShareAuthHeaders(url, req.baseUrl) ? req.headers : {}
-  const dataPath = req.api.data(slug)
-  let response = await fetch(`${parsed.origin}${dataPath}`, { headers })
-  if (!response.ok && dataPath !== `/api/share/${slug}/data`) {
-    response = await fetch(`${parsed.origin}/api/share/${slug}/data`, { headers })
-  }
-  if (!response.ok) {
-    process.stdout.write(`Failed to fetch share data: ${response.statusText}${EOL}`)
-    return null
-  }
-  const shareData: ShareData[] = await response.json()
-  const transformed = transformShareData(shareData)
-  if (!transformed) {
-    process.stdout.write(`Share not found or empty: ${slug}${EOL}`)
-    return null
-  }
-  return transformed
-}
 
 function saveSessionToDb(exportData: ExportData): void {
   const info = Session.Info.parse({ ...exportData.info, projectID: Instance.project.id })
@@ -122,31 +48,21 @@ function saveSessionToDb(exportData: ExportData): void {
 
 export const ImportCommand = cmd({
   command: "import <file>",
-  describe: "import session data from JSON file or URL",
+  describe: "import session data from a JSON file",
   builder: (yargs: Argv) => {
     return yargs.positional("file", {
-      describe: "path to JSON file or share URL",
+      describe: "path to JSON export file",
       type: "string",
       demandOption: true,
     })
   },
   handler: async (args) => {
     await bootstrap(process.cwd(), async () => {
-      const isUrl = args.file.startsWith("http://") || args.file.startsWith("https://")
-      let exportData: ExportData | undefined
-
-      if (isUrl) {
-        exportData = (await importFromUrl(args.file)) ?? undefined
-      } else {
-        exportData = await Filesystem.readJson<ExportData>(args.file).catch(() => undefined)
-        if (!exportData) {
-          process.stdout.write(`File not found: ${args.file}${EOL}`)
-          return
-        }
+      const exportData = await Filesystem.readJson<ExportData>(args.file).catch(() => undefined)
+      if (!exportData) {
+        process.stdout.write(`File not found: ${args.file}${EOL}`)
+        return
       }
-
-      if (!exportData) return
-
       saveSessionToDb(exportData)
       process.stdout.write(`Imported session: ${exportData.info.id}${EOL}`)
     })

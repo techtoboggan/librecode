@@ -75,7 +75,6 @@ type RunCtx = {
   octoGraph: typeof graphql
   appToken: string
   session: { id: SessionID; title: string; version: string }
-  shareId: string | undefined
   defaultBranch?: string
   providerID: ProviderID
   modelID: ModelID
@@ -83,7 +82,6 @@ type RunCtx = {
   issueId: number | undefined
   triggerCommentId: number | undefined
   commentType: "issue" | "pr_review" | undefined
-  shareBaseUrl: string
   runUrl: string
   actor: string | undefined
   issueEvent: IssueCommentEvent | undefined
@@ -141,10 +139,9 @@ async function runGithubAction(args: { token?: string; event?: string }): Promis
     process.exit(1)
   }
   const useGithubToken = normalizeUseGithubToken()
-  const share = normalizeShare()
   const oidcBaseUrl = normalizeOidcBaseUrl()
   const eventFlags = resolveEventFlags(context.eventName)
-  const ctx = buildInitialCtx(context, isMock)
+  const ctx = buildInitialCtx(context)
 
   let savedGitConfig: string | undefined
   let exitCode = 0
@@ -165,7 +162,7 @@ async function runGithubAction(args: { token?: string; event?: string }): Promis
       await assertPermissions(ctx.octoRest, ctx.owner, ctx.repo, ctx.actor)
       await addReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, ctx.commentType)
     }
-    await initSession(ctx, share)
+    await initSession(ctx)
     await dispatchEvent(ctx, userPrompt, promptFiles, eventFlags)
   } catch (e: unknown) {
     exitCode = 1
@@ -189,7 +186,7 @@ async function runGithubAction(args: { token?: string; event?: string }): Promis
 // Context construction
 // ---------------------------------------------------------------------------
 
-function buildInitialCtx(context: Context, isMock: string | undefined): RunCtx {
+function buildInitialCtx(context: Context): RunCtx {
   const eventFlags = resolveEventFlags(context.eventName)
   const { providerID, modelID } = normalizeModel()
   const variant = process.env.VARIANT || undefined
@@ -210,8 +207,6 @@ function buildInitialCtx(context: Context, isMock: string | undefined): RunCtx {
     : undefined
   const commentType = resolveCommentType(eventFlags.isCommentEvent, context.eventName)
   const runUrl = `/${owner}/${repo}/actions/runs/${runId}`
-  const shareBaseUrl = isMock ? "https://dev.librecode.ai" : "https://github.com/techtoboggan/librecode"
-
   return {
     owner,
     repo,
@@ -219,14 +214,12 @@ function buildInitialCtx(context: Context, isMock: string | undefined): RunCtx {
     octoGraph: null as unknown as typeof graphql,
     appToken: "",
     session: null as unknown as { id: SessionID; title: string; version: string },
-    shareId: undefined,
     providerID,
     modelID,
     variant,
     issueId,
     triggerCommentId,
     commentType,
-    shareBaseUrl,
     runUrl,
     actor,
     issueEvent,
@@ -236,11 +229,10 @@ function buildInitialCtx(context: Context, isMock: string | undefined): RunCtx {
   }
 }
 
-async function initSession(ctx: RunCtx, share: boolean | undefined): Promise<void> {
+async function initSession(ctx: RunCtx): Promise<void> {
   const repoData = await ctx.octoRest.rest.repos.get({ owner: ctx.owner, repo: ctx.repo })
   ctx.session = await Session.create({ permission: [{ permission: "question", action: "deny", pattern: "*" }] })
   subscribeSessionEvents(ctx.session.id)
-  ctx.shareId = await resolveShareId(share, repoData.data.private, ctx.session.id)
   console.log("librecode session", ctx.session.id)
   ctx.defaultBranch = repoData.data.default_branch
 }
@@ -300,14 +292,6 @@ function normalizeRunId(): string {
   const value = process.env.GITHUB_RUN_ID
   if (!value) throw new Error(`Environment variable "GITHUB_RUN_ID" is not set`)
   return value
-}
-
-function normalizeShare(): boolean | undefined {
-  const value = process.env.SHARE
-  if (!value) return undefined
-  if (value === "true") return true
-  if (value === "false") return false
-  throw new Error(`Invalid share value: ${value}. Share must be a boolean.`)
 }
 
 function normalizeUseGithubToken(): boolean {
@@ -485,16 +469,6 @@ async function getUserPrompt(
 // Session management
 // ---------------------------------------------------------------------------
 
-async function resolveShareId(
-  share: boolean | undefined,
-  isPrivate: boolean,
-  sessionId: SessionID,
-): Promise<string | undefined> {
-  if (share === false) return undefined
-  if (!share && isPrivate) return undefined
-  await Session.share(sessionId)
-  return sessionId.slice(-8)
-}
 
 // ---------------------------------------------------------------------------
 // Session event subscription
@@ -741,17 +715,8 @@ async function revokeAppToken(appToken: string | undefined): Promise<void> {
   })
 }
 
-function buildFooter(ctx: RunCtx, opts?: { image?: boolean }): string {
-  const image = (() => {
-    if (!ctx.shareId || !opts?.image) return ""
-    const titleAlt = encodeURIComponent(ctx.session.title.substring(0, 50))
-    const title64 = Buffer.from(ctx.session.title.substring(0, 700), "utf8").toString("base64")
-    return `<a href="${ctx.shareBaseUrl}/s/${ctx.shareId}"><img width="200" alt="${titleAlt}" src="https://social-cards.sst.dev/librecode-share/${title64}.png?model=${ctx.providerID}/${ctx.modelID}&version=${ctx.session.version}&id=${ctx.shareId}" /></a>\n`
-  })()
-  const shareUrl = ctx.shareId
-    ? `[librecode session](${ctx.shareBaseUrl}/s/${ctx.shareId})&nbsp;&nbsp;|&nbsp;&nbsp;`
-    : ""
-  return `\n\n${image}${shareUrl}[github run](${ctx.runUrl})`
+function buildFooter(ctx: RunCtx): string {
+  return `\n\n[github run](${ctx.runUrl})`
 }
 
 // ---------------------------------------------------------------------------
@@ -825,7 +790,7 @@ async function handleRepoEvent(
       defaultBranch,
       branch,
       summary,
-      `${response}\n\nTriggered by ${triggerType}${buildFooter(ctx, { image: true })}`,
+      `${response}\n\nTriggered by ${triggerType}${buildFooter(ctx)}`,
     )
     if (pr) {
       console.log(`Created PR #${pr}`)
@@ -856,14 +821,13 @@ async function handleLocalPREvent(
     const summary = await summarize(ctx, response)
     await pushToLocalBranch(summary, uncommittedChanges, ctx.actor)
   }
-  const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
   if (ctx.issueId === undefined) throw new Error("issueId is required for PR event")
   await createComment(
     ctx.octoRest,
     ctx.owner,
     ctx.repo,
     ctx.issueId,
-    `${response}${buildFooter(ctx, { image: !hasShared })}`,
+    `${response}${buildFooter(ctx)}`,
   )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
@@ -887,14 +851,13 @@ async function handleForkPREvent(
     const summary = await summarize(ctx, response)
     await pushToForkBranch(summary, prData, uncommittedChanges, ctx.actor)
   }
-  const hasShared = prData.comments.nodes.some((c) => c.body.includes(`${ctx.shareBaseUrl}/s/${ctx.shareId}`))
   if (ctx.issueId === undefined) throw new Error("issueId is required for fork PR event")
   await createComment(
     ctx.octoRest,
     ctx.owner,
     ctx.repo,
     ctx.issueId,
-    `${response}${buildFooter(ctx, { image: !hasShared })}`,
+    `${response}${buildFooter(ctx)}`,
   )
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
@@ -936,7 +899,7 @@ async function handleIssueEvent(
       ctx.owner,
       ctx.repo,
       ctx.issueId,
-      `${response}${buildFooter(ctx, { image: true })}`,
+      `${response}${buildFooter(ctx)}`,
     )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   } else if (dirty) {
@@ -949,7 +912,7 @@ async function handleIssueEvent(
       defaultBranch,
       branch,
       summary,
-      `${response}\n\nCloses #${ctx.issueId}${buildFooter(ctx, { image: true })}`,
+      `${response}\n\nCloses #${ctx.issueId}${buildFooter(ctx)}`,
     )
     if (pr) {
       await createComment(
@@ -957,7 +920,7 @@ async function handleIssueEvent(
         ctx.owner,
         ctx.repo,
         ctx.issueId,
-        `Created PR #${pr}${buildFooter(ctx, { image: true })}`,
+        `Created PR #${pr}${buildFooter(ctx)}`,
       )
     } else {
       await createComment(
@@ -965,7 +928,7 @@ async function handleIssueEvent(
         ctx.owner,
         ctx.repo,
         ctx.issueId,
-        `${response}${buildFooter(ctx, { image: true })}`,
+        `${response}${buildFooter(ctx)}`,
       )
     }
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
@@ -975,7 +938,7 @@ async function handleIssueEvent(
       ctx.owner,
       ctx.repo,
       ctx.issueId,
-      `${response}${buildFooter(ctx, { image: true })}`,
+      `${response}${buildFooter(ctx)}`,
     )
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   }

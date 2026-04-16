@@ -30,6 +30,7 @@ import { usePromptRef } from "../../context/prompt"
 import { useTuiConfig } from "../../context/tui-config"
 import { useDialog } from "../../ui/dialog"
 import { Toast, useToast } from "../../ui/toast"
+import { ActivityPanel } from "./activity"
 import { useSessionCommands } from "./commands"
 import { sessionContext } from "./context"
 import { DialogMessage } from "./dialog-message"
@@ -126,6 +127,7 @@ export function Session() {
   const dimensions = useTerminalDimensions()
   const [sidebar, setSidebar] = kv.signal<"auto" | "hide">("sidebar", "auto")
   const [sidebarOpen, setSidebarOpen] = createSignal(false)
+  const [activityOpen, setActivityOpen] = createSignal(false)
   const [conceal, setConceal] = createSignal(true)
   const [showThinking, setShowThinking] = kv.signal("thinking_visibility", true)
   const [timestamps, setTimestamps] = kv.signal<"hide" | "show">("timestamps", "hide")
@@ -332,6 +334,8 @@ export function Session() {
     showHeader,
     showGenericToolOutput,
     showAssistantMetadata,
+    activityVisible: activityOpen,
+    setActivityVisible: setActivityOpen,
     setSidebar,
     setSidebarOpen,
     setConceal,
@@ -579,6 +583,9 @@ export function Session() {
               </box>
             </Match>
           </Switch>
+        </Show>
+        <Show when={activityOpen()}>
+          <ActivityPanel sessionID={route.sessionID} onClose={() => setActivityOpen(false)} />
         </Show>
       </box>
     </sessionContext.Provider>

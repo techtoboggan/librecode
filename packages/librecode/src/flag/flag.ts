@@ -21,7 +21,6 @@ const _disableClaudeCodeSkills = _disableClaudeCode || truthy("LIBRECODE_DISABLE
 const _copyOnSelectEnv = process.env.LIBRECODE_EXPERIMENTAL_DISABLE_COPY_ON_SELECT
 
 export const Flag = {
-  LIBRECODE_AUTO_SHARE: truthy("LIBRECODE_AUTO_SHARE"),
   LIBRECODE_GIT_BASH_PATH: process.env.LIBRECODE_GIT_BASH_PATH,
   LIBRECODE_CONFIG: process.env.LIBRECODE_CONFIG,
   LIBRECODE_CONFIG_CONTENT: process.env.LIBRECODE_CONFIG_CONTENT,

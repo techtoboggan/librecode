@@ -106,9 +106,26 @@ See the [Provider Guide](docs/providers.md) for adding new providers or writing 
 
 ## Install
 
+> Current release: **v1.0.0-preview.1** — see [CHANGELOG.md](CHANGELOG.md).
+
+### One-line installer (universal)
+
+```bash
+# Linux / macOS
+curl -fsSL https://raw.githubusercontent.com/techtoboggan/librecode/main/scripts/install.sh | sh
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/techtoboggan/librecode/main/scripts/install.ps1 | iex
+```
+
+Installs the CLI to `$HOME/.local/bin` (Unix) or `%LOCALAPPDATA%\LibreCode` (Windows).
+
 ### Package managers
 
 ```bash
+# Homebrew (macOS + Linux)
+brew install techtoboggan/tap/librecode
+
 # Fedora/RHEL (COPR)
 sudo dnf copr enable techtoboggan/librecode
 sudo dnf install librecode
@@ -118,6 +135,27 @@ yay -S librecode
 
 # Nix
 nix run github:techtoboggan/librecode
+
+# Flatpak (desktop only)
+flatpak install flathub com.librecode.desktop
+```
+
+### Desktop app
+
+Download from the [GitHub Releases page](https://github.com/techtoboggan/librecode/releases/latest):
+
+- **Linux**: `.deb` / `.rpm` / `.AppImage` / `.flatpak`
+- **macOS**: `.app` bundle (unsigned in preview — right-click → Open to bypass Gatekeeper)
+- **Windows**: `.exe` NSIS installer
+
+### Config autocomplete in your editor
+
+Add this `$schema` line to `.librecode/config.json` for VS Code / JetBrains autocomplete:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/techtoboggan/librecode/main/schema/config.json"
+}
 ```
 
 ### From source
@@ -128,18 +166,8 @@ cd librecode
 scripts/dev-setup.sh --deps    # Auto-detects your distro
 source scripts/dev-setup.sh    # Isolated dev environment
 bun install
-bun run dev
-```
-
-### Desktop app
-
-Download from [librecode.app](https://librecode.app) or build locally:
-
-```bash
-scripts/dev-setup.sh --deps    # Installs Rust + GTK + WebKit
-source scripts/dev-setup.sh
-bun install
-bun run dev:desktop
+bun run dev                    # CLI
+bun run dev:desktop            # Desktop (Tauri)
 ```
 
 ## Development

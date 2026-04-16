@@ -233,7 +233,7 @@ jobs:
           persist-credentials: false
 
       - name: Run librecode
-        uses: anomalyco/librecode/github@latest${envStr}
+        uses: techtoboggan/librecode/github@latest${envStr}
         with:
           model: ${provider}/${model}`,
             )

@@ -5,8 +5,6 @@ import { DropdownMenu } from "@librecode/ui/dropdown-menu"
 import { IconButton } from "@librecode/ui/icon-button"
 import { InlineInput } from "@librecode/ui/inline-input"
 import { Spinner } from "@librecode/ui/spinner"
-import { TextField } from "@librecode/ui/text-field"
-import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { useLanguage } from "@/context/language"
@@ -17,12 +15,6 @@ export type TitleState = {
   saving: boolean
   menuOpen: boolean
   pendingRename: boolean
-  pendingShare: boolean
-}
-
-export type ShareState = {
-  open: boolean
-  dismiss: "escape" | "outside" | null
 }
 
 export type SlotState = {
@@ -35,14 +27,10 @@ export type SessionHeaderProps = {
   centered: boolean
   sessionID: () => string | undefined
   titleValue: () => string | undefined
-  shareUrl: () => string | undefined
-  shareEnabled: () => boolean
   parentID: () => string | undefined
   slot: SlotState
   tint: () => string | null | undefined
   title: TitleState
-  share: ShareState
-  req: { share: boolean; unshare: boolean }
   moreRef: (el: HTMLButtonElement) => void
   titleInputRef: (el: HTMLInputElement) => void
   onNavigateParent: () => void
@@ -52,18 +40,9 @@ export type SessionHeaderProps = {
   onTitleInput: (value: string) => void
   onTitleMenuOpenChange: (open: boolean) => void
   onSelectRename: () => void
-  onSelectShare: () => void
   onPendingRename: () => void
-  onPendingShare: () => void
   onArchiveSession: (id: string) => void
   onDeleteSession: (id: string) => void
-  onShareSession: () => void
-  onUnshareSession: () => void
-  onViewShare: () => void
-  onShareOpenChange: (open: boolean) => void
-  onShareDismissEscape: () => void
-  onShareDismissOutside: () => void
-  onShareCloseAutoFocus: (event: Event) => void
 }
 
 export function SessionHeader(props: SessionHeaderProps): JSX.Element {
@@ -188,11 +167,8 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
                   icon="dot-grid"
                   variant="ghost"
                   class="size-6 rounded-md data-[expanded]:bg-surface-base-active"
-                  classList={{
-                    "bg-surface-base-active": props.share.open || props.title.pendingShare,
-                  }}
                   aria-label={language.t("common.moreOptions")}
-                  aria-expanded={props.title.menuOpen || props.share.open || props.title.pendingShare}
+                  aria-expanded={props.title.menuOpen}
                   ref={props.moreRef}
                 />
                 <DropdownMenu.Portal>
@@ -202,24 +178,12 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
                       if (props.title.pendingRename) {
                         event.preventDefault()
                         props.onPendingRename()
-                        return
-                      }
-                      if (props.title.pendingShare) {
-                        event.preventDefault()
-                        requestAnimationFrame(() => {
-                          props.onPendingShare()
-                        })
                       }
                     }}
                   >
                     <DropdownMenu.Item onSelect={props.onSelectRename}>
                       <DropdownMenu.ItemLabel>{language.t("common.rename")}</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
-                    <Show when={props.shareEnabled()}>
-                      <DropdownMenu.Item onSelect={props.onSelectShare}>
-                        <DropdownMenu.ItemLabel>{language.t("session.share.action.share")}</DropdownMenu.ItemLabel>
-                      </DropdownMenu.Item>
-                    </Show>
                     <DropdownMenu.Item onSelect={() => props.onArchiveSession(id())}>
                       <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
                     </DropdownMenu.Item>
@@ -230,92 +194,6 @@ export function SessionHeader(props: SessionHeaderProps): JSX.Element {
                   </DropdownMenu.Content>
                 </DropdownMenu.Portal>
               </DropdownMenu>
-
-              <KobaltePopover
-                open={props.share.open}
-                anchorRef={props.moreRef as unknown as () => HTMLElement}
-                placement="bottom-end"
-                gutter={4}
-                modal={false}
-                onOpenChange={props.onShareOpenChange}
-              >
-                <KobaltePopover.Portal>
-                  <KobaltePopover.Content
-                    data-component="popover-content"
-                    style={{ "min-width": "320px" }}
-                    onEscapeKeyDown={(event) => {
-                      props.onShareDismissEscape()
-                      event.preventDefault()
-                      event.stopPropagation()
-                    }}
-                    onPointerDownOutside={props.onShareDismissOutside}
-                    onFocusOutside={props.onShareDismissOutside}
-                    onCloseAutoFocus={props.onShareCloseAutoFocus}
-                  >
-                    <div class="flex flex-col p-3">
-                      <div class="flex flex-col gap-1">
-                        <div class="text-13-medium text-text-strong">{language.t("session.share.popover.title")}</div>
-                        <div class="text-12-regular text-text-weak">
-                          {props.shareUrl()
-                            ? language.t("session.share.popover.description.shared")
-                            : language.t("session.share.popover.description.unshared")}
-                        </div>
-                      </div>
-                      <div class="mt-3 flex flex-col gap-2">
-                        <Show
-                          when={props.shareUrl()}
-                          fallback={
-                            <Button
-                              size="large"
-                              variant="primary"
-                              class="w-full"
-                              onClick={props.onShareSession}
-                              disabled={props.req.share}
-                            >
-                              {props.req.share
-                                ? language.t("session.share.action.publishing")
-                                : language.t("session.share.action.publish")}
-                            </Button>
-                          }
-                        >
-                          <div class="flex flex-col gap-2">
-                            <TextField
-                              value={props.shareUrl() ?? ""}
-                              readOnly
-                              copyable
-                              copyKind="link"
-                              tabIndex={-1}
-                              class="w-full"
-                            />
-                            <div class="grid grid-cols-2 gap-2">
-                              <Button
-                                size="large"
-                                variant="secondary"
-                                class="w-full shadow-none border border-border-weak-base"
-                                onClick={props.onUnshareSession}
-                                disabled={props.req.unshare}
-                              >
-                                {props.req.unshare
-                                  ? language.t("session.share.action.unpublishing")
-                                  : language.t("session.share.action.unpublish")}
-                              </Button>
-                              <Button
-                                size="large"
-                                variant="primary"
-                                class="w-full"
-                                onClick={props.onViewShare}
-                                disabled={props.req.unshare}
-                              >
-                                {language.t("session.share.action.view")}
-                              </Button>
-                            </div>
-                          </div>
-                        </Show>
-                      </div>
-                    </div>
-                  </KobaltePopover.Content>
-                </KobaltePopover.Portal>
-              </KobaltePopover>
             </div>
           )}
         </Show>

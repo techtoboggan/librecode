@@ -23,19 +23,21 @@ jobs:
             os: ubuntu-latest
             cli_src: packages/librecode/dist/librecode-linux-x64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
-            # AppImage requires FUSE which is blocked on GH Actions runners
-            bundles: deb,rpm
+            # AppImage works on GH Actions via APPIMAGE_EXTRACT_AND_RUN=1 (see env below).
+            bundles: deb,rpm,appimage
+            sign: false
           - platform: macos-arm64
             os: macos-14
             cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
-            # DMG creation fails without code signing; .app bundle is sufficient for CI
-            bundles: app
+            bundles: app,dmg
+            sign: true
           - platform: windows
             os: windows-latest
             cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-pc-windows-msvc.exe
             bundles: nsis
+            sign: false
 
     steps:
       - uses: actions/checkout@v4
@@ -96,12 +98,55 @@ jobs:
       - name: Install cargo-tauri
         run: cargo install tauri-cli --version "^2" --locked
 
-      - name: Build Desktop
+      # Import the Apple Developer ID certificate into a temporary keychain so
+      # the Tauri build can sign and notarize the macOS bundles.
+      - name: Import Apple certificate
+        if: matrix.sign == true
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          echo "$APPLE_CERTIFICATE" | base64 --decode > /tmp/certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import /tmp/certificate.p12 \
+            -k build.keychain \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          rm /tmp/certificate.p12
+
+      - name: Build Desktop (signed — macOS)
+        if: matrix.sign == true
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: cargo tauri build --config tauri.prod.conf.json --bundles ${{ matrix.bundles }}
+        working-directory: packages/desktop/src-tauri
+
+      - name: Build Desktop (unsigned — Linux / Windows)
+        if: matrix.sign != true
+        env:
+          # FUSE is blocked on GH Actions runners. appimagetool supports this
+          # env var to extract and run the tool statically without FUSE.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: cargo tauri build --config tauri.prod.conf.json --no-sign --bundles ${{ matrix.bundles }}
         working-directory: packages/desktop/src-tauri
 
+      - name: Clean up build keychain
+        if: always() && matrix.sign == true
+        run: security delete-keychain build.keychain || true
+
       - name: Submit Desktop RPM to COPR
-        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/')
+        # Skip COPR submission for preview/rc tags — keep the `librecode` COPR
+        # repo on stable releases only. Preview builds are distributed via
+        # GitHub Releases.
+        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-preview.') && !contains(github.ref, '-rc.')
         env:
           COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
           COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
@@ -166,4 +211,5 @@ jobs:
         with:
           files: artifacts/**/*
           generate_release_notes: true
-          draft: true
+          draft: false
+          prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}

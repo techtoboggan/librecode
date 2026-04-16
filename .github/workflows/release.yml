@@ -79,6 +79,15 @@ jobs:
         run: |
           cd artifacts
           sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
+      - name: Generate config JSON schema
+        run: |
+          echo "Config schema is generated in the repo (schema/config.json) — uploading as release asset."
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Attach schema to artifacts
+        run: |
+          cp src/schema/config.json artifacts/librecode-config-schema.json
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -86,5 +95,7 @@ jobs:
             artifacts/*.tar.gz
             artifacts/*.zip
             artifacts/SHA256SUMS
+            artifacts/librecode-config-schema.json
           generate_release_notes: true
           draft: false
+          prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}

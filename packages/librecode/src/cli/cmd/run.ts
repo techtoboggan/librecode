@@ -14,7 +14,6 @@ import {
 } from "@librecode/sdk/v2"
 import type { Argv } from "yargs"
 import { Agent } from "../../agent/agent"
-import { Flag } from "../../flag/flag"
 import type { PermissionNext } from "../../permission/next"
 import { Provider } from "../../provider/provider"
 import { Server } from "../../server/server"
@@ -550,10 +549,6 @@ export const RunCommand = cmd({
         describe: "fork the session before continuing (requires --continue or --session)",
         type: "boolean",
       })
-      .option("share", {
-        type: "boolean",
-        describe: "share the session",
-      })
       .option("model", {
         type: "string",
         alias: ["m"],
@@ -666,21 +661,6 @@ export const RunCommand = cmd({
       return result.data?.id
     }
 
-    async function share(sdk: OpencodeClient, sessionID: string) {
-      const cfg = await sdk.config.get()
-      if (!cfg.data) return
-      if (cfg.data.share !== "auto" && !Flag.LIBRECODE_AUTO_SHARE && !args.share) return
-      const res = await sdk.session.share({ sessionID }).catch((error) => {
-        if (error instanceof Error && error.message.includes("disabled")) {
-          UI.println(`${UI.Style.TEXT_DANGER_BOLD}!  ${error.message}`)
-        }
-        return { error }
-      })
-      if (!res.error && "data" in res && res.data?.share?.url) {
-        UI.println(`${UI.Style.TEXT_INFO_BOLD}~  ${res.data.share.url}`)
-      }
-    }
-
     async function execute(sdk: OpencodeClient): Promise<void> {
       const agent = await resolveAgent(args.agent, args.attach, sdk)
       const sessionID = await session(sdk)
@@ -688,7 +668,6 @@ export const RunCommand = cmd({
         UI.error("Session not found")
         process.exit(1)
       }
-      await share(sdk, sessionID)
 
       const ctx: EventLoopCtx = {
         sdk,

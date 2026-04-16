@@ -153,8 +153,8 @@ export const InstallationUpgradeFailedError = NamedError.create(
 )
 
 async function getBrewFormula() {
-  const tapFormula = await text(["brew", "list", "--formula", "anomalyco/tap/librecode"])
-  if (tapFormula.includes("librecode")) return "anomalyco/tap/librecode"
+  const tapFormula = await text(["brew", "list", "--formula", "techtoboggan/tap/librecode"])
+  if (tapFormula.includes("librecode")) return "techtoboggan/tap/librecode"
   const coreFormula = await text(["brew", "list", "--formula", "librecode"])
   if (coreFormula.includes("librecode")) return "librecode"
   return "librecode"
@@ -165,9 +165,9 @@ type RunResult = Awaited<ReturnType<typeof upgradeCurl>>
 async function upgradeBrew(env: NodeJS.ProcessEnv): Promise<RunResult> {
   const formula = await getBrewFormula()
   if (formula.includes("/")) {
-    const tap = await Process.run(["brew", "tap", "anomalyco/tap"], { env, nothrow: true })
+    const tap = await Process.run(["brew", "tap", "techtoboggan/tap"], { env, nothrow: true })
     if (tap.code !== 0) return tap
-    const repo = await Process.text(["brew", "--repo", "anomalyco/tap"], { env, nothrow: true })
+    const repo = await Process.text(["brew", "--repo", "techtoboggan/tap"], { env, nothrow: true })
     if (repo.code !== 0) return repo
     const dir = repo.text.trim()
     if (dir) {
@@ -277,7 +277,7 @@ export async function installationLatest(installMethod?: InstallationMethod): Pr
       .then((data: { version: string }) => data.version)
   }
 
-  return fetch("https://api.github.com/repos/anomalyco/librecode/releases/latest")
+  return fetch("https://api.github.com/repos/techtoboggan/librecode/releases/latest")
     .then((res) => {
       if (!res.ok) throw new Error(res.statusText)
       return res.json()

@@ -1,4 +1,3 @@
-import { ShareNext } from "@/share/share-next"
 import { Log } from "@/util/log"
 import { Bus } from "../bus"
 import { Command } from "../command"
@@ -16,7 +15,6 @@ import { Vcs } from "./vcs"
 export async function InstanceBootstrap() {
   Log.Default.info("bootstrapping", { directory: Instance.directory })
   await Plugin.init()
-  ShareNext.init()
   Format.init()
   await LSP.init()
   FileWatcher.init()

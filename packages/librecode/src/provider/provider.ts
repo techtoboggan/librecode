@@ -75,7 +75,8 @@ const BUNDLED_PROVIDERS: Record<string, (options: any) => SDK> = {
   "@ai-sdk/perplexity": createPerplexity,
   "@ai-sdk/vercel": createVercel,
   "@gitlab/gitlab-ai-provider": createGitLab,
-  // @ts-expect-error (TODO: kill this code so we dont have to maintain it)
+  // @ts-expect-error OpenaiCompatibleProvider intentionally omits embeddingModel/imageModel/textEmbeddingModel
+  // — GitHub Copilot exposes chat + responses endpoints only. See sdk/copilot/copilot-provider.ts.
   "@ai-sdk/github-copilot": createGitHubCopilotOpenAICompatible,
 }
 

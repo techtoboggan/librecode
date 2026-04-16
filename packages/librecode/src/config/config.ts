@@ -116,7 +116,6 @@ function applyLegacyMigrations(result: InfoType): InfoType {
   applyLegacyToolsPermissions(result)
 
   if (!result.username) result.username = os.userInfo().username
-  if (result.autoshare === true && !result.share) result.share = "auto"
   if (Flag.LIBRECODE_DISABLE_AUTOCOMPACT) result.compaction = { ...result.compaction, auto: false }
   if (Flag.LIBRECODE_DISABLE_PRUNE) result.compaction = { ...result.compaction, prune: false }
 

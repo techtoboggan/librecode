@@ -11,6 +11,7 @@ import { Shell } from "@/shell/shell"
 
 import { Filesystem } from "@/util/filesystem"
 import { lazy } from "@/util/lazy"
+import { Bus } from "../bus/index"
 import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import DESCRIPTION from "./bash.txt"
@@ -184,6 +185,30 @@ function buildBashMetadataSuffix(timedOut: boolean, aborted: boolean, timeout: n
   return parts.length > 0 ? `\n\n<bash_metadata>\n${parts.join("\n")}\n</bash_metadata>` : ""
 }
 
+// ─── Port detection ───────────────────────────────────────────────────────────
+
+/**
+ * Matches common "server listening" output patterns emitted by dev servers.
+ * Group 1: port from a localhost/loopback URL (http://localhost:PORT)
+ * Group 2: port from a bare ":PORT" address (listening on :PORT)
+ */
+export const PORT_RE =
+  /(?:localhost|127\.0\.0\.1|0\.0\.0\.0):(\d{4,5})\b|(?:listening|started|running|server)\b.*?[:\s](\d{4,5})\b/gi
+
+/**
+ * Parse all unique, valid (1024–65535) port numbers out of a text chunk.
+ */
+export function extractPorts(text: string): number[] {
+  const found: number[] = []
+  for (const match of text.matchAll(PORT_RE)) {
+    const raw = match[1] ?? match[2]
+    if (!raw) continue
+    const port = Number.parseInt(raw, 10)
+    if (port >= 1024 && port <= 65535) found.push(port)
+  }
+  return found
+}
+
 export const log = Log.create({ service: "bash-tool" })
 
 const resolveWasm = (asset: string) => {
@@ -276,9 +301,21 @@ export const BashTool = Tool.define("bash", async () => {
       ctx.metadata({ metadata: { output: "", description: params.description } })
 
       let liveOutput = ""
+      const reportedPorts = new Set<number>()
       const onChunk = (chunk: Buffer) => {
-        liveOutput += chunk.toString()
+        const text = chunk.toString()
+        liveOutput += text
         ctx.metadata({ metadata: { output: truncateOutput(liveOutput), description: params.description } })
+        for (const port of extractPorts(text)) {
+          if (!reportedPorts.has(port)) {
+            reportedPorts.add(port)
+            void Bus.publish(Bus.PortDiscovered, {
+              sessionID: ctx.sessionID,
+              port,
+              url: `http://localhost:${port}`,
+            })
+          }
+        }
       }
 
       const { output, exitCode, timedOut, aborted } = await spawnAndWait(

@@ -1,7 +1,7 @@
 {
   "name": "@librecode/desktop",
   "private": true,
-  "version": "0.0.1",
+  "version": "1.0.0-preview.1",
   "type": "module",
   "license": "MIT",
   "scripts": {
@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@librecode/app": "workspace:*",
-    "@librecode/i18n": "^0.1.0",
+    "@librecode/i18n": "^1.0.0-preview.1",
     "@librecode/ui": "workspace:*",
     "@solid-primitives/i18n": "2.2.1",
     "@solid-primitives/storage": "catalog:",

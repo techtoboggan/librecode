@@ -12,6 +12,7 @@ import { Session } from "../../../session"
 import { SessionCompaction } from "../../../session/compaction"
 import { SessionPrompt } from "../../../session/prompt"
 import { SessionRevert } from "../../../session/revert"
+import { ActivityTracker } from "../../../session/activity-tracker"
 import { Log } from "../../../util/log"
 import { errors } from "../../error"
 
@@ -111,37 +112,6 @@ export const SessionActionRoutes = new Hono()
       return c.json(true)
     },
   )
-  .post(
-    "/:sessionID/share",
-    describeRoute({
-      summary: "Share session",
-      description: "Create a shareable link for a session, allowing others to view the conversation.",
-      operationId: "session.share",
-      responses: {
-        200: {
-          description: "Successfully shared session",
-          content: {
-            "application/json": {
-              schema: resolver(Session.Info),
-            },
-          },
-        },
-        ...errors(400, 404),
-      },
-    }),
-    validator(
-      "param",
-      z.object({
-        sessionID: SessionID.zod,
-      }),
-    ),
-    async (c) => {
-      const sessionID = c.req.valid("param").sessionID
-      await Session.share(sessionID)
-      const session = await Session.get(sessionID)
-      return c.json(session)
-    },
-  )
   .get(
     "/:sessionID/diff",
     describeRoute({
@@ -179,37 +149,6 @@ export const SessionActionRoutes = new Hono()
         messageID: query.messageID,
       })
       return c.json(result)
-    },
-  )
-  .delete(
-    "/:sessionID/share",
-    describeRoute({
-      summary: "Unshare session",
-      description: "Remove the shareable link for a session, making it private again.",
-      operationId: "session.unshare",
-      responses: {
-        200: {
-          description: "Successfully unshared session",
-          content: {
-            "application/json": {
-              schema: resolver(Session.Info),
-            },
-          },
-        },
-        ...errors(400, 404),
-      },
-    }),
-    validator(
-      "param",
-      z.object({
-        sessionID: Session.unshare.schema,
-      }),
-    ),
-    async (c) => {
-      const sessionID = c.req.valid("param").sessionID
-      await Session.unshare(sessionID)
-      const session = await Session.get(sessionID)
-      return c.json(session)
     },
   )
   .post(
@@ -370,5 +309,35 @@ export const SessionActionRoutes = new Hono()
         reply: c.req.valid("json").response,
       })
       return c.json(true)
+    },
+  )
+  .get(
+    "/:sessionID/activity",
+    describeRoute({
+      summary: "Get session activity",
+      description: "Get real-time file and agent activity state for a session.",
+      operationId: "session.activity",
+      responses: {
+        200: {
+          description: "Current activity state",
+          content: {
+            "application/json": {
+              schema: resolver(ActivityTracker.SessionActivity),
+            },
+          },
+        },
+        ...errors(400, 404),
+      },
+    }),
+    validator(
+      "param",
+      z.object({
+        sessionID: SessionID.zod,
+      }),
+    ),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const activity = await ActivityTracker.get(sessionID)
+      return c.json(activity)
     },
   )

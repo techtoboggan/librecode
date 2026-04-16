@@ -1,4 +1,4 @@
-import { For, Match, Show, Switch, createEffect, createMemo, onCleanup, type JSX } from "solid-js"
+import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@librecode/ui/tabs"
@@ -10,13 +10,18 @@ import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, close
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 import { useDialog } from "@librecode/ui/context/dialog"
+import type { EventPortDiscovered } from "@librecode/sdk/v2/client"
 
 import FileTree from "@/components/file-tree"
+import { McpAppPanel, McpAppsTab, type McpAppResource } from "@/components/mcp-app-panel"
+import { ActivityTab } from "@/components/activity-grid"
+import { PortPreviewTab } from "@/components/port-preview"
 import { SessionContextUsage } from "@/components/session-context-usage"
 import { DialogSelectFile } from "@/components/dialog-select-file"
 import { SessionContextTab, SortableTab, FileVisual } from "@/components/session"
 import { useCommand } from "@/context/command"
 import { useFile, type SelectedLineRange } from "@/context/file"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
@@ -39,7 +44,40 @@ export function SessionSidePanel(props: {
   const language = useLanguage()
   const command = useCommand()
   const dialog = useDialog()
+  const globalSDK = useGlobalSDK()
   const { params, sessionKey, tabs, view } = useSessionLayout()
+
+  // ── Pinned MCP app tabs ──────────────────────────────────────────────────────
+  const [pinnedApps, setPinnedApps] = createSignal<McpAppResource[]>([])
+  const pinApp = (app: McpAppResource) => {
+    if (pinnedApps().find((a) => a.uri === app.uri)) return
+    setPinnedApps([...pinnedApps(), app])
+  }
+  const unpinApp = (uri: string) => {
+    setPinnedApps(pinnedApps().filter((a) => a.uri !== uri))
+  }
+  const mcpTabValue = (app: McpAppResource) => `mcp-app:${app.server}:${encodeURIComponent(app.uri)}`
+
+  // ── Discovered port preview tabs ─────────────────────────────────────────────
+  const [discoveredPorts, setDiscoveredPorts] = createSignal<number[]>([])
+  const dismissPort = (port: number) => {
+    setDiscoveredPorts(discoveredPorts().filter((p) => p !== port))
+  }
+
+  createEffect(() => {
+    const sessionID = params.id
+    if (!sessionID) return
+    const unsub = globalSDK.event.listen((e) => {
+      const event = e.details
+      if (event.type !== "port.discovered") return
+      const { sessionID: evtSession, port } = (event as EventPortDiscovered).properties
+      if (evtSession !== sessionID) return
+      if (!discoveredPorts().includes(port)) {
+        setDiscoveredPorts([...discoveredPorts(), port])
+      }
+    })
+    onCleanup(unsub)
+  })
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
 
@@ -251,6 +289,52 @@ export function SessionSidePanel(props: {
                           </div>
                         </Tabs.Trigger>
                       </Show>
+                      <Tabs.Trigger value="apps">
+                        <div>{language.t("session.tab.apps")}</div>
+                      </Tabs.Trigger>
+                      <Tabs.Trigger value="activity">
+                        <div>{language.t("session.tab.activity")}</div>
+                      </Tabs.Trigger>
+                      <For each={pinnedApps()}>
+                        {(app) => (
+                          <Tabs.Trigger
+                            value={mcpTabValue(app)}
+                            closeButton={
+                              <IconButton
+                                icon="close-small"
+                                variant="ghost"
+                                class="h-5 w-5"
+                                onClick={() => unpinApp(app.uri)}
+                                aria-label={`Unpin ${app.name}`}
+                              />
+                            }
+                            hideCloseButton
+                            onMiddleClick={() => unpinApp(app.uri)}
+                          >
+                            <div>{app.name}</div>
+                          </Tabs.Trigger>
+                        )}
+                      </For>
+                      <For each={discoveredPorts()}>
+                        {(port) => (
+                          <Tabs.Trigger
+                            value={`port:${port}`}
+                            closeButton={
+                              <IconButton
+                                icon="close-small"
+                                variant="ghost"
+                                class="h-5 w-5"
+                                onClick={() => dismissPort(port)}
+                                aria-label={`Close preview :${port}`}
+                              />
+                            }
+                            hideCloseButton
+                            onMiddleClick={() => dismissPort(port)}
+                          >
+                            <div class="font-mono">:{port}</div>
+                          </Tabs.Trigger>
+                        )}
+                      </For>
                       <Show when={contextOpen()}>
                         <Tabs.Trigger
                           value="context"
@@ -308,6 +392,50 @@ export function SessionSidePanel(props: {
                       <Show when={activeTab() === "review"}>{props.reviewPanel()}</Show>
                     </Tabs.Content>
                   </Show>
+
+                  <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
+                    <Show when={activeTab() === "apps"}>
+                      <McpAppsTab
+                        pinnedUris={pinnedApps().map((a) => a.uri)}
+                        onPin={pinApp}
+                        onUnpin={unpinApp}
+                      />
+                    </Show>
+                  </Tabs.Content>
+
+                  <For each={pinnedApps()}>
+                    {(app) => {
+                      const tabValue = mcpTabValue(app)
+                      return (
+                        <Tabs.Content value={tabValue} class="flex flex-col h-full overflow-hidden contain-strict">
+                          <Show when={activeTab() === tabValue}>
+                            <div class="w-full h-full flex flex-col overflow-hidden">
+                              {/* Inline McpAppPanel — reuses the same component */}
+                              <Show when={true}>
+                                <McpAppPanel server={app.server} uri={app.uri} class="flex-1 min-h-0" />
+                              </Show>
+                            </div>
+                          </Show>
+                        </Tabs.Content>
+                      )
+                    }}
+                  </For>
+
+                  <For each={discoveredPorts()}>
+                    {(port) => (
+                      <Tabs.Content value={`port:${port}`} class="flex flex-col h-full overflow-hidden contain-strict">
+                        <Show when={activeTab() === `port:${port}`}>
+                          <PortPreviewTab port={port} />
+                        </Show>
+                      </Tabs.Content>
+                    )}
+                  </For>
+
+                  <Tabs.Content value="activity" class="flex flex-col h-full overflow-hidden contain-strict">
+                    <Show when={activeTab() === "activity" && params.id}>
+                      <ActivityTab sessionID={params.id!} />
+                    </Show>
+                  </Tabs.Content>
 
                   <Tabs.Content value="empty" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "empty"}>

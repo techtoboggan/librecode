@@ -15,6 +15,15 @@ const InstanceDisposed = BusEvent.define(
   }),
 )
 
+const PortDiscovered = BusEvent.define(
+  "port.discovered",
+  z.object({
+    sessionID: z.string(),
+    port: z.number(),
+    url: z.string(),
+  }),
+)
+
 const state = Instance.state(
   () => {
     const subscriptions = new Map<string, Subscription[]>()
@@ -109,6 +118,7 @@ export declare namespace Bus {
 
 export const Bus = {
   InstanceDisposed,
+  PortDiscovered,
   publish: busPublish,
   subscribe: busSubscribe,
   once: busOnce,

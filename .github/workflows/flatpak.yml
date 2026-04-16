@@ -20,23 +20,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Compute the sha256 of the GitHub-generated tarball for this tag and
+      # patch the manifest in place. Runs only on tag pushes — on manual
+      # dispatch we validate the manifest as-is.
+      - name: Patch release tarball sha256 in manifest
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
+          echo "Fetching ${URL} to compute sha256"
+          for i in 1 2 3 4 5; do
+            if SHA=$(curl -fsSL "${URL}" | sha256sum | awk '{print $1}') && [[ -n "${SHA}" ]]; then
+              break
+            fi
+            echo "retry ${i}…"
+            sleep $((i * 5))
+          done
+          if [[ -z "${SHA}" ]]; then
+            echo "error: could not compute tarball sha256 after 5 attempts" >&2
+            exit 1
+          fi
+          echo "Computed sha256: ${SHA}"
+          sed -i \
+            -e "s|sha256: REPLACE_AT_RELEASE_TIME_SEE_FLATPAK_WORKFLOW|sha256: ${SHA}|" \
+            packages/desktop/flatpak/com.librecode.desktop.yml
+
       - name: Validate manifest
         run: |
           flatpak-builder --show-manifest packages/desktop/flatpak/com.librecode.desktop.yml
 
-      # NOTE: A full Flatpak build requires:
-      #   1. cargo-sources.json generated from Cargo.lock
-      #      (see packages/desktop/flatpak/com.librecode.desktop.yml header)
-      #   2. Real sha256 hashes for release tarball and Bun binaries
-      #
-      # This job currently validates the manifest structure.
-      # Uncomment the build step below once sha256 placeholders are resolved.
-      #
-      # - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-      #   with:
-      #     bundle: librecode-desktop.flatpak
-      #     manifest-path: packages/desktop/flatpak/com.librecode.desktop.yml
-      #     cache-key: flatpak-builder-${{ github.sha }}
+      - name: Build Flatpak bundle
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: librecode-desktop.flatpak
+          manifest-path: packages/desktop/flatpak/com.librecode.desktop.yml
+          cache-key: flatpak-builder-${{ github.sha }}
 
       - name: Validate AppStream metadata
         # appstreamcli is pre-installed in the gnome-47 Fedora container;
@@ -46,3 +65,10 @@ jobs:
           appstreamcli validate \
             packages/desktop/src-tauri/release/appstream.metainfo.xml \
             || true
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: librecode-desktop.flatpak
+          prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}

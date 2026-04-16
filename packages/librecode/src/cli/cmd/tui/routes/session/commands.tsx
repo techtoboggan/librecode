@@ -35,6 +35,8 @@ type CommandDeps = {
   showHeader: () => boolean
   showGenericToolOutput: () => boolean
   showAssistantMetadata: () => boolean
+  activityVisible: () => boolean
+  setActivityVisible: SetterLike<boolean>
   setSidebar: SetterLike<"auto" | "hide">
   setSidebarOpen: SetterLike<boolean>
   setConceal: SetterLike<boolean>
@@ -82,37 +84,6 @@ export function useSessionCommands(deps: CommandDeps) {
   const command = useCommandDialog()
 
   command.register(() => [
-    {
-      title: deps.session()?.share?.url ? "Copy share link" : "Share session",
-      value: "session.share",
-      suggested: route.type === "session",
-      keybind: "session_share",
-      category: "Session",
-      enabled: sync.data.config.share !== "disabled",
-      slash: { name: "share" },
-      onSelect: async (dialog: DialogContext) => {
-        const copy = (url: string) =>
-          Clipboard.copy(url)
-            .then(() => deps.toast.show({ message: "Share URL copied to clipboard!", variant: "success" }))
-            .catch(() => deps.toast.show({ message: "Failed to copy URL to clipboard", variant: "error" }))
-        const url = deps.session()?.share?.url
-        if (url) {
-          await copy(url)
-          dialog.clear()
-          return
-        }
-        await sdk.client.session
-          .share({ sessionID: route.sessionID })
-          .then((res: { data?: Session }) => copy(res.data?.share?.url ?? ""))
-          .catch((error: unknown) => {
-            deps.toast.show({
-              message: error instanceof Error ? error.message : "Failed to share session",
-              variant: "error",
-            })
-          })
-        dialog.clear()
-      },
-    },
     {
       title: "Rename session",
       value: "session.rename",
@@ -191,26 +162,6 @@ export function useSessionCommands(deps: CommandDeps) {
       },
     },
     {
-      title: "Unshare session",
-      value: "session.unshare",
-      keybind: "session_unshare",
-      category: "Session",
-      enabled: !!deps.session()?.share?.url,
-      slash: { name: "unshare" },
-      onSelect: async (dialog: DialogContext) => {
-        await sdk.client.session
-          .unshare({ sessionID: route.sessionID })
-          .then(() => deps.toast.show({ message: "Session unshared successfully", variant: "success" }))
-          .catch((error: unknown) => {
-            deps.toast.show({
-              message: error instanceof Error ? error.message : "Failed to unshare session",
-              variant: "error",
-            })
-          })
-        dialog.clear()
-      },
-    },
-    {
       title: "Undo previous message",
       value: "session.undo",
       keybind: "messages_undo",
@@ -251,6 +202,16 @@ export function useSessionCommands(deps: CommandDeps) {
   ])
 
   command.register(() => [
+    {
+      title: deps.activityVisible() ? "Hide activity panel" : "Show activity panel",
+      value: "session.activity.toggle",
+      keybind: "session_activity",
+      category: "Session",
+      onSelect: (dialog: DialogContext) => {
+        deps.setActivityVisible((prev: boolean) => !prev)
+        dialog.clear()
+      },
+    },
     {
       title: deps.sidebarVisible() ? "Hide sidebar" : "Show sidebar",
       value: "session.sidebar.toggle",
