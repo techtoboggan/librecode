@@ -208,11 +208,37 @@ jobs:
           echo "Submitting: $SRPM"
           copr-cli build techtoboggan/librecode "$SRPM" --nowait
 
+      # Collect only the final installer files into a staging dir.
+      # Without this, upload-artifact would include every file inside the
+      # .app bundle directory (Info.plist, binary, icon.icns, etc.).
+      - name: Stage installer artifacts
+        shell: bash
+        run: |
+          STAGE="${GITHUB_WORKSPACE}/dist-stage"
+          mkdir -p "$STAGE"
+          BUNDLE="packages/desktop/src-tauri/target/release/bundle"
+          VERSION="${GITHUB_REF_NAME#v}"
+
+          find "$BUNDLE/deb"  -name "*.deb"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
+          find "$BUNDLE/rpm"  -name "*.rpm" ! -name "*.src.rpm" -exec cp {} "$STAGE/" \; 2>/dev/null || true
+          find "$BUNDLE/nsis" -name "*.exe"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
+          find "$BUNDLE/dmg"  -name "*.dmg"                     -exec cp {} "$STAGE/" \; 2>/dev/null || true
+
+          # .app bundle (directory) → tar.gz so it can be a GitHub Release asset
+          APP=$(find "$BUNDLE/macos" -maxdepth 1 -name "*.app" -type d 2>/dev/null | head -1)
+          if [[ -n "$APP" ]]; then
+            STEM=$(basename "$APP" .app)   # e.g. LibreCode
+            tar -czf "$STAGE/${STEM}_${VERSION}_aarch64.app.tar.gz" \
+              -C "$(dirname "$APP")" "$(basename "$APP")"
+          fi
+
+          echo "Staged artifacts:"
+          ls -lh "$STAGE/"
+
       - uses: actions/upload-artifact@v4
         with:
           name: librecode-desktop-${{ matrix.platform }}
-          path: |
-            packages/desktop/src-tauri/target/release/bundle/
+          path: dist-stage/
           retention-days: 7
 
   release:
@@ -229,6 +255,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: artifacts/**/*
-          generate_release_notes: true
+          # Don't overwrite release notes — release.yml already set them
+          # when it uploaded the CLI tarballs.
           draft: false
           prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
