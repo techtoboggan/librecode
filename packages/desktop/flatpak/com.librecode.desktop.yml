@@ -122,7 +122,7 @@ modules:
       - |
         cd packages/desktop/src-tauri
         TAURI_CONFIG='{"build":{"beforeBuildCommand":""}}' \
-          cargo build --release --features custom-protocol
+          cargo build --release
       # Desktop entry
       - install -Dm755 packages/desktop/src-tauri/target/release/librecode-desktop /app/bin/librecode-desktop
       # AppStream metadata
