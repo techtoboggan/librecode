@@ -61,6 +61,8 @@ jobs:
 
       - run: bun install --frozen-lockfile
       - name: Build
+        env:
+          LIBRECODE_VERSION: ${{ github.ref_name }}
         run: bun run script/build.ts --target ${{ matrix.target }}
         working-directory: packages/librecode
       - name: Package

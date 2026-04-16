@@ -74,6 +74,8 @@ jobs:
 
       # Build the CLI sidecar first
       - name: Build CLI
+        env:
+          LIBRECODE_VERSION: ${{ github.ref_name }}
         run: bun run script/build.ts --single
         working-directory: packages/librecode
 
