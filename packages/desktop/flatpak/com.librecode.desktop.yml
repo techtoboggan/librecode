@@ -116,6 +116,12 @@ modules:
     build-commands:
       # Install the pre-built CLI sidecar (no bun/npm needed in sandbox)
       - install -Dm755 packages/librecode/dist/librecode-cli-linux-x64 /app/lib/librecode/sidecar/librecode-cli
+      # Stage sidecar for Tauri build.rs validation — externalBin expects
+      # sidecars/librecode-cli-<target-triple> to exist at cargo build time.
+      - |
+        mkdir -p packages/desktop/src-tauri/sidecars
+        cp packages/librecode/dist/librecode-cli-linux-x64 \
+           packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
       # Build the Tauri desktop binary. The frontend is already built in
       # packages/desktop/dist — override beforeBuildCommand to prevent Tauri
       # from trying to re-run it (which would need npm network access).
