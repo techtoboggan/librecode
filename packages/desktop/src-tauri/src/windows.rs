@@ -154,14 +154,14 @@ impl LoadingWindow {
 
 /// Set the window icon from the embedded PNG so it appears in taskbars
 /// (especially on Wayland where the .desktop file icon is not always used).
-fn set_window_icon(app: &AppHandle, window: &WebviewWindow) {
+fn set_window_icon(_app: &AppHandle, window: &WebviewWindow) {
     // On Linux, set the GTK default icon name so the compositor can find our icon
     // from the XDG icon theme. This works on both X11 and Wayland.
     // GTK operations MUST run on the main thread — dispatch via run_on_main_thread
     // since this function may be called from a tokio worker thread.
     #[cfg(target_os = "linux")]
     {
-        let _ = app.run_on_main_thread(|| {
+        let _ = _app.run_on_main_thread(|| {
             gtk::Window::set_default_icon_name("librecode-desktop");
         });
     }
