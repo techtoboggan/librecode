@@ -15,6 +15,7 @@ monorepo using Bun runtime, Solid.js UI, Tauri desktop. Effect-ts has been fully
 - `docs/adr/` — architecture decision records
 - `docs/architecture.md` — system architecture reference
 - `docs/development.md` — full local dev guide
+- `docs/releasing.md` — release process across all three repos (use `scripts/release.sh`)
 - `assets/brand/DESIGN-SPEC.md` — brand asset generation guide
 
 ## Local Development

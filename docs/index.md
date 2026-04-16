@@ -11,6 +11,7 @@ understanding LibreCode. User-facing install/usage docs live in the
 - [**README**](../README.md) — install, quick-start, package manager matrix
 - [**troubleshooting.md**](troubleshooting.md) — common install + runtime issues
 - [**development.md**](development.md) — local dev environment, monorepo layout, build scripts
+- [**releasing.md**](releasing.md) — how to cut a release across all three repos
 - [**CHANGELOG**](../CHANGELOG.md) — release notes
 
 ### Architecture
