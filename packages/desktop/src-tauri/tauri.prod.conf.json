@@ -13,17 +13,11 @@
     ],
     "windows": {
       "nsis": {
-        "installerIcon": "icons/prod/icon.ico",
-        "displayLanguageSelector": false,
-        "productName": "LibreCode"
+        "installerIcon": "icons/prod/icon.ico"
       }
     },
     "macOS": {
       "signingIdentity": null,
-      "infoPlist": {
-        "CFBundleDisplayName": "LibreCode",
-        "CFBundleName": "LibreCode"
-      },
       "dmg": {
         "background": null,
         "windowPosition": { "x": 400, "y": 100 },
