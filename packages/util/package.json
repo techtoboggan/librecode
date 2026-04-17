@@ -1,6 +1,6 @@
 {
   "name": "@librecode/util",
-  "version": "1.0.0-preview.2",
+  "version": "0.8.0",
   "private": true,
   "type": "module",
   "license": "MIT",
