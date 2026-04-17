@@ -1,7 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "LibreCode",
-  "mainBinaryName": "librecode-desktop",
+  "productName": "librecode-desktop",
   "identifier": "com.librecode.desktop",
   "bundle": {
     "createUpdaterArtifacts": false,
@@ -14,11 +13,17 @@
     ],
     "windows": {
       "nsis": {
-        "installerIcon": "icons/prod/icon.ico"
+        "installerIcon": "icons/prod/icon.ico",
+        "displayLanguageSelector": false,
+        "productName": "LibreCode"
       }
     },
     "macOS": {
       "signingIdentity": null,
+      "infoPlist": {
+        "CFBundleDisplayName": "LibreCode",
+        "CFBundleName": "LibreCode"
+      },
       "dmg": {
         "background": null,
         "windowPosition": { "x": 400, "y": 100 },
