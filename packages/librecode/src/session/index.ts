@@ -333,7 +333,6 @@ export const get = fn(SessionID.zod, async (id) => {
   return fromRow(row)
 })
 
-
 export const setTitle = fn(
   z.object({
     sessionID: SessionID.zod,

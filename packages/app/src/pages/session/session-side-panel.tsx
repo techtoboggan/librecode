@@ -395,11 +395,7 @@ export function SessionSidePanel(props: {
 
                   <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "apps"}>
-                      <McpAppsTab
-                        pinnedUris={pinnedApps().map((a) => a.uri)}
-                        onPin={pinApp}
-                        onUnpin={unpinApp}
-                      />
+                      <McpAppsTab pinnedUris={pinnedApps().map((a) => a.uri)} onPin={pinApp} onUnpin={unpinApp} />
                     </Show>
                   </Tabs.Content>
 

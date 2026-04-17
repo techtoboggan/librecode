@@ -157,7 +157,10 @@ describe("filterAnthropicEmptyMessages", () => {
 describe("sanitizeClaudeToolCallIds", () => {
   test("replaces invalid characters in tool-call ids", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msg = { role: "assistant", content: [{ type: "tool-call", toolCallId: "call.id:123/test", toolName: "foo", input: {} }] } as any as ModelMessage
+    const msg = {
+      role: "assistant",
+      content: [{ type: "tool-call", toolCallId: "call.id:123/test", toolName: "foo", input: {} }],
+    } as any as ModelMessage
     const result = sanitizeClaudeToolCallIds(msg)
     const part = (result.content as Array<{ toolCallId: string }>)[0]
     expect(part.toolCallId).toBe("call_id_123_test")
@@ -165,7 +168,10 @@ describe("sanitizeClaudeToolCallIds", () => {
 
   test("replaces invalid characters in tool-result ids", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msg = { role: "tool", content: [{ type: "tool-result", toolCallId: "result.id:456", toolName: "foo", input: {}, output: "ok" }] } as any as ModelMessage
+    const msg = {
+      role: "tool",
+      content: [{ type: "tool-result", toolCallId: "result.id:456", toolName: "foo", input: {}, output: "ok" }],
+    } as any as ModelMessage
     const result = sanitizeClaudeToolCallIds(msg)
     const part = (result.content as Array<{ toolCallId: string }>)[0]
     expect(part.toolCallId).toBe("result_id_456")
@@ -173,7 +179,10 @@ describe("sanitizeClaudeToolCallIds", () => {
 
   test("leaves valid ids unchanged", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msg = { role: "assistant", content: [{ type: "tool-call", toolCallId: "valid_id-123", toolName: "foo", input: {} }] } as any as ModelMessage
+    const msg = {
+      role: "assistant",
+      content: [{ type: "tool-call", toolCallId: "valid_id-123", toolName: "foo", input: {} }],
+    } as any as ModelMessage
     const result = sanitizeClaudeToolCallIds(msg)
     const part = (result.content as Array<{ toolCallId: string }>)[0]
     expect(part.toolCallId).toBe("valid_id-123")
@@ -187,7 +196,10 @@ describe("sanitizeClaudeToolCallIds", () => {
 
   test("does not modify user messages", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msg = { role: "user", content: [{ type: "tool-result", toolCallId: "some.id", toolName: "foo", input: {}, output: "ok" }] } as any as ModelMessage
+    const msg = {
+      role: "user",
+      content: [{ type: "tool-result", toolCallId: "some.id", toolName: "foo", input: {}, output: "ok" }],
+    } as any as ModelMessage
     const result = sanitizeClaudeToolCallIds(msg)
     // user role should not be modified
     const part = (result.content as Array<{ toolCallId: string }>)[0]
@@ -238,7 +250,12 @@ describe("isMistralModel", () => {
 describe("normalizeMistralMessages", () => {
   test("normalizes tool-call ids to 9 alphanumeric chars", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msgs = [{ role: "assistant", content: [{ type: "tool-call", toolCallId: "call-abc-123-xyz", toolName: "foo", input: {} }] }] as any as ModelMessage[]
+    const msgs = [
+      {
+        role: "assistant",
+        content: [{ type: "tool-call", toolCallId: "call-abc-123-xyz", toolName: "foo", input: {} }],
+      },
+    ] as any as ModelMessage[]
     const result = normalizeMistralMessages(msgs)
     const part = (result[0].content as Array<{ toolCallId: string }>)[0]
     expect(part.toolCallId).toMatch(/^[a-zA-Z0-9]{9}$/)
@@ -246,7 +263,9 @@ describe("normalizeMistralMessages", () => {
 
   test("pads short ids to 9 chars with zeros", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msgs = [{ role: "assistant", content: [{ type: "tool-call", toolCallId: "ab", toolName: "foo", input: {} }] }] as any as ModelMessage[]
+    const msgs = [
+      { role: "assistant", content: [{ type: "tool-call", toolCallId: "ab", toolName: "foo", input: {} }] },
+    ] as any as ModelMessage[]
     const result = normalizeMistralMessages(msgs)
     const part = (result[0].content as Array<{ toolCallId: string }>)[0]
     expect(part.toolCallId).toHaveLength(9)
@@ -255,7 +274,13 @@ describe("normalizeMistralMessages", () => {
 
   test("inserts assistant bridge message between tool and user messages", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msgs = [{ role: "tool", content: [{ type: "tool-result", toolCallId: "abc123xyz", toolName: "foo", input: {}, output: "result" }] }, { role: "user", content: "next" }] as any as ModelMessage[]
+    const msgs = [
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "abc123xyz", toolName: "foo", input: {}, output: "result" }],
+      },
+      { role: "user", content: "next" },
+    ] as any as ModelMessage[]
     const result = normalizeMistralMessages(msgs)
     expect(result).toHaveLength(3)
     expect(result[1].role).toBe("assistant")
@@ -265,7 +290,13 @@ describe("normalizeMistralMessages", () => {
 
   test("does not insert bridge when tool is not followed by user", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with minimal shape
-    const msgs = [{ role: "tool", content: [{ type: "tool-result", toolCallId: "abc123xyz", toolName: "foo", input: {}, output: "result" }] }, { role: "assistant", content: [{ type: "text", text: "ok" }] }] as any as ModelMessage[]
+    const msgs = [
+      {
+        role: "tool",
+        content: [{ type: "tool-result", toolCallId: "abc123xyz", toolName: "foo", input: {}, output: "result" }],
+      },
+      { role: "assistant", content: [{ type: "text", text: "ok" }] },
+    ] as any as ModelMessage[]
     const result = normalizeMistralMessages(msgs)
     expect(result).toHaveLength(2)
   })
@@ -440,7 +471,9 @@ describe("remapProviderOptionsKeys", () => {
 
   test("renames key in content part providerOptions", () => {
     // biome-ignore lint/suspicious/noExplicitAny: test data with extra providerOptions field
-    const msgs = [{ role: "assistant", content: [{ type: "text", text: "hi", providerOptions: { fromKey: "val" } }] }] as any as ModelMessage[]
+    const msgs = [
+      { role: "assistant", content: [{ type: "text", text: "hi", providerOptions: { fromKey: "val" } }] },
+    ] as any as ModelMessage[]
     const result = remapProviderOptionsKeys(msgs, "fromKey", "toKey")
     const part = (result[0].content as Array<{ providerOptions: Record<string, unknown> }>)[0]
     expect(part.providerOptions.toKey).toBe("val")

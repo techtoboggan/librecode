@@ -140,8 +140,7 @@ describe("googleVertexAnthropic loader", () => {
     // Run in a fresh instance where the env doesn't have Google Cloud vars
     // This only works reliably if no other test in this worker has set them.
     // We skip the case where GOOGLE_CLOUD_PROJECT is set in the process env.
-    const hasGoogleEnv =
-      process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT
+    const hasGoogleEnv = process.env.GOOGLE_CLOUD_PROJECT || process.env.GCP_PROJECT || process.env.GCLOUD_PROJECT
     if (hasGoogleEnv) return // skip if env is contaminated
 
     await using tmp = await tmpdir()
@@ -154,4 +153,3 @@ describe("googleVertexAnthropic loader", () => {
     })
   })
 })
-

@@ -1,6 +1,7 @@
 # Releasing LibreCode
 
 This guide covers the full release process across all three repos:
+
 - `techtoboggan/librecode` (main)
 - `techtoboggan/librecode-i18n`
 - `techtoboggan/librecode-3rdparty-providers`
@@ -46,6 +47,7 @@ on tag push. The main repo's `npm-publish.yml` also publishes it — both are
 idempotent (the second one skips with a "already published" message).
 
 **Wait for i18n to land on npm before proceeding:**
+
 ```bash
 # Poll until this returns the new version
 npm view @librecode/i18n@X.Y.Z version
@@ -67,6 +69,7 @@ The OIDC publish workflow fires automatically on the tag push. Providers depend
 on `@librecode/plugin` being on npm — if this fires before the main repo
 publishes plugin, it retries up to 5 times (5 min total). You can also
 re-run it manually once plugin is published:
+
 ```bash
 gh run rerun <run-id> --failed
 ```
@@ -85,6 +88,7 @@ scripts/release.sh X.Y.Z
 ```
 
 The script will:
+
 1. Bump `version` in all 7 `package.json` files and `Cargo.toml`
 2. Run `bun install` to update `bun.lock` with the new `@librecode/i18n` version
 3. Commit with message `chore: bump version to X.Y.Z`
@@ -92,6 +96,7 @@ The script will:
 5. Print next-step instructions
 
 Then push:
+
 ```bash
 git push && git push --tags
 ```
@@ -102,14 +107,15 @@ git push && git push --tags
 
 Four workflows fire simultaneously on the tag push:
 
-| Workflow | What it does | Typical duration |
-|---|---|---|
-| `Publish npm packages` | Publishes `@librecode/sdk`, `@librecode/i18n`, `@librecode/plugin` | ~3 min |
-| `Release` | Builds CLI binaries for 7 targets, uploads to GitHub Release with SHA256SUMS | ~10 min |
-| `Desktop` | Builds `.deb`, `.rpm`, AppImage (Linux), signed `.app`+`.dmg` (macOS), `.exe` (Windows) | ~20–30 min |
-| `Flatpak` | Builds Flatpak bundle from cargo-sources.json, uploads to GitHub Release | ~30–40 min |
+| Workflow               | What it does                                                                            | Typical duration |
+| ---------------------- | --------------------------------------------------------------------------------------- | ---------------- |
+| `Publish npm packages` | Publishes `@librecode/sdk`, `@librecode/i18n`, `@librecode/plugin`                      | ~3 min           |
+| `Release`              | Builds CLI binaries for 7 targets, uploads to GitHub Release with SHA256SUMS            | ~10 min          |
+| `Desktop`              | Builds `.deb`, `.rpm`, AppImage (Linux), signed `.app`+`.dmg` (macOS), `.exe` (Windows) | ~20–30 min       |
+| `Flatpak`              | Builds Flatpak bundle from cargo-sources.json, uploads to GitHub Release                | ~30–40 min       |
 
 Watch live:
+
 ```bash
 gh run list --limit 10
 gh run watch <run-id>
@@ -127,6 +133,7 @@ then plugin. All three steps skip gracefully if the version is already on npm
 (safe to re-run).
 
 If any job fails, re-run only the failed jobs:
+
 ```bash
 gh run rerun <run-id> --failed
 ```
@@ -146,7 +153,7 @@ gh release download vX.Y.Z --pattern SHA256SUMS
 grep darwin SHA256SUMS
 ```
 
-Edit `contrib/homebrew/librecode.rb` and replace the `sha256 "FILL_IN_AFTER_RELEASE"` 
+Edit `contrib/homebrew/librecode.rb` and replace the `sha256 "FILL_IN_AFTER_RELEASE"`
 placeholders. Then move the formula to the tap repo:
 
 ```bash
@@ -186,6 +193,7 @@ release a patch version (`X.Y.Z+1`) instead.
 ## Checklist
 
 Before tagging:
+
 - [ ] All tests pass: `bun test --timeout 30000`
 - [ ] No type errors: `bun run typecheck`
 - [ ] No new lint warnings: `bunx biome lint packages/`
@@ -195,6 +203,7 @@ Before tagging:
 - [ ] `librecode-3rdparty-providers` is tagged
 
 After CI:
+
 - [ ] GitHub Release created with all artifacts
 - [ ] `npm view @librecode/sdk@X.Y.Z version` returns correctly
 - [ ] `npm view @librecode/plugin@X.Y.Z version` returns correctly

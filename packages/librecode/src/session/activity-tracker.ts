@@ -179,12 +179,7 @@ function handleFileEdited(state: ActivityState, file: string, sessionID: string 
   publishUpdate(session)
 }
 
-function handleAgentTransition(
-  state: ActivityState,
-  sessionID: string,
-  _from: string,
-  to: string,
-) {
+function handleAgentTransition(state: ActivityState, sessionID: string, _from: string, to: string) {
   const session = getOrCreate(state, sessionID)
   const now = Date.now()
   const agentID = "main"

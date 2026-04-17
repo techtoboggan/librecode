@@ -9,7 +9,11 @@ import {
   type Tool as MCPToolDef,
   ToolListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js"
-import { RESOURCE_MIME_TYPE, getToolUiResourceUri, isToolVisibilityAppOnly } from "@modelcontextprotocol/ext-apps/app-bridge"
+import {
+  RESOURCE_MIME_TYPE,
+  getToolUiResourceUri,
+  isToolVisibilityAppOnly,
+} from "@modelcontextprotocol/ext-apps/app-bridge"
 import { dynamicTool, type JSONSchema7, jsonSchema, type Tool } from "ai"
 import open from "open"
 import z from "zod/v4"
@@ -166,7 +170,10 @@ async function convertMcpTool(mcpTool: MCPToolDef, client: MCPClient, timeout?: 
       // Attach the UI resource URI and server lookup info to the result so the
       // frontend can find and render the MCP App panel for this tool call.
       if (uiResourceUri) {
-        return { ...result, _meta: { ...((result as Record<string, unknown>)._meta ?? {}), ui: { resourceUri: uiResourceUri } } }
+        return {
+          ...result,
+          _meta: { ...((result as Record<string, unknown>)._meta ?? {}), ui: { resourceUri: uiResourceUri } },
+        }
       }
       return result
     },

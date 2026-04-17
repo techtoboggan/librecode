@@ -242,8 +242,7 @@ export const McpRoutes = lazy(() =>
       "/apps/html",
       describeRoute({
         summary: "Fetch MCP App HTML",
-        description:
-          "Fetches the HTML content for a specific MCP App UI resource identified by server name and uri.",
+        description: "Fetches the HTML content for a specific MCP App UI resource identified by server name and uri.",
         operationId: "mcp.apps.html",
         responses: {
           200: {

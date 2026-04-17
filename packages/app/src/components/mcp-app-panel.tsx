@@ -17,15 +17,7 @@
  *   <McpAppPanel server="my-server" uri="ui://my-server/app" />
  */
 
-import {
-  type Accessor,
-  createEffect,
-  createResource,
-  createSignal,
-  onCleanup,
-  Show,
-  type JSX,
-} from "solid-js"
+import { type Accessor, createEffect, createResource, createSignal, onCleanup, Show, type JSX } from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
 import { useSDK } from "@/context/sdk"
 
@@ -60,12 +52,7 @@ function injectCsp(html: string, csp: string): string {
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
-async function fetchAppHtml(
-  baseUrl: string,
-  directory: string,
-  server: string,
-  uri: string,
-): Promise<string> {
+async function fetchAppHtml(baseUrl: string, directory: string, server: string, uri: string): Promise<string> {
   const url = new URL(`${baseUrl}/mcp/apps/html`)
   url.searchParams.set("server", server)
   url.searchParams.set("uri", uri)
@@ -82,16 +69,13 @@ function useAppBridge(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
     const iframe = iframeRef()
     if (!iframe?.contentWindow) return
 
-    const transport = new PostMessageTransport(
-      iframe.contentWindow,
-      iframe.contentWindow,
-    )
+    const transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow)
 
     const bridge = new AppBridge(
       null, // no MCP client proxying at this layer — tools are called via the tool registry
       { name: "librecode", version: "0" },
-      {},        // host capabilities: bare minimum
-      {},        // no initial host context — theme sync is a follow-up
+      {}, // host capabilities: bare minimum
+      {}, // no initial host context — theme sync is a follow-up
     )
 
     // Connect once the iframe's srcdoc has loaded
@@ -154,9 +138,7 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
 
       <Show when={html.error}>
         <div class="absolute inset-0 flex items-center justify-center px-6">
-          <div class="text-12-regular text-text-danger text-center">
-            Failed to load MCP App: {String(html.error)}
-          </div>
+          <div class="text-12-regular text-text-danger text-center">Failed to load MCP App: {String(html.error)}</div>
         </div>
       </Show>
 
@@ -235,8 +217,7 @@ export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
         <div class="flex-1 flex flex-col items-center justify-center gap-3 px-6 pb-16 text-center">
           <div class="text-12-regular text-text-weak">No MCP Apps connected</div>
           <div class="text-11-regular text-text-weaker max-w-48">
-            Connect an MCP server that exposes a{" "}
-            <code class="font-mono">ui://</code> resource to see apps here.
+            Connect an MCP server that exposes a <code class="font-mono">ui://</code> resource to see apps here.
           </div>
         </div>
       </Show>
@@ -251,8 +232,7 @@ export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
                 class="px-2.5 py-1 rounded-md text-11-medium transition-colors"
                 classList={{
                   "bg-background-active text-text-strong": activeApp()?.uri === app.uri,
-                  "text-text-weak hover:text-text-base hover:bg-background-subtle":
-                    activeApp()?.uri !== app.uri,
+                  "text-text-weak hover:text-text-base hover:bg-background-subtle": activeApp()?.uri !== app.uri,
                 }}
                 onClick={() => setActiveApp(app)}
                 title={app.description}
@@ -297,13 +277,7 @@ export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
         </div>
 
         <Show when={activeApp()}>
-          {(app) => (
-            <McpAppPanel
-              server={app().server}
-              uri={app().uri}
-              class="flex-1 min-h-0"
-            />
-          )}
+          {(app) => <McpAppPanel server={app().server} uri={app().uri} class="flex-1 min-h-0" />}
         </Show>
       </Show>
     </div>

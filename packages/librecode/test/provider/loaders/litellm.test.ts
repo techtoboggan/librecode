@@ -32,8 +32,8 @@ async function withInstance<T>(fn: () => Promise<T>): Promise<T> {
 
 describe("litellm loader: no models → autoload false", () => {
   test("returns autoload: false when fetch returns empty model list", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {
@@ -43,9 +43,7 @@ describe("litellm loader: no models → autoload false", () => {
   })
 
   test("returns autoload: false when fetch returns non-OK response", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response("Unauthorized", { status: 401 }),
-    ) as unknown as typeof fetch
+    globalThis.fetch = mock(async () => new Response("Unauthorized", { status: 401 })) as unknown as typeof fetch
 
     await withInstance(async () => {
       const result = await litellm(makeProvider())
@@ -80,8 +78,8 @@ describe("litellm loader: no models → autoload false", () => {
 describe("litellm loader: models discovered → autoload true", () => {
   test("returns autoload: true and injects models when models are found", async () => {
     const models = [{ id: "gpt-4o" }, { id: "claude-sonnet-4-5" }]
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: models }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: models }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {
@@ -94,8 +92,8 @@ describe("litellm loader: models discovered → autoload true", () => {
   })
 
   test("injected model has expected providerID and defaults", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [{ id: "my-model" }] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [{ id: "my-model" }] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {
@@ -113,8 +111,8 @@ describe("litellm loader: models discovered → autoload true", () => {
     const original = { id: "existing", name: "Original Name" } as unknown as ProviderInfo["models"][string]
     const provider = makeProvider({ models: { existing: original } })
 
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [{ id: "existing" }] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [{ id: "existing" }] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await using tmp = await tmpdir()
@@ -129,8 +127,8 @@ describe("litellm loader: models discovered → autoload true", () => {
   })
 
   test("result includes baseURL in options", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [{ id: "m1" }] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [{ id: "m1" }] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {
@@ -141,8 +139,8 @@ describe("litellm loader: models discovered → autoload true", () => {
   })
 
   test("result includes apiKey in options when provided via provider.options", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [{ id: "m1" }] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [{ id: "m1" }] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {
@@ -179,8 +177,8 @@ describe("litellm loader: models discovered → autoload true", () => {
   })
 
   test("getModel calls sdk.languageModel with the modelID", async () => {
-    globalThis.fetch = mock(async () =>
-      new Response(JSON.stringify({ data: [{ id: "test-model" }] }), { status: 200 }),
+    globalThis.fetch = mock(
+      async () => new Response(JSON.stringify({ data: [{ id: "test-model" }] }), { status: 200 }),
     ) as unknown as typeof fetch
 
     await withInstance(async () => {

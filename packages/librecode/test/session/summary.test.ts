@@ -265,7 +265,7 @@ describe("SessionSummary.diff", () => {
     })
   })
 
-  test("unquotes all simple escape sequences (\\r \\b \\f \\v \\\\ \\\")", async () => {
+  test('unquotes all simple escape sequences (\\r \\b \\f \\v \\\\ \\")', async () => {
     await using tmp = await tmpdir()
     await Instance.provide({
       directory: tmp.path,
@@ -297,7 +297,7 @@ describe("SessionSummary.diff", () => {
         const sessionID = sid()
         // A quoted path where the last char before closing quote is a lone backslash
         // This exercises the !next branch in processBackslashEscape
-        const quotedPath = '"src/path\\"'  // ends with backslash then quote — actually valid
+        const quotedPath = '"src/path\\"' // ends with backslash then quote — actually valid
         const diffs: SnapshotFileDiff[] = [fileDiff(quotedPath, 0, 0)]
         await Storage.write(["session_diff", sessionID], diffs)
         const result = await SessionSummary.diff({ sessionID })

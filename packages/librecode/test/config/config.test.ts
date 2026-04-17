@@ -1040,10 +1040,7 @@ test("updateGlobal creates librecode.json and merges model field", async () => {
 test("updateGlobal patches existing .jsonc file preserving comments", async () => {
   await using globalTmp = await tmpdir({
     init: async (dir) => {
-      await Filesystem.write(
-        path.join(dir, "librecode.jsonc"),
-        `{\n  // This is a comment\n  "model": "old/model"\n}`,
-      )
+      await Filesystem.write(path.join(dir, "librecode.jsonc"), `{\n  // This is a comment\n  "model": "old/model"\n}`)
     },
   })
   const prevConfig = Global.Path.config

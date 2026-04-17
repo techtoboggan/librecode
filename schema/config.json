@@ -11,12 +11,7 @@
       "description": "Log level",
       "ref": "LogLevel",
       "type": "string",
-      "enum": [
-        "DEBUG",
-        "INFO",
-        "WARN",
-        "ERROR"
-      ]
+      "enum": ["DEBUG", "INFO", "WARN", "ERROR"]
     },
     "server": {
       "description": "Server configuration for librecode serve and web commands",
@@ -77,9 +72,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "template"
-        ],
+        "required": ["template"],
         "additionalProperties": false
       }
     },
@@ -285,15 +278,10 @@
                       "properties": {
                         "field": {
                           "type": "string",
-                          "enum": [
-                            "reasoning_content",
-                            "reasoning_details"
-                          ]
+                          "enum": ["reasoning_content", "reasoning_details"]
                         }
                       },
-                      "required": [
-                        "field"
-                      ],
+                      "required": ["field"],
                       "additionalProperties": false
                     }
                   ]
@@ -329,17 +317,11 @@
                           "type": "number"
                         }
                       },
-                      "required": [
-                        "input",
-                        "output"
-                      ],
+                      "required": ["input", "output"],
                       "additionalProperties": false
                     }
                   },
-                  "required": [
-                    "input",
-                    "output"
-                  ],
+                  "required": ["input", "output"],
                   "additionalProperties": false
                 },
                 "limit": {
@@ -355,10 +337,7 @@
                       "type": "number"
                     }
                   },
-                  "required": [
-                    "context",
-                    "output"
-                  ],
+                  "required": ["context", "output"],
                   "additionalProperties": false
                 },
                 "modalities": {
@@ -368,33 +347,18 @@
                       "type": "array",
                       "items": {
                         "type": "string",
-                        "enum": [
-                          "text",
-                          "audio",
-                          "image",
-                          "video",
-                          "pdf"
-                        ]
+                        "enum": ["text", "audio", "image", "video", "pdf"]
                       }
                     },
                     "output": {
                       "type": "array",
                       "items": {
                         "type": "string",
-                        "enum": [
-                          "text",
-                          "audio",
-                          "image",
-                          "video",
-                          "pdf"
-                        ]
+                        "enum": ["text", "audio", "image", "video", "pdf"]
                       }
                     }
                   },
-                  "required": [
-                    "input",
-                    "output"
-                  ],
+                  "required": ["input", "output"],
                   "additionalProperties": false
                 },
                 "experimental": {
@@ -402,11 +366,7 @@
                 },
                 "status": {
                   "type": "string",
-                  "enum": [
-                    "alpha",
-                    "beta",
-                    "deprecated"
-                  ]
+                  "enum": ["alpha", "beta", "deprecated"]
                 },
                 "options": {
                   "type": "object",
@@ -562,10 +522,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "type",
-                  "command"
-                ],
+                "required": ["type", "command"],
                 "additionalProperties": false
               },
               {
@@ -630,10 +587,7 @@
                     "maximum": 9007199254740991
                   }
                 },
-                "required": [
-                  "type",
-                  "url"
-                ],
+                "required": ["type", "url"],
                 "additionalProperties": false
               }
             ]
@@ -645,9 +599,7 @@
                 "type": "boolean"
               }
             },
-            "required": [
-              "enabled"
-            ],
+            "required": ["enabled"],
             "additionalProperties": false
           }
         ]
@@ -718,9 +670,7 @@
                     "const": true
                   }
                 },
-                "required": [
-                  "disabled"
-                ],
+                "required": ["disabled"],
                 "additionalProperties": false
               },
               {
@@ -758,9 +708,7 @@
                     "additionalProperties": {}
                   }
                 },
-                "required": [
-                  "command"
-                ],
+                "required": ["command"],
                 "additionalProperties": false
               }
             ]
@@ -779,10 +727,7 @@
       "description": "@deprecated Always uses stretch layout.",
       "ref": "LayoutConfig",
       "type": "string",
-      "enum": [
-        "auto",
-        "stretch"
-      ]
+      "enum": ["auto", "stretch"]
     },
     "permission": {
       "ref": "PermissionConfig"

@@ -62,9 +62,7 @@ function AgentStatusRow(props: { entry: EventActivityAgentEntry; theme: ReturnTy
       <Show when={tool()}>
         <text fg={props.theme.textMuted}>{tool()}</text>
       </Show>
-      <Show when={file()}>
-        {(f) => <text fg={props.theme.textMuted}> {shortPath(f(), 40)}</text>}
-      </Show>
+      <Show when={file()}>{(f) => <text fg={props.theme.textMuted}> {shortPath(f(), 40)}</text>}</Show>
     </box>
   )
 }
@@ -187,9 +185,7 @@ export function ActivityPanel(props: { sessionID: string; onClose: () => void })
           <text fg={theme.textMuted}>
             <b>Agents</b>
           </text>
-          <For each={activeAgents()}>
-            {(entry) => <AgentStatusRow entry={entry} theme={theme} />}
-          </For>
+          <For each={activeAgents()}>{(entry) => <AgentStatusRow entry={entry} theme={theme} />}</For>
         </box>
       </Show>
 
@@ -198,9 +194,7 @@ export function ActivityPanel(props: { sessionID: string; onClose: () => void })
           <text fg={theme.textMuted}>
             <b>Files (recent)</b>
           </text>
-          <For each={recentFiles()}>
-            {(entry) => <FileRow entry={entry} theme={theme} />}
-          </For>
+          <For each={recentFiles()}>{(entry) => <FileRow entry={entry} theme={theme} />}</For>
         </box>
       </Show>
 

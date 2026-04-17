@@ -20,21 +20,9 @@
  *   - Live updates: activity.updated SSE event via useGlobalSDK event bus
  */
 
-import {
-  createEffect,
-  createResource,
-  createSignal,
-  For,
-  onCleanup,
-  Show,
-  type JSX,
-} from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
-import type {
-  EventActivityAgentEntry,
-  EventActivityFileEntry,
-  EventActivityUpdated,
-} from "@librecode/sdk/v2/client"
+import type { EventActivityAgentEntry, EventActivityFileEntry, EventActivityUpdated } from "@librecode/sdk/v2/client"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
 
@@ -74,11 +62,7 @@ function kindClass(kind: string): string {
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
-async function fetchActivity(
-  baseUrl: string,
-  directory: string,
-  sessionID: string,
-): Promise<ActivityState> {
+async function fetchActivity(baseUrl: string, directory: string, sessionID: string): Promise<ActivityState> {
   const url = new URL(`${baseUrl}/session/${sessionID}/activity`)
   url.searchParams.set("directory", directory)
   const res = await fetch(url.toString())
@@ -101,7 +85,9 @@ function AgentStatusBar(props: { agents: Record<string, AgentActivity> }): JSX.E
           {(agent) => (
             <div
               class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-background-subtle text-11-regular max-w-[200px]"
-              title={agent.file ? `${agent.agentID}: ${agent.phase} — ${agent.file}` : `${agent.agentID}: ${agent.phase}`}
+              title={
+                agent.file ? `${agent.agentID}: ${agent.phase} — ${agent.file}` : `${agent.agentID}: ${agent.phase}`
+              }
             >
               <span class="text-text-weak shrink-0">{agent.agentID}</span>
               <span class="text-text-weaker">·</span>

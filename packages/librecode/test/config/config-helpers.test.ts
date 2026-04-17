@@ -75,11 +75,7 @@ describe("Config.deduplicatePlugins", () => {
   })
 
   test("handles file:// URL duplicates by stem name", () => {
-    const plugins = [
-      "file:///global/plugins/my-plugin.js",
-      "bar@1.0.0",
-      "file:///local/plugins/my-plugin.js",
-    ]
+    const plugins = ["file:///global/plugins/my-plugin.js", "bar@1.0.0", "file:///local/plugins/my-plugin.js"]
     const result = Config.deduplicatePlugins(plugins)
     const filePlugins = result.filter((p) => p.startsWith("file://"))
     expect(filePlugins).toHaveLength(1)

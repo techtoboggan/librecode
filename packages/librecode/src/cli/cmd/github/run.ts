@@ -469,7 +469,6 @@ async function getUserPrompt(
 // Session management
 // ---------------------------------------------------------------------------
 
-
 // ---------------------------------------------------------------------------
 // Session event subscription
 // ---------------------------------------------------------------------------
@@ -822,13 +821,7 @@ async function handleLocalPREvent(
     await pushToLocalBranch(summary, uncommittedChanges, ctx.actor)
   }
   if (ctx.issueId === undefined) throw new Error("issueId is required for PR event")
-  await createComment(
-    ctx.octoRest,
-    ctx.owner,
-    ctx.repo,
-    ctx.issueId,
-    `${response}${buildFooter(ctx)}`,
-  )
+  await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${response}${buildFooter(ctx)}`)
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
 
@@ -852,13 +845,7 @@ async function handleForkPREvent(
     await pushToForkBranch(summary, prData, uncommittedChanges, ctx.actor)
   }
   if (ctx.issueId === undefined) throw new Error("issueId is required for fork PR event")
-  await createComment(
-    ctx.octoRest,
-    ctx.owner,
-    ctx.repo,
-    ctx.issueId,
-    `${response}${buildFooter(ctx)}`,
-  )
+  await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${response}${buildFooter(ctx)}`)
   await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
 }
 
@@ -894,13 +881,7 @@ async function handleIssueEvent(
   if (switched) {
     // Agent switched branches (likely created its own branch/PR).
     // Don't push the stale infrastructure branch — just comment.
-    await createComment(
-      ctx.octoRest,
-      ctx.owner,
-      ctx.repo,
-      ctx.issueId,
-      `${response}${buildFooter(ctx)}`,
-    )
+    await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${response}${buildFooter(ctx)}`)
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   } else if (dirty) {
     const summary = await summarize(ctx, response)
@@ -915,31 +896,13 @@ async function handleIssueEvent(
       `${response}\n\nCloses #${ctx.issueId}${buildFooter(ctx)}`,
     )
     if (pr) {
-      await createComment(
-        ctx.octoRest,
-        ctx.owner,
-        ctx.repo,
-        ctx.issueId,
-        `Created PR #${pr}${buildFooter(ctx)}`,
-      )
+      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `Created PR #${pr}${buildFooter(ctx)}`)
     } else {
-      await createComment(
-        ctx.octoRest,
-        ctx.owner,
-        ctx.repo,
-        ctx.issueId,
-        `${response}${buildFooter(ctx)}`,
-      )
+      await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${response}${buildFooter(ctx)}`)
     }
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   } else {
-    await createComment(
-      ctx.octoRest,
-      ctx.owner,
-      ctx.repo,
-      ctx.issueId,
-      `${response}${buildFooter(ctx)}`,
-    )
+    await createComment(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, `${response}${buildFooter(ctx)}`)
     await removeReaction(ctx.octoRest, ctx.owner, ctx.repo, ctx.issueId, ctx.triggerCommentId, commentType)
   }
 }

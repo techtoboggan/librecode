@@ -34,8 +34,12 @@ jobs:
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Waiting for @librecode/i18n@$VERSION..."
+          # Use curl instead of npm view — the Flatpak container may not have npm.
           for i in $(seq 1 20); do
-            npm view @librecode/i18n@$VERSION version 2>/dev/null && break
+            if curl -fsSL "https://registry.npmjs.org/@librecode/i18n/$VERSION" >/dev/null 2>&1; then
+              echo "Found @librecode/i18n@$VERSION on npm"
+              break
+            fi
             echo "Not yet (attempt $i/20), retrying in 30s..."
             sleep 30
           done
