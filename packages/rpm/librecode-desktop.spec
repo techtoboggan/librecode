@@ -28,11 +28,19 @@ your codebase, and helps you build software faster.
 # The tarball contains filesystem paths relative to / (usr/bin/..., etc.)
 tar -xzf %{SOURCE0} -C %{buildroot}
 
+# Tauri names the binary after productName (LibreCode). Create a
+# librecode-desktop symlink so users can launch with a predictable name.
+ln -sf LibreCode %{buildroot}%{_bindir}/librecode-desktop
+
 %files
 %{_bindir}/LibreCode
-%{_datadir}/applications/com.librecode.desktop*.desktop
-%{_datadir}/icons/hicolor/*/apps/com.librecode.desktop*
+%{_bindir}/librecode-desktop
+%{_datadir}/applications/*.desktop
+%{_datadir}/icons/hicolor/*/apps/*
 
 %changelog
+* Thu Apr 17 2026 techtoboggan <noreply@github.com> - 0.8.0-1
+- First COPR release (v0.8.0)
+
 * Sun Apr 13 2026 techtoboggan <noreply@github.com> - 0.0.0-1
 - Initial COPR package
