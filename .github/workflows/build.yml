@@ -30,9 +30,7 @@ jobs:
           # Linux musl
           - target: linux-x64-musl
             os: ubuntu-latest
-          # macOS
-          - target: darwin-x64
-            os: macos-13
+          # macOS (arm64 only — macos-13/x64 runners have poor availability)
           - target: darwin-arm64
             os: macos-14
 
