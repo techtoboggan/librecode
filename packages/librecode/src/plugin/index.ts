@@ -6,7 +6,6 @@ import { Bus } from "../bus"
 import { Config } from "../config/config"
 import { Flag } from "../flag/flag"
 import { Instance } from "../project/instance"
-import { Server } from "../server/server"
 import { Session } from "../session"
 import { Log } from "../util/log"
 import { CodexAuthPlugin } from "./codex"
@@ -34,6 +33,8 @@ function buildPluginInput(client: ReturnType<typeof createLibrecodeClient>): Plu
     worktree: Instance.worktree,
     directory: Instance.directory,
     get serverUrl(): URL {
+      // Lazy require to break circular dep: Session → SessionPrompt → Plugin → Server → Session
+      const { Server } = require("../server/server") as typeof import("../server/server")
       return Server.url ?? new URL("http://localhost:4096")
     },
     $: Bun.$,
@@ -123,7 +124,10 @@ const state = Instance.state(async () => {
           Authorization: `Basic ${Buffer.from(`${Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"}:${Flag.LIBRECODE_SERVER_PASSWORD}`).toString("base64")}`,
         }
       : undefined,
-    fetch: async (...args) => Server.Default().fetch(...args),
+    fetch: async (...args) => {
+      const { Server } = require("../server/server") as typeof import("../server/server")
+      return Server.Default().fetch(...args)
+    },
   })
   const config = await Config.get()
   const hooks: Hooks[] = []
