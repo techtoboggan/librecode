@@ -42,12 +42,7 @@
       }
     },
     "macOS": {
-      "entitlements": "./entitlements.plist",
-      "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        }
-      }
+      "entitlements": "./entitlements.plist"
     },
     "windows": {
       "nsis": {
