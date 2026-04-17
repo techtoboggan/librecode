@@ -26,6 +26,14 @@ const BUILTIN: string[] = []
 // Built-in plugins that are directly imported (not installed from npm)
 const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
 
+// Lazy import to break circular dep: Session → SessionPrompt → Plugin → Server → Session.
+// Can't use require() because server.ts transitively has top-level await.
+let _serverModule: typeof import("../server/server") | undefined
+async function getServer() {
+  _serverModule ??= await import("../server/server")
+  return _serverModule.Server
+}
+
 function buildPluginInput(client: ReturnType<typeof createLibrecodeClient>): PluginInput {
   return {
     client,
@@ -33,9 +41,9 @@ function buildPluginInput(client: ReturnType<typeof createLibrecodeClient>): Plu
     worktree: Instance.worktree,
     directory: Instance.directory,
     get serverUrl(): URL {
-      // Lazy require to break circular dep: Session → SessionPrompt → Plugin → Server → Session
-      const { Server } = require("../server/server") as typeof import("../server/server")
-      return Server.url ?? new URL("http://localhost:4096")
+      // By the time this getter is called, the server module is already loaded
+      // (the server must be running for plugins to call serverUrl).
+      return _serverModule?.Server.url ?? new URL("http://localhost:4096")
     },
     $: Bun.$,
   }
@@ -125,7 +133,7 @@ const state = Instance.state(async () => {
         }
       : undefined,
     fetch: async (...args) => {
-      const { Server } = require("../server/server") as typeof import("../server/server")
+      const Server = await getServer()
       return Server.Default().fetch(...args)
     },
   })
