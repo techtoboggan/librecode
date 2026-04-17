@@ -206,6 +206,10 @@ jobs:
           License: MIT
           Source0: librecode-desktop.tar.gz
           AutoReqProv: no
+          Obsoletes: libre-code < %{version}-%{release}
+          Provides: libre-code = %{version}-%{release}
+          Obsoletes: LibreCode < %{version}-%{release}
+          Provides: LibreCode = %{version}-%{release}
 
           %description
           LibreCode desktop app — local-first AI coding agent.

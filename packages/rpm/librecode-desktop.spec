@@ -15,6 +15,12 @@ ExclusiveArch:  x86_64
 # Tarball of the Tauri-built RPM's contents, bundled by CI (no internet needed)
 Source0:        librecode-desktop-x86_64.tar.gz
 
+# Seamless upgrade from previous package names (Tauri's auto-generated names)
+Obsoletes:      libre-code < %{version}-%{release}
+Provides:       libre-code = %{version}-%{release}
+Obsoletes:      LibreCode < %{version}-%{release}
+Provides:       LibreCode = %{version}-%{release}
+
 Requires:       webkit2gtk4.1
 Requires:       gtk3
 Requires:       glib2
