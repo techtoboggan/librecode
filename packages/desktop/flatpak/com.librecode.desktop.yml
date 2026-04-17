@@ -68,17 +68,17 @@ modules:
   - name: bun-sidecar
     buildsystem: simple
     sources:
-      # x86_64 (bun 1.3.10 — keep in sync with packageManager in root package.json)
+      # x86_64 (bun 1.3.11 — keep in sync with packageManager in root package.json)
       - type: file
         only-arches: [x86_64]
-        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-x64-baseline.zip
-        sha256: 41201a8c5ee74a9dcbb1ce25a1104f1f929838b57a845aa78d98379b0ce7cde2
+        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-x64-baseline.zip
+        sha256: abe346f63414547cdf6b35b7a649a490c728b93d006226156923918a84c0e59b
         dest-filename: bun.zip
-      # aarch64 (bun 1.3.10)
+      # aarch64 (bun 1.3.11)
       - type: file
         only-arches: [aarch64]
-        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.10/bun-linux-aarch64.zip
-        sha256: fa5ecb25cafa8e8f5c87a0f833719d46dd0af0a86c7837d806531212d55636d3
+        url: https://github.com/oven-sh/bun/releases/download/bun-v1.3.11/bun-linux-aarch64.zip
+        sha256: d13944da12a53ecc74bf6a720bd1d04c4555c038dfe422365356a7be47691fdf
         dest-filename: bun.zip
     build-commands:
       - unzip -j bun.zip "*/bun" -d .
