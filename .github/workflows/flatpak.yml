@@ -91,6 +91,7 @@ jobs:
           echo "Computed sha256: ${SHA}"
           sed -i \
             -e "s|sha256: REPLACE_AT_RELEASE_TIME_SEE_FLATPAK_WORKFLOW|sha256: ${SHA}|" \
+            -e "s|url: https://github.com/.*/archive/refs/tags/v.*\.tar\.gz|url: ${URL}|" \
             packages/desktop/flatpak/com.librecode.desktop.yml
 
       - name: Validate manifest
