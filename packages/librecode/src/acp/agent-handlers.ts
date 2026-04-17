@@ -3,7 +3,7 @@ import type { AgentSideConnection, PermissionOption, PlanEntry } from "@agentcli
 import type {
   AssistantMessage,
   Event,
-  OpencodeClient,
+  LibrecodeClient,
   SessionMessageResponse,
   ToolPart,
   ToolStateCompleted,
@@ -21,7 +21,7 @@ const log = Log.create({ service: "acp-agent" })
 
 export async function sendUsageUpdate(
   connection: AgentSideConnection,
-  sdk: OpencodeClient,
+  sdk: LibrecodeClient,
   sessionID: string,
   directory: string,
 ): Promise<void> {
@@ -72,7 +72,7 @@ export async function sendUsageUpdate(
 export class AgentHandlers {
   constructor(
     private readonly connection: AgentSideConnection,
-    private readonly sdk: OpencodeClient,
+    private readonly sdk: LibrecodeClient,
     private readonly permissionOptions: PermissionOption[],
     private readonly bashSnapshots: Map<string, string>,
     private readonly toolStarts: Set<string>,

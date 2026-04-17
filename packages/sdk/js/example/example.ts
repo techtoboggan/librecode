@@ -1,8 +1,8 @@
-import { createOpencodeClient, createOpencodeServer } from "@librecode/sdk"
+import { createLibrecodeClient, createLibrecodeServer } from "@librecode/sdk"
 import { pathToFileURL } from "bun"
 
-const server = await createOpencodeServer()
-const client = createOpencodeClient({ baseUrl: server.url })
+const server = await createLibrecodeServer()
+const client = createLibrecodeClient({ baseUrl: server.url })
 
 const input = await Array.fromAsync(new Bun.Glob("packages/core/*.ts").scan())
 

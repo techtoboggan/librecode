@@ -1,4 +1,4 @@
-import { createOpencodeClient, type Event } from "@librecode/sdk/v2"
+import { createLibrecodeClient, type Event } from "@librecode/sdk/v2"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { batch, onCleanup, onMount } from "solid-js"
 import { createSimpleContext } from "./helper"
@@ -22,7 +22,7 @@ export const { use: useSDK, provider: SDKProvider } = createSimpleContext({
     let sse: AbortController | undefined
 
     function createSDK() {
-      return createOpencodeClient({
+      return createLibrecodeClient({
         baseUrl: props.url,
         signal: abort.signal,
         directory: props.directory,

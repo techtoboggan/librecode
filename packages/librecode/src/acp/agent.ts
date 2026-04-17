@@ -22,7 +22,7 @@ import {
   type SetSessionModeResponse,
   type Usage,
 } from "@agentclientprotocol/sdk"
-import type { AssistantMessage, Event, OpencodeClient } from "@librecode/sdk/v2"
+import type { AssistantMessage, Event, LibrecodeClient } from "@librecode/sdk/v2"
 import { LoadAPIKeyError } from "ai"
 import type { Config } from "@/config/config"
 import { Installation } from "@/installation"
@@ -50,7 +50,7 @@ const log = Log.create({ service: "acp-agent" })
 type ModeOption = { id: string; name: string; description?: string }
 type _ModelOption = { modelId: string; name: string }
 
-async function acpInit({ sdk: _sdk }: { sdk: OpencodeClient }) {
+async function acpInit({ sdk: _sdk }: { sdk: LibrecodeClient }) {
   return {
     create: (connection: AgentSideConnection, fullConfig: ACPConfig) => {
       return new ACPAgentImpl(connection, fullConfig)
@@ -61,7 +61,7 @@ async function acpInit({ sdk: _sdk }: { sdk: OpencodeClient }) {
 export class ACPAgentImpl implements ACPAgent {
   private connection: AgentSideConnection
   private config: ACPConfig
-  private sdk: OpencodeClient
+  private sdk: LibrecodeClient
   private sessionManager: ACPSessionManager
   private eventAbort = new AbortController()
   private eventStarted = false

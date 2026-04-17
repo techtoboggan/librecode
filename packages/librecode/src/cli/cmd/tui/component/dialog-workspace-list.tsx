@@ -1,5 +1,5 @@
 import type { Session } from "@librecode/sdk/v2"
-import { createOpencodeClient } from "@librecode/sdk/v2"
+import { createLibrecodeClient } from "@librecode/sdk/v2"
 import { useRoute } from "@tui/context/route"
 import { useSync } from "@tui/context/sync"
 import { useDialog } from "@tui/ui/dialog"
@@ -28,7 +28,7 @@ async function openWorkspace(input: {
     )
   }
 
-  const client = createOpencodeClient({
+  const client = createLibrecodeClient({
     baseUrl: input.sdk.url,
     fetch: input.sdk.fetch,
     directory: input.sync.data.path.directory || input.sdk.directory,
@@ -183,7 +183,7 @@ export function DialogWorkspaceList() {
       await open(workspaceID)
       return
     }
-    const client = createOpencodeClient({
+    const client = createLibrecodeClient({
       baseUrl: sdk.url,
       fetch: sdk.fetch,
       directory: sync.data.path.directory || sdk.directory,
@@ -227,7 +227,7 @@ export function DialogWorkspaceList() {
     setCounts(Object.fromEntries(workspaces.map((workspace) => [workspace.id, undefined])))
     void Promise.all(
       workspaces.map(async (workspace) => {
-        const client = createOpencodeClient({
+        const client = createLibrecodeClient({
           baseUrl: sdk.url,
           fetch: sdk.fetch,
           directory: sync.data.path.directory || sdk.directory,

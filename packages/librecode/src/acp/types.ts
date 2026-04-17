@@ -1,5 +1,5 @@
 import type { McpServer } from "@agentclientprotocol/sdk"
-import type { OpencodeClient } from "@librecode/sdk/v2"
+import type { LibrecodeClient } from "@librecode/sdk/v2"
 import type { ModelID, ProviderID } from "../provider/schema"
 
 export interface ACPSessionState {
@@ -16,7 +16,7 @@ export interface ACPSessionState {
 }
 
 export interface ACPConfig {
-  sdk: OpencodeClient
+  sdk: LibrecodeClient
   defaultModel?: {
     providerID: ProviderID
     modelID: ModelID

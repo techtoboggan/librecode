@@ -7,7 +7,7 @@ import { fileURLToPath } from "url"
  */
 export default [
   {
-    name: "opencode-desktop:config",
+    name: "librecode-desktop:config",
     config() {
       return {
         resolve: {

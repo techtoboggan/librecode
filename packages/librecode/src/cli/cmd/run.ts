@@ -2,12 +2,12 @@ import { EOL } from "node:os"
 import path from "node:path"
 import { pathToFileURL } from "node:url"
 import {
-  createOpencodeClient,
+  createLibrecodeClient,
   type Event,
   type EventMessagePartUpdated,
   type EventMessageUpdated,
   type EventSessionError,
-  type OpencodeClient,
+  type LibrecodeClient,
   type ReasoningPart,
   type TextPart,
   type ToolPart,
@@ -260,7 +260,7 @@ function warnAgent(msg: string): void {
 async function resolveAgentRemote(
   agentName: string,
   attachURL: string,
-  sdk: OpencodeClient,
+  sdk: LibrecodeClient,
 ): Promise<string | undefined> {
   const modes = await sdk.app
     .agents(undefined, { throwOnError: true })
@@ -289,7 +289,7 @@ async function resolveAgentRemote(
 async function resolveAgent(
   agentName: string | undefined,
   attachURL: string | undefined,
-  sdk: OpencodeClient,
+  sdk: LibrecodeClient,
 ): Promise<string | undefined> {
   if (!agentName) return undefined
   if (attachURL) return resolveAgentRemote(agentName, attachURL, sdk)
@@ -345,7 +345,7 @@ function buildAuthHeaders(password: string | undefined): Record<string, string> 
 type EventEmitter = (type: string, data: Record<string, unknown>) => boolean
 
 type EventLoopCtx = {
-  sdk: OpencodeClient
+  sdk: LibrecodeClient
   sessionID: string
   format: string
   thinking: boolean
@@ -417,7 +417,7 @@ function handleReasoningPart(part: ReasoningPart, emit: EventEmitter, thinking: 
 async function handlePermissionAsked(
   permission: { sessionID: string; id: string; permission: string; patterns: string[] },
   sessionID: string,
-  sdk: OpencodeClient,
+  sdk: LibrecodeClient,
 ): Promise<void> {
   if (permission.sessionID !== sessionID) return
   UI.println(
@@ -646,7 +646,7 @@ export const RunCommand = cmd({
       return message.slice(0, 50) + (message.length > 50 ? "..." : "")
     }
 
-    async function session(sdk: OpencodeClient) {
+    async function session(sdk: LibrecodeClient) {
       const baseID = args.continue ? (await sdk.session.list()).data?.find((s) => !s.parentID)?.id : args.session
 
       if (baseID && args.fork) {
@@ -661,7 +661,7 @@ export const RunCommand = cmd({
       return result.data?.id
     }
 
-    async function execute(sdk: OpencodeClient): Promise<void> {
+    async function execute(sdk: LibrecodeClient): Promise<void> {
       const agent = await resolveAgent(args.agent, args.attach, sdk)
       const sessionID = await session(sdk)
       if (!sessionID) {
@@ -703,7 +703,7 @@ export const RunCommand = cmd({
 
     if (args.attach) {
       const headers = buildAuthHeaders(args.password)
-      const sdk = createOpencodeClient({ baseUrl: args.attach, directory, headers })
+      const sdk = createLibrecodeClient({ baseUrl: args.attach, directory, headers })
       return await execute(sdk)
     }
 
@@ -712,7 +712,7 @@ export const RunCommand = cmd({
         const request = new Request(input, init)
         return Server.Default().fetch(request)
       }) as typeof globalThis.fetch
-      const sdk = createOpencodeClient({ baseUrl: "http://librecode.internal", fetch: fetchFn })
+      const sdk = createLibrecodeClient({ baseUrl: "http://librecode.internal", fetch: fetchFn })
       await execute(sdk)
     })
   },

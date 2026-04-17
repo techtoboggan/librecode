@@ -1,6 +1,6 @@
 import { pathToFileURL } from "node:url"
 import type { PermissionOption, PromptRequest, ToolCallContent, ToolKind } from "@agentclientprotocol/sdk"
-import type { OpencodeClient } from "@librecode/sdk/v2"
+import type { LibrecodeClient } from "@librecode/sdk/v2"
 import { applyPatch } from "diff"
 import { z } from "zod"
 import { Todo } from "@/session/todo"
@@ -250,7 +250,7 @@ export async function defaultModel(
 }
 
 export async function getContextLimit(
-  sdk: OpencodeClient,
+  sdk: LibrecodeClient,
   providerID: ProviderID,
   modelID: ModelID,
   directory: string,

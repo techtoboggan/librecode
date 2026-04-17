@@ -1,5 +1,5 @@
 import type { Hooks, PluginInput, Plugin as PluginInstance } from "@librecode/plugin"
-import { createOpencodeClient } from "@librecode/sdk"
+import { createLibrecodeClient } from "@librecode/sdk"
 import { NamedError } from "@librecode/util/error"
 import { BunProc } from "../bun"
 import { Bus } from "../bus"
@@ -27,7 +27,7 @@ const BUILTIN: string[] = []
 // Built-in plugins that are directly imported (not installed from npm)
 const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
 
-function buildPluginInput(client: ReturnType<typeof createOpencodeClient>): PluginInput {
+function buildPluginInput(client: ReturnType<typeof createLibrecodeClient>): PluginInput {
   return {
     client,
     project: Instance.project,
@@ -115,7 +115,7 @@ async function loadExternalPlugins(plugins: string[], input: PluginInput, hooks:
 }
 
 const state = Instance.state(async () => {
-  const client = createOpencodeClient({
+  const client = createLibrecodeClient({
     baseUrl: "http://localhost:4096",
     directory: Instance.directory,
     headers: Flag.LIBRECODE_SERVER_PASSWORD

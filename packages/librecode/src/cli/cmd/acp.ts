@@ -1,5 +1,5 @@
 import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk"
-import { createOpencodeClient } from "@librecode/sdk/v2"
+import { createLibrecodeClient } from "@librecode/sdk/v2"
 import { ACP } from "@/acp/agent"
 import { Server } from "@/server/server"
 import { Log } from "@/util/log"
@@ -25,7 +25,7 @@ export const AcpCommand = cmd({
       const opts = await resolveNetworkOptions(args)
       const server = Server.listen(opts)
 
-      const sdk = createOpencodeClient({
+      const sdk = createLibrecodeClient({
         baseUrl: `http://${server.hostname}:${server.port}`,
       })
 

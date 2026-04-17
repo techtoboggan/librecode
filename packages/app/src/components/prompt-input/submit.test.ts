@@ -64,7 +64,7 @@ beforeAll(async () => {
   }))
 
   mock.module("@librecode/sdk/v2/client", () => ({
-    createOpencodeClient: (input: { directory: string }) => {
+    createLibrecodeClient: (input: { directory: string }) => {
       createdClients.push(input.directory)
       return clientFor(input.directory)
     },

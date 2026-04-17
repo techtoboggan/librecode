@@ -1,4 +1,4 @@
-import { createOpencodeClient } from "@librecode/sdk/v2/client"
+import { createLibrecodeClient } from "@librecode/sdk/v2/client"
 import { base64Encode, checksum } from "@librecode/util/encode"
 
 export const serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"
@@ -27,7 +27,7 @@ export const modKey = process.platform === "darwin" ? "Meta" : "Control"
 export const terminalToggleKey = "Control+Backquote"
 
 export function createSdk(directory?: string) {
-  return createOpencodeClient({ baseUrl: serverUrl, directory, throwOnError: true })
+  return createLibrecodeClient({ baseUrl: serverUrl, directory, throwOnError: true })
 }
 
 export async function resolveDirectory(directory: string) {

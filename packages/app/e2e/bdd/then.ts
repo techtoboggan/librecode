@@ -4,7 +4,7 @@
  * Usage:
  *   import { Then } from "./bdd/then"
  *   await Then.shouldSeeText(page, "LiteLLM")
- *   await Then.shouldNotSeeText(page, "opencode")
+ *   await Then.shouldNotSeeText(page, "OpenCode")
  */
 
 import type { Page } from "@playwright/test"

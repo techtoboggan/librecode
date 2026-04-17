@@ -71,7 +71,7 @@ let cli = yargs(hideBin(process.argv))
     })
 
     process.env.AGENT = "1"
-    process.env.OPENCODE = "1"
+    process.env.LIBRECODE = "1"
     process.env.LIBRECODE_PID = String(process.pid)
 
     Log.Default.info("librecode", {

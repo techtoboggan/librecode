@@ -69,7 +69,7 @@ Add to your Zed configuration (`~/.config/zed/settings.json`):
 ```json
 {
   "agent_servers": {
-    "OpenCode": {
+    "LibreCode": {
       "command": "librecode",
       "args": ["acp"]
     }
@@ -158,7 +158,7 @@ Each component has a single responsibility:
 
 This makes the codebase maintainable and testable.
 
-### Mapping to OpenCode
+### Mapping to LibreCode
 
 ACP sessions map cleanly to librecode's internal session model:
 

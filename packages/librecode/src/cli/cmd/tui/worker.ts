@@ -1,5 +1,5 @@
 import { setTimeout as sleep } from "node:timers/promises"
-import { createOpencodeClient, type Event } from "@librecode/sdk/v2"
+import { createLibrecodeClient, type Event } from "@librecode/sdk/v2"
 import type { BunWebSocketData } from "hono/bun"
 import { GlobalBus } from "@/bus/global"
 import { upgrade } from "@/cli/upgrade"
@@ -57,7 +57,7 @@ const startEventStream = (input: { directory: string; workspaceID?: string }) =>
     return Server.Default().fetch(request)
   }) as typeof globalThis.fetch
 
-  const sdk = createOpencodeClient({
+  const sdk = createLibrecodeClient({
     baseUrl: "http://librecode.internal",
     directory: input.directory,
     experimental_workspaceID: input.workspaceID,

@@ -1929,8 +1929,8 @@ describe("LIBRECODE_DISABLE_PROJECT_CONFIG", () => {
         fn: async () => {
           const directories = await Config.directories()
           // Project .librecode should NOT be in directories list
-          const hasProjectOpencode = directories.some((d) => d.startsWith(tmp.path))
-          expect(hasProjectOpencode).toBe(false)
+          const hasProjectLibrecode = directories.some((d) => d.startsWith(tmp.path))
+          expect(hasProjectLibrecode).toBe(false)
         },
       })
     } finally {
