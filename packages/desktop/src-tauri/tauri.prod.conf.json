@@ -18,6 +18,11 @@
     },
     "macOS": {
       "signingIdentity": null,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        }
+      },
       "dmg": {
         "background": null,
         "windowPosition": { "x": 400, "y": 100 },
