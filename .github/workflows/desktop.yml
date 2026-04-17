@@ -176,11 +176,60 @@ jobs:
         if: always() && matrix.sign == true
         run: security delete-keychain build.keychain || true
 
+      # Repack the Tauri RPM with the correct package name. Tauri derives the
+      # RPM name from productName via kebab-case (LibreCode → libre-code) with
+      # no override. We repack it as librecode-desktop to match COPR/AUR/Flatpak.
+      - name: Repack RPM as librecode-desktop
+        if: matrix.platform == 'linux'
+        run: |
+          set -ex
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUNDLE="packages/desktop/src-tauri/target/release/bundle"
+          OLD_RPM=$(ls "$BUNDLE"/rpm/*.rpm | grep -v '\.src\.rpm' | head -1)
+          echo "Repacking: $OLD_RPM"
+
+          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
+
+          # Extract, rebuild with correct name
+          STAGE=$(mktemp -d)
+          cd "$STAGE"
+          rpm2cpio "$OLDPWD/$OLD_RPM" | cpio -idm
+          mkdir -p ~/rpmbuild/{SPECS,SOURCES,BUILD,BUILDROOT,RPMS}
+          tar -czf ~/rpmbuild/SOURCES/librecode-desktop.tar.gz .
+          cd "$OLDPWD"
+
+          cat > ~/rpmbuild/SPECS/repack.spec << SPEC
+          Name:    librecode-desktop
+          Version: ${VERSION}
+          Release: 1
+          Summary: AI-powered development tool
+          License: MIT
+          Source0: librecode-desktop.tar.gz
+          AutoReqProv: no
+
+          %description
+          LibreCode desktop app — local-first AI coding agent.
+
+          %prep
+          %setup -q -c
+
+          %install
+          cp -a . %{buildroot}/
+
+          %files
+          /*
+          SPEC
+
+          rpmbuild -bb ~/rpmbuild/SPECS/repack.spec
+          NEW_RPM=$(ls ~/rpmbuild/RPMS/x86_64/librecode-desktop-${VERSION}-1.x86_64.rpm)
+          echo "Repacked: $NEW_RPM"
+
+          # Replace the Tauri RPM with the repacked one
+          rm "$OLD_RPM"
+          cp "$NEW_RPM" "$BUNDLE/rpm/"
+
       - name: Submit Desktop RPM to COPR
-        # Skip COPR submission for preview/rc tags — keep the `librecode` COPR
-        # repo on stable releases only. Preview builds are distributed via
-        # GitHub Releases.
-        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-preview.') && !contains(github.ref, '-rc.')
+        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/')
         env:
           COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
           COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
