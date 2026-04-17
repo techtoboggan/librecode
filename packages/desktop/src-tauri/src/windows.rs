@@ -161,14 +161,21 @@ fn set_window_icon(_app: &AppHandle, window: &WebviewWindow) {
     // since this function may be called from a tokio worker thread.
     #[cfg(target_os = "linux")]
     {
-        let _ = _app.run_on_main_thread(|| {
-            gtk::Window::set_default_icon_name("librecode-desktop");
+        // Use the app identifier as the icon name — matches what Tauri installs
+        // to /usr/share/icons/hicolor/*/apps/{identifier}.png in DEB/RPM bundles.
+        let icon_name = _app.config().identifier.clone();
+        let _ = _app.run_on_main_thread(move || {
+            gtk::Window::set_default_icon_name(&icon_name);
         });
     }
 
     // Also set the window icon directly from the embedded PNG.
     // This is the primary mechanism on Windows/macOS and a fallback on X11.
+    // Use prod icons for release builds, dev icons for debug builds.
+    #[cfg(debug_assertions)]
     let icon_bytes = include_bytes!("../icons/dev/128x128.png");
+    #[cfg(not(debug_assertions))]
+    let icon_bytes = include_bytes!("../icons/prod/128x128.png");
     match tauri::image::Image::from_bytes(icon_bytes) {
         Ok(icon) => {
             if let Err(e) = window.set_icon(icon) {

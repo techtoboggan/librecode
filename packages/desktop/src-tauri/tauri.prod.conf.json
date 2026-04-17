@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "librecode-desktop",
+  "productName": "LibreCode",
   "identifier": "com.librecode.desktop",
   "bundle": {
     "createUpdaterArtifacts": false,
