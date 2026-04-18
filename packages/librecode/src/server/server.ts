@@ -59,13 +59,21 @@ function namedErrorStatus(err: NamedError): ContentfulStatusCode {
   return 500
 }
 
-function handleServerError(err: Error, c: import("hono").Context): Response {
+/**
+ * A05 (Security Misconfiguration) — production responses carry only the
+ * error message. Stack traces (with file paths + line numbers) are only
+ * attached when LIBRECODE_DEV=1. Leaked stack traces fingerprint the deploy
+ * and narrow the attack surface for a subsequent exploit.
+ */
+export function handleServerError(err: Error, c: import("hono").Context): Response {
   if (err instanceof NamedError) {
     const status = namedErrorStatus(err)
     return c.json(err.toObject(), { status })
   }
   if (err instanceof HTTPException) return err.getResponse()
-  const message = err instanceof Error && err.stack ? err.stack : err.toString()
+  // Read the dev flag dynamically so tests can toggle without module reload
+  const dev = process.env.LIBRECODE_DEV === "true" || process.env.LIBRECODE_DEV === "1"
+  const message = dev && err instanceof Error && err.stack ? err.stack : err instanceof Error ? err.message : String(err)
   return c.json(new NamedError.Unknown({ message }).toObject(), { status: 500 })
 }
 

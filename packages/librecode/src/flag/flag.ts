@@ -41,6 +41,9 @@ export const Flag = {
   LIBRECODE_SERVER_PASSWORD: process.env.LIBRECODE_SERVER_PASSWORD,
   LIBRECODE_SERVER_USERNAME: process.env.LIBRECODE_SERVER_USERNAME,
   LIBRECODE_ENABLE_QUESTION_TOOL: truthy("LIBRECODE_ENABLE_QUESTION_TOOL"),
+  // A05 — LIBRECODE_DEV=1 exposes stack traces in HTTP error responses. Off
+  // by default so production builds don't leak internal paths/line numbers.
+  LIBRECODE_DEV: truthy("LIBRECODE_DEV"),
 
   // Experimental
   LIBRECODE_EXPERIMENTAL: _experimental,
