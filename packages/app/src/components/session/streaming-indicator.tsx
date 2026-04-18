@@ -155,4 +155,3 @@ export function StreamingIndicator() {
     </Show>
   )
 }
-
