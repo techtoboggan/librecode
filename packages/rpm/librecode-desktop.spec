@@ -21,6 +21,11 @@ Provides:       libre-code = %{version}-%{release}
 Obsoletes:      LibreCode < %{version}-%{release}
 Provides:       LibreCode = %{version}-%{release}
 
+# Disable automatic dependency detection — the compiled Bun binary is ~132MB
+# and triggers massive shared lib scanning that can hang COPR builders.
+# We declare our actual deps explicitly below.
+AutoReqProv:    no
+
 Requires:       webkit2gtk4.1
 Requires:       gtk3
 Requires:       glib2
