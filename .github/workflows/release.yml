@@ -147,7 +147,16 @@ jobs:
       - name: Generate checksums + attach schema
         run: |
           cd artifacts
-          sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
+          # A08: SHA256SUMS covers every release artifact, not just CLI tarballs.
+          # Desktop installers (.deb/.rpm/.exe/.dmg/.flatpak/.AppImage) previously
+          # shipped without integrity hashes — users had no way to verify them.
+          sha256sum *.tar.gz *.zip *.deb *.rpm *.exe *.dmg *.flatpak *.AppImage 2>/dev/null > SHA256SUMS || true
+          # Fail if SHA256SUMS is suspiciously small (means globs didn't match anything)
+          if [ ! -s SHA256SUMS ] || [ "$(wc -l < SHA256SUMS)" -lt 5 ]; then
+            echo "::error::SHA256SUMS has fewer than 5 entries — something is wrong"
+            cat SHA256SUMS
+            exit 1
+          fi
           cp ../src/schema/config.json librecode-config-schema.json
 
       - name: Create GitHub Release
