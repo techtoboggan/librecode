@@ -5,7 +5,8 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useSync } from "@/context/sync"
 import { useLanguage } from "@/context/language"
 import { useSessionLayout } from "@/pages/session/session-layout"
-import { createStallDetector, type StallState } from "@/utils/stall-detector"
+import { formatTokens } from "@/utils/format-tokens"
+import { createStallDetector } from "@/utils/stall-detector"
 
 /**
  * Real-time streaming indicator showing:
@@ -155,8 +156,3 @@ export function StreamingIndicator() {
   )
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M"
-  if (n >= 1_000) return (n / 1_000).toFixed(1) + "k"
-  return String(n)
-}
