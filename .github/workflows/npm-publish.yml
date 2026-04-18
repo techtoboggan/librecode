@@ -40,6 +40,9 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Upgrade npm to 11+ (OIDC trusted publishing requires 11.5.1+)
+        run: npm install -g npm@latest
+
       # Wait for i18n to be published (librecode-i18n's own workflow handles that)
       - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
         run: |
@@ -100,6 +103,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Upgrade npm to 11+ (OIDC trusted publishing requires 11.5.1+)
+        run: npm install -g npm@latest
 
       - run: bun install --frozen-lockfile
 
