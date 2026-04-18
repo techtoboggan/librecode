@@ -8,15 +8,16 @@
     "opener:default",
     {
       "identifier": "opener:allow-open-path",
+      "comment": "A05 — opener was permitting `**/*` on any path with `app: true`, giving the frontend full file/program-launch access to the user's machine. Narrow to user-accessible locations that are in-scope for a coding agent: project workspaces under $HOME, common download/temp dirs, and files already running (to re-open the app itself from a tray click).",
       "allow": [
-        { "path": "**/*" },
-        { "path": "/**/*" },
-        { "path": "**/.*/*/**" },
-        { "path": "/**/.*/*/**" },
-        { "path": "**/*", "app": true },
-        { "path": "/**/*", "app": true },
-        { "path": "**/.*/*/**", "app": true },
-        { "path": "/**/.*/*/**", "app": true }
+        { "path": "$HOME/**/*" },
+        { "path": "$HOME/.*/**" },
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DOCUMENT/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$TEMP/**" },
+        { "path": "$HOME/**/*", "app": true },
+        { "path": "$DOWNLOAD/**", "app": true }
       ]
     },
     "deep-link:default",
@@ -45,7 +46,18 @@
     "notification:default",
     {
       "identifier": "http:default",
-      "allow": [{ "url": "http://*" }, { "url": "https://*" }, { "url": "http://*:*/*" }]
+      "comment": "A05 — was `http://*, https://*` which let any compromised frontend JS talk to any host via the Tauri HTTP bridge (bypasses browser CORS). Narrow to: local CLI server on loopback, LibreCode cloud, GitHub (updater + release notes). All LLM provider calls go server-side through the CLI, not through this frontend bridge, so provider hosts are intentionally NOT in the allowlist — if we need one, it's a code change, not an unrestricted HTTP grant.",
+      "allow": [
+        { "url": "http://localhost:*/*" },
+        { "url": "http://127.0.0.1:*/*" },
+        { "url": "http://[::1]:*/*" },
+        { "url": "https://app.librecode.ai/**" },
+        { "url": "https://librecode.ai/**" },
+        { "url": "https://github.com/techtoboggan/**" },
+        { "url": "https://api.github.com/repos/techtoboggan/**" },
+        { "url": "https://raw.githubusercontent.com/techtoboggan/**" },
+        { "url": "https://objects.githubusercontent.com/**" }
+      ]
     },
     "clipboard-manager:allow-read-image"
   ]

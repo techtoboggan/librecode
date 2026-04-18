@@ -17,7 +17,7 @@
         "create": false
       }
     ],
-    "withGlobalTauri": true,
+    "withGlobalTauri": false,
     "security": {
       "csp": null
     },
