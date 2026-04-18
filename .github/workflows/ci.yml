@@ -1,11 +1,10 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
-  workflow_call: # allow release.yml to gate on CI
+  workflow_call: # called by release.yml as the quality gate
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}

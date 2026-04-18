@@ -1,7 +1,9 @@
 name: Build CLI
 
+# Pre-merge smoke test for CLI matrix builds. Runs on PRs only.
+# Release builds are handled by release.yml's build-cli job on tag push.
 on:
-  push:
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
