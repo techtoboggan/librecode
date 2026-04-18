@@ -147,7 +147,18 @@ function filesystemOverlaps(a: string, b: string): boolean {
   return !relA?.startsWith("..") || !relB?.startsWith("..")
 }
 
-function filesystemContains(parent: string, child: string): boolean {
+/**
+ * ⚠ A01 — UNSAFE lexical containment check. Compares raw path segments
+ * only; a symlinked child that lexically looks "inside" parent but
+ * resolves elsewhere will return true. Use `containsSafe()` instead
+ * unless you specifically need the pre-realpath string comparison
+ * (e.g. checking a not-yet-created path).
+ *
+ * Exposed as `Filesystem.containsLexical` in the module barrel; the
+ * old `Filesystem.contains` name was removed to force callers to make
+ * an explicit choice.
+ */
+function filesystemContainsLexical(parent: string, child: string): boolean {
   return !relative(parent, child).startsWith("..")
 }
 
@@ -164,7 +175,7 @@ function filesystemContainsSafe(parent: string, child: string): boolean {
     return !relative(realParent, realChild).startsWith("..")
   } catch {
     // Path doesn't exist yet (e.g. file being created) — fall back to lexical check
-    return filesystemContains(parent, child)
+    return filesystemContainsLexical(parent, child)
   }
 }
 
@@ -241,7 +252,11 @@ export const Filesystem = {
   resolve: filesystemResolve,
   windowsPath: filesystemWindowsPath,
   overlaps: filesystemOverlaps,
-  contains: filesystemContains,
+  // ⚠ A01 — Use `containsSafe` unless you specifically need the unsafe
+  // lexical check (e.g. checking a not-yet-created path). See JSDoc on
+  // filesystemContainsLexical for details. The old `contains` alias was
+  // removed in 29e.4 to force callers to make an explicit choice.
+  containsLexical: filesystemContainsLexical,
   containsSafe: filesystemContainsSafe,
   findUp: filesystemFindUp,
   up: filesystemUp,
