@@ -32,6 +32,8 @@ const OPEN_APPS = [
   "textmate",
   "antigravity",
   "finder",
+  "files",
+  "file-explorer",
   "terminal",
   "iterm2",
   "ghostty",
@@ -152,9 +154,15 @@ export function SessionHeader() {
   const hotkey = createMemo(() => command.keybind("file.open"))
   const os = createMemo(() => detectOS(platform))
 
-  const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
-    finder: true,
+  const defaultFileApp = createMemo(() => {
+    if (os() === "macos") return "finder" as OpenApp
+    if (os() === "windows") return "file-explorer" as OpenApp
+    return "files" as OpenApp
   })
+
+  const [exists, setExists] = createStore<Partial<Record<OpenApp, boolean>>>({
+    [defaultFileApp()]: true,
+  } as Partial<Record<OpenApp, boolean>>)
 
   const apps = createMemo(() => {
     if (os() === "macos") return MAC_APPS
@@ -165,7 +173,7 @@ export function SessionHeader() {
   const fileManager = createMemo(() => {
     if (os() === "macos") return { label: "session.header.open.finder", icon: "finder" as const }
     if (os() === "windows") return { label: "session.header.open.fileExplorer", icon: "file-explorer" as const }
-    return { label: "session.header.open.fileManager", icon: "finder" as const }
+    return { label: "session.header.open.fileManager", icon: "files" as const }
   })
 
   createEffect(() => {
@@ -207,7 +215,7 @@ export function SessionHeader() {
     focusTerminalById(id)
   }
 
-  const [prefs, setPrefs] = persisted(Persist.global("open.app"), createStore({ app: "finder" as OpenApp }))
+  const [prefs, setPrefs] = persisted(Persist.global("open.app"), createStore({ app: defaultFileApp() }))
   const [menu, setMenu] = createStore({ open: false })
   const [openRequest, setOpenRequest] = createStore({
     app: undefined as OpenApp | undefined,
