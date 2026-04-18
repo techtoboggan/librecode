@@ -1,65 +1,80 @@
 name: Release
 
+# MASTER ORCHESTRATOR. Fires on tag push and calls every sub-workflow in
+# the correct order. No sub-workflow fires on tag push directly — they all
+# receive their version via workflow_call inputs.
+#
+# Pipeline:
+#   1. quality      (ci.yml) — typecheck + tests + lint must pass
+#   2. publish-npm  (npm-publish.yml) — SDK + plugin to npm via OIDC
+#   3. build-cli    (inline) — CLI tarballs for 8 platforms
+#   4. build-desktop (desktop.yml) — Tauri installers for Linux/macOS/Windows
+#   5. build-flatpak (flatpak.yml) — Flatpak bundle
+#   6. github-release (inline) — uploads ALL artifacts to the GitHub Release
+#   7. copr         (copr.yml) — submits CLI + desktop SRPMs to COPR
+
 on:
   push:
     tags: ["v*"]
 
 permissions:
   contents: write
+  id-token: write # required for npm OIDC in sub-workflows
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build:
-    name: Build (${{ matrix.target }})
+  # ─── Stage 0: Compute version from tag (strips the v prefix) ──────────────
+  prep:
+    name: Compute version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "version=${V}" >> "$GITHUB_OUTPUT"
+          echo "Version for this release: ${V}"
+
+  # ─── Stage 1: Quality gate ────────────────────────────────────────────────
+  quality:
+    name: Quality gate (tests + lint)
+    needs: prep
+    uses: ./.github/workflows/ci.yml
+
+  # ─── Stage 2: Publish npm packages ────────────────────────────────────────
+  publish-npm:
+    name: Publish npm
+    needs: [prep, quality]
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      version: ${{ needs.prep.outputs.version }}
+    secrets: inherit
+
+  # ─── Stage 3: Build CLI tarballs ──────────────────────────────────────────
+  build-cli:
+    name: Build CLI (${{ matrix.target }})
+    needs: [prep, publish-npm]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux glibc
-          - target: linux-x64
-            os: ubuntu-latest
-          - target: linux-x64-baseline
-            os: ubuntu-latest
-          - target: linux-arm64
-            os: ubuntu-latest
-          # Linux musl
-          - target: linux-x64-musl
-            os: ubuntu-latest
-          - target: linux-x64-baseline-musl
-            os: ubuntu-latest
-          - target: linux-arm64-musl
-            os: ubuntu-latest
-          # macOS (arm64 only — macos-13/x64 runners have poor availability)
-          - target: darwin-arm64
-            os: macos-14
-          # Windows (arm64 omitted — Bun 1.3.10 has no Windows ARM64 binary)
-          - target: windows-x64
-            os: windows-latest
-
+          - { target: linux-x64, os: ubuntu-latest }
+          - { target: linux-x64-baseline, os: ubuntu-latest }
+          - { target: linux-arm64, os: ubuntu-latest }
+          - { target: linux-x64-musl, os: ubuntu-latest }
+          - { target: linux-x64-baseline-musl, os: ubuntu-latest }
+          - { target: linux-arm64-musl, os: ubuntu-latest }
+          - { target: darwin-arm64, os: macos-14 }
+          - { target: windows-x64, os: windows-latest }
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.11"
-
-      # @librecode/i18n is published by the npm-publish workflow which fires in
-      # parallel. Poll until the required version is available so bun install
-      # doesn't fail with "no matching version found".
-      - name: Wait for @librecode/i18n on npm
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Waiting for @librecode/i18n@$VERSION..."
-          for i in $(seq 1 20); do
-            npm view @librecode/i18n@$VERSION version 2>/dev/null && break
-            echo "Not yet (attempt $i/20), retrying in 30s..."
-            sleep 30
-          done
-
       - run: bun install --frozen-lockfile
       - name: Build
         env:
@@ -79,77 +94,87 @@ jobs:
           done
       - uses: actions/upload-artifact@v4
         with:
-          name: librecode-${{ matrix.target }}
+          name: cli-${{ matrix.target }}
           path: |
             packages/librecode/dist/*.tar.gz
             packages/librecode/dist/*.zip
 
-  release:
-    name: Create Release
-    needs: build
+  # ─── Stage 4: Build desktop apps ──────────────────────────────────────────
+  build-desktop:
+    name: Build desktop
+    needs: [prep, publish-npm]
+    uses: ./.github/workflows/desktop.yml
+    with:
+      version: ${{ needs.prep.outputs.version }}
+    secrets: inherit
+
+  # ─── Stage 5: Build Flatpak ───────────────────────────────────────────────
+  build-flatpak:
+    name: Build Flatpak
+    needs: [prep, publish-npm]
+    uses: ./.github/workflows/flatpak.yml
+    with:
+      version: ${{ needs.prep.outputs.version }}
+    secrets: inherit
+
+  # ─── Stage 6: Create GitHub Release with ALL artifacts ────────────────────
+  github-release:
+    name: Create GitHub Release
+    needs: [build-cli, build-desktop, build-flatpak]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-      - name: Generate checksums
-        run: |
-          cd artifacts
-          sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
-      - name: Generate config JSON schema
-        run: |
-          echo "Config schema is generated in the repo (schema/config.json) — uploading as release asset."
       - uses: actions/checkout@v4
         with:
           path: src
-      - name: Attach schema to artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: cli-*
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: desktop-*
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: flatpak
+          path: artifacts
+
+      - name: Generate checksums + attach schema
         run: |
-          cp src/schema/config.json artifacts/librecode-config-schema.json
+          cd artifacts
+          sha256sum *.tar.gz *.zip 2>/dev/null > SHA256SUMS || true
+          cp ../src/schema/config.json librecode-config-schema.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             artifacts/*.tar.gz
             artifacts/*.zip
+            artifacts/*.deb
+            artifacts/*.rpm
+            artifacts/*.exe
+            artifacts/*.dmg
+            artifacts/*.flatpak
             artifacts/SHA256SUMS
             artifacts/librecode-config-schema.json
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
 
-      # Submit CLI to COPR from the release job because the release:published
-      # event doesn't fire for releases created by GITHUB_TOKEN (GH limitation),
-      # so copr.yml never auto-fires. Inlining here guarantees it runs on every
-      # tag that has CLI tarballs uploaded.
-      - name: Submit CLI to COPR
-        if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-preview.') && !contains(github.ref, '-rc.')
-        env:
-          COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
-          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Submitting librecode $VERSION to COPR"
-
-          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
-          pip3 install --break-system-packages copr-cli
-
-          mkdir -p ~/.config
-          printf '[copr-cli]\nlogin = %s\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
-            "$COPR_API_LOGIN" "$COPR_API_TOKEN" > ~/.config/copr
-          chmod 600 ~/.config/copr
-
-          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
-
-          # The CLI tarballs were just built and uploaded — grab them from the artifacts dir
-          cp src/packages/rpm/librecode.spec /tmp/librecode.spec.orig
-          cp artifacts/librecode-linux-x64.tar.gz ~/rpmbuild/SOURCES/
-          cp artifacts/librecode-linux-arm64.tar.gz ~/rpmbuild/SOURCES/
-
-          sed "s/^Version:.*/Version:        ${VERSION}/" \
-            src/packages/rpm/librecode.spec > ~/rpmbuild/SPECS/librecode.spec
-
-          rpmbuild -bs ~/rpmbuild/SPECS/librecode.spec
-          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-${VERSION}-*.src.rpm)
-          echo "Submitting: $SRPM"
-          copr-cli build techtoboggan/librecode "$SRPM" --nowait
+  # ─── Stage 7: Submit to COPR ──────────────────────────────────────────────
+  # Runs after github-release so the CLI tarballs are downloadable by COPR spec
+  copr-submit:
+    name: Submit to COPR
+    needs: [prep, github-release]
+    if: ${{ !contains(github.ref, '-preview.') && !contains(github.ref, '-rc.') }}
+    uses: ./.github/workflows/copr.yml
+    with:
+      version: ${{ needs.prep.outputs.version }}
+      package: "both"
+    secrets: inherit

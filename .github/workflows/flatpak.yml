@@ -1,12 +1,26 @@
 name: Flatpak
 
+# Called by release.yml. Builds the Flatpak bundle and uploads as artifact.
+# release.yml collects artifacts and attaches them to the GitHub Release.
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
+    inputs:
+      version:
+        description: "Version (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  VERSION: ${{ inputs.version }}
 
 jobs:
   build:
@@ -20,65 +34,49 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install Bun so we can pre-build the JS/TS parts before entering the
-      # Flatpak sandbox (which has no network access).
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.11"
 
-      # The npm-publish workflow fires in parallel with this one. Wait for
-      # @librecode/i18n to be on npm before bun install.
-      - name: Wait for @librecode/i18n on npm
-        if: startsWith(github.ref, 'refs/tags/v')
+      # The Flatpak container doesn't have npm — use curl to poll the registry.
+      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           echo "Waiting for @librecode/i18n@$VERSION..."
-          # Use curl instead of npm view — the Flatpak container may not have npm.
           for i in $(seq 1 20); do
             if curl -fsSL "https://registry.npmjs.org/@librecode/i18n/$VERSION" >/dev/null 2>&1; then
-              echo "Found @librecode/i18n@$VERSION on npm"
-              break
+              echo "Found"
+              exit 0
             fi
-            echo "Not yet (attempt $i/20), retrying in 30s..."
+            echo "Attempt $i/20: not yet, retrying in 30s..."
             sleep 30
           done
+          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
+          exit 1
 
       # Pre-build the CLI sidecar and desktop frontend BEFORE entering the
       # Flatpak sandbox. The sandbox blocks outbound network, so bun/npm
-      # package resolution (ghostty-web → @opentui/solid etc.) fails there.
-      # We bundle the outputs as pre-built-assets.tar.gz and inject it as a
-      # local archive source so the Flatpak build is pure Rust.
+      # package resolution fails there.
       - name: Pre-build frontend and CLI sidecar
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
-          LIBRECODE_VERSION: ${{ github.ref_name }}
+          LIBRECODE_VERSION: v${{ env.VERSION }}
         run: |
           bun install --frozen-lockfile
-          # Build the CLI sidecar binary for linux-x64 (Flatpak is x64-only).
-          # --target linux-x64 produces dist/librecode-linux-x64/bin/librecode.
-          # Copy to the flat path the Flatpak manifest expects.
           cd packages/librecode
           bun run script/build.ts --target linux-x64
           cp dist/librecode-linux-x64/bin/librecode dist/librecode-cli-linux-x64
           cd ../..
-          # Build the desktop frontend (vite)
           cd packages/desktop
           bun run build
           cd ../..
-          # Package both for the sandbox — paths mirror the monorepo layout
-          # so flatpak-builder extracts them on top of the release tarball
           tar -czf packages/desktop/flatpak/pre-built-assets.tar.gz \
             packages/librecode/dist/librecode-cli-linux-x64 \
             packages/desktop/dist
 
-      # Compute the sha256 of the GitHub-generated tarball for this tag and
-      # patch the manifest in place. Runs only on tag pushes — on manual
-      # dispatch we validate the manifest as-is.
-      - name: Patch release tarball sha256 in manifest
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Compute sha256 of the GitHub-generated source tarball + patch the manifest
+      - name: Patch release tarball sha256 + URL in manifest
         run: |
-          TAG="${GITHUB_REF_NAME}"
+          TAG="v${VERSION}"
           URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${TAG}.tar.gz"
           echo "Fetching ${URL} to compute sha256"
           for i in 1 2 3 4 5; do
@@ -89,7 +87,7 @@ jobs:
             sleep $((i * 5))
           done
           if [[ -z "${SHA}" ]]; then
-            echo "error: could not compute tarball sha256 after 5 attempts" >&2
+            echo "::error::could not compute tarball sha256 after 5 attempts"
             exit 1
           fi
           echo "Computed sha256: ${SHA}"
@@ -99,11 +97,9 @@ jobs:
             packages/desktop/flatpak/com.librecode.desktop.yml
 
       - name: Validate manifest
-        run: |
-          flatpak-builder --show-manifest packages/desktop/flatpak/com.librecode.desktop.yml
+        run: flatpak-builder --show-manifest packages/desktop/flatpak/com.librecode.desktop.yml
 
       - name: Build Flatpak bundle
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: flatpak/flatpak-github-actions/flatpak-builder@v6
         with:
           bundle: librecode-desktop.flatpak
@@ -111,17 +107,13 @@ jobs:
           cache-key: flatpak-builder-${{ github.sha }}
 
       - name: Validate AppStream metadata
-        # appstreamcli is pre-installed in the gnome-47 Fedora container;
-        # do not use apt-get (this is not a Debian/Ubuntu image).
-        # The || true means an invalid metainfo file is non-fatal.
         run: |
           appstreamcli validate \
-            packages/desktop/src-tauri/release/appstream.metainfo.xml \
-            || true
+            packages/desktop/src-tauri/release/appstream.metainfo.xml || true
 
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          files: librecode-desktop.flatpak
-          prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
+          name: flatpak
+          path: librecode-desktop.flatpak
+          if-no-files-found: error
+          retention-days: 7

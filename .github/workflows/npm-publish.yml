@@ -1,21 +1,33 @@
 name: Publish npm packages
 
+# Called by release.yml. Also manually triggerable.
+# Publishes @librecode/sdk and @librecode/plugin via OIDC trusted publishing.
+# @librecode/i18n is published separately by the librecode-i18n repo's own workflow.
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to publish (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
 
 permissions:
   contents: read
-  id-token: write
+  id-token: write # required for npm OIDC trusted publishing
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VERSION: ${{ inputs.version }}
 
 jobs:
   publish-sdk:
     name: Publish @librecode/sdk
-    needs: publish-i18n
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,13 +41,27 @@ jobs:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
 
+      # Wait for i18n to be published (librecode-i18n's own workflow handles that)
+      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
+        run: |
+          echo "Waiting for @librecode/i18n@$VERSION..."
+          for i in $(seq 1 20); do
+            if npm view "@librecode/i18n@$VERSION" version 2>/dev/null; then
+              echo "Found"; exit 0
+            fi
+            echo "Attempt $i/20: not yet, retrying in 30s..."
+            sleep 30
+          done
+          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
+          exit 1
+
       - run: bun install --frozen-lockfile
 
       - name: Build SDK
         working-directory: packages/sdk/js
         run: bun run build
 
-      - name: Prepare package.json for publish
+      - name: Prepare package.json
         working-directory: packages/sdk/js
         run: |
           node -e "
@@ -46,62 +72,20 @@ jobs:
               pkg.exports[key] = { import: file + '.js', types: file + '.d.ts' };
             }
           }
-          const tag = process.env.GITHUB_REF_NAME || '';
-          const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
-          pkg.version = version;
+          pkg.version = process.env.VERSION;
           pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode.git' };
           require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          console.log('Publishing @librecode/sdk@' + version);
+          console.log('Publishing @librecode/sdk@' + pkg.version);
           "
 
-      - name: Publish
+      - name: Publish (OIDC — no token)
         working-directory: packages/sdk/js
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if npm view @librecode/sdk@$VERSION version 2>/dev/null; then
+          if npm view "@librecode/sdk@$VERSION" version 2>/dev/null; then
             echo "@librecode/sdk@$VERSION already published, skipping"
           else
             npm publish --access public --provenance
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-  publish-i18n:
-    name: Publish @librecode/i18n
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: techtoboggan/librecode-i18n
-          ref: main
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Prepare package.json for publish
-        run: |
-          node -e "
-          const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
-          const tag = process.env.GITHUB_REF_NAME || '';
-          const version = tag.startsWith('v') ? tag.slice(1) : pkg.version;
-          pkg.version = version;
-          pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode-i18n.git' };
-          require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          console.log('Publishing @librecode/i18n@' + version);
-          "
-
-      - name: Publish
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if npm view @librecode/i18n@$VERSION version 2>/dev/null; then
-            echo "@librecode/i18n@$VERSION already published, skipping"
-          else
-            npm publish --access public
-          fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-plugin:
     name: Publish @librecode/plugin
@@ -125,12 +109,11 @@ jobs:
         working-directory: packages/plugin
         run: bunx tsc
 
-      - name: Prepare package.json for publish
+      - name: Prepare package.json
         working-directory: packages/plugin
         run: |
           node -e "
           const pkg = JSON.parse(require('fs').readFileSync('package.json', 'utf8'));
-          // Catalog is defined in bun.lock (JSONC with trailing commas), not package.json
           const lockText = require('fs').readFileSync('../../bun.lock', 'utf8');
           const lockJson = lockText.replace(/,(?=\s*[}\]])/g, '');
           const lock = JSON.parse(lockJson);
@@ -142,14 +125,11 @@ jobs:
               pkg.exports[key] = { import: file + '.js', types: file + '.d.ts' };
             }
           }
-          const tag = process.env.GITHUB_REF_NAME || '';
-          const version = tag.startsWith('v') ? tag.slice(1) : '0.1.0';
-          pkg.version = version;
+          pkg.version = process.env.VERSION;
 
-          // Resolve workspace: and catalog: deps to real semver versions
           for (const [k, v] of Object.entries(pkg.dependencies || {})) {
             if (v === 'workspace:*' || v === 'workspace:^' || v.startsWith('workspace:')) {
-              pkg.dependencies[k] = '^' + version;
+              pkg.dependencies[k] = '^' + pkg.version;
             } else if (v === 'catalog:' || v.startsWith('catalog:')) {
               const resolved = catalog[k];
               if (resolved) pkg.dependencies[k] = '^' + resolved;
@@ -157,18 +137,14 @@ jobs:
           }
           pkg.repository = { type: 'git', url: 'https://github.com/techtoboggan/librecode.git' };
           require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));
-          console.log('Publishing @librecode/plugin@' + version);
-          console.log('Dependencies:', JSON.stringify(pkg.dependencies, null, 2));
+          console.log('Publishing @librecode/plugin@' + pkg.version);
           "
 
-      - name: Publish
+      - name: Publish (OIDC — no token)
         working-directory: packages/plugin
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if npm view @librecode/plugin@$VERSION version 2>/dev/null; then
+          if npm view "@librecode/plugin@$VERSION" version 2>/dev/null; then
             echo "@librecode/plugin@$VERSION already published, skipping"
           else
             npm publish --access public --provenance
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

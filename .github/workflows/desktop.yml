@@ -1,15 +1,28 @@
 name: Desktop
 
+# Called by release.yml. Builds Tauri desktop app for Linux/macOS/Windows.
+# Uploads installer artifacts; release.yml collects them and uploads to the
+# GitHub Release. COPR submission is handled by copr.yml.
 on:
-  push:
-    tags: ["v*"]
+  workflow_call:
+    inputs:
+      version:
+        description: "Version (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (without leading v), e.g. 0.9.5"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  VERSION: ${{ inputs.version }}
 
 jobs:
   build:
@@ -23,8 +36,6 @@ jobs:
             os: ubuntu-latest
             cli_src: packages/librecode/dist/librecode-linux-x64/bin/librecode
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
-            # AppImage omitted: linuxdeploy itself is an AppImage that requires FUSE or
-            # a static linuxdeploy binary. Use Flatpak or the RPM/DEB for now.
             bundles: deb,rpm
             sign: false
           - platform: macos-arm64
@@ -46,44 +57,36 @@ jobs:
         with:
           bun-version: "1.3.11"
 
-      # @librecode/i18n is published by the npm-publish workflow which fires in
-      # parallel. Poll until the required version is available so bun install
-      # doesn't fail with "no matching version found".
-      - name: Wait for @librecode/i18n on npm
-        if: startsWith(github.ref, 'refs/tags/')
+      # @librecode/i18n must be on npm before bun install (npm-publish job
+      # should have already run in the orchestrator, but double-check).
+      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           echo "Waiting for @librecode/i18n@$VERSION..."
           for i in $(seq 1 20); do
-            npm view @librecode/i18n@$VERSION version 2>/dev/null && break
-            echo "Not yet (attempt $i/20), retrying in 30s..."
+            npm view "@librecode/i18n@$VERSION" version 2>/dev/null && exit 0
+            echo "Attempt $i/20: not yet, retrying in 30s..."
             sleep 30
           done
+          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
+          exit 1
 
       - run: bun install --frozen-lockfile
 
-      # Stamp the desktop package.json with the release tag version so the
-      # Tauri bundle (and resulting RPM filename) matches the release tag.
-      - name: Stamp version from tag
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Stamp version in packages/desktop/package.json
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
           tmp=$(mktemp)
           jq ".version = \"$VERSION\"" packages/desktop/package.json > "$tmp"
           mv "$tmp" packages/desktop/package.json
 
-      # Build the CLI sidecar first
-      - name: Build CLI
+      - name: Build CLI sidecar
         env:
-          LIBRECODE_VERSION: ${{ github.ref_name }}
+          LIBRECODE_VERSION: v${{ env.VERSION }}
         run: bun run script/build.ts --single
         working-directory: packages/librecode
 
-      # Copy the built CLI binary to the Tauri sidecar location with the
-      # platform-specific Rust target triple name that Tauri's externalBin expects
-      - name: Stage CLI sidecar
+      - name: Stage CLI sidecar for Tauri externalBin
         shell: bash
         run: |
           mkdir -p packages/desktop/src-tauri/sidecars
@@ -119,8 +122,6 @@ jobs:
       - name: Install cargo-tauri
         run: cargo install tauri-cli --version "^2" --locked
 
-      # Import the Apple Developer ID certificate into a temporary keychain so
-      # the Tauri build can sign and notarize the macOS bundles.
       - name: Import Apple certificate
         if: matrix.sign == true
         env:
@@ -133,20 +134,12 @@ jobs:
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security import /tmp/certificate.p12 \
-            -k build.keychain \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
+            -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list \
             -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
           rm /tmp/certificate.p12
-
-          # Diagnostics — verify the cert was loaded and codesign can access it
-          echo "=== Codesigning identities in build.keychain ==="
+          echo "=== Codesigning identities ==="
           security find-identity -v -p codesigning build.keychain
-          echo "=== Keychain list ==="
-          security list-keychains
-          echo "=== Keychain info ==="
-          security show-keychain-info build.keychain 2>&1 || true
 
       - name: Build Desktop (signed — macOS)
         if: matrix.sign == true
@@ -157,9 +150,8 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          # Re-unlock the keychain right before build to prevent codesign hangs.
-          # If the keychain auto-locks between import and build (Rust compile takes
-          # 5+ minutes), codesign tries to show a UI prompt that can't appear in CI.
+          # Re-unlock keychain before the build (Rust compile can take 5+ min,
+          # during which keychain might auto-lock and hang codesign)
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 build.keychain
           cargo tauri build --config tauri.prod.conf.json --bundles ${{ matrix.bundles }}
@@ -168,8 +160,6 @@ jobs:
       - name: Build Desktop (unsigned — Linux / Windows)
         if: matrix.sign != true
         env:
-          # FUSE is blocked on GH Actions runners. appimagetool supports this
-          # env var to extract and run the tool statically without FUSE.
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: cargo tauri build --config tauri.prod.conf.json --no-sign --bundles ${{ matrix.bundles }}
         working-directory: packages/desktop/src-tauri
@@ -178,32 +168,25 @@ jobs:
         if: always() && matrix.sign == true
         run: security delete-keychain build.keychain || true
 
-      # Repack the Tauri RPM with the correct package name. Tauri derives the
-      # RPM name from productName via kebab-case (LibreCode → libre-code) with
-      # no override. We repack it as librecode-desktop to match COPR/AUR/Flatpak.
+      # Repack the Tauri RPM with the correct package name (LibreCode → libre-code
+      # by default; we want librecode-desktop to match COPR/AUR/Flatpak).
       - name: Repack RPM as librecode-desktop
         if: matrix.platform == 'linux'
         run: |
           set -ex
-          VERSION="${GITHUB_REF_NAME#v}"
           BUNDLE="packages/desktop/src-tauri/target/release/bundle"
           OLD_RPM=$(ls "$BUNDLE"/rpm/*.rpm | grep -v '\.src\.rpm' | head -1)
           echo "Repacking: $OLD_RPM"
-
           sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
-
-          # Extract, rebuild with correct name
           STAGE=$(mktemp -d)
           cd "$STAGE"
           rpm2cpio "$OLDPWD/$OLD_RPM" | cpio -idm
           mkdir -p ~/rpmbuild/{SPECS,SOURCES,BUILD,BUILDROOT,RPMS}
           tar -czf ~/rpmbuild/SOURCES/librecode-desktop.tar.gz .
           cd "$OLDPWD"
-
           cat > ~/rpmbuild/SPECS/repack.spec << SPEC
           %global debug_package %{nil}
           %global __strip /bin/true
-
           Name:    librecode-desktop
           Version: ${VERSION}
           Release: 1
@@ -215,75 +198,23 @@ jobs:
           Provides: libre-code = %{version}-%{release}
           Obsoletes: LibreCode < %{version}-%{release}
           Provides: LibreCode = %{version}-%{release}
-
           %description
           LibreCode desktop app — local-first AI coding agent.
-
           %prep
           %setup -q -c
-
           %install
           cp -a . %{buildroot}/
-
           %files
           /*
           SPEC
-
           rpmbuild -bb ~/rpmbuild/SPECS/repack.spec
           NEW_RPM=$(ls ~/rpmbuild/RPMS/x86_64/librecode-desktop-${VERSION}-1.x86_64.rpm)
           echo "Repacked: $NEW_RPM"
-
-          # Replace the Tauri RPM with the repacked one
           rm "$OLD_RPM"
           cp "$NEW_RPM" "$BUNDLE/rpm/"
 
-      - name: Submit Desktop RPM to COPR
-        if: matrix.platform == 'linux' && startsWith(github.ref, 'refs/tags/')
-        env:
-          COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
-          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Submitting librecode-desktop $VERSION to COPR"
-
-          # Install RPM build tools and COPR CLI
-          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
-          pip3 install --break-system-packages copr-cli
-          set -x
-
-          # Configure COPR credentials
-          mkdir -p ~/.config
-          printf '[copr-cli]\nlogin = %s\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
-            "$COPR_API_LOGIN" "$COPR_API_TOKEN" > ~/.config/copr
-          chmod 600 ~/.config/copr
-
-          # Find the Tauri-built RPM (exclude .src.rpm source packages)
-          RPM=$(ls packages/desktop/src-tauri/target/release/bundle/rpm/*.rpm | grep -v '\.src\.rpm')
-          echo "Found RPM: $RPM"
-
-          # Extract the RPM contents into a staging directory
-          mkdir -p /tmp/desktop-srpm-stage
-          cd /tmp/desktop-srpm-stage
-          rpm2cpio "$OLDPWD/$RPM" | cpio -idm
-
-          # Create a tarball of the extracted contents (filesystem paths)
-          tar -czf ~/librecode-desktop-x86_64.tar.gz .
-          cd "$OLDPWD"
-
-          # Build the SRPM
-          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
-          cp ~/librecode-desktop-x86_64.tar.gz ~/rpmbuild/SOURCES/
-          sed "s/^Version:.*/Version:        ${VERSION}/" \
-            packages/rpm/librecode-desktop.spec > ~/rpmbuild/SPECS/librecode-desktop.spec
-          rpmbuild -bs ~/rpmbuild/SPECS/librecode-desktop.spec
-
-          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-desktop-${VERSION}-*.src.rpm)
-          echo "Submitting: $SRPM"
-          copr-cli build techtoboggan/librecode "$SRPM" --nowait
-
-      # Collect only the final installer files into a staging dir.
-      # Without this, upload-artifact would include every file inside the
-      # .app bundle directory (Info.plist, binary, icon.icns, etc.).
+      # Collect only the final installer files — avoid uploading the entire
+      # bundle tree (which would include every file inside .app directories).
       - name: Stage installer artifacts
         shell: bash
         run: |
@@ -291,51 +222,23 @@ jobs:
           STAGE="dist-stage"
           mkdir -p "$STAGE"
           BUNDLE="packages/desktop/src-tauri/target/release/bundle"
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          echo "Bundle directory contents:"
-          ls -R "$BUNDLE" 2>/dev/null | head -40 || echo "(bundle dir not found)"
-
-          # Copy platform-specific installers (globs that don't match are harmless with nullglob)
           shopt -s nullglob
           for f in "$BUNDLE"/deb/*.deb; do cp "$f" "$STAGE/"; done
           for f in "$BUNDLE"/rpm/*.rpm; do [[ "$f" != *.src.rpm ]] && cp "$f" "$STAGE/"; done
           for f in "$BUNDLE"/nsis/*.exe; do cp "$f" "$STAGE/"; done
           for f in "$BUNDLE"/dmg/*.dmg; do cp "$f" "$STAGE/"; done
-
-          # .app bundle (directory) → tar.gz so it can be a GitHub Release asset
           for app in "$BUNDLE"/macos/*.app; do
             STEM=$(basename "$app" .app)
             tar -czf "$STAGE/${STEM}_${VERSION}_aarch64.app.tar.gz" \
               -C "$(dirname "$app")" "$(basename "$app")"
           done
           shopt -u nullglob
-
           echo "Staged artifacts:"
           ls -lh "$STAGE/" || echo "(empty)"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: librecode-desktop-${{ matrix.platform }}
+          name: desktop-${{ matrix.platform }}
           path: dist-stage/
           if-no-files-found: warn
           retention-days: 7
-
-  release:
-    name: Create Desktop Release
-    needs: build
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-          merge-multiple: true
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/**/*
-          # Don't overwrite release notes — release.yml already set them
-          # when it uploaded the CLI tarballs.
-          draft: false
-          prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
