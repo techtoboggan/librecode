@@ -1,6 +1,6 @@
 [package]
 name = "librecode-desktop"
-version = "0.8.4"
+version = "0.9.0"
 description = "LibreCode - AI-powered development tool"
 authors = ["techtoboggan"]
 edition = "2024"
