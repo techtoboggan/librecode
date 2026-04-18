@@ -25,6 +25,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { getCursorPosition, setCursorPosition } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
+import { createVoiceInput } from "@/utils/voice-input"
 import { ACCEPTED_FILE_TYPES } from "./prompt-input/files"
 import {
   navigatePromptHistory,
@@ -777,6 +778,14 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     navigateHistory,
   })
 
+  // Voice input — speech-to-text via Web Speech API
+  const voice = createVoiceInput({
+    onResult: (text) => {
+      addPart({ type: "text", content: text + " ", start: 0, end: 0 })
+    },
+    onTrigger: () => handleSubmit(new Event("voice-trigger")),
+  })
+
   return (
     <div class="relative size-full _max-h-[320px] flex flex-col gap-0">
       <PromptPopover
@@ -973,6 +982,23 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   <Icon name="plus" class="size-4.5" />
                 </Button>
               </TooltipKeybind>
+              <Show when={voice.isSupported}>
+                <Tooltip value={voice.state() === "listening" ? "Stop voice input" : "Voice input"} placement="top">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    class="size-8 p-0"
+                    classList={{ "text-red-500": voice.state() === "listening" }}
+                    style={buttons()}
+                    onClick={() => voice.toggle()}
+                    disabled={store.mode !== "normal"}
+                    tabIndex={store.mode === "normal" ? undefined : -1}
+                    aria-label={voice.state() === "listening" ? "Stop voice input" : "Start voice input"}
+                  >
+                    <Icon name={voice.state() === "listening" ? "stop" : "bubble-5"} class="size-4.5" />
+                  </Button>
+                </Tooltip>
+              </Show>
             </div>
           </div>
         </div>
