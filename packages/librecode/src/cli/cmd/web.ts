@@ -2,7 +2,7 @@ import { networkInterfaces } from "node:os"
 import open from "open"
 import { Flag } from "../../flag/flag"
 import { Server } from "../../server/server"
-import { resolveNetworkOptions, withNetworkOptions } from "../network"
+import { requirePasswordForNonLoopback, resolveNetworkOptions, withNetworkOptions } from "../network"
 import { UI } from "../ui"
 import { cmd } from "./cmd"
 
@@ -33,10 +33,18 @@ export const WebCommand = cmd({
   builder: (yargs) => withNetworkOptions(yargs),
   describe: "start librecode server and open web interface",
   handler: async (args) => {
-    if (!Flag.LIBRECODE_SERVER_PASSWORD) {
-      UI.println(`${UI.Style.TEXT_WARNING_BOLD}!  LIBRECODE_SERVER_PASSWORD is not set; server is unsecured.`)
-    }
     const opts = await resolveNetworkOptions(args)
+    // A05 fail-closed — refuse to bind to a non-loopback address without
+    // LIBRECODE_SERVER_PASSWORD. Throws InsecureBindError with a remediation
+    // hint if the combination is unsafe.
+    requirePasswordForNonLoopback({
+      hostname: opts.hostname,
+      password: Flag.LIBRECODE_SERVER_PASSWORD,
+      bypass: opts.insecureBindBypass,
+    })
+    if (!Flag.LIBRECODE_SERVER_PASSWORD) {
+      UI.println(`${UI.Style.TEXT_WARNING_BOLD}!  LIBRECODE_SERVER_PASSWORD is not set; server is bound to loopback only.`)
+    }
     const server = Server.listen(opts)
     UI.empty()
     UI.println(UI.logo("  "))

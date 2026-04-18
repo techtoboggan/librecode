@@ -3,8 +3,9 @@ import { createLibrecodeClient } from "@librecode/sdk/v2"
 import { ACP } from "@/acp/agent"
 import { Server } from "@/server/server"
 import { Log } from "@/util/log"
+import { Flag } from "../../flag/flag"
 import { bootstrap } from "../bootstrap"
-import { resolveNetworkOptions, withNetworkOptions } from "../network"
+import { requirePasswordForNonLoopback, resolveNetworkOptions, withNetworkOptions } from "../network"
 import { cmd } from "./cmd"
 
 const log = Log.create({ service: "acp-command" })
@@ -23,6 +24,12 @@ export const AcpCommand = cmd({
     process.env.LIBRECODE_CLIENT = "acp"
     await bootstrap(process.cwd(), async () => {
       const opts = await resolveNetworkOptions(args)
+      // A05 fail-closed — refuse to bind non-loopback without password.
+      requirePasswordForNonLoopback({
+        hostname: opts.hostname,
+        password: Flag.LIBRECODE_SERVER_PASSWORD,
+        bypass: opts.insecureBindBypass,
+      })
       const server = Server.listen(opts)
 
       const sdk = createLibrecodeClient({

@@ -102,6 +102,8 @@ describe("tui thread", () => {
       "mdns-domain": "librecode.local",
       mdnsDomain: "librecode.local",
       cors: [],
+      "i-know-what-im-doing-bind-insecurely": false,
+      iKnowWhatImDoingBindInsecurely: false,
     }
     return TuiThreadCommand.handler(args)
   }
