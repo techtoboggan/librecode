@@ -24,7 +24,7 @@ describe("builtin apps registry", () => {
   test("getBuiltinAppHtml returns HTML for valid URIs", () => {
     const html = getBuiltinAppHtml("ui://builtin/activity-graph")
     expect(html).toBeDefined()
-    expect(html).toContain("<!DOCTYPE html>")
+    expect(html).toContain("<!doctype html>")
     expect(html).toContain("Activity Graph")
   })
 
