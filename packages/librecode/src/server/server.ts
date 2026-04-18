@@ -34,6 +34,7 @@ import { Log } from "../util/log"
 import { errors } from "./error"
 import { LogPayload, sanitizeLogExtra } from "./log-endpoint-schema"
 import { MDNS } from "./mdns"
+import { createRateLimiter, redactIp } from "./rate-limit"
 import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
 import { FileRoutes } from "./routes/file"
@@ -119,6 +120,23 @@ export function resolveCorsOrigin(
   return undefined
 }
 
+// A07 — Shared rate limiter for all server instances. 10 failed
+// basic-auth attempts per 5 min per source IP → 429. Successful auth
+// clears the bucket. Cleanup every 60s to prune expired entries.
+const authRateLimiter = createRateLimiter({ maxAttempts: 10, windowMs: 5 * 60 * 1000 })
+setInterval(() => authRateLimiter.cleanup(), 60_000).unref?.()
+
+function extractClientIp(c: import("hono").Context): string {
+  // honor X-Forwarded-For first entry only (defense against spoofed chains)
+  const xff = c.req.header("x-forwarded-for")
+  if (xff) return xff.split(",")[0]!.trim()
+  const real = c.req.header("x-real-ip")
+  if (real) return real.trim()
+  // Bun's Hono adapter puts the raw request IP in info?
+  // Fallback: use a literal so rate-limiting still applies per-session
+  return "unknown"
+}
+
 const ServerDefault = lazy(() => serverCreateApp({}))
 
 const serverCreateApp = (opts: { cors?: string[] }): Hono => {
@@ -130,14 +148,47 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
       })
       return handleServerError(err, c)
     })
-    .use((c, next) => {
+    .use(async (c, next) => {
       // Allow CORS preflight requests to succeed without auth.
       // Browser clients sending Authorization headers will preflight with OPTIONS.
       if (c.req.method === "OPTIONS") return next()
       const password = Flag.LIBRECODE_SERVER_PASSWORD
       if (!password) return next()
       const username = Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"
-      return basicAuth({ username, password })(c, next)
+
+      // A07 — rate-limit BEFORE invoking basic-auth. Avoids timing-based
+      // enumeration of usernames and throttles brute-force attempts.
+      const ip = extractClientIp(c)
+      const rl = authRateLimiter.check(ip)
+      if (!rl.allowed) {
+        log.warn("auth rate-limited", {
+          ip: redactIp(ip),
+          path: c.req.path,
+          count: rl.count,
+          retryAfterSec: rl.retryAfterSec,
+        })
+        return c.json({ error: "Too Many Requests" }, {
+          status: 429,
+          headers: { "Retry-After": String(rl.retryAfterSec) },
+        })
+      }
+
+      // Run basic-auth; catch its HTTPException to log the 401 ourselves
+      try {
+        const result = basicAuth({ username, password })(c, next)
+        // If result resolves without throwing, basic-auth approved
+        await result
+        authRateLimiter.success(ip) // A07 — reset bucket on success
+        return
+      } catch (err) {
+        // A09 — log every 401 for brute-force visibility
+        log.warn("auth failed", {
+          ip: redactIp(ip),
+          path: c.req.path,
+          attemptInWindow: rl.count,
+        })
+        throw err
+      }
     })
     .use(async (c, next) => {
       const skipLogging = c.req.path === "/log"
