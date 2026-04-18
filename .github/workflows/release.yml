@@ -159,6 +159,21 @@ jobs:
           fi
           cp ../src/schema/config.json librecode-config-schema.json
 
+      # A08 (SBOM) — emit CycloneDX manifests of the npm and Rust dep graphs.
+      # Consumers + scanners can use these to enumerate what actually shipped.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+      - name: Generate SBOMs
+        working-directory: src
+        run: |
+          bun install --frozen-lockfile
+          bash scripts/generate-sboms.sh --ci
+          cp sbom-npm.json sbom-rust.json ../artifacts/
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -172,6 +187,8 @@ jobs:
             artifacts/*.flatpak
             artifacts/SHA256SUMS
             artifacts/librecode-config-schema.json
+            artifacts/sbom-npm.json
+            artifacts/sbom-rust.json
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
