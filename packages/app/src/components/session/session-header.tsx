@@ -24,6 +24,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { useMode } from "@/context/mode"
+import { StartMenu } from "../start-menu"
 import { StatusPopover } from "../status-popover"
 import { StreamingIndicator } from "./streaming-indicator"
 
@@ -314,7 +315,11 @@ export function SessionHeader() {
           <Portal mount={mount()}>
             <div class="flex items-center gap-2">
               <Tooltip
-                value={appMode.isDev() ? "Development mode (click for Productivity)" : "Productivity mode (click for Development)"}
+                value={
+                  appMode.isDev()
+                    ? "Development mode (click for Productivity)"
+                    : "Productivity mode (click for Development)"
+                }
                 placement="bottom"
               >
                 <Button
@@ -327,6 +332,13 @@ export function SessionHeader() {
                   <span class="hidden lg:inline">{appMode.isDev() ? "Dev" : "Prod"}</span>
                 </Button>
               </Tooltip>
+              <StartMenu
+                onLaunch={(app) => {
+                  // TODO: pin the launched app to the side panel (Phase 28 follow-up)
+                  // For now, open the Apps tab which shows the app list
+                  if (view().reviewPanel && !view().reviewPanel.opened()) view().reviewPanel.open()
+                }}
+              />
               <StreamingIndicator />
               <Show when={projectDirectory()}>
                 <div class="hidden xl:flex items-center">

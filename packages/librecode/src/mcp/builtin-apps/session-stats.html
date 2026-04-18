@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Session Stats</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; font-family: system-ui, -apple-system, sans-serif; color: #e0e0e0; padding: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .card { background: rgba(255,255,255,0.04); border: 1px solid #333; border-radius: 6px; padding: 10px; }
+  .card-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .card-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .card-sub { font-size: 10px; color: #666; margin-top: 2px; }
+  h3 { font-size: 12px; color: #888; margin: 12px 0 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .bar-chart { display: flex; flex-direction: column; gap: 4px; }
+  .bar-row { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .bar-label { width: 80px; text-align: right; color: #888; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bar-track { flex: 1; height: 14px; background: rgba(255,255,255,0.04); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
+  .bar-count { width: 30px; font-size: 10px; color: #666; font-variant-numeric: tabular-nums; }
+  #empty { color: #666; font-size: 13px; text-align: center; padding: 40px 0; }
+  .cost { color: #4ade80; }
+</style>
+</head>
+<body>
+<div id="empty">Send a message to see session statistics</div>
+<div id="stats" style="display:none">
+  <div class="grid" id="metric-cards"></div>
+  <h3>Tool Usage</h3>
+  <div class="bar-chart" id="tool-chart"></div>
+</div>
+<script>
+const stats = document.getElementById('stats');
+const empty = document.getElementById('empty');
+const cards = document.getElementById('metric-cards');
+const chart = document.getElementById('tool-chart');
+
+let tokenHistory = [];
+let toolCounts = {};
+let totalCost = 0;
+let totalInput = 0;
+let totalOutput = 0;
+let messageCount = 0;
+
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+  return String(n);
+}
+
+function usd(n) { return '$' + n.toFixed(4); }
+
+const TOOL_COLORS = {
+  read: '#60a5fa', grep: '#60a5fa', glob: '#60a5fa',
+  edit: '#f97316', write: '#f97316', multiedit: '#f97316',
+  bash: '#a78bfa',
+  webfetch: '#22d3ee', websearch: '#22d3ee',
+};
+
+function render() {
+  if (!messageCount) { empty.style.display = 'block'; stats.style.display = 'none'; return; }
+  empty.style.display = 'none';
+  stats.style.display = 'block';
+
+  cards.innerHTML = [
+    { label: 'Messages', value: messageCount, sub: '' },
+    { label: 'Tokens In', value: fmt(totalInput), sub: '' },
+    { label: 'Tokens Out', value: fmt(totalOutput), sub: '' },
+    { label: 'Total Cost', value: usd(totalCost), sub: '', cls: 'cost' },
+  ].map(c => `
+    <div class="card">
+      <div class="card-label">${c.label}</div>
+      <div class="card-value ${c.cls || ''}">${c.value}</div>
+      <div class="card-sub">${c.sub}</div>
+    </div>
+  `).join('');
+
+  const entries = Object.entries(toolCounts).sort((a, b) => b[1] - a[1]);
+  const max = entries[0]?.[1] || 1;
+  chart.innerHTML = entries.map(([tool, count]) => {
+    const color = TOOL_COLORS[tool] || '#888';
+    const pct = (count / max) * 100;
+    return `
+      <div class="bar-row">
+        <span class="bar-label">${tool}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+        <span class="bar-count">${count}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (!msg || typeof msg !== 'object') return;
+
+  if (msg.type === 'session.stats') {
+    // Bulk update from host
+    if (msg.messages) {
+      messageCount = 0; totalCost = 0; totalInput = 0; totalOutput = 0; toolCounts = {};
+      for (const m of msg.messages) {
+        if (m.role !== 'assistant') continue;
+        messageCount++;
+        totalCost += m.cost || 0;
+        totalInput += m.tokens?.input || 0;
+        totalOutput += m.tokens?.output || 0;
+        for (const p of (m.parts || [])) {
+          if (p.type === 'tool') toolCounts[p.tool] = (toolCounts[p.tool] || 0) + 1;
+        }
+      }
+    }
+    render();
+  }
+
+  // Incremental updates
+  if (msg.type === 'message.part.updated') {
+    const part = msg.properties?.part;
+    if (part?.type === 'step-finish') {
+      totalCost += part.cost || 0;
+      totalInput += part.tokens?.input || 0;
+      totalOutput += part.tokens?.output || 0;
+    }
+    if (part?.type === 'tool') {
+      toolCounts[part.tool] = (toolCounts[part.tool] || 0) + 1;
+    }
+    render();
+  }
+});
+
+if (window.parent !== window) {
+  window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+}
+</script>
+</body>
+</html>

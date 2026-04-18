@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Activity Graph</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: transparent; font-family: system-ui, -apple-system, sans-serif; color: #e0e0e0; overflow: hidden; }
+  #container { width: 100%; height: 100vh; display: flex; flex-direction: column; }
+  #header { padding: 8px 12px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #888; border-bottom: 1px solid #333; }
+  #header .dot { width: 6px; height: 6px; border-radius: 50%; }
+  #header .dot.active { background: #4ade80; animation: pulse 2s infinite; }
+  #header .dot.idle { background: #666; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  #canvas-wrap { flex: 1; position: relative; }
+  canvas { width: 100%; height: 100%; }
+  #legend { padding: 6px 12px; display: flex; gap: 12px; font-size: 10px; color: #888; border-top: 1px solid #333; }
+  .legend-item { display: flex; align-items: center; gap: 4px; }
+  .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+  #empty { display: flex; align-items: center; justify-content: center; flex: 1; color: #666; font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="container">
+  <div id="header">
+    <span class="dot idle" id="status-dot"></span>
+    <span id="status-label">Waiting for activity...</span>
+    <span id="file-count" style="margin-left:auto"></span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="graph"></canvas>
+    <div id="empty">Start a session to see file activity</div>
+  </div>
+  <div id="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#60a5fa"></div>read</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f97316"></div>write</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>shell</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#22d3ee"></div>search</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#666"></div>idle</div>
+  </div>
+</div>
+<script>
+const COLORS = { read: '#60a5fa', write: '#f97316', shell: '#a78bfa', search: '#22d3ee', other: '#888', idle: '#444' };
+const canvas = document.getElementById('graph');
+const ctx = canvas.getContext('2d');
+const empty = document.getElementById('empty');
+const dot = document.getElementById('status-dot');
+const label = document.getElementById('status-label');
+const countEl = document.getElementById('file-count');
+
+let files = {};
+let agents = {};
+let nodes = [];
+
+function resize() {
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = rect.height * devicePixelRatio;
+  canvas.style.width = rect.width + 'px';
+  canvas.style.height = rect.height + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+}
+resize();
+window.addEventListener('resize', resize);
+
+function basename(p) { return p.split('/').pop() || p; }
+
+function layout() {
+  const entries = Object.values(files);
+  if (!entries.length) { nodes = []; return; }
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  const cols = Math.ceil(Math.sqrt(entries.length));
+  const rows = Math.ceil(entries.length / cols);
+  const cellW = w / (cols + 1);
+  const cellH = h / (rows + 1);
+  nodes = entries.map((f, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    return {
+      x: cellW * (col + 1),
+      y: cellH * (row + 1),
+      path: f.path,
+      kind: f.kind,
+      name: basename(f.path),
+      age: Date.now() - f.updatedAt,
+    };
+  });
+}
+
+function draw() {
+  const w = canvas.width / devicePixelRatio;
+  const h = canvas.height / devicePixelRatio;
+  ctx.clearRect(0, 0, w, h);
+  for (const n of nodes) {
+    const r = Math.max(4, 14 - Math.min(n.age / 5000, 10));
+    const alpha = Math.max(0.3, 1 - n.age / 30000);
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = COLORS[n.kind] || COLORS.idle;
+    ctx.globalAlpha = alpha;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.font = '10px system-ui';
+    ctx.fillStyle = '#aaa';
+    ctx.textAlign = 'center';
+    ctx.fillText(n.name, n.x, n.y + r + 12);
+  }
+  requestAnimationFrame(draw);
+}
+draw();
+
+// Listen for activity events from the host via postMessage
+window.addEventListener('message', (e) => {
+  const msg = e.data;
+  if (!msg || typeof msg !== 'object') return;
+  // Handle SSE forwarded events
+  if (msg.type === 'activity.updated') {
+    const props = msg.properties || msg;
+    files = props.files || {};
+    agents = props.agents || {};
+    layout();
+    const count = Object.keys(files).length;
+    const agentCount = Object.keys(agents).length;
+    empty.style.display = count ? 'none' : 'flex';
+    countEl.textContent = count ? count + ' files' : '';
+    dot.className = 'dot ' + (agentCount > 0 ? 'active' : 'idle');
+    const agentPhases = Object.values(agents).map(a => a.phase).filter(p => p && p !== 'exit');
+    label.textContent = agentPhases.length ? agentPhases.join(', ') : (count ? 'Idle' : 'Waiting for activity...');
+  }
+});
+
+// Tell the host we're ready
+if (window.parent !== window) {
+  window.parent.postMessage({ type: 'mcp-app-ready' }, '*');
+}
+</script>
+</body>
+</html>

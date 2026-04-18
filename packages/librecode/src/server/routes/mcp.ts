@@ -3,6 +3,7 @@ import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { Config } from "../../config/config"
 import { MCP } from "../../mcp"
+import { getBuiltinAppHtml, listBuiltinApps } from "../../mcp/builtin-apps"
 import { lazy } from "../../util/lazy"
 import { errors } from "../error"
 
@@ -228,14 +229,16 @@ export const McpRoutes = lazy(() =>
       }),
       async (c) => {
         const all = await MCP.uiResources()
-        const result = Object.entries(all).map(([, r]) => ({
+        const mcpApps = Object.entries(all).map(([, r]) => ({
           server: r.client,
           name: r.name,
           uri: r.uri,
           description: r.description,
           mimeType: r.mimeType,
         }))
-        return c.json(result)
+        // Merge built-in apps with discovered MCP apps
+        const builtins = listBuiltinApps()
+        return c.json([...builtins, ...mcpApps])
       },
     )
     .get(
@@ -265,6 +268,14 @@ export const McpRoutes = lazy(() =>
       ),
       async (c) => {
         const { server, uri } = c.req.valid("query")
+
+        // Check built-in apps first
+        if (server === "__builtin__") {
+          const builtinHtml = getBuiltinAppHtml(uri)
+          if (builtinHtml) return c.text(builtinHtml, 200, { "Content-Type": "text/html; charset=utf-8" })
+          return c.json({ error: `Built-in app not found: ${uri}` }, 404)
+        }
+
         const html = await MCP.fetchAppHtml(server, uri)
         if (!html) {
           return c.json({ error: `MCP App resource not found: ${uri} on server ${server}` }, 404)
