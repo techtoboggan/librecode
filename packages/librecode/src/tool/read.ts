@@ -3,6 +3,7 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import { createInterface } from "node:readline"
 import z from "zod"
+import { assertNotCredentialPath } from "../file/credentials-guard"
 import { FileTime } from "../file/time"
 import { LSP } from "../lsp"
 import { Instance } from "../project/instance"
@@ -231,6 +232,10 @@ export const ReadTool = Tool.define("read", {
     }
     const filepath = resolveFilepath(params.filePath)
     const title = path.relative(Instance.worktree, filepath)
+    // A04/A02 — hard-block on credential paths (auth.json, .ssh/id_*,
+    // .aws/credentials, .env, …) before any other check. No permission
+    // prompt can override this; prompt-injected agents cannot exfil.
+    assertNotCredentialPath(filepath)
     const stat = Filesystem.stat(filepath)
 
     await assertExternalDirectory(ctx, filepath, {

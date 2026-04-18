@@ -12,6 +12,7 @@ import { Shell } from "@/shell/shell"
 import { Filesystem } from "@/util/filesystem"
 import { lazy } from "@/util/lazy"
 import { Bus } from "../bus/index"
+import { assertCommandHasNoCredentialPath } from "../file/credentials-guard"
 import { Instance } from "../project/instance"
 import { Log } from "../util/log"
 import DESCRIPTION from "./bash.txt"
@@ -272,6 +273,11 @@ export const BashTool = Tool.define("bash", async () => {
       if (params.timeout !== undefined && params.timeout < 0) {
         throw new Error(`Invalid timeout value: ${params.timeout}. Timeout must be a positive number.`)
       }
+      // A04/A02 — hard-block credential path references in the command
+      // string (heuristic). Runs BEFORE ctx.ask so the user never sees a
+      // permission prompt for an exfiltration attempt; the command is
+      // rejected outright with a clear error.
+      assertCommandHasNoCredentialPath(params.command)
       const timeout = params.timeout ?? DEFAULT_TIMEOUT
       const tree = await parser().then((p) => p.parse(params.command))
       if (!tree) throw new Error("Failed to parse command")

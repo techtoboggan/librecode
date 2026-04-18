@@ -165,18 +165,24 @@ function applyPermissionPattern(
 }
 
 describe("tool.read env file permissions", () => {
+  // After Phase 29e.1 (credentials-guard), env-family files are HARD-BLOCKED
+  // at the tool boundary — read.ts throws CredentialAccessBlocked before
+  // the permission system is consulted. This is stronger than the previous
+  // behavior which only 'asked' the user. Test matrix:
+  //   blocked=true  → read throws; no ask; content never returned
+  //   blocked=false → read passes through (no block, no ask from the guard)
   const cases: [string, boolean][] = [
     [".env", true],
     [".env.local", true],
     [".env.production", true],
     [".env.development.local", true],
-    [".env.example", false],
-    [".envrc", false],
-    ["environment.ts", false],
+    [".envrc", true], // direnv: export SECRET=... → now blocked
+    [".env.example", false], // documentation suffix — safe
+    ["environment.ts", false], // normal source file
   ]
 
   describe.each(["build", "plan"])("agent=%s", (agentName) => {
-    test.each(cases)("%s asks=%s", async (filename, shouldAsk) => {
+    test.each(cases)("%s blocked=%s", async (filename, shouldBlock) => {
       await using tmp = await tmpdir({
         init: (dir) => Bun.write(path.join(dir, filename), "content"),
       })
@@ -185,20 +191,24 @@ describe("tool.read env file permissions", () => {
         fn: async () => {
           const agent = await Agent.get(agentName)
           if (!agent) throw new Error(`agent "${agentName}" not found`)
-          let askedForEnv = false
           const ctxWithPermissions = {
             ...ctx,
             ask: async (req: Omit<PermissionNext.Request, "id" | "sessionID" | "tool">) => {
               for (const pattern of req.patterns) {
                 applyPermissionPattern(req, pattern, agent.permission, () => {
-                  askedForEnv = true
+                  /* ignore */
                 })
               }
             },
           }
           const read = await ReadTool.init()
-          await read.execute({ filePath: path.join(tmp.path, filename) }, ctxWithPermissions)
-          expect(askedForEnv).toBe(shouldAsk)
+          const doRead = () =>
+            read.execute({ filePath: path.join(tmp.path, filename) }, ctxWithPermissions)
+          if (shouldBlock) {
+            await expect(doRead()).rejects.toThrow(/credential|CredentialAccessBlocked/i)
+          } else {
+            await expect(doRead()).resolves.toBeDefined()
+          }
         },
       })
     })
