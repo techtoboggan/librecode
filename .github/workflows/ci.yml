@@ -99,5 +99,7 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit --locked
       - name: Audit Tauri Rust deps
+        # audit.toml in the manifest dir declares accepted-risk advisories
+        # (unmaintained GTK3 bindings etc). Fails on any UN-ignored advisory.
         run: cargo audit
         working-directory: packages/desktop/src-tauri

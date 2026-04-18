@@ -1,0 +1,37 @@
+# Configuration for cargo-audit.
+#
+# OWASP A06 — this file explicitly documents accepted risk for advisories
+# that we cannot or will not fix. Active vulnerabilities (CVE-score > 0)
+# must NEVER appear here without a short justification and a plan.
+#
+# Ignored advisories in this list are all RUSTSEC "unmaintained" warnings
+# on crates we pull transitively through Tauri's Linux (webkit2gtk) stack.
+# There is no active exploit; "unmaintained" simply means upstream has
+# stopped shipping updates. Tauri 2 is migrating to GTK4 but has not
+# completed that work; until it does, these advisories are inherent to
+# the Linux desktop build.
+
+[advisories]
+ignore = [
+  # GTK3 bindings — gtk-rs team has moved to GTK4. Tauri 2.x still
+  # uses GTK3 on Linux (webkit2gtk-4.1). Not a vulnerability; inherited
+  # through the desktop framework. Re-evaluate when Tauri ships GTK4.
+  "RUSTSEC-2024-0411", # gdkwayland-sys
+  "RUSTSEC-2024-0412", # gdk
+  "RUSTSEC-2024-0413", # atk
+  "RUSTSEC-2024-0414", # gdkx11-sys
+  "RUSTSEC-2024-0415", # gtk
+  "RUSTSEC-2024-0416", # atk-sys
+  "RUSTSEC-2024-0417", # gdkx11
+  "RUSTSEC-2024-0418", # gdk-sys
+  "RUSTSEC-2024-0419", # gtk3-macros
+  "RUSTSEC-2024-0420", # gtk-sys
+
+  # Other unmaintained transitive deps — no known exploits, no viable
+  # replacement in our current graph. Revisit each release cycle.
+  "RUSTSEC-2024-0370", # proc-macro-error
+  "RUSTSEC-2024-0436", # paste
+  "RUSTSEC-2025-0057", # fxhash
+  "RUSTSEC-2025-0075", # unic-char-range
+  "RUSTSEC-2025-0081", # unic-char-property
+]

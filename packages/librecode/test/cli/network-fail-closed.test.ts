@@ -49,9 +49,9 @@ describe("requirePasswordForNonLoopback", () => {
   })
 
   test("rejects non-loopback without password", () => {
-    expect(() =>
-      requirePasswordForNonLoopback({ hostname: "0.0.0.0", password: undefined, bypass: false }),
-    ).toThrow(/LIBRECODE_SERVER_PASSWORD/)
+    expect(() => requirePasswordForNonLoopback({ hostname: "0.0.0.0", password: undefined, bypass: false })).toThrow(
+      /LIBRECODE_SERVER_PASSWORD/,
+    )
     expect(() =>
       requirePasswordForNonLoopback({ hostname: "192.168.1.5", password: undefined, bypass: false }),
     ).toThrow()
