@@ -69,10 +69,40 @@ function handleServerError(err: Error, c: import("hono").Context): Response {
   return c.json(new NamedError.Unknown({ message }).toObject(), { status: 500 })
 }
 
-function resolveCorsOrigin(input: string | null | undefined, allowed: string[] | undefined): string | undefined {
+/**
+ * Known LibreCode development ports. Anything else on localhost is rejected
+ * unless the caller explicitly allows it via `opts.cors`.
+ *
+ * A05 (Security Misconfiguration) — Previously accepted any `http://localhost:*`
+ * or `http://127.0.0.1:*` origin, which let any other local web service on a
+ * user's machine talk to the LibreCode API as soon as the user authenticated.
+ */
+const KNOWN_DEV_PORTS = new Set([
+  1420, // packages/desktop Tauri dev (packages/desktop/vite.config.ts:23)
+  3000, // packages/app vite dev (packages/app/vite.config.ts:9)
+])
+
+function isKnownLocalhostOrigin(input: string): boolean {
+  let url: URL
+  try {
+    url = new URL(input)
+  } catch {
+    return false
+  }
+  if (url.protocol !== "http:") return false
+  if (url.hostname !== "localhost" && url.hostname !== "127.0.0.1") return false
+  if (url.username || url.password) return false // reject userinfo smuggling
+  const port = url.port ? Number(url.port) : NaN
+  if (!Number.isFinite(port)) return false
+  return KNOWN_DEV_PORTS.has(port)
+}
+
+export function resolveCorsOrigin(
+  input: string | null | undefined,
+  allowed: string[] | undefined,
+): string | undefined {
   if (!input) return undefined
-  if (input.startsWith("http://localhost:")) return input
-  if (input.startsWith("http://127.0.0.1:")) return input
+  if (isKnownLocalhostOrigin(input)) return input
   if (input === "tauri://localhost" || input === "http://tauri.localhost" || input === "https://tauri.localhost")
     return input
   if (/^https:\/\/([a-z0-9-]+\.)*librecode\.ai$/.test(input)) return input
