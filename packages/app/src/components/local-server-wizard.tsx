@@ -9,6 +9,7 @@ import { createStore } from "solid-js/store"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useGlobalSync } from "@/context/global-sync"
 import { useServer } from "@/context/server"
+import { LocalComputeSetup } from "./local-compute-setup"
 
 type DiscoveredModel = {
   id: string
@@ -28,6 +29,7 @@ type WizardStep =
   | "idle" // Default: show discovered servers list
   | "scanning" // Network scan in progress
   | "not-found" // Nothing found, show connect form
+  | "setup" // Guided local compute setup (GPU detection, install guide)
   | "connecting" // User clicked Connect
   | "models" // Show models from selected server
   | "added" // Models added successfully
@@ -394,8 +396,21 @@ export function LocalServerWizard() {
                 <Button size="small" variant="ghost" onClick={() => handleScan()} icon="dot-grid">
                   Scan Local
                 </Button>
+                <Button size="small" variant="secondary" onClick={() => setStep("setup")}>
+                  Set up from scratch
+                </Button>
               </div>
             </div>
+          </Match>
+
+          {/* Guided local compute setup */}
+          <Match when={step() === "setup"}>
+            <LocalComputeSetup
+              onBack={() => setStep("not-found")}
+              onComplete={() => {
+                handleScan()
+              }}
+            />
           </Match>
 
           {/* Models from selected server */}
