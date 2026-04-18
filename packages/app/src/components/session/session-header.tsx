@@ -24,6 +24,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { useMode } from "@/context/mode"
+import { usePinnedApps } from "@/context/pinned-apps"
 import { StartMenu } from "../start-menu"
 import { StatusPopover } from "../status-popover"
 import { StreamingIndicator } from "./streaming-indicator"
@@ -142,6 +143,7 @@ export function SessionHeader() {
   const sync = useSync()
   const terminal = useTerminal()
   const appMode = useMode()
+  const pinnedApps = usePinnedApps()
   const { params, view } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
@@ -334,8 +336,13 @@ export function SessionHeader() {
               </Tooltip>
               <StartMenu
                 onLaunch={(app) => {
-                  // TODO: pin the launched app to the side panel (Phase 28 follow-up)
-                  // For now, open the Apps tab which shows the app list
+                  pinnedApps.pin({
+                    server: app.server,
+                    name: app.name,
+                    uri: app.uri,
+                    description: app.description,
+                  })
+                  // Ensure the side panel is visible so the new pinned tab shows up
                   if (view().reviewPanel && !view().reviewPanel.opened()) view().reviewPanel.open()
                 }}
               />

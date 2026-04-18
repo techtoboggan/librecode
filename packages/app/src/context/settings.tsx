@@ -38,6 +38,11 @@ export interface Settings {
   permissions: {
     autoApprove: boolean
   }
+  voice: {
+    enabled: boolean
+    triggerWord: string
+    language: string
+  }
   notifications: NotificationSettings
   sounds: SoundSettings
 }
@@ -61,6 +66,11 @@ const defaultSettings: Settings = {
   keybinds: {},
   permissions: {
     autoApprove: false,
+  },
+  voice: {
+    enabled: false,
+    triggerWord: "",
+    language: "",
   },
   notifications: {
     agent: true,
@@ -191,6 +201,20 @@ export const { use: useSettings, provider: SettingsProvider } = createSimpleCont
         autoApprove: withFallback(() => store.permissions?.autoApprove, defaultSettings.permissions.autoApprove),
         setAutoApprove(value: boolean) {
           setStore("permissions", "autoApprove", value)
+        },
+      },
+      voice: {
+        enabled: withFallback(() => store.voice?.enabled, defaultSettings.voice.enabled),
+        setEnabled(value: boolean) {
+          setStore("voice", "enabled", value)
+        },
+        triggerWord: withFallback(() => store.voice?.triggerWord, defaultSettings.voice.triggerWord),
+        setTriggerWord(value: string) {
+          setStore("voice", "triggerWord", value)
+        },
+        language: withFallback(() => store.voice?.language, defaultSettings.voice.language),
+        setLanguage(value: string) {
+          setStore("voice", "language", value)
         },
       },
       notifications: {

@@ -19,6 +19,7 @@
 
 import { type Accessor, createEffect, createResource, createSignal, onCleanup, Show, type JSX } from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
+import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
 
 // ─── CSP helpers ─────────────────────────────────────────────────────────────
@@ -60,6 +61,44 @@ async function fetchAppHtml(baseUrl: string, directory: string, server: string, 
   const res = await fetch(url.toString())
   if (!res.ok) throw new Error(`Failed to fetch MCP App HTML: ${res.status} ${res.statusText}`)
   return res.text()
+}
+
+// ─── SSE event forwarding ─────────────────────────────────────────────────────
+
+/**
+ * Forwards SSE events from the global event bus into the iframe via postMessage.
+ * Built-in apps (and cooperating MCP apps) can listen via window.addEventListener("message").
+ *
+ * Events forwarded:
+ *   - activity.updated        (for the FS Activity Graph)
+ *   - message.part.updated    (for Session Stats token/cost tracking)
+ *   - message.part.delta      (for streaming indicators)
+ *   - session.status          (for busy/idle signals)
+ */
+function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
+  const globalSDK = useGlobalSDK()
+
+  createEffect(() => {
+    const iframe = iframeRef()
+    if (!iframe) return
+
+    const FORWARD_TYPES = new Set(["activity.updated", "message.part.updated", "message.part.delta", "session.status"])
+
+    const unsub = globalSDK.event.listen((e) => {
+      const event = e.details
+      if (!event || typeof event !== "object" || !("type" in event)) return
+      if (!FORWARD_TYPES.has(event.type as string)) return
+
+      // Post to iframe content window. Apps verify event.source in their handlers.
+      try {
+        iframe.contentWindow?.postMessage(event, "*")
+      } catch {
+        // Ignore errors — iframe may be detached during re-render
+      }
+    })
+
+    onCleanup(unsub)
+  })
 }
 
 // ─── AppBridge lifecycle ──────────────────────────────────────────────────────
@@ -124,6 +163,8 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
 
   // Wire up AppBridge once we have the iframe ref
   useAppBridge(iframeSignal)
+  // Forward SSE events to the iframe so built-in apps receive live data
+  useEventForwarding(iframeSignal)
 
   return (
     <div

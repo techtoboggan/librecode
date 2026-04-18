@@ -4,6 +4,7 @@ import { Button } from "@librecode/ui/button"
 import { Icon } from "@librecode/ui/icon"
 import { Select } from "@librecode/ui/select"
 import { Switch } from "@librecode/ui/switch"
+import { TextField } from "@librecode/ui/text-field"
 import { Tooltip } from "@librecode/ui/tooltip"
 import { useTheme, type ColorScheme } from "@librecode/ui/theme"
 import { showToast } from "@librecode/ui/toast"
@@ -222,6 +223,45 @@ export const SettingsGeneral: Component = () => {
             triggerVariant="settings"
           />
         </SettingsRow>
+
+        <SettingsRow
+          title="Voice Input"
+          description="Enable speech-to-text via Web Speech API. A microphone button appears next to the attach button in the prompt."
+        >
+          <div data-action="settings-voice-enabled">
+            <Switch checked={settings.voice.enabled()} onChange={(checked) => settings.voice.setEnabled(checked)} />
+          </div>
+        </SettingsRow>
+
+        <Show when={settings.voice.enabled()}>
+          <SettingsRow
+            title="Voice Trigger Word"
+            description="Say this word at the end of a sentence to auto-send the prompt. Leave blank to require manual submission."
+          >
+            <TextField
+              label="Voice trigger word"
+              hideLabel
+              placeholder="e.g. send"
+              value={settings.voice.triggerWord()}
+              onChange={(v: string) => settings.voice.setTriggerWord(v)}
+              class="w-40"
+            />
+          </SettingsRow>
+
+          <SettingsRow
+            title="Voice Language"
+            description="BCP-47 language tag for speech recognition (e.g. en-US, es-ES). Leave blank to use browser default."
+          >
+            <TextField
+              label="Voice language"
+              hideLabel
+              placeholder="en-US"
+              value={settings.voice.language()}
+              onChange={(v: string) => settings.voice.setLanguage(v)}
+              class="w-40"
+            />
+          </SettingsRow>
+        </Show>
 
         <SettingsRow
           title={language.t("settings.general.row.reasoningSummaries.title")}

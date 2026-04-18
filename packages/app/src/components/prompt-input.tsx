@@ -26,6 +26,7 @@ import { createSessionTabs } from "@/pages/session/helpers"
 import { getCursorPosition, setCursorPosition } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
 import { useMode } from "@/context/mode"
+import { useSettings } from "@/context/settings"
 import { createVoiceInput } from "@/utils/voice-input"
 import { ACCEPTED_FILE_TYPES } from "./prompt-input/files"
 import {
@@ -784,7 +785,10 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   })
 
   // Voice input — speech-to-text via Web Speech API
+  const settings = useSettings()
   const voice = createVoiceInput({
+    language: settings.voice.language() || undefined,
+    triggerWord: () => settings.voice.triggerWord() || "",
     onResult: (text) => {
       addPart({ type: "text", content: text + " ", start: 0, end: 0 })
     },
@@ -808,6 +812,15 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
         commandKeybind={command.keybind}
         t={(key) => language.t(key as Parameters<typeof language.t>[0])}
       />
+      <Show when={voice.state() === "listening" && voice.transcript()}>
+        <div
+          class="absolute bottom-full left-0 right-0 mb-2 px-3 py-2 rounded-md border border-red-500/30 bg-surface-panel text-13-regular text-text-weak flex items-center gap-2 z-10"
+          data-component="voice-transcript"
+        >
+          <span class="size-2 rounded-full bg-red-500 animate-pulse shrink-0" aria-hidden />
+          <span class="italic truncate">{voice.transcript()}</span>
+        </div>
+      </Show>
       <DockShellForm
         onSubmit={handleSubmit}
         classList={{
@@ -987,7 +1000,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                   <Icon name="plus" class="size-4.5" />
                 </Button>
               </TooltipKeybind>
-              <Show when={voice.isSupported}>
+              <Show when={voice.isSupported && settings.voice.enabled()}>
                 <Tooltip value={voice.state() === "listening" ? "Stop voice input" : "Voice input"} placement="top">
                   <Button
                     type="button"

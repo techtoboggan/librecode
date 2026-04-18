@@ -24,6 +24,7 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
+import { usePinnedApps } from "@/context/pinned-apps"
 import { useSync } from "@/context/sync"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
@@ -47,15 +48,11 @@ export function SessionSidePanel(props: {
   const globalSDK = useGlobalSDK()
   const { params, sessionKey, tabs, view } = useSessionLayout()
 
-  // ── Pinned MCP app tabs ──────────────────────────────────────────────────────
-  const [pinnedApps, setPinnedApps] = createSignal<McpAppResource[]>([])
-  const pinApp = (app: McpAppResource) => {
-    if (pinnedApps().find((a) => a.uri === app.uri)) return
-    setPinnedApps([...pinnedApps(), app])
-  }
-  const unpinApp = (uri: string) => {
-    setPinnedApps(pinnedApps().filter((a) => a.uri !== uri))
-  }
+  // ── Pinned MCP app tabs (state shared via PinnedAppsContext) ─────────────────
+  const pinnedAppsCtx = usePinnedApps()
+  const pinnedApps = pinnedAppsCtx.pinned
+  const pinApp = pinnedAppsCtx.pin
+  const unpinApp = pinnedAppsCtx.unpin
   const mcpTabValue = (app: McpAppResource) => `mcp-app:${app.server}:${encodeURIComponent(app.uri)}`
 
   // ── Discovered port preview tabs ─────────────────────────────────────────────
