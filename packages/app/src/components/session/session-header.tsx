@@ -24,6 +24,7 @@ import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { StatusPopover } from "../status-popover"
+import { StreamingIndicator } from "./streaming-indicator"
 
 const OPEN_APPS = [
   "vscode",
@@ -310,6 +311,7 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount()}>
             <div class="flex items-center gap-2">
+              <StreamingIndicator />
               <Show when={projectDirectory()}>
                 <div class="hidden xl:flex items-center">
                   <Show
