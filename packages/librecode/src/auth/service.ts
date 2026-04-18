@@ -1,7 +1,5 @@
-import path from "node:path"
 import z from "zod"
-import { Global } from "../global"
-import { Filesystem } from "../util/filesystem"
+import { type AuthStorage, createAuthStorage } from "./storage"
 
 export const OAUTH_DUMMY_KEY = "librecode-oauth-dummy-key"
 
@@ -31,15 +29,26 @@ export type WellKnown = z.infer<typeof WellKnown>
 export const Info = z.discriminatedUnion("type", [Oauth, Api, WellKnown])
 export type Info = z.infer<typeof Info>
 
-const file = path.join(Global.Path.data, "auth.json")
+// A02 — Auth blobs are now stored via AuthStorage (OS keychain on
+// macOS/Windows/Linux-with-keyring, file fallback elsewhere). See
+// packages/librecode/src/auth/storage.ts. The Filesystem.readJson /
+// writeJson calls that used to live here have moved into FileAuthStorage.
+
+let storagePromise: Promise<AuthStorage> | undefined
+
+function storage(): Promise<AuthStorage> {
+  if (!storagePromise) storagePromise = createAuthStorage()
+  return storagePromise
+}
+
+/** Test helper — resets the cached storage so LIBRECODE_AUTH_STORAGE re-applies. */
+export function _resetAuthStorageCache(): void {
+  storagePromise = undefined
+}
 
 export async function all(): Promise<Record<string, Info>> {
-  let data: Record<string, unknown>
-  try {
-    data = await Filesystem.readJson<Record<string, unknown>>(file)
-  } catch {
-    data = {}
-  }
+  const s = await storage()
+  const data = await s.read()
   const result: Record<string, Info> = {}
   for (const [key, value] of Object.entries(data)) {
     const parsed = Info.safeParse(value)
@@ -57,16 +66,18 @@ export async function get(providerID: string): Promise<Info | undefined> {
 
 export async function set(key: string, info: Info): Promise<void> {
   const norm = key.replace(/\/+$/, "")
-  const data = await all()
+  const s = await storage()
+  const data = await s.read()
   if (norm !== key) delete data[key]
   delete data[`${norm}/`]
-  await Filesystem.writeJson(file, { ...data, [norm]: info }, 0o600)
+  await s.write({ ...data, [norm]: info })
 }
 
 export async function remove(key: string): Promise<void> {
   const norm = key.replace(/\/+$/, "")
-  const data = await all()
+  const s = await storage()
+  const data = await s.read()
   delete data[key]
   delete data[norm]
-  await Filesystem.writeJson(file, data, 0o600)
+  await s.write(data)
 }

@@ -78,6 +78,12 @@ delete process.env.SAMBANOVA_API_KEY
 delete process.env.LIBRECODE_SERVER_PASSWORD
 delete process.env.LIBRECODE_SERVER_USERNAME
 
+// A02 — Force file-based auth storage in tests. The keychain backend
+// uses @napi-rs/keyring which has known segfault issues when loaded
+// under the Bun test runner. Production runs through the compiled Bun
+// binary (different loader path) where the module works correctly.
+process.env.LIBRECODE_AUTH_STORAGE = "file"
+
 // Now safe to import from src/
 const { Log } = await import("../src/util/log")
 

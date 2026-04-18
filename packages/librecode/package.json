@@ -82,6 +82,7 @@
     "@librecode/util": "workspace:*",
     "@modelcontextprotocol/ext-apps": "1.6.0",
     "@modelcontextprotocol/sdk": "1.29.0",
+    "@napi-rs/keyring": "1.2.0",
     "@octokit/graphql": "9.0.2",
     "@octokit/rest": "catalog:",
     "@openauthjs/openauth": "catalog:",
