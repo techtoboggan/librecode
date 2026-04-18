@@ -32,6 +32,7 @@ import { Skill } from "../skill/skill"
 import { NotFoundError } from "../storage/db"
 import { Log } from "../util/log"
 import { errors } from "./error"
+import { LogPayload, sanitizeLogExtra } from "./log-endpoint-schema"
 import { MDNS } from "./mdns"
 import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
@@ -412,34 +413,26 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
           ...errors(400),
         },
       }),
-      validator(
-        "json",
-        z.object({
-          service: z.string().meta({ description: "Service name for the log entry" }),
-          level: z.enum(["debug", "info", "error", "warn"]).meta({ description: "Log level" }),
-          message: z.string().meta({ description: "Log message" }),
-          extra: z
-            .record(z.string(), z.any())
-            .optional()
-            .meta({ description: "Additional metadata for the log entry" }),
-        }),
-      ),
+      validator("json", LogPayload),
       async (c) => {
         const { service, level, message, extra } = c.req.valid("json")
         const logger = Log.create({ service })
+        // A04/A09 — sanitize extra before writing so a caller cannot flood
+        // the log file with megabytes of attacker-controlled data.
+        const safeExtra = sanitizeLogExtra(extra)
 
         switch (level) {
           case "debug":
-            logger.debug(message, extra)
+            logger.debug(message, safeExtra)
             break
           case "info":
-            logger.info(message, extra)
+            logger.info(message, safeExtra)
             break
           case "error":
-            logger.error(message, extra)
+            logger.error(message, safeExtra)
             break
           case "warn":
-            logger.warn(message, extra)
+            logger.warn(message, safeExtra)
             break
         }
 
