@@ -117,3 +117,39 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: ${{ contains(github.ref, '-preview.') || contains(github.ref, '-rc.') }}
+
+      # Submit CLI to COPR from the release job because the release:published
+      # event doesn't fire for releases created by GITHUB_TOKEN (GH limitation),
+      # so copr.yml never auto-fires. Inlining here guarantees it runs on every
+      # tag that has CLI tarballs uploaded.
+      - name: Submit CLI to COPR
+        if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref, '-preview.') && !contains(github.ref, '-rc.')
+        env:
+          COPR_API_LOGIN: ${{ secrets.COPR_API_LOGIN }}
+          COPR_API_TOKEN: ${{ secrets.COPR_API_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Submitting librecode $VERSION to COPR"
+
+          sudo apt-get install -y --no-install-recommends rpm rpm2cpio cpio
+          pip3 install --break-system-packages copr-cli
+
+          mkdir -p ~/.config
+          printf '[copr-cli]\nlogin = %s\nusername = techtoboggan\ntoken = %s\ncopr_url = https://copr.fedorainfracloud.org\n' \
+            "$COPR_API_LOGIN" "$COPR_API_TOKEN" > ~/.config/copr
+          chmod 600 ~/.config/copr
+
+          mkdir -p ~/rpmbuild/{SPECS,SOURCES,SRPMS,BUILD,BUILDROOT}
+
+          # The CLI tarballs were just built and uploaded — grab them from the artifacts dir
+          cp src/packages/rpm/librecode.spec /tmp/librecode.spec.orig
+          cp artifacts/librecode-linux-x64.tar.gz ~/rpmbuild/SOURCES/
+          cp artifacts/librecode-linux-arm64.tar.gz ~/rpmbuild/SOURCES/
+
+          sed "s/^Version:.*/Version:        ${VERSION}/" \
+            src/packages/rpm/librecode.spec > ~/rpmbuild/SPECS/librecode.spec
+
+          rpmbuild -bs ~/rpmbuild/SPECS/librecode.spec
+          SRPM=$(ls ~/rpmbuild/SRPMS/librecode-${VERSION}-*.src.rpm)
+          echo "Submitting: $SRPM"
+          copr-cli build techtoboggan/librecode "$SRPM" --nowait
