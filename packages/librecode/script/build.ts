@@ -198,7 +198,7 @@ for (const item of targets) {
 
   const binaryName = item.os === "win32" ? "librecode.exe" : "librecode"
 
-  await Bun.build({
+  const result = await Bun.build({
     conditions: ["browser"],
     tsconfig: "./tsconfig.json",
     plugins: [solidPlugin],
@@ -222,6 +222,14 @@ for (const item of targets) {
       LIBRECODE_LIBC: item.os === "linux" ? `'${item.abi ?? "glibc"}'` : "",
     },
   })
+
+  if (!result.success) {
+    console.error(`\nBuild failed for ${name}:`)
+    for (const log of result.logs) {
+      console.error(`  ${log}`)
+    }
+    process.exit(1)
+  }
 
   // Clean up worker directory artifact
   await $`rm -rf ./dist/${name}/bin/tui`

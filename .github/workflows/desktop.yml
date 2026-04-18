@@ -88,6 +88,14 @@ jobs:
         run: |
           mkdir -p packages/desktop/src-tauri/sidecars
           cp "${{ matrix.cli_src }}" "${{ matrix.cli_dst }}"
+          # Sanity check: compiled CLI should be >110MB (raw Bun is ~99MB).
+          # If Bun.build() silently fails, it outputs the raw runtime.
+          SIZE=$(stat -c%s "${{ matrix.cli_dst }}" 2>/dev/null || stat -f%z "${{ matrix.cli_dst }}")
+          echo "CLI sidecar size: $SIZE bytes"
+          if [ "$SIZE" -lt 110000000 ]; then
+            echo "::error::CLI sidecar is only ${SIZE} bytes — likely raw Bun runtime, not compiled CLI. Build may have silently failed."
+            exit 1
+          fi
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
