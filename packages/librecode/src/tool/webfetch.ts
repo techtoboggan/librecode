@@ -1,6 +1,7 @@
 import TurndownService from "turndown"
 import z from "zod"
 import { abortAfterAny } from "../util/abort"
+import { validateFetchURL } from "../util/ssrf"
 import { Tool } from "./tool"
 import DESCRIPTION from "./webfetch.txt"
 
@@ -19,10 +20,12 @@ export const WebFetchTool = Tool.define("webfetch", {
     timeout: z.number().describe("Optional timeout in seconds (max 120)").optional(),
   }),
   async execute(params, ctx) {
-    // Validate URL
-    if (!params.url.startsWith("http://") && !params.url.startsWith("https://")) {
-      throw new Error("URL must start with http:// or https://")
-    }
+    // A10 (SSRF) — validate scheme, hostname, resolved IP before ever
+    // asking for permission. The user approving `webfetch` at the UI
+    // level sees the URL string; they cannot be expected to know that
+    // `metadata.google.internal` or `169.254.169.254` would leak cloud
+    // credentials. Reject those at the edge regardless of approval.
+    await validateFetchURL(params.url)
 
     await ctx.ask({
       permission: "webfetch",
