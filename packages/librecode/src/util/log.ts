@@ -4,6 +4,7 @@ import path from "node:path"
 import z from "zod"
 import { Global } from "../global"
 import { Glob } from "./glob"
+import { redactSecrets, redactSecretsInString } from "./redact"
 
 export const Level = z.enum(["DEBUG", "INFO", "WARN", "ERROR"]).meta({ ref: "LogLevel", description: "Log level" })
 export type Level = z.infer<typeof Level>
@@ -107,22 +108,29 @@ function logCreate(tags?: Record<string, unknown>): Logger {
   }
 
   function build(message: unknown, extra?: Record<string, unknown>) {
+    // A02/A09 — redact secret-looking values before anything touches
+    // the log sink. Walks nested objects, replaces values at
+    // known-secret keys, and scrubs inline patterns (GitHub tokens,
+    // sk-* keys, JWTs, AWS key IDs) in string values.
+    const safeTags = redactSecrets(tags)
+    const safeExtra = extra ? redactSecrets(extra) : undefined
     const prefix = Object.entries({
-      ...tags,
-      ...extra,
+      ...safeTags,
+      ...safeExtra,
     })
       .filter(([_, value]) => value !== undefined && value !== null)
       .map(([key, value]) => {
         const prefix = `${key}=`
-        if (value instanceof Error) return prefix + formatError(value)
+        if (value instanceof Error) return prefix + redactSecretsInString(formatError(value))
         if (typeof value === "object") return prefix + JSON.stringify(value)
-        return prefix + String(value)
+        return prefix + redactSecretsInString(String(value))
       })
       .join(" ")
     const next = new Date()
     const diff = next.getTime() - last
     last = next.getTime()
-    return `${[next.toISOString().split(".")[0], `+${diff}ms`, prefix, message].filter(Boolean).join(" ")}\n`
+    const safeMessage = typeof message === "string" ? redactSecretsInString(message) : message
+    return `${[next.toISOString().split(".")[0], `+${diff}ms`, prefix, safeMessage].filter(Boolean).join(" ")}\n`
   }
   const result: Logger = {
     debug(message?: unknown, extra?: Record<string, unknown>) {
