@@ -39,7 +39,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
 
       # Wait for i18n to be published (librecode-i18n's own workflow handles that)
       - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
@@ -101,7 +100,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          registry-url: "https://registry.npmjs.org"
 
       - run: bun install --frozen-lockfile
 
