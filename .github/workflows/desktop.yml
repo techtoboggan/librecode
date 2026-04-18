@@ -207,6 +207,9 @@ jobs:
           cd "$OLDPWD"
 
           cat > ~/rpmbuild/SPECS/repack.spec << SPEC
+          %global debug_package %{nil}
+          %global __strip /bin/true
+
           Name:    librecode-desktop
           Version: ${VERSION}
           Release: 1
