@@ -635,6 +635,12 @@ export const Info = z
       ),
     instructions: z.array(z.string()).optional().describe("Additional instruction files or patterns to include"),
     layout: Layout.optional().describe("@deprecated Always uses stretch layout."),
+    app_mode: z
+      .enum(["development", "productivity"])
+      .optional()
+      .describe(
+        "Application mode. 'development' shows all tools and shell mode. 'productivity' hides shell mode and de-emphasizes code-heavy tools for document/analysis workflows.",
+      ),
     permission: Permission.optional(),
     tools: z.record(z.string(), z.boolean()).optional(),
     enterprise: z

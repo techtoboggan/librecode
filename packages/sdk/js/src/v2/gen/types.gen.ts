@@ -1434,6 +1434,11 @@ export type Config = {
     [key: string]: AgentConfig | undefined
   }
   /**
+   * Application mode. 'development' shows all tools and shell mode.
+   * 'productivity' hides shell mode and de-emphasizes code-heavy tools.
+   */
+  app_mode?: "development" | "productivity"
+  /**
    * Agent configuration, see https://github.com/techtoboggan/librecode/docs/agents
    */
   agent?: {

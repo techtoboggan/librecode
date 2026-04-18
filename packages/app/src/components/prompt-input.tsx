@@ -25,6 +25,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionTabs } from "@/pages/session/helpers"
 import { getCursorPosition, setCursorPosition } from "./prompt-input/editor-dom"
 import { createPromptAttachments } from "./prompt-input/attachments"
+import { useMode } from "@/context/mode"
 import { createVoiceInput } from "@/utils/voice-input"
 import { ACCEPTED_FILE_TYPES } from "./prompt-input/files"
 import {
@@ -314,7 +315,11 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
   const escBlur = () => platform.platform === "desktop" && platform.os === "macos"
   const pick = () => fileInputRef?.click()
 
+  const appMode = useMode()
+
   const setMode = (mode: "normal" | "shell") => {
+    // Block shell mode in productivity mode
+    if (mode === "shell" && appMode.isProductivity()) return
     setStore("mode", mode)
     setStore("popover", null)
     requestAnimationFrame(() => editorRef?.focus())
@@ -337,7 +342,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       title: language.t("command.prompt.mode.shell"),
       category: language.t("command.category.session"),
       keybind: shellModeKey,
-      disabled: store.mode === "shell",
+      disabled: store.mode === "shell" || appMode.isProductivity(),
       onSelect: () => setMode("shell"),
     },
     {

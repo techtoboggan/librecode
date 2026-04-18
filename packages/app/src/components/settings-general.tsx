@@ -9,6 +9,7 @@ import { useTheme, type ColorScheme } from "@librecode/ui/theme"
 import { showToast } from "@librecode/ui/toast"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
+import { useMode } from "@/context/mode"
 import { useSettings, monoFontFamily } from "@/context/settings"
 import { playSound, SOUND_OPTIONS } from "@/utils/sound"
 import { Link } from "./link"
@@ -43,6 +44,7 @@ export const SettingsGeneral: Component = () => {
   const language = useLanguage()
   const platform = usePlatform()
   const settings = useSettings()
+  const appMode = useMode()
 
   const [store, setStore] = createStore({
     checking: false,
@@ -190,6 +192,31 @@ export const SettingsGeneral: Component = () => {
             value={(o) => o.value}
             label={(o) => o.label}
             onSelect={(option) => option && language.setLocale(option.value)}
+            variant="secondary"
+            size="small"
+            triggerVariant="settings"
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          title="App Mode"
+          description="Development shows all tools and shell mode. Productivity hides shell mode for document/analysis workflows."
+        >
+          <Select
+            data-action="settings-app-mode"
+            options={[
+              { value: "development" as const, label: "Development" },
+              { value: "productivity" as const, label: "Productivity" },
+            ]}
+            current={
+              [
+                { value: "development" as const, label: "Development" },
+                { value: "productivity" as const, label: "Productivity" },
+              ].find((o) => o.value === appMode.mode()) ?? { value: "development" as const, label: "Development" }
+            }
+            value={(o) => o.value}
+            label={(o) => o.label}
+            onSelect={(option) => option && appMode.set(option.value)}
             variant="secondary"
             size="small"
             triggerVariant="settings"

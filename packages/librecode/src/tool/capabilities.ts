@@ -81,6 +81,17 @@ export interface ToolCapabilities {
    * Derived from other fields if not specified.
    */
   risk?: "low" | "medium" | "high"
+
+  /**
+   * Which app mode this tool should be visible in.
+   * - "both": always visible (default)
+   * - "development": hidden in productivity mode
+   * - "productivity": hidden in development mode
+   *
+   * Note: tools are always _callable_ by the agent regardless of visibility.
+   * This only controls UI display (autocomplete, tool list).
+   */
+  visibility?: "both" | "development" | "productivity"
 }
 
 /**

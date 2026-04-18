@@ -23,6 +23,7 @@ import { useSessionLayout } from "@/pages/session/session-layout"
 import { messageAgentColor } from "@/utils/agent"
 import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
+import { useMode } from "@/context/mode"
 import { StatusPopover } from "../status-popover"
 import { StreamingIndicator } from "./streaming-indicator"
 
@@ -139,6 +140,7 @@ export function SessionHeader() {
   const language = useLanguage()
   const sync = useSync()
   const terminal = useTerminal()
+  const appMode = useMode()
   const { params, view } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
@@ -311,6 +313,20 @@ export function SessionHeader() {
         {(mount) => (
           <Portal mount={mount()}>
             <div class="flex items-center gap-2">
+              <Tooltip
+                value={appMode.isDev() ? "Development mode (click for Productivity)" : "Productivity mode (click for Development)"}
+                placement="bottom"
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  class="h-6 px-1.5 text-11-regular gap-1"
+                  onClick={() => appMode.toggle()}
+                >
+                  <Icon name={appMode.isDev() ? "code" : "edit"} class="size-3.5" />
+                  <span class="hidden lg:inline">{appMode.isDev() ? "Dev" : "Prod"}</span>
+                </Button>
+              </Tooltip>
               <StreamingIndicator />
               <Show when={projectDirectory()}>
                 <div class="hidden xl:flex items-center">
