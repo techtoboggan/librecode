@@ -119,7 +119,7 @@ _lc_install_deps_desktop() {
     echo "Unsupported package manager. You need:"
     echo "  GTK 3+4, WebKit2GTK 4.1, libsoup 3, librsvg 2"
     echo "  libappindicator 3, GStreamer + base plugins, D-Bus, OpenSSL"
-    echo "  Plus: Rust toolchain, cargo-tauri"
+    echo "  Plus: Rust toolchain, cargo-tauri, cargo-audit"
     return 1
   fi
 
@@ -138,11 +138,19 @@ _lc_install_deps_desktop() {
     cargo install tauri-cli --version "^2"
   fi
 
+  # cargo-audit (A06 — Rust dep advisory scanner, used by CI)
+  if ! command -v cargo-audit &>/dev/null; then
+    echo ""
+    echo "Installing cargo-audit..."
+    cargo install cargo-audit --locked
+  fi
+
   echo ""
   echo "Desktop dependencies installed."
   echo "  bun:         $(bun --version 2>/dev/null || echo 'not found')"
   echo "  rustc:       $(rustc --version 2>/dev/null || echo 'not found')"
   echo "  cargo-tauri: $(cargo tauri --version 2>/dev/null || echo 'not found')"
+  echo "  cargo-audit: $(cargo audit --version 2>/dev/null || echo 'not found')"
 }
 
 # ── Command handling ──

@@ -86,3 +86,18 @@ jobs:
         run: bunx prettier --check .
       - name: Biome (warnings only, errors fail)
         run: bunx biome lint .
+
+  # A06 (Vulnerable and Outdated Components) — scan the Rust/Tauri dep graph
+  # for known advisories. `bun audit` already runs in CI via bun's test suite
+  # for the JS/TS side; cargo-audit is its Rust counterpart.
+  rust-audit:
+    name: Rust audit (cargo-audit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+      - name: Audit Tauri Rust deps
+        run: cargo audit
+        working-directory: packages/desktop/src-tauri
