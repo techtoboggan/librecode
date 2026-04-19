@@ -371,7 +371,13 @@ export async function buildCommandParts(
       description: cmd.description ?? "",
       command: input.command,
       model: { providerID: taskModel.providerID, modelID: taskModel.modelID },
-      // TODO: how can we make task tool accept a more complex input?
+      // Task tool currently only accepts a string prompt. If a command template
+      // contains image/file parts, they are dropped here — only the first text
+      // part is forwarded. Lifting this requires: (a) TaskTool's zod input to
+      // accept MessageV2.Part[] rather than a bare string, (b) task-runner to
+      // forward those parts into the new session's first user message.
+      // Blocked on: deciding whether TaskTool inputs should match user-message
+      // inputs 1:1 or be a stricter subset.
       prompt: templateParts.find((y) => y.type === "text")?.text ?? "",
     },
   ]
@@ -500,7 +506,13 @@ export async function executeSubtask(
   abort: AbortSignal,
   sessionPermission: PermissionNext.Ruleset,
 ): Promise<void> {
-  // TODO: centralize "invoke tool" logic
+  // The init + message-update + execute sequence below is effectively a
+  // bespoke reimplementation of the logic inside Session.prompt()'s tool
+  // dispatcher. Extracting a shared `invokeTool(ctx, tool, input)` helper
+  // would remove ~20 lines of duplication here and in similar paths
+  // (e.g. skill invocation). Deferred because the invoker signatures
+  // differ slightly — each caller constructs its own assistant-message
+  // stub with different parent/mode wiring.
   const taskTool = await TaskTool.init()
   const taskModel = task.model ? await Provider.getModel(task.model.providerID, task.model.modelID) : model
   const assistantMessage = (await Session.updateMessage({

@@ -189,19 +189,21 @@ export async function CopilotAuthPlugin(input: PluginInput): Promise<Hooks> {
               },
             }
 
-            // TODO: re-enable once messages api has higher rate limits
-            // TODO: move some of this hacky-ness to models.dev presets once we have better grasp of things here...
-            // const base = baseURL ?? model.api.url
-            // const claude = model.id.includes("claude")
-            // const url = iife(() => {
-            //   if (!claude) return base
-            //   if (base.endsWith("/v1")) return base
-            //   if (base.endsWith("/")) return `${base}v1`
-            //   return `${base}/v1`
-            // })
-
-            // model.api.url = url
-            // model.api.npm = claude ? "@ai-sdk/anthropic" : "@ai-sdk/github-copilot"
+            // Design note (all models go through @ai-sdk/github-copilot):
+            // The disabled block below would have routed Claude models
+            // through @ai-sdk/anthropic directly (talking to Copilot's
+            // messages-style endpoint at /v1) while routing non-Claude
+            // models through the Copilot completions endpoint as before.
+            // This was shelved because:
+            //   1. Copilot's messages API has tighter rate limits than the
+            //      completions API and was hitting 429s on longer sessions.
+            //   2. The URL normalisation (/v1 suffix, trailing slash, etc.)
+            //      should live in models.dev presets, not here — once that
+            //      shape is stabilised upstream, port the split there rather
+            //      than duplicating it inline.
+            // Reinstate when (a) Copilot's messages API rate-limit story
+            // improves, and (b) models.dev exposes per-capability URL
+            // variants that we can consume declaratively.
             model.api.npm = "@ai-sdk/github-copilot"
           }
         }

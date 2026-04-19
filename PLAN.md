@@ -2,9 +2,9 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-18 | ~235 commits | Tests: 1715 pass, 0 fail | **v0.9.10** (Phase 29 complete)
+> Last updated: 2026-04-19 | ~255 commits | Tests: 1715 pass, 0 fail | **v0.9.19** (Phase 29 complete, Phase 30 in progress)
 >
-> **Release track:** staying on `0.9.x` until all pre-1.0 hardening items land. Phase 29 closed all 7 high + 7 medium OWASP findings; watch the Phase 29 verification section below for regression-avoidance once we consider `v1.0.0`.
+> **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phase 30 (best-practices cleanup) is in flight — housekeeping + BDD/E2E coverage + file-size splits.
 
 ---
 
@@ -506,31 +506,39 @@ Apply barrel-export pattern, one PR each (per Playbook 1 rules):
 
 ---
 
-## 🗺️ Net-New Roadmap (post-hardening, pre-1.0)
+## 🗺️ Net-New Roadmap (continuing 0.9.x series)
 
 No GitHub issues currently open. These are candidate workstreams we've discussed; pick based on user priority.
 
-### Phase 29: MCP Co-editing App (deferred from Phase 28 per ADR-005)
+**Release policy:** Staying on `0.9.x` patch tags. No `1.0.0-preview.x` until real beta testing validates the product end-to-end. Every "Phase 3X" below ships as a 0.9.y patch.
+
+### Phase 30: Best-Practices Cleanup (in progress)
+
+Resolve the CLAUDE.md debt surfaced after Phase 29:
+
+- A: Housekeeping — PLAN.md renumbering (this edit), Homebrew formula sha256s to v0.9.19, design-debt TODOs in `prompt-builder.ts:374,503` + `plugin/copilot.ts:192-193`
+- B: BDD/E2E coverage push — close the gap on `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts`. Requires a running agent + mock LLM; pytest-bdd scaffolding already in place.
+- C: File-size splits — 6 files currently violate the 1000-line rule. Each is a Playbook-worthy decomposition.
+
+Medium effort across all three sub-phases.
+
+### Phase 31: MCP Co-editing App (deferred from Phase 28 per ADR-005)
 
 CRDT/OT implementation for collaborative real-time editing of shared documents in MCP apps. Design-only as ADR-005 today. Large effort.
 
-### Phase 30: BDD/E2E Coverage Push
-
-Close the coverage gap on `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` — the files that drive the actual agent loop. Requires a running agent + mock LLM; covered partially by `tests/features/*.feature` + Python pytest-bdd scaffolding already in place. Medium effort.
-
-### Phase 31: Windows Code-Signing + Store Submission
+### Phase 32: Windows Code-Signing + Store Submission
 
 Sign the `.exe` installer with an EV certificate, submit to Microsoft Store (or partner channels) to avoid SmartScreen warnings. Medium effort + cert-procurement cost.
 
-### Phase 32: Linux AppImage Auto-Update
+### Phase 33: Linux AppImage Auto-Update
 
 The Tauri updater currently disabled on Linux. Once AppImage is validated (deferred item above), wire up zsync-based delta updates via the AppImage updater framework. Small effort.
 
-### Phase 33: Plugin Marketplace
+### Phase 34: Plugin Marketplace
 
 Extend the 3rd-party providers pattern to arbitrary plugins/tools/MCP servers — searchable registry, publish CLI, one-click install from desktop UI. Large effort.
 
-### Phase 34: Enterprise Features (post-1.0)
+### Phase 35: Enterprise Features (post-1.0)
 
 Deferred per local-first charter but listed for completeness: SSO/SAML, audit-log forwarding to SIEM, multi-tenant config, secrets management integration. Out-of-scope for 0.9.x / 1.0 stable.
 
