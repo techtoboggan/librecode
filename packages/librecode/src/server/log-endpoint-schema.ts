@@ -15,11 +15,7 @@ const MAX_EXTRA_BYTES = 16 * 1024 // 16 KB
 const SERVICE_NAME_RE = /^[a-z0-9._-]+$/i
 
 export const LogPayload = z.object({
-  service: z
-    .string()
-    .min(1)
-    .max(MAX_SERVICE_CHARS)
-    .regex(SERVICE_NAME_RE, "service name must match [a-z0-9._-]+"),
+  service: z.string().min(1).max(MAX_SERVICE_CHARS).regex(SERVICE_NAME_RE, "service name must match [a-z0-9._-]+"),
   level: z.enum(["debug", "info", "error", "warn"]),
   message: z.string().max(MAX_MESSAGE_BYTES, `message exceeds ${MAX_MESSAGE_BYTES} bytes`),
   extra: z.record(z.string(), z.any()).optional(),

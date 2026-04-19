@@ -202,8 +202,7 @@ describe("tool.read env file permissions", () => {
             },
           }
           const read = await ReadTool.init()
-          const doRead = () =>
-            read.execute({ filePath: path.join(tmp.path, filename) }, ctxWithPermissions)
+          const doRead = () => read.execute({ filePath: path.join(tmp.path, filename) }, ctxWithPermissions)
           if (shouldBlock) {
             await expect(doRead()).rejects.toThrow(/credential|CredentialAccessBlocked/i)
           } else {

@@ -33,13 +33,12 @@ describe("redactSecretsInString", () => {
 
   test("leaves non-secret text alone", () => {
     expect(redactSecretsInString("just a regular log message")).toBe("just a regular log message")
-    expect(redactSecretsInString("path=/home/alice/project/src/index.ts")).toBe(
-      "path=/home/alice/project/src/index.ts",
-    )
+    expect(redactSecretsInString("path=/home/alice/project/src/index.ts")).toBe("path=/home/alice/project/src/index.ts")
   })
 
   test("redacts multiple secrets in one string", () => {
-    const input = "header: Bearer ghp_abc123def456ghi789jkl012mno345pqr6 and sk-abc123def456ghi789jkl012mno345pqr678stu90vwx"
+    const input =
+      "header: Bearer ghp_abc123def456ghi789jkl012mno345pqr6 and sk-abc123def456ghi789jkl012mno345pqr678stu90vwx"
     const out = redactSecretsInString(input)
     expect(out).toContain("[REDACTED:github-token]")
     expect(out).toContain("[REDACTED:api-key]")
@@ -76,9 +75,7 @@ describe("redactSecrets (object walker)", () => {
       },
     }
     const out = redactSecrets(input)
-    expect((out.config as { provider: { apiKey: string; name: string } }).provider.apiKey).toBe(
-      "[REDACTED:secret-key]",
-    )
+    expect((out.config as { provider: { apiKey: string; name: string } }).provider.apiKey).toBe("[REDACTED:secret-key]")
     expect((out.config as { provider: { apiKey: string; name: string } }).provider.name).toBe("anthropic")
   })
 

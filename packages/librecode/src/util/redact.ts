@@ -27,7 +27,8 @@ const SECRET_VALUE_PATTERNS: Array<[RegExp, string]> = [
   [/eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_.-]{10,}/g, "[REDACTED:jwt]"],
 ]
 
-const SECRET_KEY_NAMES = /^(authorization|auth|token|secret|api[-_]?key|access[-_]?key|access[-_]?token|refresh[-_]?token|bearer|session|password|passwd|credentials?|x-api-key|x-auth-token)$/i
+const SECRET_KEY_NAMES =
+  /^(authorization|auth|token|secret|api[-_]?key|access[-_]?key|access[-_]?token|refresh[-_]?token|bearer|session|password|passwd|credentials?|x-api-key|x-auth-token)$/i
 
 export function redactSecretsInString(input: string): string {
   let out = input

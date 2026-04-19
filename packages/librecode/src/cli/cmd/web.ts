@@ -43,7 +43,9 @@ export const WebCommand = cmd({
       bypass: opts.insecureBindBypass,
     })
     if (!Flag.LIBRECODE_SERVER_PASSWORD) {
-      UI.println(`${UI.Style.TEXT_WARNING_BOLD}!  LIBRECODE_SERVER_PASSWORD is not set; server is bound to loopback only.`)
+      UI.println(
+        `${UI.Style.TEXT_WARNING_BOLD}!  LIBRECODE_SERVER_PASSWORD is not set; server is bound to loopback only.`,
+      )
     }
     const server = Server.listen(opts)
     UI.empty()

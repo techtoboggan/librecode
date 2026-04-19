@@ -75,7 +75,8 @@ export function handleServerError(err: Error, c: import("hono").Context): Respon
   if (err instanceof HTTPException) return err.getResponse()
   // Read the dev flag dynamically so tests can toggle without module reload
   const dev = process.env.LIBRECODE_DEV === "true" || process.env.LIBRECODE_DEV === "1"
-  const message = dev && err instanceof Error && err.stack ? err.stack : err instanceof Error ? err.message : String(err)
+  const message =
+    dev && err instanceof Error && err.stack ? err.stack : err instanceof Error ? err.message : String(err)
   return c.json(new NamedError.Unknown({ message }).toObject(), { status: 500 })
 }
 
@@ -107,10 +108,7 @@ function isKnownLocalhostOrigin(input: string): boolean {
   return KNOWN_DEV_PORTS.has(port)
 }
 
-export function resolveCorsOrigin(
-  input: string | null | undefined,
-  allowed: string[] | undefined,
-): string | undefined {
+export function resolveCorsOrigin(input: string | null | undefined, allowed: string[] | undefined): string | undefined {
   if (!input) return undefined
   if (isKnownLocalhostOrigin(input)) return input
   if (input === "tauri://localhost" || input === "http://tauri.localhost" || input === "https://tauri.localhost")
@@ -167,10 +165,13 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
           count: rl.count,
           retryAfterSec: rl.retryAfterSec,
         })
-        return c.json({ error: "Too Many Requests" }, {
-          status: 429,
-          headers: { "Retry-After": String(rl.retryAfterSec) },
-        })
+        return c.json(
+          { error: "Too Many Requests" },
+          {
+            status: 429,
+            headers: { "Retry-After": String(rl.retryAfterSec) },
+          },
+        )
       }
 
       // Run basic-auth; catch its HTTPException to log the 401 ourselves
