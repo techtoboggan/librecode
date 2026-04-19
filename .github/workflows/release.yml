@@ -109,9 +109,15 @@ jobs:
     secrets: inherit
 
   # ─── Stage 5: Build Flatpak ───────────────────────────────────────────────
+  # continue-on-error: true so the whole release isn't marked failed when
+  # Flatpak's offline vendor step hits the Tauri [patch.crates-io] git-ref
+  # gap (flatpak-cargo-generator.py limitation). Tracked as a Phase 22-era
+  # deferred item in PLAN.md. Fixing this is scoped independently; it
+  # should not hold up security releases.
   build-flatpak:
     name: Build Flatpak
     needs: [prep, publish-npm]
+    continue-on-error: true
     uses: ./.github/workflows/flatpak.yml
     with:
       version: ${{ needs.prep.outputs.version }}
