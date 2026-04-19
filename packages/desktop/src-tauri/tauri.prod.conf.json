@@ -18,7 +18,8 @@
     ],
     "windows": {
       "nsis": {
-        "installerIcon": "icons/prod/icon.ico"
+        "installerIcon": "icons/prod/icon.ico",
+        "installerHooks": "release/nsis-installer-hook.nsh"
       }
     },
     "macOS": {
@@ -35,7 +36,8 @@
       "deb": {
         "files": {
           "/usr/share/metainfo/com.librecode.desktop.metainfo.xml": "release/appstream.metainfo.xml"
-        }
+        },
+        "postInstallScript": "release/deb-postinst.sh"
       },
       "rpm": {
         "compression": {

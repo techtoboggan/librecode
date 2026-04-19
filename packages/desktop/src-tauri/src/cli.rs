@@ -40,7 +40,14 @@ impl CommandWrapper for WinCreationFlags {
     }
 }
 
-const CLI_INSTALL_DIR: &str = ".librecode/bin";
+// XDG base-dir standard: user-level executables go in ~/.local/bin.
+// Modern Linux distros (Ubuntu ≥22.04, Fedora, Arch with systemd) put
+// this on PATH by default via /etc/profile.d. macOS users typically
+// need to append it to their shell rc manually, but .local/bin is
+// still the right target — it's the convention for per-user bins and
+// matches what scripts/install.sh uses, so we stay consistent across
+// install paths.
+const CLI_INSTALL_DIR: &str = ".local/bin";
 const CLI_BINARY_NAME: &str = "librecode";
 const SHELL_ENV_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -127,7 +134,13 @@ fn is_cli_installed() -> bool {
         .unwrap_or(false)
 }
 
-const INSTALL_SCRIPT: &str = include_str!("../../../../install");
+/// Check if a system-installed `librecode` command is already on PATH.
+/// Covers RPM (via Requires: librecode) and .deb (via postinst symlink)
+/// install paths. When true, we don't need to auto-install into $HOME.
+fn is_system_cli_installed() -> bool {
+    let paths = ["/usr/bin/librecode", "/usr/local/bin/librecode"];
+    paths.iter().any(|p| std::path::Path::new(p).exists())
+}
 
 #[tauri::command]
 #[specta::specta]
@@ -136,37 +149,37 @@ pub fn install_cli(app: tauri::AppHandle) -> Result<String, String> {
         return Err("CLI installation is only supported on macOS & Linux".to_string());
     }
 
+    // We have the sidecar binary locally (via Tauri externalBin). No
+    // network / install.sh needed — just copy the binary to the target
+    // path, mark it executable, and we're done.
+    //
+    // Earlier implementation called the install.sh script with a
+    // --binary <path> flag, but neither of our install scripts
+    // (scripts/install.sh or the project-root `install`) supports that
+    // flag — the shell download path would 404 and the copy never
+    // happened. Silent failure during the desktop "install CLI" flow.
     let sidecar = get_sidecar_path(&app);
     if !sidecar.exists() {
         return Err("Sidecar binary not found".to_string());
     }
 
-    let temp_script = std::env::temp_dir().join("librecode-install.sh");
-    std::fs::write(&temp_script, INSTALL_SCRIPT)
-        .map_err(|e| format!("Failed to write install script: {}", e))?;
+    let install_path =
+        get_cli_install_path().ok_or_else(|| "Could not determine install path".to_string())?;
+
+    if let Some(parent) = install_path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create install dir: {}", e))?;
+    }
+
+    std::fs::copy(&sidecar, &install_path)
+        .map_err(|e| format!("Failed to copy CLI binary: {}", e))?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&temp_script, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| format!("Failed to set script permissions: {}", e))?;
+        std::fs::set_permissions(&install_path, std::fs::Permissions::from_mode(0o755))
+            .map_err(|e| format!("Failed to set CLI permissions: {}", e))?;
     }
-
-    let output = std::process::Command::new(&temp_script)
-        .arg("--binary")
-        .arg(&sidecar)
-        .output()
-        .map_err(|e| format!("Failed to run install script: {}", e))?;
-
-    let _ = std::fs::remove_file(&temp_script);
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(format!("Install script failed: {}", stderr));
-    }
-
-    let install_path =
-        get_cli_install_path().ok_or_else(|| "Could not determine install path".to_string())?;
 
     Ok(install_path.to_string_lossy().to_string())
 }
@@ -177,9 +190,40 @@ pub fn sync_cli(app: tauri::AppHandle) -> Result<(), String> {
         return Ok(());
     }
 
-    if !is_cli_installed() {
-        tracing::info!("No CLI installation found, skipping sync");
+    // Zero-drama CLI availability: on Linux packaged installs (RPM .deb),
+    // the system package manager puts librecode on PATH directly
+    // (RPM: Requires: librecode pulls in the CLI package. .deb: postinst
+    // symlinks /usr/bin/librecode-cli → /usr/bin/librecode). On macOS
+    // and self-contained Linux archive/DMG installs, the desktop app
+    // must install the sidecar itself on first launch so users can run
+    // `librecode` from their terminal without any manual setup.
+    //
+    // Strategy:
+    //   - If /usr/bin/librecode (or equivalent system path) exists:
+    //     packaged install, nothing to do.
+    //   - If ~/.librecode/bin/librecode exists: previous desktop install,
+    //     fall through to the version-sync path below.
+    //   - Otherwise: auto-install to ~/.librecode/bin silently.
+    if is_system_cli_installed() {
+        tracing::info!("System CLI installation found, skipping sync");
         return Ok(());
+    }
+
+    if !is_cli_installed() {
+        tracing::info!("No CLI found, auto-installing to user bin directory");
+        match install_cli(app.clone()) {
+            Ok(path) => {
+                tracing::info!(%path, "CLI auto-installed");
+                return Ok(());
+            }
+            Err(e) => {
+                // Non-fatal — the desktop app still works via its own
+                // in-process sidecar. The user just can't run `librecode`
+                // from the terminal yet.
+                tracing::warn!(error = %e, "CLI auto-install failed (non-fatal)");
+                return Ok(());
+            }
+        }
     }
 
     let cli_path =
