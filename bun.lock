@@ -21,7 +21,7 @@
     },
     "packages/app": {
       "name": "@librecode/app",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "dependencies": {
         "@kobalte/core": "catalog:",
         "@librecode/i18n": "^1.0.0-preview.1",
@@ -74,7 +74,7 @@
     },
     "packages/desktop": {
       "name": "@librecode/desktop",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "dependencies": {
         "@librecode/app": "workspace:*",
         "@librecode/i18n": "^1.0.0-preview.1",
@@ -107,7 +107,7 @@
     },
     "packages/librecode": {
       "name": "librecode",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "bin": {
         "librecode": "./bin/librecode",
       },
@@ -225,7 +225,7 @@
     },
     "packages/plugin": {
       "name": "@librecode/plugin",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "dependencies": {
         "@librecode/sdk": "workspace:*",
         "zod": "catalog:",
@@ -249,7 +249,7 @@
     },
     "packages/sdk/js": {
       "name": "@librecode/sdk",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "devDependencies": {
         "@hey-api/openapi-ts": "0.90.10",
         "@tsconfig/node22": "catalog:",
@@ -260,7 +260,7 @@
     },
     "packages/ui": {
       "name": "@librecode/ui",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "dependencies": {
         "@kobalte/core": "catalog:",
         "@librecode/i18n": "^1.0.0-preview.1",
@@ -307,7 +307,7 @@
     },
     "packages/util": {
       "name": "@librecode/util",
-      "version": "0.9.11",
+      "version": "0.9.12",
       "dependencies": {
         "zod": "catalog:",
       },
