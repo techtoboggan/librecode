@@ -497,6 +497,7 @@ Apply barrel-export pattern, one PR each (per Playbook 1 rules):
 | Item                                                                                                                                            | Source   | Priority | Status   |
 | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------- | -------- |
 | Flathub submission (public listing; manifest already builds in CI)                                                                              | Phase 22 | Low      | Deferred |
+| Flatpak offline build: vendor Tauri `[patch.crates-io]` git refs properly. flatpak-cargo-generator.py misses refs resolved through workspace inheritance. Consider: (a) remove the Tauri patch once tauri-apps/tauri#14812 lands upstream, (b) switch to `cargo-vendor-filterer` or `fenix`, (c) hand-write git-dep entries in cargo-sources.json. | Phase 29 | Medium | Deferred |
 | AppImage end-to-end verification (`APPIMAGE_EXTRACT_AND_RUN=1` wired but not validated on fresh system)                                         | Phase 22 | Low      | Deferred |
 | Desktop locale parity: human-review `th.ts`/`tr.ts` translations                                                                                | Phase 22 | Low      | Deferred |
 | Design-debt TODOs in `session/prompt-builder.ts:374, 503`                                                                                       | Phase 22 | Low      | Deferred |
