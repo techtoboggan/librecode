@@ -47,10 +47,18 @@ if ! command -v cargo-cyclonedx &>/dev/null; then
 fi
 
 pushd packages/desktop/src-tauri >/dev/null
-cargo cyclonedx --format json --override-filename ../../../sbom-rust
+# cargo-cyclonedx's --override-filename rejects paths (only accepts a bare
+# filename) and emits the SBOM next to the manifest. Run it in the crate
+# dir, then move the result to the repo root.
+cargo cyclonedx --format json --override-filename sbom-rust
 popd >/dev/null
-# cargo-cyclonedx appends .cdx.json when using --override-filename; normalise:
-if [[ -f sbom-rust.cdx.json ]]; then
+if [[ -f packages/desktop/src-tauri/sbom-rust.cdx.json ]]; then
+  mv packages/desktop/src-tauri/sbom-rust.cdx.json "${ROOT}/sbom-rust.json"
+elif [[ -f packages/desktop/src-tauri/sbom-rust.json ]]; then
+  mv packages/desktop/src-tauri/sbom-rust.json "${ROOT}/sbom-rust.json"
+# Fall-through: newer cargo-cyclonedx also appends .cdx.json form at repo
+# root with no path; keep the legacy handler too in case.
+elif [[ -f sbom-rust.cdx.json ]]; then
   mv sbom-rust.cdx.json sbom-rust.json
 fi
 echo "  ✓ sbom-rust.json"
