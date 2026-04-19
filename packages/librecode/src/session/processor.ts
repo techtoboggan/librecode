@@ -35,8 +35,11 @@ type ToolResultEventShape = {
   output: ToolResultOutput
 }
 
-// Mutable state passed through the stream dispatch loop
-type StreamState = {
+/**
+ * @internal — exported for unit testing (see test/session/processor-helpers.test.ts).
+ * Mutable state passed through the stream dispatch loop.
+ */
+export type StreamState = {
   toolcalls: Record<string, MessageV2.ToolPart>
   snapshot: string | undefined
   blocked: boolean
@@ -152,7 +155,18 @@ async function runStreamIteration(
   return false
 }
 
-function resolveProcessResult(
+/**
+ * @internal — exported for unit testing.
+ *
+ * Decides what the agent loop should do after a streaming step completes:
+ *   - "compact" — context overflowed, run SessionCompaction then retry
+ *   - "stop"    — user permission denied a tool, or the assistant errored
+ *   - "continue" — clean step, dispatch next tool call or next message
+ *
+ * Priority: compaction takes precedence over any other exit; then blocked;
+ * then generic error. If none, we're healthy — continue.
+ */
+export function resolveProcessResult(
   state: StreamState,
   assistantMessage: MessageV2.Assistant,
 ): "compact" | "stop" | "continue" {

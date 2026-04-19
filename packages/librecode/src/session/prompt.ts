@@ -150,21 +150,38 @@ export function cancel(sessionID: SessionID) {
 
 // ─── Scan helpers ─────────────────────────────────────────────────────────────
 
-function collectPendingTasks(msg: MessageV2.WithParts): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
+/**
+ * @internal — exported for unit testing. Extracts compaction + subtask
+ * parts from a message (used to re-dispatch pending work after a crash
+ * or resume).
+ */
+export function collectPendingTasks(
+  msg: MessageV2.WithParts,
+): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
   return msg.parts.filter(
     (part): part is MessageV2.CompactionPart | MessageV2.SubtaskPart =>
       part.type === "compaction" || part.type === "subtask",
   )
 }
 
-function updateScanState(msg: MessageV2.WithParts, acc: Omit<ScanResult, "tasks">): void {
+/**
+ * @internal — exported for unit testing. Updates the scan accumulator
+ * with the first user/assistant/finished message encountered walking
+ * backwards.
+ */
+export function updateScanState(msg: MessageV2.WithParts, acc: Omit<ScanResult, "tasks">): void {
   if (!acc.lastUser && msg.info.role === "user") acc.lastUser = msg.info as MessageV2.User
   if (!acc.lastAssistant && msg.info.role === "assistant") acc.lastAssistant = msg.info as MessageV2.Assistant
   if (!acc.lastFinished && msg.info.role === "assistant" && msg.info.finish)
     acc.lastFinished = msg.info as MessageV2.Assistant
 }
 
-function scanMessages(msgs: MessageV2.WithParts[]): ScanResult {
+/**
+ * @internal — exported for unit testing. Walks messages newest → oldest
+ * to find the most recent user/assistant/finished-assistant, plus any
+ * pending compaction/subtask parts that haven't been handled yet.
+ */
+export function scanMessages(msgs: MessageV2.WithParts[]): ScanResult {
   const acc: Omit<ScanResult, "tasks"> = {
     lastUser: undefined,
     lastAssistant: undefined,

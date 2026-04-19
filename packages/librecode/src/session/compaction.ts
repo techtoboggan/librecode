@@ -34,9 +34,17 @@ export const PRUNE_PROTECT = 40_000
 
 const PRUNE_PROTECTED_TOOLS = ["skill"]
 
-// Scan one message's parts backwards, accumulating prune candidates.
-// Returns true if the outer loop should stop (hit a compacted marker).
-function scanMsgPartsForPrune(
+/**
+ * @internal — exported for direct unit testing. Do not depend from other
+ * modules; the enclosing {@link sessionCompactionPrune} is the intended
+ * public API.
+ *
+ * Scans one message's parts from latest → earliest, accumulating
+ * tool-output tokens into `state`. Tool parts beyond {@link PRUNE_PROTECT}
+ * tokens of history are added to `state.toPrune`. Returns `true` if the
+ * outer loop should stop (hit an already-compacted marker).
+ */
+export function scanMsgPartsForPrune(
   msg: MessageV2.WithParts,
   state: { total: number; pruned: number; toPrune: MessageV2.ToolPart[] },
 ): boolean {
@@ -56,9 +64,15 @@ function scanMsgPartsForPrune(
   return false
 }
 
-// Collect tool parts eligible for pruning (those beyond the PRUNE_PROTECT token budget)
-// Returns { toPrune, pruned, total } from a backwards scan starting at msgIndex.
-function collectPruneCandidates(msgs: MessageV2.WithParts[]): {
+/**
+ * @internal — exported for unit testing.
+ *
+ * Walks the session's messages from newest to oldest, skipping the two
+ * most-recent user turns (so the current conversation isn't pruned),
+ * stopping at an assistant summary boundary, and collecting tool parts
+ * whose cumulative output exceeds {@link PRUNE_PROTECT} tokens.
+ */
+export function collectPruneCandidates(msgs: MessageV2.WithParts[]): {
   toPrune: MessageV2.ToolPart[]
   pruned: number
   total: number
@@ -118,9 +132,21 @@ export async function sessionCompactionIsOverflow(input: {
   return count >= usable
 }
 
-// Find the replay message and trim messages list for overflow compaction.
-// Returns { replay, messages } where replay is the message to re-send after compaction.
-function resolveOverflowReplay(
+/**
+ * @internal — exported for unit testing.
+ *
+ * When the session overflows its context window, we compact older
+ * messages and re-send the most recent user turn after the compaction
+ * summary. This function picks:
+ *   - `replay`: the user message we'll re-send (nearest prior non-
+ *     compaction user turn before `parentID`)
+ *   - `messages`: the history to keep before compacting (messages
+ *     before the replay point)
+ *
+ * Returns `{ replay: undefined, messages }` when there's nothing left to
+ * compact after the replay point — the caller should skip compaction.
+ */
+export function resolveOverflowReplay(
   messages: MessageV2.WithParts[],
   parentID: MessageID,
 ): { replay: MessageV2.WithParts | undefined; messages: MessageV2.WithParts[] } {
