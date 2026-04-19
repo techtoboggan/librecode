@@ -222,7 +222,6 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
         log.warn("auth failed", {
           ip: redactIp(ip),
           path: c.req.path,
-          attemptInWindow: rl.count,
         })
         throw err
       }
