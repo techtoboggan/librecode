@@ -170,6 +170,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.3.11"
+      # Node needed separately because @cyclonedx/cyclonedx-npm inspects the
+      # invoking package manager's version and rejects anything <9. Bunx
+      # exposes bun's version number (1.x) which fails the npm check.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.9.0"
       - uses: dtolnay/rust-toolchain@stable
       - name: Install cargo-cyclonedx
         run: cargo install cargo-cyclonedx --locked

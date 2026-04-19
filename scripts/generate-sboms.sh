@@ -22,18 +22,15 @@ fi
 
 echo "→ Generating JS/TS SBOM via @cyclonedx/cyclonedx-npm..."
 if ! command -v npm &>/dev/null; then
-  echo "npm is required (ships with Node)"
+  echo "npm is required (ships with Node 20+)"
   exit 1
 fi
 
 # @cyclonedx/cyclonedx-npm wraps `npm list` + emits CycloneDX 1.5 JSON. We
-# invoke through bunx so we pick up a pinned version resolution, not latest.
-if [[ $CI_MODE -eq 1 ]]; then
-  # In CI we assume bun is already installed and workspace installed.
-  bunx -p "@cyclonedx/cyclonedx-npm@^4.0.0" cyclonedx-npm --output-file sbom-npm.json
-else
-  bunx -p "@cyclonedx/cyclonedx-npm@^4.0.0" cyclonedx-npm --output-file sbom-npm.json
-fi
+# use `npx` (not `bunx`) because the tool checks the invoking package
+# manager's version and refuses anything <9. Bunx exposes bun's version
+# number (1.x) which fails the npm check.
+npx -y -p "@cyclonedx/cyclonedx-npm@^4.0.0" cyclonedx-npm --output-file sbom-npm.json
 echo "  ✓ sbom-npm.json"
 
 echo "→ Generating Rust SBOM via cargo-cyclonedx..."
