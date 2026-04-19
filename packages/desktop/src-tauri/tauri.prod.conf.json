@@ -4,8 +4,7 @@
   "identifier": "com.librecode.desktop",
   "app": {
     "security": {
-      "csp": null,
-      "_csp_note": "CSP reverted to null in v0.9.26 after production testing. The Phase 29 strict CSP was blocking Tauri's runtime-injected IPC bridge scripts — Tauri 2.9 auto-nonces IPC scripts ONLY when CSP is expressed as a structured object (per directive), not as a flat string. Will re-introduce CSP in a follow-up PR using the object form so Tauri can amend it with nonces correctly. OWASP A05 exposure while off: a compromised/malicious dep could load arbitrary external resources. Mitigated by: narrowed Tauri capabilities (http:default restricted to known hosts — see capabilities/default.json from Phase 29), withGlobalTauri=false, the webview running in a platform native engine not a browser tab, and the plain fact that this is a local-first desktop app with no attacker-controlled URL inputs."
+      "csp": null
     }
   },
   "bundle": {

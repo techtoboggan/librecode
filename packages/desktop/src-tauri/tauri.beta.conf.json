@@ -4,8 +4,7 @@
   "identifier": "com.librecode.desktop.beta",
   "app": {
     "security": {
-      "csp": null,
-      "_csp_note": "Same as prod — strict CSP reverted, see tauri.prod.conf.json for context."
+      "csp": null
     }
   },
   "bundle": {
