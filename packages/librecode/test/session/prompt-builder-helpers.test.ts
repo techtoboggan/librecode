@@ -25,9 +25,7 @@ describe("parseMcpContent", () => {
   })
 
   test("image content → data URL attachment", () => {
-    const out = parseMcpContent([
-      { type: "image", mimeType: "image/png", data: "AAAA" },
-    ])
+    const out = parseMcpContent([{ type: "image", mimeType: "image/png", data: "AAAA" }])
     expect(out.textParts).toEqual([])
     expect(out.attachments).toHaveLength(1)
     expect(out.attachments[0]).toMatchObject({
@@ -66,9 +64,7 @@ describe("parseMcpContent", () => {
   })
 
   test("resource with blob and no mimeType defaults to application/octet-stream", () => {
-    const out = parseMcpContent([
-      { type: "resource", resource: { blob: "X", uri: "file:///bin" } },
-    ])
+    const out = parseMcpContent([{ type: "resource", resource: { blob: "X", uri: "file:///bin" } }])
     expect(out.attachments[0]).toMatchObject({
       mime: "application/octet-stream",
       url: "data:application/octet-stream;base64,X",
@@ -96,10 +92,7 @@ describe("parseMcpContent", () => {
 describe("parseMcpResourceContent (direct)", () => {
   test("mutates the provided out parameter (not returns)", () => {
     const out: McpParsedOutput = { textParts: [], attachments: [] }
-    parseMcpResourceContent(
-      { type: "resource", resource: { text: "T", uri: "file:///x" } },
-      out,
-    )
+    parseMcpResourceContent({ type: "resource", resource: { text: "T", uri: "file:///x" } }, out)
     expect(out.textParts).toEqual(["T"])
   })
 })

@@ -1,3 +1,18 @@
+// CLAUDE.md file-size exception (PLAN.md Phase 30c).
+// This file (1082 lines) exceeds the 1000-line rule. Natural split
+// candidates are the OAuth flow (~230 lines in startAuth/authenticate/
+// finishAuth/removeAuth/supportsOAuth/hasStoredTokens/getAuthStatus)
+// and the transport creation block (~200 lines in buildRemoteAuthProvider/
+// classifyAuthError/handleRegistrationError/handleNeedsAuthError/
+// tryConnectTransport/createRemoteClient/createLocalClient/create).
+//
+// Both extractions are tractable but depend on private helpers like
+// `state()`, `add()`, `pendingOAuthTransports` and would either need
+// those promoted to the public barrel (changes the shape of MCP.*)
+// or a new intermediate `mcp/shared.ts` module. Deferred to a
+// dedicated refactor that also addresses the MCP client-caching
+// design the comment block below alludes to.
+
 import { NamedError } from "@librecode/util/error"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
 import { Client } from "@modelcontextprotocol/sdk/client/index.js"

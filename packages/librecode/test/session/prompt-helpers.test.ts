@@ -24,10 +24,7 @@ function userMsg(overrides: Partial<MessageV2.User> = {}, parts: MessageV2.Part[
   } as unknown as MessageV2.WithParts
 }
 
-function assistantMsg(
-  overrides: Partial<MessageV2.Assistant> = {},
-  parts: MessageV2.Part[] = [],
-): MessageV2.WithParts {
+function assistantMsg(overrides: Partial<MessageV2.Assistant> = {}, parts: MessageV2.Part[] = []): MessageV2.WithParts {
   seq++
   return {
     info: {

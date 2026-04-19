@@ -155,9 +155,7 @@ export function cancel(sessionID: SessionID) {
  * parts from a message (used to re-dispatch pending work after a crash
  * or resume).
  */
-export function collectPendingTasks(
-  msg: MessageV2.WithParts,
-): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
+export function collectPendingTasks(msg: MessageV2.WithParts): (MessageV2.CompactionPart | MessageV2.SubtaskPart)[] {
   return msg.parts.filter(
     (part): part is MessageV2.CompactionPart | MessageV2.SubtaskPart =>
       part.type === "compaction" || part.type === "subtask",

@@ -1,3 +1,17 @@
+// CLAUDE.md file-size exception (PLAN.md Phase 30c).
+// This file (1010 lines) exceeds the 1000-line rule. It's the main
+// session-view page with responsibilities for keyboard shortcuts,
+// side-panel tab orchestration, port preview plumbing, status +
+// header assembly, and session loading. Proper split strategy:
+//   * Extract keyboard-shortcut registration into session-shortcuts.ts
+//   * Extract the side-panel tab state machine into useSessionSidePanel
+//     (session-side-panel.tsx already exists; move more logic there)
+//   * Extract the diff-summary hover card into <SessionDiffSummary />
+//   * Extract the context-usage circle into <SessionContextUsage />
+// Target: ~400 lines after decomposition.
+// Deferred — UI state machine needs careful testing across split
+// boundaries. Warrants its own PR.
+
 import type { Project, UserMessage } from "@librecode/sdk/v2"
 import { useDialog } from "@librecode/ui/context/dialog"
 import {

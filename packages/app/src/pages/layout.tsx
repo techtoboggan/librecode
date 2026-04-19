@@ -1,3 +1,16 @@
+// CLAUDE.md file-size exception (PLAN.md Phase 30c).
+// This file (1007 lines) exceeds the 1000-line rule. It's the top-level
+// app layout wiring: window chrome, command palette, settings modal,
+// notification stack, agent picker, project switcher, and global
+// keyboard routing. Proper split strategy:
+//   * Extract command-palette wiring (open/close/filter) into useCommandPalette
+//   * Extract settings modal mount into <SettingsModalMount />
+//   * Extract project-switcher into <ProjectSwitcher />
+//   * Extract global keyboard routing into layout-keyboard.ts
+// Target: ~500 lines after decomposition.
+// Deferred — the nav + modal + palette state are tightly coupled;
+// needs to be split with end-to-end Playwright tests for each extraction.
+
 import { createEffect, createMemo, on, onCleanup, onMount, ParentProps, Show } from "solid-js"
 import { useNavigate, useParams } from "@solidjs/router"
 import { useLayout, LocalProject } from "@/context/layout"

@@ -49,6 +49,20 @@ import { createAddPart } from "./prompt-input/add-part"
 import { createKeyboardHandler } from "./prompt-input/keyboard-handler"
 import { createHistoryManager } from "./prompt-input/history-manager"
 
+// CLAUDE.md file-size exception (PLAN.md Phase 30c).
+// This file (1037 lines) exceeds the 1000-line rule. It's a single fat
+// component with many closure-captured inline handlers. Proper split
+// requires component decomposition, not utility extraction:
+//   * Extract <VoiceInputButton /> — mic toggle + transcript wiring
+//     (uses createVoiceInput primitive)
+//   * Extract <AttachmentTray /> — file attachments row + image paste
+//   * Extract <SuggestionPopover /> — slash command + file @-mention
+//   * Extract <ProviderAgentPicker /> — the expanded picker strip
+//   * Extract recent-files memo + tab logic into prompt-input-tabs.ts
+// Target: 300-400 lines in the main file, ~200 per extracted sub-component.
+// Deferred because the split touches too many callers + accessibility
+// (focus management across sub-components); warrants its own PR.
+
 interface PromptInputProps {
   class?: string
   ref?: (el: HTMLDivElement) => void
