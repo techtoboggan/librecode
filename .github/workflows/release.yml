@@ -109,18 +109,24 @@ jobs:
     secrets: inherit
 
   # ─── Stage 5: Build Flatpak ───────────────────────────────────────────────
-  build-flatpak:
-    name: Build Flatpak
-    needs: [prep, publish-npm]
-    uses: ./.github/workflows/flatpak.yml
-    with:
-      version: ${{ needs.prep.outputs.version }}
-    secrets: inherit
+  # ─── TEMPORARILY DISABLED during Linux-focused beta (v0.9.2x) ─────────
+  # Flatpak builds on a GNOME 47 runtime container and takes ~20 min of
+  # cargo compile. Re-enable together with the macOS/Windows matrix entries
+  # above by uncommenting this block AND adding 'build-flatpak' back to
+  # github-release's needs: list.
+  # build-flatpak:
+  #   name: Build Flatpak
+  #   needs: [prep, publish-npm]
+  #   uses: ./.github/workflows/flatpak.yml
+  #   with:
+  #     version: ${{ needs.prep.outputs.version }}
+  #   secrets: inherit
 
   # ─── Stage 6: Create GitHub Release with ALL artifacts ────────────────────
   github-release:
     name: Create GitHub Release
-    needs: [build-cli, build-desktop, build-flatpak]
+    # When build-flatpak is re-enabled, add it back to this list.
+    needs: [build-cli, build-desktop]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,10 +145,13 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: flatpak
-          path: artifacts
+      # ─── Flatpak artifact download — TEMPORARILY DISABLED ──────────────
+      # Paired with the disabled build-flatpak job above. Re-enable when
+      # flipping the rest of the non-Linux beta gates back on.
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: flatpak
+      #     path: artifacts
 
       - name: Generate checksums + attach schema
         run: |
@@ -150,10 +159,12 @@ jobs:
           # A08: SHA256SUMS covers every release artifact, not just CLI tarballs.
           # Desktop installers (.deb/.rpm/.exe/.dmg/.flatpak/.AppImage) previously
           # shipped without integrity hashes — users had no way to verify them.
+          # During the Linux-only beta phase, fewer globs actually match (no
+          # .exe/.dmg/.flatpak). Threshold lowered to 3 accordingly — raise
+          # back to 5 when full-platform builds are re-enabled.
           sha256sum *.tar.gz *.zip *.deb *.rpm *.exe *.dmg *.flatpak *.AppImage 2>/dev/null > SHA256SUMS || true
-          # Fail if SHA256SUMS is suspiciously small (means globs didn't match anything)
-          if [ ! -s SHA256SUMS ] || [ "$(wc -l < SHA256SUMS)" -lt 5 ]; then
-            echo "::error::SHA256SUMS has fewer than 5 entries — something is wrong"
+          if [ ! -s SHA256SUMS ] || [ "$(wc -l < SHA256SUMS)" -lt 3 ]; then
+            echo "::error::SHA256SUMS has fewer than 3 entries — something is wrong"
             cat SHA256SUMS
             exit 1
           fi

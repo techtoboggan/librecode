@@ -38,18 +38,24 @@ jobs:
             cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
             bundles: deb,rpm
             sign: false
-          - platform: macos-arm64
-            os: macos-14
-            cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
-            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
-            bundles: app,dmg
-            sign: true
-          - platform: windows
-            os: windows-latest
-            cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
-            cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-pc-windows-msvc.exe
-            bundles: nsis
-            sign: false
+          # ─── TEMPORARILY DISABLED during Linux-focused beta (v0.9.2x) ─────
+          # Re-enable by uncommenting the two blocks below + restoring
+          # build-flatpak in release.yml. macOS signing + Windows NSIS + the
+          # Flatpak vendor build each take ~15-25 min; skipping them cuts
+          # release-pipeline turnaround from ~30 min to ~10 min for rapid
+          # iteration on Linux COPR/deb before broader platform beta.
+          # - platform: macos-arm64
+          #   os: macos-14
+          #   cli_src: packages/librecode/dist/librecode-darwin-arm64/bin/librecode
+          #   cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-aarch64-apple-darwin
+          #   bundles: app,dmg
+          #   sign: true
+          # - platform: windows
+          #   os: windows-latest
+          #   cli_src: packages/librecode/dist/librecode-windows-x64/bin/librecode.exe
+          #   cli_dst: packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-pc-windows-msvc.exe
+          #   bundles: nsis
+          #   sign: false
 
     steps:
       - uses: actions/checkout@v4
