@@ -26,6 +26,14 @@ Provides:       LibreCode = %{version}-%{release}
 # We declare our actual deps explicitly below.
 AutoReqProv:    no
 
+# The desktop app ships a sidecar CLI at /usr/bin/librecode-cli that it
+# spawns on launch. But users installing the desktop almost always also
+# want the top-level `librecode` command on their PATH for terminal use
+# (scripting, `librecode serve`, `librecode auth`, etc.). Pull in the
+# companion CLI package from the same COPR repo.
+# Versioned pin ensures desktop + CLI always match on upgrade.
+Requires:       librecode = %{version}-%{release}
+
 Requires:       webkit2gtk4.1
 Requires:       gtk3
 Requires:       glib2
