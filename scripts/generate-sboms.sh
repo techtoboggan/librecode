@@ -20,17 +20,20 @@ if [[ "${1:-}" == "--ci" ]]; then
   CI_MODE=1
 fi
 
-echo "→ Generating JS/TS SBOM via @cyclonedx/cyclonedx-npm..."
-if ! command -v npm &>/dev/null; then
-  echo "npm is required (ships with Node 20+)"
+echo "→ Generating JS/TS SBOM via @cyclonedx/cdxgen..."
+if ! command -v node &>/dev/null; then
+  echo "node is required"
   exit 1
 fi
 
-# @cyclonedx/cyclonedx-npm wraps `npm list` + emits CycloneDX 1.5 JSON. We
-# use `npx` (not `bunx`) because the tool checks the invoking package
-# manager's version and refuses anything <9. Bunx exposes bun's version
-# number (1.x) which fails the npm check.
-npx -y -p "@cyclonedx/cyclonedx-npm@^4.0.0" cyclonedx-npm --output-file sbom-npm.json
+# @cyclonedx/cdxgen natively supports bun workspaces (unlike cyclonedx-npm
+# which needs a standard node_modules + package-lock.json tree and bails on
+# bun.lock). It reads the workspace graph directly and emits CycloneDX JSON.
+#
+# --type js  — scan the JS/TS workspace
+# --no-auto-compositions — keep the SBOM self-contained (no network lookups)
+# --spec-version 1.5 — CycloneDX 1.5
+npx -y "@cyclonedx/cdxgen@^11" -t js --spec-version 1.5 -o sbom-npm.json .
 echo "  ✓ sbom-npm.json"
 
 echo "→ Generating Rust SBOM via cargo-cyclonedx..."
