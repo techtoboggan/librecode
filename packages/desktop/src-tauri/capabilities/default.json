@@ -46,11 +46,10 @@
     "notification:default",
     {
       "identifier": "http:default",
-      "comment": "A05 — was `http://*, https://*` which let any compromised frontend JS talk to any host via the Tauri HTTP bridge (bypasses browser CORS). Narrow to: local CLI server on loopback, LibreCode cloud, GitHub (updater + release notes). All LLM provider calls go server-side through the CLI, not through this frontend bridge, so provider hosts are intentionally NOT in the allowlist — if we need one, it's a code change, not an unrestricted HTTP grant.",
+      "comment": "A05 — was `http://*, https://*` which let any compromised frontend JS talk to any host via the Tauri HTTP bridge (bypasses browser CORS). Narrow to: local CLI server on loopback (v4 only — Tauri's URL pattern matcher rejects IPv6 bracket syntax like `http://[::1]:*/*`; sidecar always binds v4 loopback so v4 is sufficient), LibreCode cloud, GitHub (updater + release notes). All LLM provider calls go server-side through the CLI, not through this frontend bridge, so provider hosts are intentionally NOT in the allowlist — if we need one, it's a code change, not an unrestricted HTTP grant.",
       "allow": [
         { "url": "http://localhost:*/*" },
         { "url": "http://127.0.0.1:*/*" },
-        { "url": "http://[::1]:*/*" },
         { "url": "https://app.librecode.ai/**" },
         { "url": "https://librecode.ai/**" },
         { "url": "https://github.com/techtoboggan/**" },
