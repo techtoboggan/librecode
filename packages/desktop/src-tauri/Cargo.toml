@@ -18,7 +18,11 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.9.5", features = ["macos-private-api", "image-png"] }
+# `devtools` feature enables WebKit/Chromium inspector in release builds —
+# gated behind LIBRECODE_DEVTOOLS=1 at runtime so the default install
+# doesn't ship with an always-on inspector. Essential for beta-testing
+# frontend issues (CSP violations, fetch failures, JS errors).
+tauri = { version = "2.9.5", features = ["macos-private-api", "image-png", "devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2.4.6"
 tauri-plugin-shell = "2"
