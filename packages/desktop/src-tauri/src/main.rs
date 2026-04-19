@@ -72,7 +72,41 @@ fn main() {
         if let Some(backend_note) = configure_display_backend() {
             eprintln!("{backend_note}");
         }
+        // xdg-mime (spawned by tauri-plugin-deep-link at startup to register
+        // librecode:// scheme handlers) checks $KDE_SESSION_VERSION and, if
+        // set, calls `qtpaths` to locate the KDE config dir. On GNOME/Wayland
+        // systems with KDE_SESSION_VERSION leaked into the env but no Qt
+        // tooling installed, this prints:
+        //
+        //   /usr/bin/xdg-mime: line 885: qtpaths: command not found
+        //
+        // Harmless (xdg-mime falls through to the generic branch) but noisy.
+        // Clear the var when we detect the lie: KDE_SESSION_VERSION set
+        // AND no qtpaths/qtpaths6 on PATH. Leave it alone on real KDE
+        // installs where qtpaths exists.
+        clear_stale_kde_session_version();
     }
 
     librecode_lib::run()
+}
+
+#[cfg(target_os = "linux")]
+fn clear_stale_kde_session_version() {
+    use std::env;
+    use std::path::Path;
+
+    let Ok(_value) = env::var("KDE_SESSION_VERSION") else {
+        return;
+    };
+    // xdg-mime's KDE branch specifically calls `qtpaths` (no suffix).
+    // On KDE 6 systems, the binary is usually only installed as `qtpaths6`
+    // and the plain `qtpaths` isn't on PATH — which is exactly the broken
+    // state that produces 'qtpaths: command not found'. Check for the
+    // exact name xdg-mime will invoke.
+    let path = env::var_os("PATH").unwrap_or_default();
+    let qtpaths_on_path = env::split_paths(&path).any(|dir| Path::new(&dir).join("qtpaths").exists());
+    if !qtpaths_on_path {
+        // Safety: called during startup before any threads are spawned.
+        unsafe { env::remove_var("KDE_SESSION_VERSION") };
+    }
 }
