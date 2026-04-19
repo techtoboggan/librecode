@@ -130,9 +130,28 @@ function extractClientIp(c: import("hono").Context): string {
   if (xff) return xff.split(",")[0]!.trim()
   const real = c.req.header("x-real-ip")
   if (real) return real.trim()
-  // Bun's Hono adapter puts the raw request IP in info?
-  // Fallback: use a literal so rate-limiting still applies per-session
-  return "unknown"
+  // Local connections have no forwarded headers. Use a literal marker so
+  // the loopback-exemption code path can detect + bypass rate limiting.
+  return "local"
+}
+
+/**
+ * True when the client is connecting over the loopback interface. Used to
+ * bypass rate limiting for local connections (the desktop UI, local CLI
+ * scripts) — see the rate-limit comment block in the auth middleware.
+ *
+ * Heuristic: we rely on the IP string produced by extractClientIp. If
+ * there's no forwarded header (i.e. no proxy between us and the client),
+ * the client is talking to us directly — and our servers bind to
+ * loopback by default per the 29c.1 fail-closed rule. The "local" literal
+ * we return from extractClientIp covers this case. Explicit 127.* / ::1
+ * strings from X-Forwarded-For also count.
+ */
+function isLoopbackClient(ip: string): boolean {
+  if (ip === "local") return true
+  if (ip === "::1" || ip === "[::1]" || ip === "0:0:0:0:0:0:0:1") return true
+  if (ip.startsWith("127.")) return true
+  return false
 }
 
 const ServerDefault = lazy(() => serverCreateApp({}))
@@ -154,24 +173,41 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
       if (!password) return next()
       const username = Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"
 
-      // A07 — rate-limit BEFORE invoking basic-auth. Avoids timing-based
-      // enumeration of usernames and throttles brute-force attempts.
+      // A07 — rate-limit basic-auth BEFORE invoking it. Avoids timing-based
+      // enumeration and throttles brute-force attempts from the LAN.
+      //
+      // EXEMPTION: loopback connections skip rate limiting. Rationale:
+      //   1. If the attacker already has code execution on 127.0.0.1
+      //      they don't need to brute-force HTTP — the threat model rate
+      //      limiting defends against is LAN/WAN attackers.
+      //   2. The local desktop UI fires 10-20 concurrent fetches on
+      //      startup (config, providers, session list, etc.). Before
+      //      this exemption, the 11th+ parallel fetch got 429'd because
+      //      all loopback requests collapse to the same bucket key
+      //      ("unknown" — no X-Forwarded-For from local connections).
+      //      Symptom: 'Could not reach Local Server' in the desktop UI.
+      //   3. Hono's basicAuth is async; success() clears the bucket only
+      //      AFTER auth completes. So even a steady-state burst of
+      //      parallel-but-successful requests could transiently exceed
+      //      the limit. Exempting loopback makes this safe-by-design.
       const ip = extractClientIp(c)
-      const rl = authRateLimiter.check(ip)
-      if (!rl.allowed) {
-        log.warn("auth rate-limited", {
-          ip: redactIp(ip),
-          path: c.req.path,
-          count: rl.count,
-          retryAfterSec: rl.retryAfterSec,
-        })
-        return c.json(
-          { error: "Too Many Requests" },
-          {
-            status: 429,
-            headers: { "Retry-After": String(rl.retryAfterSec) },
-          },
-        )
+      if (!isLoopbackClient(ip)) {
+        const rl = authRateLimiter.check(ip)
+        if (!rl.allowed) {
+          log.warn("auth rate-limited", {
+            ip: redactIp(ip),
+            path: c.req.path,
+            count: rl.count,
+            retryAfterSec: rl.retryAfterSec,
+          })
+          return c.json(
+            { error: "Too Many Requests" },
+            {
+              status: 429,
+              headers: { "Retry-After": String(rl.retryAfterSec) },
+            },
+          )
+        }
       }
 
       // Run basic-auth; catch its HTTPException to log the 401 ourselves

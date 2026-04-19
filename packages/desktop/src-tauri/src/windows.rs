@@ -78,6 +78,20 @@ impl MainWindow {
 
         setup_window_state_listener(app, &window);
 
+        // LIBRECODE_DEVTOOLS=1 opens the webview inspector as soon as the
+        // window exists. Debug builds have devtools on by default; this
+        // only matters for release builds (devtools feature gate in
+        // Cargo.toml). Previous wiring tried to do this in the setup()
+        // hook — too early, the window wasn't built yet and
+        // get_webview_window("main") returned None silently.
+        if std::env::var("LIBRECODE_DEVTOOLS")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false)
+        {
+            window.open_devtools();
+            tracing::info!("LIBRECODE_DEVTOOLS=1 — opened webview inspector");
+        }
+
         #[cfg(windows)]
         {
             use tauri_plugin_decorum::WebviewWindowExt;

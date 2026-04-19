@@ -345,28 +345,10 @@ pub fn run() {
             // ensuring all buffered logs are flushed on shutdown.
             handle.manage(logging::init(&log_dir));
 
-            // LIBRECODE_DEVTOOLS=1 auto-opens the webview inspector on launch.
-            // Useful for beta users diagnosing frontend issues like failed
-            // fetches, CSP violations, or JS errors. When the env var is
-            // unset (the default), DevTools is still compiled in (see
-            // Cargo.toml tauri feature list) but stays hidden until the user
-            // opens it via Ctrl+Shift+I / right-click → Inspect.
-            if std::env::var("LIBRECODE_DEVTOOLS")
-                .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                .unwrap_or(false)
-            {
-                #[cfg(debug_assertions)]
-                let _ = handle;
-                #[cfg(not(debug_assertions))]
-                {
-                    // Get the main window and open devtools (only matters in
-                    // release builds — debug always has them on by default).
-                    if let Some(window) = handle.get_webview_window("main") {
-                        window.open_devtools();
-                        tracing::info!("LIBRECODE_DEVTOOLS=1 — opened webview inspector");
-                    }
-                }
-            }
+            // LIBRECODE_DEVTOOLS=1 auto-opens the webview inspector. The
+            // actual open_devtools() call lives in MainWindow::create
+            // (windows.rs) because the window isn't built yet at this
+            // setup-hook stage.
 
             builder.mount_events(&handle);
             tauri::async_runtime::spawn(initialize(handle));
