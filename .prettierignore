@@ -1,0 +1,24 @@
+# Generated and vendored files — do not prettier-check.
+
+# Build outputs
+dist/
+build/
+out/
+target/
+node_modules/
+
+# Generated bindings / schemas
+packages/desktop/src/bindings.ts
+packages/desktop/src-tauri/gen/
+packages/librecode/src/server/openapi-spec.ts
+packages/sdk/js/src/v2/gen/
+packages/sdk/js/src/gen/
+schema/config.json
+
+# Generated vendor manifests
+packages/desktop/flatpak/cargo-sources.json
+
+# Lockfiles
+bun.lock
+packages/desktop/src-tauri/Cargo.lock
+*.lock
