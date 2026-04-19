@@ -109,29 +109,18 @@ jobs:
     secrets: inherit
 
   # ─── Stage 5: Build Flatpak ───────────────────────────────────────────────
-  # continue-on-error: true so the whole release isn't marked failed when
-  # Flatpak's offline vendor step hits the Tauri [patch.crates-io] git-ref
-  # gap (flatpak-cargo-generator.py limitation). Tracked as a Phase 22-era
-  # deferred item in PLAN.md. Fixing this is scoped independently; it
-  # should not hold up security releases.
   build-flatpak:
     name: Build Flatpak
     needs: [prep, publish-npm]
-    continue-on-error: true
     uses: ./.github/workflows/flatpak.yml
     with:
       version: ${{ needs.prep.outputs.version }}
     secrets: inherit
 
   # ─── Stage 6: Create GitHub Release with ALL artifacts ────────────────────
-  # Flatpak is allowed to fail — its offline vendor generator doesn't
-  # handle Tauri's [patch.crates-io] git refs well. Tracked separately.
-  # CLI + desktop installers + SBOMs are the critical path; Flatpak is
-  # a nice-to-have we can ship independently when the tooling catches up.
   github-release:
     name: Create GitHub Release
     needs: [build-cli, build-desktop, build-flatpak]
-    if: ${{ always() && needs.build-cli.result == 'success' && needs.build-desktop.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -151,7 +140,6 @@ jobs:
           merge-multiple: true
 
       - uses: actions/download-artifact@v4
-        continue-on-error: true # Flatpak may have failed; CLI + desktop still ship
         with:
           name: flatpak
           path: artifacts

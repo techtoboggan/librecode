@@ -2472,7 +2472,7 @@ dependencies = [
 
 [[package]]
 name = "librecode-desktop"
-version = "0.9.9"
+version = "0.9.17"
 dependencies = [
  "chrono",
  "comrak",
@@ -6140,9 +6140,9 @@ checksum = "bc7d623258602320d5c55d1bc22793b57daff0ec7efc270ea7d55ce1d5f5471c"
 
 [[package]]
 name = "typenum"
-version = "1.19.0"
+version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb"
+checksum = "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de"
 
 [[package]]
 name = "uds_windows"
@@ -7745,8 +7745,3 @@ dependencies = [
  "syn 2.0.117",
  "winnow 0.7.15",
 ]
-
-[[patch.unused]]
-name = "tauri"
-version = "2.9.5"
-source = "git+https://github.com/tauri-apps/tauri?rev=4d5d78daf636feaac20c5bc48a6071491c4291ee#4d5d78daf636feaac20c5bc48a6071491c4291ee"

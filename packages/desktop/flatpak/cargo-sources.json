@@ -7259,14 +7259,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/typenum/typenum-1.19.0.crate",
-        "sha256": "562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb",
-        "dest": "cargo/vendor/typenum-1.19.0"
+        "url": "https://static.crates.io/crates/typenum/typenum-1.20.0.crate",
+        "sha256": "40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de",
+        "dest": "cargo/vendor/typenum-1.20.0"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"562d481066bde0658276a35467c4af00bdc6ee726305698a55b86e61d7ad82bb\", \"files\": {}}",
-        "dest": "cargo/vendor/typenum-1.19.0",
+        "contents": "{\"package\": \"40ce102ab67701b8526c123c1bab5cbe42d7040ccfd0f64af1a385808d2f43de\", \"files\": {}}",
+        "dest": "cargo/vendor/typenum-1.20.0",
         "dest-filename": ".cargo-checksum.json"
     },
     {
