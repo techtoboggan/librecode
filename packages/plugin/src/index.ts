@@ -198,7 +198,7 @@ export interface Hooks {
     },
   ) => Promise<void>
   "experimental.chat.messages.transform"?: (
-    input: {},
+    input: Record<string, never>,
     output: {
       messages: {
         info: Message

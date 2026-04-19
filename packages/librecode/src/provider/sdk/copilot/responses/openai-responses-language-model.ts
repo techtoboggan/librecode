@@ -1,13 +1,9 @@
-// biome-ignore-file lint/style: vendored @ai-sdk copilot Responses API
-// implementation. File exceeds the 1000-line rule from CLAUDE.md by
-// design: splitting it would diverge from @ai-sdk/openai's upstream
-// layout and make future merges painful. This file mirrors the vendor's
-// `openai-responses-language-model.ts` structure; schema groupings and
-// handler ordering match upstream to make diffs readable.
-//
-// If upstream splits this file, we should follow suit. Until then,
-// treat this as an opt-out of the file-size rule (tracked in PLAN.md
-// Phase 30 exceptions).
+// NOTE: This file is vendored from @ai-sdk/openai's Responses API
+// implementation. It exceeds CLAUDE.md's 1000-line rule by design —
+// splitting it would diverge from upstream's layout and make future
+// merges painful. Schema groupings and handler ordering match upstream
+// to make diffs readable. Tracked as an exception in PLAN.md Phase 30.
+// If upstream splits this file, we should follow suit.
 
 import {
   APICallError,

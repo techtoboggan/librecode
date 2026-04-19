@@ -88,7 +88,7 @@ interface KeyringEntryHandle {
 async function probeKeychain(): Promise<KeyringEntryHandle | undefined> {
   try {
     const { Entry } = await import("@napi-rs/keyring")
-    const probe = new Entry(KEYCHAIN_SERVICE, "probe-" + Date.now())
+    const probe = new Entry(KEYCHAIN_SERVICE, `probe-${Date.now()}`)
     probe.setPassword("probe")
     const got = probe.getPassword()
     if (got !== "probe") return undefined
@@ -185,7 +185,7 @@ async function migrateFileToKeychain(keychain: KeychainAuthStorage): Promise<voi
   }
   await keychain.write(parsed)
   // Back up the file (attacker may have read it but we stop future reads)
-  const backup = filePath + ".migrated.backup"
+  const backup = `${filePath}.migrated.backup`
   try {
     await fs.rename(filePath, backup)
     log.info("migrated auth.json to OS keychain", { backup })
