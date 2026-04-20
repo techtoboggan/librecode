@@ -21,6 +21,7 @@ import { type Accessor, createEffect, createResource, createSignal, onCleanup, S
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
 
 // ─── CSP helpers ─────────────────────────────────────────────────────────────
 
@@ -137,6 +138,30 @@ async function fetchAppHtml(
   return res.text()
 }
 
+// ─── Initial snapshot forwarding ──────────────────────────────────────────────
+
+/**
+ * Fetch a session's current activity state. Used to seed the Activity Graph
+ * iframe on mount so it shows existing data immediately instead of
+ * "Waiting for activity…" until the next SSE tick.
+ */
+async function fetchSessionActivity(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  directory: string,
+  sessionID: string,
+): Promise<{ files: Record<string, unknown>; agents: Record<string, unknown> } | undefined> {
+  try {
+    const url = new URL(`${baseUrl}/session/${sessionID}/activity`)
+    url.searchParams.set("directory", directory)
+    const res = await fetchFn(url.toString())
+    if (!res.ok) return undefined
+    return (await res.json()) as { files: Record<string, unknown>; agents: Record<string, unknown> }
+  } catch {
+    return undefined
+  }
+}
+
 // ─── SSE event forwarding ─────────────────────────────────────────────────────
 
 /**
@@ -215,6 +240,12 @@ export interface McpAppPanelProps {
   server: string
   /** UI resource URI (`ui://...`). */
   uri: string
+  /**
+   * Current session id. When set, the host forwards an initial snapshot
+   * (activity state, message history) to the iframe once it signals ready —
+   * so built-in apps show existing data instead of an empty placeholder.
+   */
+  sessionID?: string
   /** Optional explicit class for the wrapper. */
   class?: string
 }
@@ -222,6 +253,7 @@ export interface McpAppPanelProps {
 export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
+  const sync = useSync()
   let iframeRef: HTMLIFrameElement | undefined
   const [iframeSignal, setIframeSignal] = createSignal<HTMLIFrameElement | undefined>(undefined)
 
@@ -241,6 +273,64 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   useAppBridge(iframeSignal)
   // Forward SSE events to the iframe so built-in apps receive live data
   useEventForwarding(iframeSignal)
+
+  // Seed the iframe with a snapshot the first time it tells us it's ready.
+  // The built-in apps only listen for incremental events, so on a fresh mount
+  // they would sit on an empty placeholder until a tool call happens. We
+  // listen for `{type: "mcp-app-ready"}` from the iframe and reply with the
+  // current activity / stats state.
+  createEffect(() => {
+    const iframe = iframeSignal()
+    if (!iframe) return
+
+    let seeded = false
+    const post = (message: unknown) => {
+      try {
+        iframe.contentWindow?.postMessage(message, "*")
+      } catch {
+        // iframe detached — ignore
+      }
+    }
+
+    const seedActivity = async (sessionID: string) => {
+      const activity = await fetchSessionActivity(globalSDK.fetch, sdk.url, sdk.directory, sessionID)
+      if (!activity) return
+      post({
+        type: "activity.updated",
+        properties: { sessionID, files: activity.files, agents: activity.agents, updatedAt: Date.now() },
+      })
+    }
+
+    const seedStats = (sessionID: string) => {
+      const messages = sync.data.message[sessionID] ?? []
+      const enriched = messages.map((m) => ({
+        role: m.role,
+        cost: (m as { cost?: number }).cost ?? 0,
+        tokens: (m as { tokens?: unknown }).tokens ?? {},
+        parts: sync.data.part[m.id] ?? [],
+      }))
+      post({ type: "session.stats", messages: enriched })
+    }
+
+    const seed = () => {
+      if (seeded) return
+      seeded = true
+      const sessionID = props.sessionID
+      if (!sessionID) return
+      if (props.uri === "ui://builtin/activity-graph") void seedActivity(sessionID)
+      if (props.uri === "ui://builtin/session-stats") seedStats(sessionID)
+    }
+
+    const handleMessage = (e: MessageEvent) => {
+      if (e.source !== iframe.contentWindow) return
+      const data = e.data as { type?: string } | undefined
+      if (!data || data.type !== "mcp-app-ready") return
+      seed()
+    }
+
+    window.addEventListener("message", handleMessage)
+    onCleanup(() => window.removeEventListener("message", handleMessage))
+  })
 
   return (
     <div
@@ -305,6 +395,8 @@ export interface McpAppsTabProps {
   onPin?: (app: McpAppResource) => void
   /** Called when the user unpins an app. */
   onUnpin?: (uri: string) => void
+  /** Current session id — forwarded to the embedded panel so built-in apps get seeded. */
+  sessionID?: string
 }
 
 export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
@@ -395,7 +487,9 @@ export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
         </div>
 
         <Show when={activeApp()}>
-          {(app) => <McpAppPanel server={app().server} uri={app().uri} class="flex-1 min-h-0" />}
+          {(app) => (
+            <McpAppPanel server={app().server} uri={app().uri} sessionID={props.sessionID} class="flex-1 min-h-0" />
+          )}
         </Show>
       </Show>
     </div>

@@ -57,8 +57,11 @@ export function StartMenu(props: StartMenuProps) {
                   <button
                     class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
                     onClick={() => {
-                      props.onLaunch(app)
+                      // Close the menu first so the dropdown teardown doesn't
+                      // overlap with the new iframe's initial mount — the
+                      // overlap was a visible flicker during pinning.
                       setOpen(false)
+                      props.onLaunch(app)
                     }}
                   >
                     <div class="text-13-medium text-text-base">{app.name}</div>
@@ -77,8 +80,11 @@ export function StartMenu(props: StartMenuProps) {
                   <button
                     class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
                     onClick={() => {
-                      props.onLaunch(app)
+                      // Close the menu first so the dropdown teardown doesn't
+                      // overlap with the new iframe's initial mount — the
+                      // overlap was a visible flicker during pinning.
                       setOpen(false)
+                      props.onLaunch(app)
                     }}
                   >
                     <div class="flex items-center gap-2">

@@ -172,6 +172,15 @@ export function SessionSidePanel(props: {
     normalizeTab,
     review: reviewTab,
     hasReview,
+    // When a session starts empty (e.g. user just submitted their first
+    // prompt and the router navigated to a fresh session id), fall back to
+    // the first pinned MCP app before defaulting to "review". Without this,
+    // any pinned tab the user carefully set up gets yanked over to Review
+    // every single time a new session is created.
+    fallbackActive: () => {
+      const first = pinnedApps()[0]
+      return first ? mcpTabValue(first) : undefined
+    },
   })
   const contextOpen = tabState.contextOpen
   const openedTabs = tabState.openedTabs
@@ -283,13 +292,11 @@ export function SessionSidePanel(props: {
                         onCleanup(stop)
                       }}
                     >
-                      <Show when={reviewTab()}>
+                      <Show when={reviewTab() && hasReview()}>
                         <Tabs.Trigger value="review">
                           <div class="flex items-center gap-1.5">
                             <div>{language.t("session.tab.review")}</div>
-                            <Show when={hasReview()}>
-                              <div>{reviewCount()}</div>
-                            </Show>
+                            <div>{reviewCount()}</div>
                           </div>
                         </Tabs.Trigger>
                       </Show>
@@ -393,7 +400,7 @@ export function SessionSidePanel(props: {
                     </Tabs.List>
                   </div>
 
-                  <Show when={reviewTab()}>
+                  <Show when={reviewTab() && hasReview()}>
                     <Tabs.Content value="review" class="flex flex-col h-full overflow-hidden contain-strict">
                       <Show when={activeTab() === "review"}>{props.reviewPanel()}</Show>
                     </Tabs.Content>
@@ -401,7 +408,12 @@ export function SessionSidePanel(props: {
 
                   <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
                     <Show when={activeTab() === "apps"}>
-                      <McpAppsTab pinnedUris={pinnedApps().map((a) => a.uri)} onPin={pinApp} onUnpin={unpinApp} />
+                      <McpAppsTab
+                        pinnedUris={pinnedApps().map((a) => a.uri)}
+                        onPin={pinApp}
+                        onUnpin={unpinApp}
+                        sessionID={params.id}
+                      />
                     </Show>
                   </Tabs.Content>
 
@@ -427,7 +439,12 @@ export function SessionSidePanel(props: {
                           }}
                         >
                           <div class="w-full h-full flex flex-col overflow-hidden">
-                            <McpAppPanel server={app.server} uri={app.uri} class="flex-1 min-h-0" />
+                            <McpAppPanel
+                              server={app.server}
+                              uri={app.uri}
+                              sessionID={params.id}
+                              class="flex-1 min-h-0"
+                            />
                           </div>
                         </Tabs.Content>
                       )

@@ -15,6 +15,12 @@ type TabsInput = {
   normalizeTab: (tab: string) => string
   review?: Accessor<boolean>
   hasReview?: Accessor<boolean>
+  /**
+   * Fallback tab value to select when no file/context/opened tab matches —
+   * e.g. a pinned MCP app that should stay visible across session changes.
+   * Evaluated before falling through to "review" or "empty".
+   */
+  fallbackActive?: Accessor<string | undefined>
 }
 
 export const getSessionKey = (dir: string | undefined, id: string | undefined) => `${dir ?? ""}${id ? `/${id}` : ""}`
@@ -22,6 +28,7 @@ export const getSessionKey = (dir: string | undefined, id: string | undefined) =
 export const createSessionTabs = (input: TabsInput) => {
   const review = input.review ?? (() => false)
   const hasReview = input.hasReview ?? (() => false)
+  const fallbackActive = input.fallbackActive ?? (() => undefined)
   const contextOpen = createMemo(() => input.tabs().active() === "context" || input.tabs().all().includes("context"))
   const openedTabs = createMemo(
     () => {
@@ -55,6 +62,11 @@ export const createSessionTabs = (input: TabsInput) => {
     const first = openedTabs()[0]
     if (first) return first
     if (contextOpen()) return "context"
+    // Prefer a caller-supplied fallback (e.g. the first pinned MCP app) over
+    // snapping to "review" on a fresh session — otherwise any pinned tab the
+    // user set up gets replaced by Review every time a new session starts.
+    const fallback = fallbackActive()
+    if (fallback) return fallback
     if (review() && hasReview()) return "review"
     return "empty"
   })

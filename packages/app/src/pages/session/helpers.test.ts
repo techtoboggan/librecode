@@ -175,6 +175,51 @@ describe("createSessionTabs", () => {
     })
   })
 
+  test("uses fallbackActive before falling through to review — e.g. pinned MCP apps survive session changes", () => {
+    // Fresh session: no active, no opened tabs, but a pinned app is
+    // available as a fallback. Without this check the memo would snap to
+    // "review" every time a session was created fresh, yanking the user
+    // away from whatever they had pinned.
+    createRoot((dispose) => {
+      const [state] = createStore({
+        active: undefined as string | undefined,
+        all: [] as string[],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: () => undefined,
+        normalizeTab: (tab) => tab,
+        review: () => true,
+        hasReview: () => true,
+        fallbackActive: () => "mcp-app:__builtin__:ui%3A%2F%2Fbuiltin%2Factivity-graph",
+      })
+
+      expect(result.activeTab()).toBe("mcp-app:__builtin__:ui%3A%2F%2Fbuiltin%2Factivity-graph")
+      dispose()
+    })
+
+    // With no fallback, falls through to review as before
+    createRoot((dispose) => {
+      const [state] = createStore({
+        active: undefined as string | undefined,
+        all: [] as string[],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: () => undefined,
+        normalizeTab: (tab) => tab,
+        review: () => true,
+        hasReview: () => true,
+        fallbackActive: () => undefined,
+      })
+
+      expect(result.activeTab()).toBe("review")
+      dispose()
+    })
+  })
+
   test("prefers context and review fallbacks when no file tab is active", () => {
     createRoot((dispose) => {
       const [state] = createStore({
