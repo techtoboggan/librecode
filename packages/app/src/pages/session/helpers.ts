@@ -73,6 +73,13 @@ export const createSessionTabs = (input: TabsInput) => {
   const activeFileTab = createMemo(() => {
     const active = activeTab()
     if (!openedTabs().includes(active)) return
+    // Only real file tabs feed <FileTabContent>. MCP app tabs and detected
+    // port tabs live in `openedTabs` too (so tab reordering + persistence
+    // works) but they already have their own dedicated <Tabs.Content>
+    // renderers. Returning them from activeFileTab caused FileTabContent to
+    // remount on every MCP tab switch, which showed up as a visible flicker
+    // across the panel every single click.
+    if (!input.pathFromTab(active)) return
     return active
   })
   const closableTab = createMemo(() => {

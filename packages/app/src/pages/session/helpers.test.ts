@@ -104,15 +104,20 @@ describe("createSessionTabs", () => {
         all: ["file://src/a.ts", "context"],
       })
       const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      // Mirror production shape: the real normalizeTab keeps the file:// prefix
+      // (it just re-stringifies via file.tab()). pathFromTab then recognises
+      // the prefix and extracts the path. Tests previously re-tagged with a
+      // fake "norm:" prefix, which broke the path-from-tab check introduced
+      // to stop MCP tabs leaking into FileTabContent.
       const result = createSessionTabs({
         tabs,
         pathFromTab: (tab) => (tab.startsWith("file://") ? tab.slice("file://".length) : undefined),
-        normalizeTab: (tab) => (tab.startsWith("file://") ? `norm:${tab.slice("file://".length)}` : tab),
+        normalizeTab: (tab) => (tab.startsWith("file://") ? `file://norm:${tab.slice("file://".length)}` : tab),
       })
 
-      expect(result.activeTab()).toBe("norm:src/a.ts")
-      expect(result.activeFileTab()).toBe("norm:src/a.ts")
-      expect(result.closableTab()).toBe("norm:src/a.ts")
+      expect(result.activeTab()).toBe("file://norm:src/a.ts")
+      expect(result.activeFileTab()).toBe("file://norm:src/a.ts")
+      expect(result.closableTab()).toBe("file://norm:src/a.ts")
       dispose()
     })
   })

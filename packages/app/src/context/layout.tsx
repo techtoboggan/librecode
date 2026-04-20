@@ -92,9 +92,22 @@ export function pruneSessionKeys(input: {
 
 function nextSessionTabsForOpen(current: SessionTabs | undefined, tab: string): SessionTabs {
   const all = current?.all ?? []
-  if (tab === "review") return { all: all.filter((x) => x !== "review"), active: tab }
-  if (tab === "context") return { all: [tab, ...all.filter((x) => x !== tab)], active: tab }
+  if (tab === "review") {
+    const filtered = all.filter((x) => x !== "review")
+    // Same-reference when already filtered + already active — prevents setStore
+    // from pushing a new object every click, which cascaded into a full
+    // side-panel re-layout on every tab switch.
+    if (filtered.length === all.length && current?.active === tab) return current as SessionTabs
+    return { all: filtered, active: tab }
+  }
+  if (tab === "context") {
+    if (all[0] === tab && current?.active === tab) return current as SessionTabs
+    return { all: [tab, ...all.filter((x) => x !== tab)], active: tab }
+  }
   if (!all.includes(tab)) return { all: [...all, tab], active: tab }
+  // Tab is already open AND active — nothing to change. Return current so the
+  // store update is a no-op and downstream memos stay stable.
+  if (current?.active === tab) return current
   return { all, active: tab }
 }
 
@@ -871,11 +884,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setActive(tab: string | undefined) {
             const session = key()
             const next = tab ? normalize(tab) : tab
-            if (!store.sessionTabs[session]) {
+            const current = store.sessionTabs[session]
+            if (!current) {
               setStore("sessionTabs", session, { all: [], active: next })
-            } else {
-              setStore("sessionTabs", session, "active", next)
+              return
             }
+            if (current.active === next) return
+            setStore("sessionTabs", session, "active", next)
           },
           setAll(all: string[]) {
             const session = key()
@@ -888,7 +903,13 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           },
           async open(tab: string) {
             const session = key()
-            const next = nextSessionTabsForOpen(store.sessionTabs[session], normalize(tab))
+            const current = store.sessionTabs[session]
+            const next = nextSessionTabsForOpen(current, normalize(tab))
+            // Skip the store write entirely when nothing changed — avoids a
+            // flicker where every click replaced sessionTabs with a
+            // structurally-identical object, cascading notifications to every
+            // subscriber of tabs/active/all.
+            if (current && next === current) return
             setStore("sessionTabs", session, next)
           },
           close(tab: string) {

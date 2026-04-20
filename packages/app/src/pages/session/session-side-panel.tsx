@@ -292,11 +292,13 @@ export function SessionSidePanel(props: {
                         onCleanup(stop)
                       }}
                     >
-                      <Show when={reviewTab() && hasReview()}>
+                      <Show when={reviewTab()}>
                         <Tabs.Trigger value="review">
                           <div class="flex items-center gap-1.5">
                             <div>{language.t("session.tab.review")}</div>
-                            <div>{reviewCount()}</div>
+                            <Show when={hasReview()}>
+                              <div>{reviewCount()}</div>
+                            </Show>
                           </div>
                         </Tabs.Trigger>
                       </Show>
@@ -400,7 +402,7 @@ export function SessionSidePanel(props: {
                     </Tabs.List>
                   </div>
 
-                  <Show when={reviewTab() && hasReview()}>
+                  <Show when={reviewTab()}>
                     <Tabs.Content value="review" class="flex flex-col h-full overflow-hidden contain-strict">
                       <Show when={activeTab() === "review"}>{props.reviewPanel()}</Show>
                     </Tabs.Content>
