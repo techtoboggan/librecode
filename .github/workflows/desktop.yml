@@ -63,20 +63,11 @@ jobs:
         with:
           bun-version: "1.3.11"
 
-      # @librecode/i18n must be on npm before bun install (npm-publish job
-      # should have already run in the orchestrator, but double-check).
-      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
-        shell: bash
-        run: |
-          echo "Waiting for @librecode/i18n@$VERSION..."
-          for i in $(seq 1 20); do
-            npm view "@librecode/i18n@$VERSION" version 2>/dev/null && exit 0
-            echo "Attempt $i/20: not yet, retrying in 30s..."
-            sleep 30
-          done
-          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
-          exit 1
-
+      # Note: we don't gate on @librecode/i18n@$VERSION here. The lockfile
+      # pins i18n to a specific published version independent of the main
+      # repo tag, so `bun install --frozen-lockfile` will fail loudly with
+      # a clear error if the pinned version isn't on npm — no need for a
+      # 10-minute retry loop against the wrong version.
       - run: bun install --frozen-lockfile
 
       - name: Stamp version in packages/desktop/package.json

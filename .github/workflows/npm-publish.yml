@@ -2,7 +2,11 @@ name: Publish npm packages
 
 # Called by release.yml. Also manually triggerable.
 # Publishes @librecode/sdk and @librecode/plugin via OIDC trusted publishing.
-# @librecode/i18n is published separately by the librecode-i18n repo's own workflow.
+# Neither package depends on @librecode/i18n — i18n is a frontend-only
+# package consumed by app/ui/desktop (which aren't published here). So we
+# deliberately do NOT gate on i18n being on npm: in the past the main
+# release would hang for 10 minutes waiting for an i18n tag that was
+# pushed manually out-of-band or not at all.
 on:
   workflow_call:
     inputs:
@@ -41,20 +45,6 @@ jobs:
           # Pinned Node 24 LTS. Ships with npm 11.x, required for OIDC trusted
           # publishing (npm ≥ 11.5.1). Node 22 ships npm 10 which predates OIDC.
           node-version: "24.9.0"
-
-      # Wait for i18n to be published (librecode-i18n's own workflow handles that)
-      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
-        run: |
-          echo "Waiting for @librecode/i18n@$VERSION..."
-          for i in $(seq 1 20); do
-            if npm view "@librecode/i18n@$VERSION" version 2>/dev/null; then
-              echo "Found"; exit 0
-            fi
-            echo "Attempt $i/20: not yet, retrying in 30s..."
-            sleep 30
-          done
-          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
-          exit 1
 
       - run: bun install --frozen-lockfile
 

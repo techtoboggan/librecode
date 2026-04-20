@@ -38,21 +38,11 @@ jobs:
         with:
           bun-version: "1.3.11"
 
-      # The Flatpak container doesn't have npm — use curl to poll the registry.
-      - name: Wait for @librecode/i18n@${{ env.VERSION }} on npm
-        shell: bash
-        run: |
-          echo "Waiting for @librecode/i18n@$VERSION..."
-          for i in $(seq 1 20); do
-            if curl -fsSL "https://registry.npmjs.org/@librecode/i18n/$VERSION" >/dev/null 2>&1; then
-              echo "Found"
-              exit 0
-            fi
-            echo "Attempt $i/20: not yet, retrying in 30s..."
-            sleep 30
-          done
-          echo "::error::@librecode/i18n@$VERSION never appeared on npm"
-          exit 1
+      # Note: we don't gate on @librecode/i18n@$VERSION here. The lockfile
+      # pins i18n to a specific published version independent of the main
+      # repo tag, so `bun install --frozen-lockfile` will fail loudly with
+      # a clear error if the pinned version isn't on npm — no need for a
+      # 10-minute retry loop against a tag version i18n was never published at.
 
       # Pre-build the CLI sidecar and desktop frontend BEFORE entering the
       # Flatpak sandbox. The sandbox blocks outbound network, so bun/npm
