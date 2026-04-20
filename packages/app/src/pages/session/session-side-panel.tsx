@@ -423,24 +423,31 @@ export function SessionSidePanel(props: {
                     {(app) => {
                       const tabValue = mcpTabValue(app)
                       const isActive = () => activeTab() === tabValue
-                      // forceMount keeps every pinned app's iframe alive across
-                      // tab switches. Without it, Kobalte unmounts the
-                      // inactive panel (via createPresence/<Show>) which
-                      // tears down the iframe + AppBridge and forces a full
-                      // fetchAppHtml re-fetch on the next click — producing
-                      // the "screen refresh every time" the user saw. We
-                      // swap visibility via classList instead.
+                      // forceMount keeps every pinned app's iframe alive
+                      // across tab switches. Previously we toggled display:
+                      // none/flex via classList — but display:none pauses
+                      // the iframe's rendering context, and Kobalte layers
+                      // its own `hidden` attr on top, so every switch
+                      // produced a visible flash as the iframe had to
+                      // re-enter layout. Absolute-positioning the content
+                      // and flipping opacity keeps the iframe in layout
+                      // continuously, so nothing re-paints on switch.
                       return (
                         <Tabs.Content
                           value={tabValue}
                           forceMount
-                          class="flex-col h-full overflow-hidden contain-strict"
-                          classList={{
-                            flex: isActive(),
-                            hidden: !isActive(),
-                          }}
+                          class="h-full overflow-hidden contain-strict"
+                          style={{ position: "relative" }}
                         >
-                          <div class="w-full h-full flex flex-col overflow-hidden">
+                          <div
+                            class="absolute inset-0 flex flex-col overflow-hidden"
+                            style={{
+                              opacity: isActive() ? 1 : 0,
+                              "pointer-events": isActive() ? "auto" : "none",
+                              "z-index": isActive() ? 1 : 0,
+                            }}
+                            aria-hidden={!isActive()}
+                          >
                             <McpAppPanel
                               server={app.server}
                               uri={app.uri}
