@@ -53,12 +53,20 @@ function injectCsp(html: string, csp: string): string {
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
-async function fetchAppHtml(baseUrl: string, directory: string, server: string, uri: string): Promise<string> {
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+async function fetchAppHtml(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  directory: string,
+  server: string,
+  uri: string,
+): Promise<string> {
   const url = new URL(`${baseUrl}/mcp/apps/html`)
   url.searchParams.set("server", server)
   url.searchParams.set("uri", uri)
   url.searchParams.set("directory", directory)
-  const res = await fetch(url.toString())
+  const res = await fetchFn(url.toString())
   if (!res.ok) throw new Error(`Failed to fetch MCP App HTML: ${res.status} ${res.statusText}`)
   return res.text()
 }
@@ -147,12 +155,13 @@ export interface McpAppPanelProps {
 
 export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   const sdk = useSDK()
+  const globalSDK = useGlobalSDK()
   let iframeRef: HTMLIFrameElement | undefined
   const [iframeSignal, setIframeSignal] = createSignal<HTMLIFrameElement | undefined>(undefined)
 
   const [html] = createResource(
     () => ({ server: props.server, uri: props.uri }),
-    ({ server, uri }) => fetchAppHtml(sdk.url, sdk.directory, server, uri),
+    ({ server, uri }) => fetchAppHtml(globalSDK.fetch, sdk.url, sdk.directory, server, uri),
   )
 
   const srcdoc = () => {
@@ -214,10 +223,10 @@ export interface McpAppResource {
   description?: string
 }
 
-async function fetchAppList(baseUrl: string, directory: string): Promise<McpAppResource[]> {
+async function fetchAppList(fetchFn: FetchLike, baseUrl: string, directory: string): Promise<McpAppResource[]> {
   const url = new URL(`${baseUrl}/mcp/apps`)
   url.searchParams.set("directory", directory)
-  const res = await fetch(url.toString())
+  const res = await fetchFn(url.toString())
   if (!res.ok) throw new Error(`Failed to fetch MCP App list: ${res.status}`)
   return res.json() as Promise<McpAppResource[]>
 }
@@ -233,7 +242,8 @@ export interface McpAppsTabProps {
 
 export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
   const sdk = useSDK()
-  const [apps] = createResource(() => fetchAppList(sdk.url, sdk.directory))
+  const globalSDK = useGlobalSDK()
+  const [apps] = createResource(() => fetchAppList(globalSDK.fetch, sdk.url, sdk.directory))
   const [activeApp, setActiveApp] = createSignal<McpAppResource | undefined>(undefined)
 
   // Auto-select first app when list loads

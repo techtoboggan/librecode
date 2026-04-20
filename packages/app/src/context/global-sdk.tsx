@@ -6,11 +6,43 @@ import z from "zod"
 import { createSdkForServer } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
-import { useServer } from "./server"
+import { type ServerConnection, useServer } from "./server"
 
 const abortError = z.object({
   name: z.literal("AbortError"),
 })
+
+/**
+ * Build a fetch wrapper that attaches HTTP Basic auth when the current
+ * server has a password, using the provided platform fetch if available.
+ *
+ * Used for non-SDK endpoints (e.g. `/mcp/apps`, `/mcp/apps/html`) that the
+ * generated SDK client does not cover. Without this, Tauri prod fetches get
+ * 401'd because the sidecar is spawned with LIBRECODE_SERVER_PASSWORD set
+ * to a random UUID — plain `fetch()` surfaces that as "TypeError: Load
+ * failed" in WebKit2GTK, which was the root cause of the "click MCP apps →
+ * big failure screen" hit in v0.9.2x.
+ *
+ * Exported for unit testing; consumers should use `useGlobalSDK().fetch`.
+ */
+type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+export function makeAuthedFetch(
+  getHttp: () => ServerConnection.HttpBase | undefined,
+  platformFetch?: FetchLike,
+): FetchLike {
+  const runFetch: FetchLike = platformFetch ?? ((input, init) => fetch(input, init))
+  return (input, init) => {
+    const http = getHttp()
+    const password = http?.password
+    if (!password) return runFetch(input, init)
+    const username = http?.username ?? "librecode"
+    const auth = `Basic ${btoa(`${username}:${password}`)}`
+    const headers = new Headers(init?.headers)
+    if (!headers.has("Authorization")) headers.set("Authorization", auth)
+    return runFetch(input, { ...init, headers })
+  }
+}
 
 export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleContext({
   name: "GlobalSDK",
@@ -214,10 +246,13 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
       throwOnError: true,
     })
 
+    const authedFetch = makeAuthedFetch(() => server.current?.http, platform.fetch)
+
     return {
       url: currentServer.http.url,
       client: sdk,
       event: emitter,
+      fetch: authedFetch,
       createClient(opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">) {
         const s = server.current
         if (!s) throw new Error(language.t("error.globalSDK.serverNotAvailable"))

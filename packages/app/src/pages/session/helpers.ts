@@ -47,6 +47,10 @@ export const createSessionTabs = (input: TabsInput) => {
     if (active === "activity") return active
     if (active === "review" && review()) return active
     if (active && input.pathFromTab(active)) return input.normalizeTab(active)
+    // Preserve any other opened tab (pinned MCP apps, detected ports, etc.)
+    // without this, clicking a non-file opened tab falls through to the
+    // `openedTabs()[0]` fallback and the UI snaps back to the first tab.
+    if (active && openedTabs().includes(active)) return active
 
     const first = openedTabs()[0]
     if (first) return first

@@ -117,6 +117,64 @@ describe("createSessionTabs", () => {
     })
   })
 
+  test("preserves non-file opened tabs (MCP apps, ports)", () => {
+    // MCP app active
+    createRoot((dispose) => {
+      const [state] = createStore({
+        active: "mcp-app:__builtin__:activity-graph" as string | undefined,
+        all: [
+          "mcp-app:__builtin__:activity-graph",
+          "mcp-app:__builtin__:session-stats",
+          "port:3000",
+          "file://src/a.ts",
+        ],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: (tab) => (tab.startsWith("file://") ? tab.slice("file://".length) : undefined),
+        normalizeTab: (tab) => (tab.startsWith("file://") ? `norm:${tab.slice("file://".length)}` : tab),
+      })
+      // Before the fix, activeTab fell through to openedTabs()[0] when the
+      // active value wasn't a file/context/apps/activity/review — snapping
+      // the UI back to the first pinned tab on every click.
+      expect(result.activeTab()).toBe("mcp-app:__builtin__:activity-graph")
+      dispose()
+    })
+
+    // Session-stats active (second MCP app) — the bug scenario
+    createRoot((dispose) => {
+      const [state] = createStore({
+        active: "mcp-app:__builtin__:session-stats" as string | undefined,
+        all: ["mcp-app:__builtin__:activity-graph", "mcp-app:__builtin__:session-stats"],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: () => undefined,
+        normalizeTab: (tab) => tab,
+      })
+      expect(result.activeTab()).toBe("mcp-app:__builtin__:session-stats")
+      dispose()
+    })
+
+    // Port tab
+    createRoot((dispose) => {
+      const [state] = createStore({
+        active: "port:3000" as string | undefined,
+        all: ["port:3000", "port:5173"],
+      })
+      const tabs = createMemo(() => ({ active: () => state.active, all: () => state.all }))
+      const result = createSessionTabs({
+        tabs,
+        pathFromTab: () => undefined,
+        normalizeTab: (tab) => tab,
+      })
+      expect(result.activeTab()).toBe("port:3000")
+      dispose()
+    })
+  })
+
   test("prefers context and review fallbacks when no file tab is active", () => {
     createRoot((dispose) => {
       const [state] = createStore({

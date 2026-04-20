@@ -29,7 +29,9 @@ export function StartMenu(props: StartMenuProps) {
   const [apps] = createResource(
     () => (open() ? baseUrl() : undefined),
     async (url) => {
-      const res = await fetch(`${url}/mcp/apps`)
+      // Use globalSDK.fetch — pre-wired with Basic auth from server.http.password.
+      // Plain fetch() 401s in Tauri prod (sidecar ships with a UUID password).
+      const res = await globalSDK.fetch(`${url}/mcp/apps`)
       if (!res.ok) return []
       return (await res.json()) as AppEntry[]
     },

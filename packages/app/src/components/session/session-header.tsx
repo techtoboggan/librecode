@@ -144,7 +144,7 @@ export function SessionHeader() {
   const terminal = useTerminal()
   const appMode = useMode()
   const pinnedApps = usePinnedApps()
-  const { params, view } = useSessionLayout()
+  const { params, view, tabs } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {
@@ -344,6 +344,10 @@ export function SessionHeader() {
                   })
                   // Ensure the side panel is visible so the new pinned tab shows up
                   if (view().reviewPanel && !view().reviewPanel.opened()) view().reviewPanel.open()
+                  // Navigate to the new tab so the user lands on the app they just
+                  // pinned instead of staring at whichever tab was active before.
+                  // open() adds to `all` AND sets `active` in one shot.
+                  void tabs().open(`mcp-app:${app.server}:${encodeURIComponent(app.uri)}`)
                 }}
               />
               <StreamingIndicator />
