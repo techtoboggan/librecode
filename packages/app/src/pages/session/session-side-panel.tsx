@@ -177,6 +177,13 @@ export function SessionSidePanel(props: {
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
+  // SortableTab is for drag-and-drop FILE tabs only. Pinned MCP apps and
+  // detected port previews already have their own dedicated <Tabs.Trigger>
+  // For loops above — rendering them through SortableTab as well produces
+  // duplicate (zero-width) triggers each with their own close button.
+  const sortableFileTabs = createMemo(() =>
+    openedTabs().filter((tab) => !tab.startsWith("mcp-app:") && !tab.startsWith("port:")),
+  )
 
   const fileTreeTab = () => layout.fileTree.tab()
 
@@ -360,8 +367,10 @@ export function SessionSidePanel(props: {
                           </div>
                         </Tabs.Trigger>
                       </Show>
-                      <SortableProvider ids={openedTabs()}>
-                        <For each={openedTabs()}>{(tab) => <SortableTab tab={tab} onTabClose={tabs().close} />}</For>
+                      <SortableProvider ids={sortableFileTabs()}>
+                        <For each={sortableFileTabs()}>
+                          {(tab) => <SortableTab tab={tab} onTabClose={tabs().close} />}
+                        </For>
                       </SortableProvider>
                       <div class="bg-background-stronger h-full shrink-0 sticky right-0 z-10 flex items-center justify-center pr-3">
                         <TooltipKeybind
@@ -399,16 +408,27 @@ export function SessionSidePanel(props: {
                   <For each={pinnedApps()}>
                     {(app) => {
                       const tabValue = mcpTabValue(app)
+                      const isActive = () => activeTab() === tabValue
+                      // forceMount keeps every pinned app's iframe alive across
+                      // tab switches. Without it, Kobalte unmounts the
+                      // inactive panel (via createPresence/<Show>) which
+                      // tears down the iframe + AppBridge and forces a full
+                      // fetchAppHtml re-fetch on the next click — producing
+                      // the "screen refresh every time" the user saw. We
+                      // swap visibility via classList instead.
                       return (
-                        <Tabs.Content value={tabValue} class="flex flex-col h-full overflow-hidden contain-strict">
-                          <Show when={activeTab() === tabValue}>
-                            <div class="w-full h-full flex flex-col overflow-hidden">
-                              {/* Inline McpAppPanel — reuses the same component */}
-                              <Show when={true}>
-                                <McpAppPanel server={app.server} uri={app.uri} class="flex-1 min-h-0" />
-                              </Show>
-                            </div>
-                          </Show>
+                        <Tabs.Content
+                          value={tabValue}
+                          forceMount
+                          class="flex-col h-full overflow-hidden contain-strict"
+                          classList={{
+                            flex: isActive(),
+                            hidden: !isActive(),
+                          }}
+                        >
+                          <div class="w-full h-full flex flex-col overflow-hidden">
+                            <McpAppPanel server={app.server} uri={app.uri} class="flex-1 min-h-0" />
+                          </div>
                         </Tabs.Content>
                       )
                     }}

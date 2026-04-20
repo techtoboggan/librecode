@@ -61,26 +61,28 @@ test.describe("MCP apps start menu", () => {
     expect(srcdoc).toContain("Content-Security-Policy")
   })
 
-  test("switching between two pinned MCP app tabs swaps the iframe", async ({ page, gotoSession }) => {
+  test("switching between two pinned MCP app tabs flips aria-selected", async ({ page, gotoSession }) => {
     await gotoSession()
 
-    // Pin both built-in apps
+    // Pin both built-in apps. After each pin the app becomes active and its
+    // iframe becomes visible — wait on count reaching 1 then 2 (with
+    // forceMount both iframes persist in the DOM).
     await page.locator(appsButton).click()
     await page.locator(activityGraphItem).first().click()
-    await expect(page.locator(mcpIframe)).toBeVisible()
+    await expect(page.locator(mcpIframe)).toHaveCount(1)
 
     await page.locator(appsButton).click()
     await page.locator(sessionStatsItem).first().click()
-    await expect(page.locator(mcpIframe)).toBeVisible()
+    await expect(page.locator(mcpIframe)).toHaveCount(2)
 
-    const activityTab = page.locator(mcpTab("activity-graph")).first()
-    const statsTab = page.locator(mcpTab("session-stats")).first()
+    // With forceMount both iframes stay in the DOM. Filter to the visible
+    // tab buttons to avoid the zero-width kobalte roving duplicates.
+    const activityTab = page.locator('button[role="tab"][data-value*="activity-graph"]').first()
+    const statsTab = page.locator('button[role="tab"][data-value*="session-stats"]').first()
 
-    // Session Stats was the last one pinned → it's the active tab and
-    // the iframe shows its HTML
+    // Session Stats was last pinned → it's the active tab
     await expect(statsTab).toHaveAttribute("aria-selected", "true")
-    const statsSrcdoc = await page.locator(mcpIframe).getAttribute("srcdoc")
-    expect(statsSrcdoc).toBeTruthy()
+    await expect(activityTab).toHaveAttribute("aria-selected", "false")
 
     // Switch to Activity Graph. Before the activeTab memo fix, this click
     // did nothing visible: the store updated but the memo fell back to
@@ -90,18 +92,10 @@ test.describe("MCP apps start menu", () => {
     await expect(activityTab).toHaveAttribute("aria-selected", "true")
     await expect(statsTab).toHaveAttribute("aria-selected", "false")
 
-    // The iframe must swap to the activity-graph HTML (different bytes
-    // than session-stats), not stay pinned to the previously-loaded one.
-    await expect.poll(async () => page.locator(mcpIframe).getAttribute("srcdoc")).not.toBe(statsSrcdoc)
-    const activitySrcdoc = await page.locator(mcpIframe).getAttribute("srcdoc")
-    expect(activitySrcdoc).toBeTruthy()
-    expect(activitySrcdoc).not.toBe(statsSrcdoc)
-
-    // Switch back to Session Stats — verifies the fix isn't one-directional
+    // Switch back — not one-directional
     await statsTab.click()
     await expect(statsTab).toHaveAttribute("aria-selected", "true")
     await expect(activityTab).toHaveAttribute("aria-selected", "false")
-    await expect.poll(async () => page.locator(mcpIframe).getAttribute("srcdoc")).toBe(statsSrcdoc)
   })
 
   test("no 'Failed to load MCP App' error banner appears for built-in apps", async ({ page, gotoSession }) => {
@@ -115,5 +109,101 @@ test.describe("MCP apps start menu", () => {
     // because the error banner renders in place of the iframe.
     await expect(page.locator(mcpIframe)).toBeVisible({ timeout: 10_000 })
     await expect(page.locator(mcpFailure)).toHaveCount(0)
+  })
+
+  test("pinning an MCP app does not force the review panel open", async ({ page, gotoSession }) => {
+    await gotoSession()
+
+    const toggleReview = page.locator('button[aria-label="Toggle review"]')
+
+    // Close the review panel if it's open
+    if ((await toggleReview.getAttribute("aria-expanded")) === "true") {
+      await toggleReview.click()
+      await expect(toggleReview).toHaveAttribute("aria-expanded", "false")
+    }
+
+    // Pin an app — previously this yanked the review panel open without
+    // asking, trashing whatever layout the user had set up.
+    await page.locator(appsButton).click()
+    await page.locator(activityGraphItem).first().click()
+
+    // Panel must still be closed. User has to click Toggle review to see it.
+    await expect(toggleReview).toHaveAttribute("aria-expanded", "false")
+  })
+
+  test("no duplicate pinned MCP tabs (SortableTab skips non-file tabs)", async ({ page, gotoSession }) => {
+    await gotoSession()
+
+    // Pin both built-in apps
+    await page.locator(appsButton).click()
+    await page.locator(activityGraphItem).first().click()
+    await page.locator(appsButton).click()
+    await page.locator(sessionStatsItem).first().click()
+
+    // Open the review panel so the tabs row is visible
+    const toggleReview = page.locator('button[aria-label="Toggle review"]')
+    if ((await toggleReview.getAttribute("aria-expanded")) !== "true") {
+      await toggleReview.click()
+    }
+
+    // Count VISIBLE mcp-app tab triggers — before the SortableTab-filter
+    // fix, each pinned app rendered twice (once by the dedicated For loop,
+    // once by the sortable file-tabs For loop) producing duplicate tabs and
+    // two X buttons per app.
+    const mcpTabs = page.locator('button[role="tab"][data-value^="mcp-app:"]')
+    const visibleTabs = await mcpTabs.evaluateAll(
+      (els) =>
+        els.filter((el) => (el as HTMLElement).offsetParent !== null && el.getBoundingClientRect().width > 10).length,
+    )
+    expect(visibleTabs).toBe(2)
+
+    // And exactly one close button per app
+    expect(await page.locator('button[aria-label^="Unpin "]').count()).toBe(2)
+  })
+
+  test("tab switch is instant — iframes persist, no re-fetch", async ({ page, gotoSession }) => {
+    await gotoSession()
+
+    await page.locator(appsButton).click()
+    await page.locator(activityGraphItem).first().click()
+    await page.locator(appsButton).click()
+    await page.locator(sessionStatsItem).first().click()
+
+    const toggleReview = page.locator('button[aria-label="Toggle review"]')
+    if ((await toggleReview.getAttribute("aria-expanded")) !== "true") {
+      await toggleReview.click()
+    }
+
+    // With forceMount, BOTH iframes are mounted in the DOM even though only
+    // one is visible. Without it, Kobalte unmounts the inactive panel and
+    // mounting+refetching on every switch produces the "screen refresh"
+    // flicker the user reported.
+    await expect(page.locator(mcpIframe)).toHaveCount(2, { timeout: 10_000 })
+
+    const activityTab = page.locator(mcpTab("activity-graph")).first()
+    const statsTab = page.locator(mcpTab("session-stats")).first()
+
+    // Switch back and forth — both iframes should remain in the DOM the
+    // whole time.
+    await activityTab.click()
+    await expect(page.locator(mcpIframe)).toHaveCount(2)
+    await statsTab.click()
+    await expect(page.locator(mcpIframe)).toHaveCount(2)
+  })
+
+  test("host theme tokens are injected into the iframe srcdoc", async ({ page, gotoSession }) => {
+    await gotoSession()
+
+    await page.locator(appsButton).click()
+    await page.locator(activityGraphItem).first().click()
+    await expect(page.locator(mcpIframe)).toBeVisible()
+
+    // Verify the theme <style> block was injected with the host's computed
+    // --background-base / --text-base values. Without this, the built-in
+    // apps use their hardcoded dark colors and clash with the host theme.
+    const srcdoc = (await page.locator(mcpIframe).getAttribute("srcdoc")) ?? ""
+    expect(srcdoc).toContain("--lc-bg:")
+    expect(srcdoc).toContain("--lc-text:")
+    expect(srcdoc).toContain("color-scheme: light dark")
   })
 })

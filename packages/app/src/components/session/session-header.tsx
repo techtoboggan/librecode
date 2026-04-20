@@ -342,11 +342,11 @@ export function SessionHeader() {
                     uri: app.uri,
                     description: app.description,
                   })
-                  // Ensure the side panel is visible so the new pinned tab shows up
-                  if (view().reviewPanel && !view().reviewPanel.opened()) view().reviewPanel.open()
-                  // Navigate to the new tab so the user lands on the app they just
-                  // pinned instead of staring at whichever tab was active before.
-                  // open() adds to `all` AND sets `active` in one shot.
+                  // Set the pinned app as the active tab so it'll be visible
+                  // whenever the user opens the review panel. Intentionally do
+                  // NOT force the review panel open here — respect whatever
+                  // state the user left it in. They can toggle-review to see
+                  // the new tab when they want to.
                   void tabs().open(`mcp-app:${app.server}:${encodeURIComponent(app.uri)}`)
                 }}
               />
