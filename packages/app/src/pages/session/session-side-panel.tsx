@@ -1,4 +1,15 @@
-import { For, Match, Show, Switch, createEffect, createMemo, createSignal, onCleanup, type JSX } from "solid-js"
+import {
+  For,
+  Match,
+  Show,
+  Switch,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  startTransition,
+  type JSX,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@librecode/ui/tabs"
@@ -284,7 +295,19 @@ export function SessionSidePanel(props: {
               >
                 <DragDropSensors />
                 <ConstrainDragYAxis />
-                <Tabs value={activeTab()} onChange={openTab}>
+                <Tabs
+                  value={activeTab()}
+                  onChange={(value) => {
+                    // Wrap tab changes in startTransition so Solid treats
+                    // them as non-urgent: if a newly-visible tab's resources
+                    // are still loading, Suspense keeps the previous content
+                    // visible instead of blanking the whole Session page via
+                    // its route-level fallback (see app.tsx SessionRoute).
+                    // Without this, clicking between pinned MCP apps caused
+                    // a ~130ms full-page flash-to-black on each switch.
+                    startTransition(() => openTab(value))
+                  }}
+                >
                   <div class="sticky top-0 shrink-0 flex">
                     <Tabs.List
                       ref={(el: HTMLDivElement) => {
