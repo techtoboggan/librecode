@@ -41,6 +41,10 @@ server.registerResource(
     title: "LC Test App",
     description: "Fixture app for LibreCode external-MCP discovery tests",
     mimeType: "text/html;profile=mcp-app",
+    // ADR-005: per-resource manifest. The integration test asserts that
+    // calls to "echo" are allowed (in this list) and calls to "denied" are
+    // rejected by the host gate.
+    _meta: { ui: { allowedTools: ["echo"] } },
   },
   async () => ({
     contents: [

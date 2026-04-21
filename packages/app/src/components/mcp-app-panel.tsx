@@ -298,19 +298,99 @@ function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) 
 
 // ─── AppBridge lifecycle ──────────────────────────────────────────────────────
 
-function useAppBridge(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
+/**
+ * Build an `oncalltool` handler that proxies an iframe-originated tool
+ * call to the host's `/session/:id/mcp-apps/tool` endpoint. Pure function;
+ * exported for tests.
+ *
+ * The handler maps any HTTP / network failure into the standard MCP
+ * `CallToolResult` `{isError: true, content: [...]}` shape so the iframe
+ * always gets a valid response — never a JSON-RPC fault that would tear
+ * down the bridge.
+ */
+export function createCallToolHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  /** Session id this app is bound to. */
+  sessionID: string | undefined
+  /** Server name + URI of the originating MCP App resource. */
+  server: string
+  uri: string
+}) {
+  return async (params: { name: string; arguments?: Record<string, unknown> }) => {
+    if (!options.sessionID) {
+      return {
+        isError: true,
+        content: [{ type: "text" as const, text: "MCP app cannot call tools — no active session." }],
+      }
+    }
+    try {
+      const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/tool`)
+      const res = await options.fetchFn(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          server: options.server,
+          uri: options.uri,
+          name: params.name,
+          arguments: params.arguments ?? {},
+        }),
+      })
+      if (!res.ok) {
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: `Host rejected tool call: HTTP ${res.status}` }],
+        }
+      }
+      return (await res.json()) as { content: unknown[]; isError?: boolean }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      return { isError: true, content: [{ type: "text" as const, text: `Tool call transport error: ${message}` }] }
+    }
+  }
+}
+
+function useAppBridge(
+  iframeRef: Accessor<HTMLIFrameElement | undefined>,
+  context: {
+    sessionID: () => string | undefined
+    server: string
+    uri: string
+  },
+) {
+  const sdk = useSDK()
+  const globalSDK = useGlobalSDK()
+
   createEffect(() => {
     const iframe = iframeRef()
     if (!iframe?.contentWindow) return
 
     const transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow)
 
+    // host capabilities: serverTools enables the iframe's tools/call path;
+    // logging lets the app post telemetry through the bridge (we'll wire
+    // that handler in 0.9.39).
     const bridge = new AppBridge(
-      null, // no MCP client proxying at this layer — tools are called via the tool registry
+      null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
-      {}, // host capabilities: bare minimum
-      {}, // no initial host context — theme sync is a follow-up
+      { serverTools: {}, logging: {} },
+      {},
     )
+
+    // Wire tool-call proxying through the host endpoint. Resource / prompt
+    // proxies + open-link land in 0.9.39.
+    const callTool = createCallToolHandler({
+      fetchFn: globalSDK.fetch,
+      baseUrl: sdk.url,
+      sessionID: context.sessionID(),
+      server: context.server,
+      uri: context.uri,
+    })
+    // Cast: AppBridge expects a `CallToolResult` typed against the MCP SDK's
+    // strict content union. Our handler returns the same JSON shape but
+    // pre-typed as unknown[] (we don't validate the bytes from the server
+    // route — they're already a CallToolResult). The runtime contract holds.
+    bridge.oncalltool = callTool as unknown as NonNullable<typeof bridge.oncalltool>
 
     // Connect once the iframe's srcdoc has loaded
     const handleLoad = () => {
@@ -365,8 +445,14 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     return injectTheme(withCsp, readThemeTokens())
   }
 
-  // Wire up AppBridge once we have the iframe ref
-  useAppBridge(iframeSignal)
+  // Wire up AppBridge once we have the iframe ref. The bridge proxies any
+  // `tools/call` from the iframe to /session/:id/mcp-apps/tool, gated by
+  // the resource's _meta.ui.allowedTools manifest server-side (ADR-005).
+  useAppBridge(iframeSignal, {
+    sessionID: () => props.sessionID,
+    server: props.server,
+    uri: props.uri,
+  })
   // Forward SSE events to the iframe so built-in apps receive live data
   useEventForwarding(iframeSignal)
 

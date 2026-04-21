@@ -798,6 +798,47 @@ async function uiResources() {
 }
 
 /**
+ * Look up the `_meta.ui.allowedTools` manifest entry for a UI resource.
+ * Returns the declared tool list, or undefined when the resource is not found.
+ *
+ * Manifest contract (per ADR-005):
+ *   - missing / empty array → no tool calls allowed (display-only app)
+ *   - explicit names → only those tools may be called by the app
+ *   - ["*"] → any tool exposed by the same MCP server
+ */
+async function appAllowedTools(clientName: string, resourceUri: string): Promise<string[] | undefined> {
+  const all = await uiResources()
+  const entry = Object.values(all).find((r) => r.client === clientName && r.uri === resourceUri)
+  if (!entry) return undefined
+  const meta = (entry as { _meta?: { ui?: { allowedTools?: unknown } } })._meta
+  const list = meta?.ui?.allowedTools
+  if (!Array.isArray(list)) return []
+  return list.filter((x): x is string => typeof x === "string")
+}
+
+/**
+ * Run a tool exposed by an MCP server on behalf of an app iframe.
+ * Caller is responsible for permission gating; this is the raw transport.
+ *
+ * Throws if the client is not connected.
+ */
+async function callServerTool(
+  clientName: string,
+  toolName: string,
+  toolArgs: Record<string, unknown>,
+  options?: { timeout?: number },
+) {
+  const clientsSnapshot = await clients()
+  const client = clientsSnapshot[clientName]
+  if (!client) throw new Error(`MCP client not found: ${clientName}`)
+  return client.callTool(
+    { name: toolName, arguments: toolArgs },
+    CallToolResultSchema,
+    { resetTimeoutOnProgress: true, timeout: options?.timeout },
+  )
+}
+
+/**
  * Fetch the HTML for an MCP App UI resource.
  * Returns the HTML string, or undefined if the resource cannot be fetched.
  */
@@ -1077,6 +1118,8 @@ export const MCP = {
   resources,
   uiResources,
   fetchAppHtml,
+  appAllowedTools,
+  callServerTool,
   getAppResourceUri,
   getPrompt,
   readResource,
