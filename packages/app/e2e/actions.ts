@@ -241,10 +241,20 @@ export async function seedProjects(page: Page, input: { directory: string; extra
   )
 }
 
-export async function createTestProject() {
+export async function createTestProject(options?: { extraConfig?: Record<string, unknown> }) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "librecode-e2e-project-"))
 
   await fs.writeFile(path.join(root, "README.md"), "# e2e\n")
+
+  // Optional librecode.json for tests that need MCP servers, permissions, etc
+  // wired into the backend before the project loads. Pass a plain object;
+  // it's serialized as-is into the project root.
+  if (options?.extraConfig) {
+    await fs.writeFile(
+      path.join(root, "librecode.json"),
+      JSON.stringify({ $schema: "https://librecode.app/config.json", ...options.extraConfig }, null, 2),
+    )
+  }
 
   execSync("git init", { cwd: root, stdio: "ignore" })
   execSync("git config core.fsmonitor false", { cwd: root, stdio: "ignore" })

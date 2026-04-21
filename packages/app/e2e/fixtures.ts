@@ -17,7 +17,7 @@ type TestFixtures = {
       trackSession: (sessionID: string, directory?: string) => void
       trackDirectory: (directory: string) => void
     }) => Promise<T>,
-    options?: { extra?: string[] },
+    options?: { extra?: string[]; extraConfig?: Record<string, unknown> },
   ) => Promise<T>
 }
 
@@ -54,7 +54,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   },
   withProject: async ({ page }, use) => {
     await use(async (callback, options) => {
-      const root = await createTestProject()
+      const root = await createTestProject({ extraConfig: options?.extraConfig })
       const slug = dirSlug(root)
       const sessions = new Map<string, string>()
       const dirs = new Set<string>()

@@ -7,7 +7,9 @@
   "private": true,
   "scripts": {
     "typecheck": "tsgo --noEmit",
-    "test": "bun test --timeout 30000",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bash -c 'bun test --timeout 30000 $(ls -d test/*/ test/*.test.ts 2>/dev/null | grep -v ^test/mcp-integration/ | tr \"\\n\" \" \")'",
+    "test:integration": "bun test --timeout 60000 test/mcp-integration",
     "build": "bun run script/build.ts",
     "build:single": "bun run script/build.ts --single",
     "build:models": "bun run script/fetch-models.ts",
