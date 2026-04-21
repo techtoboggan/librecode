@@ -28,12 +28,14 @@ import {
   type JSX,
 } from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
+import { useDialog } from "@librecode/ui/context/dialog"
 import { useTheme } from "@librecode/ui/theme"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { McpAppDownloadDialog } from "./mcp-app-download-dialog"
 import { McpAppPermissionPrompt } from "./mcp-app-permission-prompt"
 
 // ─── CSP helpers ─────────────────────────────────────────────────────────────
@@ -380,6 +382,20 @@ export function createLogHandler(options: {
   }
 }
 
+// Download-file (ui/download-file) helpers live in ./mcp-app-download.ts so
+// the test suite can import them without dragging Solid + Kobalte + the
+// Dialog context (which doesn't load under bun's test runner). Re-export
+// the shapes consumers might need.
+export type { DownloadItem } from "./mcp-app-download"
+export {
+  createDownloadHandler,
+  deliverBlobAsDownload,
+  downloadItemFilename,
+  embeddedResourceToBlob,
+  isSafeDownloadUrl,
+} from "./mcp-app-download"
+import { createDownloadHandler, deliverBlobAsDownload } from "./mcp-app-download"
+
 /**
  * Generic POST → in-band-isError JSON proxy used by every MCP-app
  * AppBridge handler. Centralises the HTTP-error / network-error /
@@ -539,12 +555,14 @@ function useAppBridge(
     sessionID: () => string | undefined
     server: string
     uri: string
+    appName: () => string
   },
 ) {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
   const platform = usePlatform()
   const theme = useTheme()
+  const dialog = useDialog()
   const [bridgeSignal, setBridgeSignal] = createSignal<AppBridge | undefined>()
 
   createEffect(() => {
@@ -561,11 +579,12 @@ function useAppBridge(
     //     same proxy path even though there's no dedicated capability
     //     in the spec schema.
     //   * openLinks — iframe may issue ui/open-link.
+    //   * downloadFile — iframe may issue ui/download-file.
     //   * logging — iframe may issue notifications/message.
     const bridge = new AppBridge(
       null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
-      { serverTools: {}, serverResources: {}, openLinks: {}, logging: {} },
+      { serverTools: {}, serverResources: {}, openLinks: {}, downloadFile: {}, logging: {} },
       { hostContext: { theme: theme.mode(), displayMode: "inline" } },
     )
 
@@ -600,6 +619,29 @@ function useAppBridge(
 
     // ui/open-link → platform.openLink (with scheme allowlist).
     bridge.onopenlink = createOpenLinkHandler((url) => platform.openLink(url))
+
+    // ui/download-file → confirm dialog, then deliver inline blobs +
+    // open ResourceLink urls. Per ADR-005 §6 + the user's "no
+    // automatic save" policy: every batch needs explicit consent.
+    const onDownload = createDownloadHandler({
+      confirm: (items) =>
+        new Promise<boolean>((resolve) => {
+          let decided = false
+          const decide = (approve: boolean) => {
+            if (decided) return
+            decided = true
+            dialog.close()
+            resolve(approve)
+          }
+          dialog.show(
+            () => <McpAppDownloadDialog appName={context.appName()} items={items} onDecide={decide} />,
+            () => decide(false),
+          )
+        }),
+      deliverBlob: deliverBlobAsDownload,
+      openUrl: (url) => platform.openLink(url),
+    })
+    bridge.ondownloadfile = onDownload as unknown as NonNullable<typeof bridge.ondownloadfile>
 
     // notifications/message → console with severity tag.
     bridge.onloggingmessage = createLogHandler({ server: context.server })
@@ -686,6 +728,7 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     sessionID: () => props.sessionID,
     server: props.server,
     uri: props.uri,
+    appName: () => props.appName ?? props.server,
   })
 
   // ADR-005 §2: when the host's tool-call route blocks on a permission
