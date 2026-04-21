@@ -65,5 +65,77 @@ export const PermissionRoutes = lazy(() =>
         const permissions = await PermissionNext.list()
         return c.json(permissions)
       },
+    )
+    .get(
+      "/rules",
+      describeRoute({
+        summary: "List persisted permission rules",
+        description:
+          "Return the project-wide 'Always allow/deny' ruleset. v0.9.52: these are the rules that now actually survive a restart — previously they were in-memory only.",
+        operationId: "permission.rules.list",
+        responses: {
+          200: {
+            description: "Persisted ruleset",
+            content: {
+              "application/json": {
+                schema: resolver(PermissionNext.Ruleset),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        return c.json(PermissionNext.listApproved())
+      },
+    )
+    .put(
+      "/rules",
+      describeRoute({
+        summary: "Replace the persisted permission ruleset",
+        description: "Atomically overwrite the project's approved ruleset. Used by Settings when the user edits rules.",
+        operationId: "permission.rules.replace",
+        responses: {
+          200: {
+            description: "Updated ruleset",
+            content: {
+              "application/json": {
+                schema: resolver(PermissionNext.Ruleset),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", PermissionNext.Ruleset),
+      async (c) => {
+        const ruleset = c.req.valid("json")
+        PermissionNext.setApprovedRuleset(ruleset)
+        return c.json(PermissionNext.listApproved())
+      },
+    )
+    .delete(
+      "/rules",
+      describeRoute({
+        summary: "Delete a single permission rule",
+        description: "Remove the rule matching the given (permission, pattern) pair. Returns the remaining ruleset.",
+        operationId: "permission.rules.delete",
+        responses: {
+          200: {
+            description: "Remaining ruleset after deletion",
+            content: {
+              "application/json": {
+                schema: resolver(PermissionNext.Ruleset),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator("json", z.object({ permission: z.string(), pattern: z.string() })),
+      async (c) => {
+        const { permission, pattern } = c.req.valid("json")
+        PermissionNext.deleteApprovedRule(permission, pattern)
+        return c.json(PermissionNext.listApproved())
+      },
     ),
 )

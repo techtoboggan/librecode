@@ -3,7 +3,16 @@
  * dialog render is exercised via Playwright (covered separately).
  */
 import { describe, expect, test } from "bun:test"
-import { formatLastUsed, groupByServer, latestLastUsed, totalCalls, type UsageEntry } from "./settings-mcp-apps-helpers"
+import {
+  formatLastUsed,
+  groupByServer,
+  latestLastUsed,
+  type PermissionRule,
+  rulesForServer,
+  toolFromPermission,
+  totalCalls,
+  type UsageEntry,
+} from "./settings-mcp-apps-helpers"
 
 describe("groupByServer", () => {
   test("groups apps with the same server name into a single bucket", () => {
@@ -95,5 +104,51 @@ describe("formatLastUsed", () => {
     // Clock skew or reordering could theoretically hand us a ts > now.
     // We clamp to 0 so we never show "-5s ago".
     expect(formatLastUsed(now + 10_000, now)).toBe("just now")
+  })
+})
+
+describe("rulesForServer", () => {
+  const ruleset: PermissionRule[] = [
+    { permission: "mcp-app:acme:echo", pattern: "ui://acme/echo", action: "allow" },
+    { permission: "mcp-app:acme:weather", pattern: "ui://acme/w", action: "deny" },
+    { permission: "mcp-app:other:x", pattern: "ui://other/x", action: "allow" },
+    { permission: "edit", pattern: "**/*.ts", action: "allow" },
+  ]
+
+  test("filters to just this server's mcp-app rules", () => {
+    const rules = rulesForServer(ruleset, "acme")
+    expect(rules.length).toBe(2)
+    expect(rules.every((r) => r.permission.startsWith("mcp-app:acme:"))).toBe(true)
+  })
+
+  test("returns [] when server has no rules", () => {
+    expect(rulesForServer(ruleset, "nope")).toEqual([])
+  })
+
+  test("does not leak rules from similarly-named servers", () => {
+    const rules = rulesForServer(
+      [
+        { permission: "mcp-app:acme:x", pattern: "*", action: "allow" },
+        { permission: "mcp-app:acme-weather:x", pattern: "*", action: "allow" },
+      ],
+      "acme",
+    )
+    expect(rules.length).toBe(1)
+    expect(rules[0].permission).toBe("mcp-app:acme:x")
+  })
+})
+
+describe("toolFromPermission", () => {
+  test("extracts the tool segment from mcp-app:<server>:<tool>", () => {
+    expect(toolFromPermission("mcp-app:acme:get_forecast")).toBe("get_forecast")
+  })
+
+  test("passes through non-mcp-app permissions unchanged", () => {
+    expect(toolFromPermission("edit")).toBe("edit")
+    expect(toolFromPermission("bash")).toBe("bash")
+  })
+
+  test("handles permissions whose tool segment itself contains colons", () => {
+    expect(toolFromPermission("mcp-app:acme:nested:tool")).toBe("nested:tool")
   })
 })

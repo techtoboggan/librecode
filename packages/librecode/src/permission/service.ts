@@ -172,6 +172,28 @@ const state = Instance.state(() => {
   } satisfies State
 })
 
+/**
+ * Persist the current `s.approved` ruleset to the project's row in
+ * `PermissionTable`. v0.9.52 fixes the long-standing gap where in-memory
+ * "Always allow" replies evaporated on restart — every mutation of
+ * `s.approved` must go through this so the DB stays in sync.
+ */
+function persistApproved(s: State): void {
+  const now = Date.now()
+  const projectID = Instance.project.id
+  const data = [...s.approved]
+  Database.use((db) =>
+    db
+      .insert(PermissionTable)
+      .values({ project_id: projectID, data, time_created: now, time_updated: now })
+      .onConflictDoUpdate({
+        target: PermissionTable.project_id,
+        set: { data, time_updated: now },
+      })
+      .run(),
+  )
+}
+
 export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
   const s = state()
   const { ruleset, ...request } = input
@@ -258,6 +280,9 @@ function approveMatchingPending(s: State, existing: PendingEntry, scope: "always
     for (const pattern of patterns) {
       s.approved.push({ permission: existing.info.permission, pattern, action: "allow" })
     }
+    // v0.9.52 — writeback so the grant survives restart. Without this,
+    // "Always allow" was in-memory only and reverted to "ask" on next launch.
+    persistApproved(s)
   } else {
     let bucket = s.sessionApproved.get(existing.info.sessionID)
     if (!bucket) {
@@ -346,6 +371,39 @@ export function dropSessionApprovals(sessionID: SessionID, permissionPrefix?: st
 export async function list(): Promise<Request[]> {
   const s = state()
   return Array.from(s.pending.values(), (item) => item.info)
+}
+
+/**
+ * v0.9.52 — Return the currently-persisted project ruleset. These are
+ * the "Always allow/deny" rules the user has accumulated; agent-defaults
+ * and per-session grants are tracked separately.
+ */
+export function listApproved(): Ruleset {
+  return [...state().approved]
+}
+
+/**
+ * Replace the project ruleset wholesale. Used by the Settings UI when
+ * the user edits or bulk-replaces rules.
+ */
+export function setApprovedRuleset(ruleset: Ruleset): void {
+  const s = state()
+  s.approved = [...ruleset]
+  persistApproved(s)
+}
+
+/**
+ * Remove a single rule matching (permission, pattern). If multiple rules
+ * share the same keys (legacy data), they're all dropped. Returns the
+ * number of rules removed.
+ */
+export function deleteApprovedRule(permission: string, pattern: string): number {
+  const s = state()
+  const before = s.approved.length
+  s.approved = s.approved.filter((r) => !(r.permission === permission && r.pattern === pattern))
+  const removed = before - s.approved.length
+  if (removed > 0) persistApproved(s)
+  return removed
 }
 
 export function evaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {

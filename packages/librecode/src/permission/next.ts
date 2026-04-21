@@ -72,6 +72,18 @@ async function permissionNextList() {
   return S.list()
 }
 
+function permissionNextListApproved(): Ruleset {
+  return S.listApproved()
+}
+
+function permissionNextSetApprovedRuleset(ruleset: Ruleset): void {
+  S.setApprovedRuleset(ruleset)
+}
+
+function permissionNextDeleteApprovedRule(permission: string, pattern: string): number {
+  return S.deleteApprovedRule(permission, pattern)
+}
+
 function permissionNextEvaluate(permission: string, pattern: string, ...rulesets: Ruleset[]): Rule {
   return S.evaluate(permission, pattern, ...rulesets)
 }
@@ -125,6 +137,9 @@ export const PermissionNext = {
   ask: permissionNextAsk,
   reply: permissionNextReply,
   list: permissionNextList,
+  listApproved: permissionNextListApproved,
+  setApprovedRuleset: permissionNextSetApprovedRuleset,
+  deleteApprovedRule: permissionNextDeleteApprovedRule,
   evaluate: permissionNextEvaluate,
   disabled: permissionNextDisabled,
   capabilityInfo: permissionNextCapabilityInfo,

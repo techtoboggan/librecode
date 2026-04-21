@@ -52,3 +52,33 @@ export function latestLastUsed(entries: ReadonlyArray<UsageEntry>): number | und
   for (const e of entries) if (e.lastUsedAt > max) max = e.lastUsedAt
   return max
 }
+
+/** v0.9.52 — shape of a persisted permission rule from GET /permission/rules. */
+export interface PermissionRule {
+  permission: string
+  pattern: string
+  action: "allow" | "deny" | "ask"
+}
+
+/**
+ * Filter the global ruleset to the rules that concern a single MCP
+ * server. v0.9.52 Settings pane shows these per-server so the user can
+ * see at a glance which apps have "Always allow"/"Always deny" rules
+ * attached.
+ */
+export function rulesForServer(rules: ReadonlyArray<PermissionRule>, server: string): PermissionRule[] {
+  const prefix = `mcp-app:${server}:`
+  return rules.filter((r) => r.permission === prefix.slice(0, -1) || r.permission.startsWith(prefix))
+}
+
+/**
+ * Pretty-print a rule's tool name — drop the "mcp-app:<server>:"
+ * prefix so "mcp-app:acme:get_forecast" renders as just "get_forecast".
+ * If the permission doesn't match the MCP-app shape, return it as-is.
+ */
+export function toolFromPermission(permission: string): string {
+  if (!permission.startsWith("mcp-app:")) return permission
+  const parts = permission.split(":")
+  if (parts.length < 3) return permission
+  return parts.slice(2).join(":")
+}

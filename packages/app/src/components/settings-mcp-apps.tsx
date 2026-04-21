@@ -9,13 +9,11 @@
  *     localStorage via useMcpAppSettings — not session-scoped, lives
  *     across sessions for this install.
  *
- * Future (out of scope for v0.9.48):
- *   * "Always allow" / "Always deny" toggles per (server, tool) —
- *     needs a server-side persistent-rule edit API which doesn't
- *     exist yet (s.approved is in-memory after load).
- *   * "Last used" timestamp + "Calls this session" counter — needs
- *     audit-log integration (per the original v0.9.48 plan).
- *   * Per-app cost cap for sampling/createMessage — wired in v0.9.49.
+ * v0.9.51: Adds per-server "Activity this session" telemetry when
+ *   Settings is opened inside a session (calls + last-used).
+ * v0.9.52: Adds a persisted-rules list per server with a Remove
+ *   action. Before v0.9.52, "Always allow" only stuck in-memory — it
+ *   now round-trips through PermissionTable so rules survive restart.
  */
 import { useParams } from "@solidjs/router"
 import { Component, createMemo, createResource, For, Show } from "solid-js"
@@ -42,8 +40,26 @@ async function fetchAppList(
 // Pure helpers live in ./settings-mcp-apps-helpers.ts so the test
 // file can import them without pulling the router bundle this
 // component depends on (useParams).
-export { type UsageEntry, formatLastUsed, groupByServer, latestLastUsed, totalCalls } from "./settings-mcp-apps-helpers"
-import { type UsageEntry, formatLastUsed, groupByServer, latestLastUsed, totalCalls } from "./settings-mcp-apps-helpers"
+export {
+  type UsageEntry,
+  type PermissionRule,
+  formatLastUsed,
+  groupByServer,
+  latestLastUsed,
+  rulesForServer,
+  toolFromPermission,
+  totalCalls,
+} from "./settings-mcp-apps-helpers"
+import {
+  type UsageEntry,
+  type PermissionRule,
+  formatLastUsed,
+  groupByServer,
+  latestLastUsed,
+  rulesForServer,
+  toolFromPermission,
+  totalCalls,
+} from "./settings-mcp-apps-helpers"
 
 async function fetchUsage(
   fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
@@ -56,6 +72,31 @@ async function fetchUsage(
   if (!res.ok) return []
   const body = (await res.json()) as { entries?: UsageEntry[] }
   return body.entries ?? []
+}
+
+// v0.9.52 — persisted "Always allow/deny" rules. The ruleset API lives
+// under /permission/rules; see permission-routes + ADR-005.
+async function fetchRules(
+  fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  baseUrl: string,
+): Promise<PermissionRule[]> {
+  const res = await fetchFn(`${baseUrl}/permission/rules`)
+  if (!res.ok) return []
+  return (await res.json()) as PermissionRule[]
+}
+
+async function deleteRule(
+  fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  baseUrl: string,
+  rule: { permission: string; pattern: string },
+): Promise<PermissionRule[]> {
+  const res = await fetchFn(`${baseUrl}/permission/rules`, {
+    method: "DELETE",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(rule),
+  })
+  if (!res.ok) return []
+  return (await res.json()) as PermissionRule[]
 }
 
 export const SettingsMcpApps: Component = () => {
@@ -73,6 +114,16 @@ export const SettingsMcpApps: Component = () => {
     () => params.id,
     (sessionID) => fetchUsage(globalSDK.fetch, sdk.url, sessionID),
   )
+
+  // v0.9.52 — project-wide persisted ruleset ("Always allow/deny").
+  // Held as a SolidJS signal so inline edits (delete a rule) rebuild
+  // the per-server lists without a full refetch.
+  const [rules, { mutate: mutateRules }] = createResource(() => fetchRules(globalSDK.fetch, sdk.url))
+
+  async function onDeleteRule(rule: PermissionRule) {
+    const next = await deleteRule(globalSDK.fetch, sdk.url, { permission: rule.permission, pattern: rule.pattern })
+    mutateRules(next)
+  }
 
   const usageByServer = createMemo(() => {
     const out = new Map<string, UsageEntry[]>()
@@ -114,6 +165,7 @@ export const SettingsMcpApps: Component = () => {
           const capFor = settings.samplingHourlyUsdCap(server)
           const serverUsage = createMemo(() => usageByServer().get(server) ?? [])
           const lastUsedMs = createMemo(() => latestLastUsed(serverUsage()))
+          const serverRules = createMemo(() => rulesForServer(rules() ?? [], server))
           return (
             <section class="rounded-md border border-border-weak-base bg-surface-panel p-4 flex flex-col gap-3">
               <div>
@@ -148,6 +200,58 @@ export const SettingsMcpApps: Component = () => {
                   </Show>
                 </div>
               </Show>
+
+              <div
+                class="pt-2 border-t border-border-weaker-base flex flex-col gap-1"
+                data-slot="mcp-apps-rules"
+              >
+                <div class="flex items-baseline gap-2">
+                  <span class="text-12-regular text-text-weak">Persisted rules</span>
+                  <Show
+                    when={serverRules().length > 0}
+                    fallback={<span class="text-11-regular text-text-weaker">none — prompts every session</span>}
+                  >
+                    <span class="text-11-regular text-text-weaker">
+                      {serverRules().length} rule{serverRules().length === 1 ? "" : "s"}
+                    </span>
+                  </Show>
+                </div>
+                <Show when={serverRules().length > 0}>
+                  <ul class="flex flex-col gap-1">
+                    <For each={serverRules()}>
+                      {(rule) => (
+                        <li
+                          class="flex items-baseline gap-2 text-11-regular"
+                          data-slot="mcp-apps-rule"
+                          data-action={rule.action}
+                        >
+                          <span
+                            class="px-1.5 py-0.5 rounded text-10-medium shrink-0"
+                            classList={{
+                              "bg-success-surface text-success-text": rule.action === "allow",
+                              "bg-danger-surface text-danger-text": rule.action === "deny",
+                              "bg-background-stronger text-text-weak": rule.action === "ask",
+                            }}
+                          >
+                            {rule.action}
+                          </span>
+                          <code class="font-mono text-text-strong truncate">{toolFromPermission(rule.permission)}</code>
+                          <code class="font-mono text-text-weaker truncate">{rule.pattern}</code>
+                          <span class="flex-1" />
+                          <Button
+                            variant="ghost"
+                            size="small"
+                            onClick={() => onDeleteRule(rule)}
+                            title="Remove this rule — the next call will prompt again"
+                          >
+                            Remove
+                          </Button>
+                        </li>
+                      )}
+                    </For>
+                  </ul>
+                </Show>
+              </div>
 
               <div class="flex items-center gap-3 pt-2 border-t border-border-weaker-base">
                 <label class="text-12-regular text-text-weak shrink-0 w-44" for={`mcl-${server}`}>
