@@ -3,7 +3,7 @@
  * dialog render is exercised via Playwright (covered separately).
  */
 import { describe, expect, test } from "bun:test"
-import { groupByServer } from "./settings-mcp-apps"
+import { formatLastUsed, groupByServer, latestLastUsed, totalCalls, type UsageEntry } from "./settings-mcp-apps-helpers"
 
 describe("groupByServer", () => {
   test("groups apps with the same server name into a single bucket", () => {
@@ -29,5 +29,71 @@ describe("groupByServer", () => {
 
   test("empty input → empty map", () => {
     expect(groupByServer([]).size).toBe(0)
+  })
+})
+
+function entry(partial: Partial<UsageEntry> = {}): UsageEntry {
+  return {
+    sessionID: "ses_a",
+    server: "acme",
+    permission: "mcp-app:acme:echo",
+    tool: "echo",
+    lastUsedAt: 1_700_000_000_000,
+    callsInSession: 1,
+    ...partial,
+  }
+}
+
+describe("totalCalls", () => {
+  test("sums callsInSession across entries", () => {
+    expect(totalCalls([entry({ callsInSession: 2 }), entry({ callsInSession: 5 })])).toBe(7)
+  })
+
+  test("empty list → 0", () => {
+    expect(totalCalls([])).toBe(0)
+  })
+})
+
+describe("latestLastUsed", () => {
+  test("returns the max lastUsedAt across entries", () => {
+    expect(
+      latestLastUsed([entry({ lastUsedAt: 1000 }), entry({ lastUsedAt: 5000 }), entry({ lastUsedAt: 2000 })]),
+    ).toBe(5000)
+  })
+
+  test("empty list → undefined", () => {
+    expect(latestLastUsed([])).toBeUndefined()
+  })
+})
+
+describe("formatLastUsed", () => {
+  const now = 1_700_000_000_000
+
+  test("under 10s → 'just now'", () => {
+    expect(formatLastUsed(now - 500, now)).toBe("just now")
+    expect(formatLastUsed(now - 9_999, now)).toBe("just now")
+  })
+
+  test("seconds bucket", () => {
+    expect(formatLastUsed(now - 15_000, now)).toBe("15s ago")
+    expect(formatLastUsed(now - 59_999, now)).toBe("59s ago")
+  })
+
+  test("minutes bucket", () => {
+    expect(formatLastUsed(now - 3 * 60_000, now)).toBe("3m ago")
+  })
+
+  test("hours bucket", () => {
+    expect(formatLastUsed(now - 5 * 3_600_000, now)).toBe("5h ago")
+  })
+
+  test("days bucket", () => {
+    expect(formatLastUsed(now - 2 * 86_400_000, now)).toBe("2d ago")
+  })
+
+  test("future timestamps don't return negative deltas", () => {
+    // Clock skew or reordering could theoretically hand us a ts > now.
+    // We clamp to 0 so we never show "-5s ago".
+    expect(formatLastUsed(now + 10_000, now)).toBe("just now")
   })
 })

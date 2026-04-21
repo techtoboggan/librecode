@@ -8,6 +8,7 @@ import {
   clearAppContext,
   setAppContext,
 } from "../../../mcp/app-context"
+import { McpAppUsage } from "../../../mcp/app-usage"
 import { PermissionNext } from "../../../permission/next"
 import * as PermissionService from "../../../permission/service"
 import { SessionPrompt } from "../../../session/prompt"
@@ -344,5 +345,23 @@ export const SessionMcpAppRoutes = new Hono()
       const { server, uri } = c.req.valid("json")
       clearAppContext(sessionID, server, uri)
       return c.json({ ok: true }, 200)
+    },
+  )
+  .get(
+    "/:sessionID/mcp-apps/usage",
+    describeRoute({
+      summary: "List MCP-app call telemetry for a session",
+      description:
+        "Per ADR-005 follow-up (v0.9.51): returns the lastUsedAt + callsInSession counters aggregated " +
+        "from permission audit events, keyed by (server, permission). Settings → MCP Apps consumes this " +
+        "to show the per-server activity line. Scoped per session and cleared on session teardown.",
+      operationId: "session.mcpApps.usage",
+      responses: { 200: { description: "OK" } },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const entries = await McpAppUsage.forSession(sessionID)
+      return c.json({ entries }, 200)
     },
   )

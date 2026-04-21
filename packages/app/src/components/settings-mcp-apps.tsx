@@ -17,6 +17,7 @@
  *     audit-log integration (per the original v0.9.48 plan).
  *   * Per-app cost cap for sampling/createMessage — wired in v0.9.49.
  */
+import { useParams } from "@solidjs/router"
 import { Component, createMemo, createResource, For, Show } from "solid-js"
 import { Button } from "@librecode/ui/button"
 import { useMcpAppSettings } from "@/context/mcp-app-settings"
@@ -38,23 +39,50 @@ async function fetchAppList(
   return (await res.json()) as McpAppResource[]
 }
 
-/** Group apps by server name for display. Exported for tests. */
-export function groupByServer(apps: McpAppResource[]): Map<string, McpAppResource[]> {
-  const out = new Map<string, McpAppResource[]>()
-  for (const app of apps) {
-    const list = out.get(app.server) ?? []
-    list.push(app)
-    out.set(app.server, list)
-  }
-  return out
+// Pure helpers live in ./settings-mcp-apps-helpers.ts so the test
+// file can import them without pulling the router bundle this
+// component depends on (useParams).
+export { type UsageEntry, formatLastUsed, groupByServer, latestLastUsed, totalCalls } from "./settings-mcp-apps-helpers"
+import { type UsageEntry, formatLastUsed, groupByServer, latestLastUsed, totalCalls } from "./settings-mcp-apps-helpers"
+
+async function fetchUsage(
+  fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+  baseUrl: string,
+  sessionID: string | undefined,
+): Promise<UsageEntry[]> {
+  if (!sessionID) return []
+  const url = `${baseUrl}/session/${sessionID}/mcp-apps/usage`
+  const res = await fetchFn(url)
+  if (!res.ok) return []
+  const body = (await res.json()) as { entries?: UsageEntry[] }
+  return body.entries ?? []
 }
 
 export const SettingsMcpApps: Component = () => {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
   const settings = useMcpAppSettings()
+  const params = useParams<{ id?: string }>()
 
   const [apps] = createResource(() => fetchAppList(globalSDK.fetch, sdk.url, sdk.directory))
+
+  // v0.9.51 telemetry: fetch usage entries for the current session
+  // if Settings was opened inside a session. Mapped by server so each
+  // pane can look up its own stats without re-filtering.
+  const [usage] = createResource(
+    () => params.id,
+    (sessionID) => fetchUsage(globalSDK.fetch, sdk.url, sessionID),
+  )
+
+  const usageByServer = createMemo(() => {
+    const out = new Map<string, UsageEntry[]>()
+    for (const entry of usage() ?? []) {
+      const list = out.get(entry.server) ?? []
+      list.push(entry)
+      out.set(entry.server, list)
+    }
+    return out
+  })
 
   const grouped = createMemo(() => {
     const list = apps()
@@ -84,6 +112,8 @@ export const SettingsMcpApps: Component = () => {
         {([server, serverApps]) => {
           const limitFor = settings.messageCharLimit(server)
           const capFor = settings.samplingHourlyUsdCap(server)
+          const serverUsage = createMemo(() => usageByServer().get(server) ?? [])
+          const lastUsedMs = createMemo(() => latestLastUsed(serverUsage()))
           return (
             <section class="rounded-md border border-border-weak-base bg-surface-panel p-4 flex flex-col gap-3">
               <div>
@@ -103,6 +133,21 @@ export const SettingsMcpApps: Component = () => {
                   )}
                 </For>
               </ul>
+
+              <Show when={params.id}>
+                <div
+                  class="pt-2 border-t border-border-weaker-base flex items-baseline gap-3 text-11-regular"
+                  data-slot="mcp-apps-activity"
+                >
+                  <span class="text-text-weak">Activity this session:</span>
+                  <Show when={serverUsage().length > 0} fallback={<span class="text-text-weaker">no calls yet</span>}>
+                    <span class="text-text-strong">{totalCalls(serverUsage())} calls</span>
+                    <Show when={lastUsedMs()}>
+                      {(ms) => <span class="text-text-weaker">· last used {formatLastUsed(ms())}</span>}
+                    </Show>
+                  </Show>
+                </div>
+              </Show>
 
               <div class="flex items-center gap-3 pt-2 border-t border-border-weaker-base">
                 <label class="text-12-regular text-text-weak shrink-0 w-44" for={`mcl-${server}`}>
