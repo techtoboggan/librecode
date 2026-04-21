@@ -325,6 +325,17 @@ Categorizes errors with actionable suggestions:
 | **protocol**   | Invalid JSON, method not found            |
 | **config**     | Invalid URL, bad config                   |
 
+### MCP Apps (`mcp/builtin-apps/` + `app/components/mcp-app-panel.tsx`)
+
+UI resources (`text/html;profile=mcp-app`) advertised by MCP servers
+render as sandboxed iframes inside the session side panel. Apps may
+receive a fixed allowlist of SSE events via `postMessage` and call back
+into the host through the `AppBridge` protocol — `tools/call` is gated
+by a per-resource `_meta.ui.allowedTools` manifest enforced server-side.
+
+Full guide: [docs/mcp-apps.md](mcp-apps.md). Design rationale:
+[docs/adr/005-mcp-app-tool-proxying.md](adr/005-mcp-app-tool-proxying.md).
+
 ---
 
 ## Session Management

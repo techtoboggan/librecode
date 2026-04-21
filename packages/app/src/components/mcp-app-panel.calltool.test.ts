@@ -39,7 +39,8 @@ describe("createCallToolHandler", () => {
     const result = await handler({ name: "get_forecast", arguments: { location: "NYC" } })
 
     expect(fetchFn).toHaveBeenCalledTimes(1)
-    const [calledUrl, init] = fetchFn.mock.calls[0]
+    const call = fetchFn.mock.calls[0] as unknown as [unknown, RequestInit]
+    const [calledUrl, init] = call
     expect(String(calledUrl)).toBe("http://host.example/session/ses_abc/mcp-apps/tool")
     expect(init.method).toBe("POST")
     expect(init.headers).toEqual({ "Content-Type": "application/json" })
@@ -88,7 +89,8 @@ describe("createCallToolHandler", () => {
     const fetchFn = mock(async () => new Response(JSON.stringify({ content: [] }), { status: 200 }))
     const { handler } = setup({ fetch: fetchFn })
     await handler({ name: "ping" })
-    const body = JSON.parse(fetchFn.mock.calls[0][1].body as string)
+    const call = fetchFn.mock.calls[0] as unknown as [unknown, RequestInit]
+    const body = JSON.parse(call[1].body as string)
     expect(body.arguments).toEqual({})
   })
 })

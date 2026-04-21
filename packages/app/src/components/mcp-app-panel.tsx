@@ -19,7 +19,9 @@
 
 import { type Accessor, createEffect, createResource, createSignal, onCleanup, Show, type JSX } from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
+import { useTheme } from "@librecode/ui/theme"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 
@@ -299,6 +301,75 @@ function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) 
 // ─── AppBridge lifecycle ──────────────────────────────────────────────────────
 
 /**
+ * Allowlist for `ui/open-link` requests. Apps may only ask the host to
+ * open standard web URLs — `javascript:`, `data:`, `file:`, `blob:` and
+ * any scheme not in this set are silently rejected. ADR-005 §5.
+ */
+export const OPEN_LINK_ALLOWED_SCHEMES = new Set(["http:", "https:"])
+
+/** Pure: validate that a string is a safe link target. */
+export function isSafeOpenUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url)
+    return OPEN_LINK_ALLOWED_SCHEMES.has(parsed.protocol)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Build the `bridge.onopenlink` handler. Returns a permissive `{}` on
+ * success and `{isError: true}` on a rejected scheme — the iframe sees a
+ * standard MCP UI result either way and stays alive.
+ */
+export function createOpenLinkHandler(open: (url: string) => void) {
+  return async (params: { url: string }) => {
+    if (!isSafeOpenUrl(params.url)) return { isError: true }
+    try {
+      open(params.url)
+      return {}
+    } catch {
+      return { isError: true }
+    }
+  }
+}
+
+type LogLevel = "debug" | "info" | "notice" | "warning" | "error" | "critical" | "alert" | "emergency"
+
+/**
+ * Build the `bridge.onloggingmessage` handler. Routes app-emitted
+ * notifications/message frames to the browser console with the matching
+ * severity. We tag them with [mcp-app: <server>] so they're easy to find.
+ */
+export function createLogHandler(options: {
+  server: string
+  console?: Pick<Console, "log" | "info" | "warn" | "error">
+}) {
+  const target = options.console ?? console
+  return (params: { level: LogLevel; logger?: string; data: unknown }) => {
+    const tag = `[mcp-app:${options.server}${params.logger ? "/" + params.logger : ""}]`
+    switch (params.level) {
+      case "debug":
+      case "info":
+      case "notice":
+        target.info(tag, params.data)
+        return
+      case "warning":
+        target.warn(tag, params.data)
+        return
+      case "error":
+      case "critical":
+      case "alert":
+      case "emergency":
+        target.error(tag, params.data)
+        return
+      default:
+        target.log(tag, params.data)
+    }
+  }
+}
+
+/**
  * Build an `oncalltool` handler that proxies an iframe-originated tool
  * call to the host's `/session/:id/mcp-apps/tool` endpoint. Pure function;
  * exported for tests.
@@ -360,6 +431,9 @@ function useAppBridge(
 ) {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
+  const platform = usePlatform()
+  const theme = useTheme()
+  const [bridgeSignal, setBridgeSignal] = createSignal<AppBridge | undefined>()
 
   createEffect(() => {
     const iframe = iframeRef()
@@ -367,18 +441,19 @@ function useAppBridge(
 
     const transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow)
 
-    // host capabilities: serverTools enables the iframe's tools/call path;
-    // logging lets the app post telemetry through the bridge (we'll wire
-    // that handler in 0.9.39).
+    // host capabilities advertised to the iframe:
+    //   * serverTools — iframe may issue tools/call (proxied via our
+    //     oncalltool handler to the host endpoint with manifest gate).
+    //   * openLinks — iframe may issue ui/open-link.
+    //   * logging — iframe may issue notifications/message.
     const bridge = new AppBridge(
       null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
-      { serverTools: {}, logging: {} },
-      {},
+      { serverTools: {}, openLinks: {}, logging: {} },
+      { hostContext: { theme: theme.mode(), displayMode: "inline" } },
     )
 
-    // Wire tool-call proxying through the host endpoint. Resource / prompt
-    // proxies + open-link land in 0.9.39.
+    // Tool-call proxy → /session/:id/mcp-apps/tool with manifest gate.
     const callTool = createCallToolHandler({
       fetchFn: globalSDK.fetch,
       baseUrl: sdk.url,
@@ -392,6 +467,12 @@ function useAppBridge(
     // route — they're already a CallToolResult). The runtime contract holds.
     bridge.oncalltool = callTool as unknown as NonNullable<typeof bridge.oncalltool>
 
+    // ui/open-link → platform.openLink (with scheme allowlist).
+    bridge.onopenlink = createOpenLinkHandler((url) => platform.openLink(url))
+
+    // notifications/message → console with severity tag.
+    bridge.onloggingmessage = createLogHandler({ server: context.server })
+
     // Connect once the iframe's srcdoc has loaded
     const handleLoad = () => {
       bridge.connect(transport).catch((err: unknown) => {
@@ -401,11 +482,30 @@ function useAppBridge(
     }
 
     iframe.addEventListener("load", handleLoad)
+    setBridgeSignal(bridge)
 
     onCleanup(() => {
       iframe.removeEventListener("load", handleLoad)
+      setBridgeSignal(undefined)
       bridge.close().catch(() => {})
     })
+  })
+
+  // Push theme changes into the live bridge — separate effect so a host
+  // theme toggle pushes a ui/notifications/host-context-changed without
+  // rebuilding the whole bridge.
+  createEffect(() => {
+    const bridge = bridgeSignal()
+    if (!bridge) return
+    const mode = theme.mode()
+    try {
+      bridge.setHostContext({ theme: mode })
+    } catch {
+      // Bridge not initialized yet (pre-handshake) — Kobalte/AppBridge
+      // raises if we push before initialize completes. That's fine: the
+      // bridge constructor already received the initial mode, so the app
+      // gets the correct theme when it first reads host context.
+    }
   })
 }
 

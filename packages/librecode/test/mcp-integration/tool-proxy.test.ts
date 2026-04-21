@@ -45,11 +45,14 @@ describe("MCP app tool proxying — manifest + transport", () => {
 
         // Real call goes through MCP, hits the fixture's echo tool, returns
         // the content verbatim.
-        const result = await MCP.callServerTool(SERVER_NAME, "echo", { text: "platform-test-ping" })
+        const result = (await MCP.callServerTool(SERVER_NAME, "echo", { text: "platform-test-ping" })) as {
+          isError?: boolean
+          content: Array<{ type?: string; text?: string }>
+        }
         expect(result.isError).toBeFalsy()
         // Result content is `{type: "text", text: "..."}` from the fixture.
         const text = result.content
-          .filter((c): c is { type: "text"; text: string } => (c as { type?: string }).type === "text")
+          .filter((c) => c.type === "text" && typeof c.text === "string")
           .map((c) => c.text)
           .join("")
         expect(text).toBe("platform-test-ping")
