@@ -140,6 +140,12 @@ async function fetchAppHtml(
 
 // ─── Initial snapshot forwarding ──────────────────────────────────────────────
 
+/** Built-in URI → seed responsibility map. Exported for test coverage. */
+export const BUILTIN_URI_ACTIVITY_GRAPH = "ui://builtin/activity-graph"
+export const BUILTIN_URI_SESSION_STATS = "ui://builtin/session-stats"
+
+export const SEEDABLE_BUILTIN_URIS = new Set<string>([BUILTIN_URI_ACTIVITY_GRAPH, BUILTIN_URI_SESSION_STATS])
+
 /**
  * Fetch a session's current activity state. Used to seed the Activity Graph
  * iframe on mount so it shows existing data immediately instead of
@@ -162,40 +168,130 @@ async function fetchSessionActivity(
   }
 }
 
+/** Pure: shape the `activity.updated` seed payload for an iframe. */
+export function buildActivitySeedPayload(
+  sessionID: string,
+  activity: { files: Record<string, unknown>; agents: Record<string, unknown> },
+  now: number = Date.now(),
+) {
+  return {
+    type: "activity.updated" as const,
+    properties: {
+      sessionID,
+      files: activity.files,
+      agents: activity.agents,
+      updatedAt: now,
+    },
+  }
+}
+
+type SeedMessage = { role: string; cost: number; tokens: unknown; parts: unknown[] }
+
+/**
+ * Pure: shape the `session.stats` seed payload. Accepts raw message + part
+ * lookups so tests don't need to stand up a whole sync context.
+ */
+export function buildStatsSeedPayload(
+  messages: ReadonlyArray<{ id: string; role: string; cost?: number; tokens?: unknown }>,
+  getParts: (messageID: string) => unknown[] | undefined,
+): { type: "session.stats"; messages: SeedMessage[] } {
+  return {
+    type: "session.stats",
+    messages: messages.map((m) => ({
+      role: m.role,
+      cost: m.cost ?? 0,
+      tokens: m.tokens ?? {},
+      parts: getParts(m.id) ?? [],
+    })),
+  }
+}
+
+/**
+ * Build the `mcp-app-ready` listener used to seed a freshly-mounted app
+ * iframe with a one-time snapshot. Extracted so the source-verification,
+ * fire-once, and built-in-URI dispatch logic can be exercised without
+ * standing up a real iframe or a Solid root.
+ */
+export function createReadyHandler(options: {
+  /** URI of the app being hosted — used to pick which seed to run. */
+  uri: string
+  /** Current session id; without one, no seeding happens. */
+  sessionID: string | undefined
+  /** The iframe's contentWindow — events with a different `source` are ignored. */
+  contentWindow: unknown
+  /** Run the activity-graph seed (async fetch + post). */
+  seedActivity: (sessionID: string) => Promise<void>
+  /** Run the session-stats seed (synchronous). */
+  seedStats: (sessionID: string) => void
+}) {
+  let seeded = false
+  return (e: { data?: unknown; source?: unknown }) => {
+    if (e.source !== options.contentWindow) return
+    const data = e.data as { type?: string } | undefined
+    if (!data || data.type !== "mcp-app-ready") return
+    if (seeded) return
+    seeded = true
+    const sessionID = options.sessionID
+    if (!sessionID) return
+    if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(sessionID)
+    else if (options.uri === BUILTIN_URI_SESSION_STATS) options.seedStats(sessionID)
+  }
+}
+
 // ─── SSE event forwarding ─────────────────────────────────────────────────────
 
 /**
- * Forwards SSE events from the global event bus into the iframe via postMessage.
- * Built-in apps (and cooperating MCP apps) can listen via window.addEventListener("message").
- *
- * Events forwarded:
+ * Event types forwarded from the host SSE stream into the iframe via postMessage.
  *   - activity.updated        (for the FS Activity Graph)
  *   - message.part.updated    (for Session Stats token/cost tracking)
  *   - message.part.delta      (for streaming indicators)
  *   - session.status          (for busy/idle signals)
  */
+export const FORWARDED_EVENT_TYPES = new Set([
+  "activity.updated",
+  "message.part.updated",
+  "message.part.delta",
+  "session.status",
+])
+
+/** Pure predicate — is this event eligible to be forwarded into an MCP app iframe? */
+export function shouldForwardEvent(event: unknown): boolean {
+  if (!event || typeof event !== "object" || !("type" in event)) return false
+  return FORWARDED_EVENT_TYPES.has((event as { type: unknown }).type as string)
+}
+
+type PostTarget = { postMessage: (message: unknown, targetOrigin: string) => void } | null | undefined
+
+/**
+ * Wire a global-event listener to a postMessage target. Returns an unsubscribe.
+ * Extracted from the hook so the forwarding logic is unit-testable without
+ * Solid reactivity or a full iframe.
+ */
+export function createEventForwarder(
+  listen: (cb: (e: { name: string; details: unknown }) => void) => () => void,
+  getTarget: () => PostTarget,
+): () => void {
+  return listen((e) => {
+    const event = e.details
+    if (!shouldForwardEvent(event)) return
+    try {
+      getTarget()?.postMessage(event, "*")
+    } catch {
+      // iframe may be detached during re-render
+    }
+  })
+}
+
 function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
   const globalSDK = useGlobalSDK()
 
   createEffect(() => {
     const iframe = iframeRef()
     if (!iframe) return
-
-    const FORWARD_TYPES = new Set(["activity.updated", "message.part.updated", "message.part.delta", "session.status"])
-
-    const unsub = globalSDK.event.listen((e) => {
-      const event = e.details
-      if (!event || typeof event !== "object" || !("type" in event)) return
-      if (!FORWARD_TYPES.has(event.type as string)) return
-
-      // Post to iframe content window. Apps verify event.source in their handlers.
-      try {
-        iframe.contentWindow?.postMessage(event, "*")
-      } catch {
-        // Ignore errors — iframe may be detached during re-render
-      }
-    })
-
+    const unsub = createEventForwarder(
+      (cb) => globalSDK.event.listen(cb),
+      () => iframe.contentWindow,
+    )
     onCleanup(unsub)
   })
 }
@@ -283,7 +379,6 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     const iframe = iframeSignal()
     if (!iframe) return
 
-    let seeded = false
     const post = (message: unknown) => {
       try {
         iframe.contentWindow?.postMessage(message, "*")
@@ -295,38 +390,20 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     const seedActivity = async (sessionID: string) => {
       const activity = await fetchSessionActivity(globalSDK.fetch, sdk.url, sdk.directory, sessionID)
       if (!activity) return
-      post({
-        type: "activity.updated",
-        properties: { sessionID, files: activity.files, agents: activity.agents, updatedAt: Date.now() },
-      })
+      post(buildActivitySeedPayload(sessionID, activity))
     }
 
     const seedStats = (sessionID: string) => {
-      const messages = sync.data.message[sessionID] ?? []
-      const enriched = messages.map((m) => ({
-        role: m.role,
-        cost: (m as { cost?: number }).cost ?? 0,
-        tokens: (m as { tokens?: unknown }).tokens ?? {},
-        parts: sync.data.part[m.id] ?? [],
-      }))
-      post({ type: "session.stats", messages: enriched })
+      post(buildStatsSeedPayload(sync.data.message[sessionID] ?? [], (id) => sync.data.part[id]))
     }
 
-    const seed = () => {
-      if (seeded) return
-      seeded = true
-      const sessionID = props.sessionID
-      if (!sessionID) return
-      if (props.uri === "ui://builtin/activity-graph") void seedActivity(sessionID)
-      if (props.uri === "ui://builtin/session-stats") seedStats(sessionID)
-    }
-
-    const handleMessage = (e: MessageEvent) => {
-      if (e.source !== iframe.contentWindow) return
-      const data = e.data as { type?: string } | undefined
-      if (!data || data.type !== "mcp-app-ready") return
-      seed()
-    }
+    const handleMessage = createReadyHandler({
+      uri: props.uri,
+      sessionID: props.sessionID,
+      contentWindow: iframe.contentWindow,
+      seedActivity,
+      seedStats,
+    })
 
     window.addEventListener("message", handleMessage)
     onCleanup(() => window.removeEventListener("message", handleMessage))

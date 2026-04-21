@@ -4,6 +4,7 @@ import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { batch, onCleanup } from "solid-js"
 import z from "zod"
 import { createSdkForServer } from "@/utils/server"
+import { setEventBusProbe } from "@/testing/event-bus"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { type ServerConnection, useServer } from "./server"
@@ -247,6 +248,11 @@ export const { use: useGlobalSDK, provider: GlobalSDKProvider } = createSimpleCo
     })
 
     const authedFetch = makeAuthedFetch(() => server.current?.http, platform.fetch)
+
+    // When the e2e harness asks for it, expose a shim so Playwright specs can
+    // push synthetic events through the same emitter the SSE stream uses.
+    // No-op in normal runtime — see @/testing/event-bus for the flag.
+    setEventBusProbe((directory, payload) => emitter.emit(directory, payload as Event))
 
     return {
       url: currentServer.http.url,
