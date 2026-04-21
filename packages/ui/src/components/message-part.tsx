@@ -31,8 +31,10 @@ export type { PartComponent } from "./message-part/registry"
 export type { ToolProps, ToolComponent, ToolInfo } from "./message-part/shared"
 export { getToolInfo } from "./message-part/shared"
 export { MessageDivider } from "./message-part/message-divider"
+export { getMcpAppOrigin, type McpAppOrigin } from "./message-part/mcp-app-origin"
 
 import { PART_MAPPING, ToolRegistry } from "./message-part/registry"
+import { getMcpAppOrigin } from "./message-part/mcp-app-origin"
 import { ContextToolGroup, CONTEXT_GROUP_TOOLS, isContextGroupTool } from "./message-part/context-tool-group"
 import type { MessagePartProps } from "./message-part/types"
 
@@ -391,6 +393,14 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
 
   const text = createMemo(() => textPart()?.text || "")
 
+  // v0.9.50 — detect MCP-app origin so the renderer can show a
+  // non-dismissible "Posted by <app>" badge. Metadata comes from
+  // v0.9.46 ui/message handler which stamps _meta.mcpApp on the
+  // text part. Users must always be able to tell which messages
+  // came from an app vs typed themselves — security surface per
+  // ADR-005 §8.
+  const mcpOrigin = createMemo(() => getMcpAppOrigin(textPart()))
+
   const files = createMemo(() => (props.parts?.filter((p) => p.type === "file") as FilePart[]) ?? [])
 
   const attachments = createMemo(() => files().filter(attached))
@@ -488,6 +498,21 @@ export function UserMessageDisplay(props: { message: UserMessage; parts: PartTyp
       </Show>
       <Show when={text()}>
         <>
+          <Show when={mcpOrigin()}>
+            {(origin) => (
+              <Tooltip value={origin().uri} placement="top" gutter={4}>
+                <div
+                  data-slot="user-message-mcp-app-origin"
+                  class="inline-flex items-center gap-1 px-1.5 py-0.5 mb-1 rounded text-10-medium text-text-weak bg-background-stronger border border-border-weak-base cursor-default"
+                  role="note"
+                  aria-label={`Posted by MCP app ${origin().server}`}
+                >
+                  <Icon name="dot-grid" size="small" class="size-3" />
+                  <span>Posted by {origin().server}</span>
+                </div>
+              </Tooltip>
+            )}
+          </Show>
           <div data-slot="user-message-body">
             <div data-slot="user-message-text">
               <HighlightedText text={text()} references={inlineFiles()} agents={agents()} />
