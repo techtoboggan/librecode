@@ -105,3 +105,53 @@ export function createUiMessageHandler(options: {
     }
   }
 }
+
+/**
+ * Pure: summarise content blocks into a single text string for the
+ * cap calculation in update-model-context. Same rules as
+ * summarizeMessageText except it accepts non-array content too (some
+ * servers send a flat string).
+ */
+export function summarizeContextContent(content: unknown): string {
+  if (typeof content === "string") return content
+  if (!Array.isArray(content)) return ""
+  return summarizeMessageText(content as McpContentBlock[])
+}
+
+/**
+ * Build the AppBridge `onupdatemodelcontext` handler. POSTs to the
+ * host's /session/:id/mcp-apps/context route which validates char
+ * caps and stores the entry replace-on-write per ADR-005 §7.
+ *
+ * Spec returns `EmptyResult` — host failures don't propagate as
+ * errors to the iframe (the prompt builder will simply omit the
+ * context if storage failed).
+ */
+export function createUpdateContextHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  sessionID: string | undefined
+  server: string
+  uri: string
+}) {
+  return async (params: { content?: unknown; structuredContent?: unknown }) => {
+    if (!options.sessionID) return {}
+    const text = summarizeContextContent(params.content)
+    try {
+      const url = `${options.baseUrl}/session/${options.sessionID}/mcp-apps/context`
+      await options.fetchFn(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          server: options.server,
+          uri: options.uri,
+          content: text,
+          structuredContent: params.structuredContent,
+        }),
+      })
+    } catch {
+      // Best-effort. Spec wants EmptyResult; host already logs failure.
+    }
+    return {}
+  }
+}

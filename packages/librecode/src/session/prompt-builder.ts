@@ -9,6 +9,7 @@ import type { Tool } from "@/tool/tool"
 import { iife } from "@/util/iife"
 import { Agent, type AgentInfo } from "../agent/agent"
 import { Bus } from "../bus"
+import { appContextSegments, getAllAppContexts } from "../mcp/app-context"
 import type { Command } from "../command"
 import { ConfigMarkdown } from "../config/markdown"
 import { Flag } from "../flag/flag"
@@ -134,6 +135,7 @@ export async function buildSystemPromptParts(
   agent: AgentInfo,
   model: Provider.Model,
   format: NonNullable<MessageV2.User["format"]>,
+  sessionID?: SessionID,
 ): Promise<string[]> {
   const skills = await SystemPrompt.skills(agent)
   const system = [
@@ -143,6 +145,14 @@ export async function buildSystemPromptParts(
   ]
   if (format.type === "json_schema") {
     system.push(STRUCTURED_OUTPUT_SYSTEM_PROMPT)
+  }
+  // ADR-005 §7 + v0.9.47: append per-app contexts pushed via
+  // ui/update-model-context. Replace-on-write semantics live in the
+  // store; here we just snapshot whatever's currently set for this
+  // session and emit one delimited segment per app.
+  if (sessionID) {
+    const ctxSegments = appContextSegments(getAllAppContexts(sessionID))
+    if (ctxSegments.length > 0) system.push(...ctxSegments)
   }
   return system
 }

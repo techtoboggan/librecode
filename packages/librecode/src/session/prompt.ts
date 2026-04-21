@@ -467,7 +467,7 @@ async function runNormalStep(input: {
 
   await Plugin.trigger("experimental.chat.messages.transform", {}, { messages: msgs })
 
-  const system = await buildSystemPromptParts(agent, model, format)
+  const system = await buildSystemPromptParts(agent, model, format, sessionID)
   const result = await processor.process({
     user: lastUser,
     agent,

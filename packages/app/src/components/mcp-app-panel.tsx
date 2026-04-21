@@ -554,16 +554,19 @@ export function createCallToolHandler(options: {
 export { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 
-// ui/message helpers — pure validation + handler live in
-// ./mcp-app-message.ts so tests can import without the Solid stack.
+// ui/message + ui/update-model-context helpers — pure validation +
+// handlers live in ./mcp-app-message.ts so tests can import without
+// the Solid stack.
 export {
   DEFAULT_MCP_MESSAGE_CHAR_LIMIT,
   type McpContentBlock,
   createUiMessageHandler,
+  createUpdateContextHandler,
+  summarizeContextContent,
   summarizeMessageText,
   validateMessageContent,
 } from "./mcp-app-message"
-import { createUiMessageHandler } from "./mcp-app-message"
+import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
 
 /**
  * Wrap an AppBridge handler so each call increments + decrements an
@@ -631,6 +634,8 @@ function useAppBridge(
         // ui/message. Text only for now; adding image/audio/etc. is
         // an additive change once renderer support lands.
         message: { text: {} },
+        // v0.9.47 — text + structuredContent for ui/update-model-context.
+        updateModelContext: { text: {}, structuredContent: {} },
         logging: {},
       },
       {
@@ -723,6 +728,17 @@ function useAppBridge(
       inc,
       dec,
     ) as unknown as NonNullable<typeof bridge.onmessage>
+
+    // ui/update-model-context → POST to /session/:id/mcp-apps/context
+    // which validates char caps, stores replace-on-write, and the prompt
+    // builder injects the entries into the next model turn as
+    // <mcp-app server="..." uri="...">...</mcp-app> system segments.
+    // ADR-005 §7 + v0.9.47.
+    bridge.onupdatemodelcontext = withRunning(
+      createUpdateContextHandler({ ...proxyOpts, uri: context.uri }),
+      inc,
+      dec,
+    ) as unknown as NonNullable<typeof bridge.onupdatemodelcontext>
 
     // ui/request-display-mode → toggle the panel's overlay state.
     // ADR-005 §5 + v0.9.45 — fullscreen supported, pip deferred. Per

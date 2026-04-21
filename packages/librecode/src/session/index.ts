@@ -7,6 +7,7 @@ import z from "zod"
 import { Bus } from "@/bus"
 import { BusEvent } from "@/bus/bus-event"
 import { Global } from "@/global"
+import { forkContexts as forkAppContexts } from "@/mcp/app-context"
 import { PermissionNext } from "@/permission/next"
 import type { Provider } from "@/provider/provider"
 import { ModelID, ProviderID } from "@/provider/schema"
@@ -263,6 +264,10 @@ export const fork = fn(
         })
       }
     }
+    // ADR-005 §7 + v0.9.47 user decision: copy MCP-app contexts
+    // forward when forking. The user can clear them explicitly via
+    // the Settings → Apps pane.
+    forkAppContexts(input.sessionID, session.id)
     return session
   },
 )

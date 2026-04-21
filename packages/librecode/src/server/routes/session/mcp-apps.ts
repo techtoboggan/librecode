@@ -2,11 +2,19 @@ import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { MCP } from "../../../mcp"
+import {
+  PER_APP_CONTEXT_CHAR_CAP,
+  PER_SESSION_CONTEXT_CHAR_CAP,
+  clearAppContext,
+  setAppContext,
+} from "../../../mcp/app-context"
 import { PermissionNext } from "../../../permission/next"
 import * as PermissionService from "../../../permission/service"
 import { SessionPrompt } from "../../../session/prompt"
 import { SessionID } from "../../../session/schema"
 import { errors } from "../../error"
+
+export { PER_APP_CONTEXT_CHAR_CAP, PER_SESSION_CONTEXT_CHAR_CAP }
 
 /**
  * Manifest enforcement: an app may only invoke a tool that the resource it
@@ -273,5 +281,68 @@ export const SessionMcpAppRoutes = new Hono()
         const message = err instanceof Error ? err.message : String(err)
         return c.json({ isError: true, error: `Failed to post message: ${message}` }, 200)
       }
+    },
+  )
+  .post(
+    "/:sessionID/mcp-apps/context",
+    describeRoute({
+      summary: "Update an MCP app's model-context contribution for the next turn",
+      description:
+        "Wires the MCP `ui/update-model-context` AppBridge request. Per ADR-005 §7 + the v0.9.47 " +
+        "user decisions: replace-on-write per (server, uri); per-app + per-session char caps " +
+        "enforced; contexts copy forward when the session is forked; user can clear via the " +
+        "v0.9.48 Settings → Apps pane. Returns {ok: true} on success or {isError: true} with a " +
+        "reason string on cap breach so the iframe sees the failure mode.",
+      operationId: "session.mcpApps.context",
+      responses: { 200: { description: "OK" }, ...errors(400, 404) },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator(
+      "json",
+      z
+        .object({
+          server: z.string().min(1),
+          uri: z.string().min(1),
+          content: z.string(),
+          structuredContent: z.unknown().optional(),
+        })
+        .strict(),
+    ),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const body = c.req.valid("json")
+
+      if (body.server === BUILTIN_SERVER) {
+        return c.json({ isError: true, error: "Built-in MCP apps cannot push model context." }, 200)
+      }
+
+      const result = setAppContext({
+        sessionID,
+        server: body.server,
+        uri: body.uri,
+        content: body.content,
+        structuredContent: body.structuredContent,
+      })
+      if (!result.ok) return c.json({ isError: true, error: result.reason }, 200)
+      return c.json({ ok: true, updatedAt: result.entry.updatedAt }, 200)
+    },
+  )
+  .post(
+    "/:sessionID/mcp-apps/context/clear",
+    describeRoute({
+      summary: "Clear an MCP app's model-context contribution",
+      description:
+        "Removes the per-app entry. Used by the v0.9.48 Settings → Apps pane and by Disconnect. " +
+        "Permission-free — clearing is always safe (it can only reduce model context, never expand it).",
+      operationId: "session.mcpApps.context.clear",
+      responses: { 200: { description: "OK" }, ...errors(400, 404) },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator("json", z.object({ server: z.string().min(1), uri: z.string().min(1) }).strict()),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const { server, uri } = c.req.valid("json")
+      clearAppContext(sessionID, server, uri)
+      return c.json({ ok: true }, 200)
     },
   )
