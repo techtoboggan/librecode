@@ -19,6 +19,8 @@ import { Persist, persisted } from "@/utils/persist"
 export interface PerAppSettings {
   /** Override for ui/message text char cap. Undefined → use the global default. */
   messageCharLimit?: number
+  /** Hourly USD cap for sampling/createMessage. Undefined → use the v0.9.49 default. */
+  samplingHourlyUsdCap?: number
 }
 
 export type McpAppSettingsRecord = Record<string, PerAppSettings>
@@ -33,8 +35,14 @@ function migrate(value: unknown): McpAppSettingsRecord {
   for (const [server, raw] of Object.entries(value)) {
     if (!isRecord(raw)) continue
     const limit = raw.messageCharLimit
+    const cap = raw.samplingHourlyUsdCap
     out[server] = {
       messageCharLimit: typeof limit === "number" && limit >= 0 ? limit : undefined,
+      samplingHourlyUsdCap: typeof cap === "number" && cap >= 0 ? cap : undefined,
+    }
+    // Drop entries that ended up with no real overrides.
+    if (out[server].messageCharLimit === undefined && out[server].samplingHourlyUsdCap === undefined) {
+      delete out[server]
     }
   }
   return out
@@ -47,6 +55,7 @@ export const { use: useMcpAppSettings, provider: McpAppSettingsProvider } = crea
     const [store, setStore] = persisted({ ...target, migrate }, createStore<McpAppSettingsRecord>({}))
 
     const messageCharLimit = (server: string) => createMemo(() => store[server]?.messageCharLimit)
+    const samplingHourlyUsdCap = (server: string) => createMemo(() => store[server]?.samplingHourlyUsdCap)
 
     const setMessageCharLimit = (server: string, limit: number | undefined) => {
       setStore(
@@ -54,7 +63,17 @@ export const { use: useMcpAppSettings, provider: McpAppSettingsProvider } = crea
           if (!draft[server]) draft[server] = {}
           if (limit === undefined) delete draft[server]!.messageCharLimit
           else draft[server]!.messageCharLimit = limit
-          // Drop empty per-server records so localStorage stays clean.
+          if (draft[server] && Object.keys(draft[server]!).length === 0) delete draft[server]
+        }),
+      )
+    }
+
+    const setSamplingHourlyUsdCap = (server: string, cap: number | undefined) => {
+      setStore(
+        produce((draft) => {
+          if (!draft[server]) draft[server] = {}
+          if (cap === undefined) delete draft[server]!.samplingHourlyUsdCap
+          else draft[server]!.samplingHourlyUsdCap = cap
           if (draft[server] && Object.keys(draft[server]!).length === 0) delete draft[server]
         }),
       )
@@ -65,6 +84,9 @@ export const { use: useMcpAppSettings, provider: McpAppSettingsProvider } = crea
       messageCharLimit,
       messageCharLimitOf: (server: string) => store[server]?.messageCharLimit,
       setMessageCharLimit,
+      samplingHourlyUsdCap,
+      samplingHourlyUsdCapOf: (server: string) => store[server]?.samplingHourlyUsdCap,
+      setSamplingHourlyUsdCap,
     }
   },
 })

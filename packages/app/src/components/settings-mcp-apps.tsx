@@ -24,6 +24,7 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
 import { DEFAULT_MCP_MESSAGE_CHAR_LIMIT } from "@/components/mcp-app-message"
 import type { McpAppResource } from "@/components/mcp-app-panel"
+import { DEFAULT_SAMPLING_HOURLY_USD_CAP } from "@/components/mcp-app-sampling"
 
 async function fetchAppList(
   fetchFn: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
@@ -82,6 +83,7 @@ export const SettingsMcpApps: Component = () => {
       <For each={Array.from(grouped().entries())}>
         {([server, serverApps]) => {
           const limitFor = settings.messageCharLimit(server)
+          const capFor = settings.samplingHourlyUsdCap(server)
           return (
             <section class="rounded-md border border-border-weak-base bg-surface-panel p-4 flex flex-col gap-3">
               <div>
@@ -103,7 +105,7 @@ export const SettingsMcpApps: Component = () => {
               </ul>
 
               <div class="flex items-center gap-3 pt-2 border-t border-border-weaker-base">
-                <label class="text-12-regular text-text-weak shrink-0" for={`mcl-${server}`}>
+                <label class="text-12-regular text-text-weak shrink-0 w-44" for={`mcl-${server}`}>
                   ui/message char limit
                 </label>
                 <input
@@ -135,6 +137,45 @@ export const SettingsMcpApps: Component = () => {
                     size="small"
                     onClick={() => settings.setMessageCharLimit(server, undefined)}
                     title="Reset this server's char limit to the default"
+                  >
+                    Reset
+                  </Button>
+                </Show>
+              </div>
+
+              <div class="flex items-center gap-3 border-t border-border-weaker-base pt-2">
+                <label class="text-12-regular text-text-weak shrink-0 w-44" for={`scap-${server}`}>
+                  sampling cap (USD/hr)
+                </label>
+                <input
+                  id={`scap-${server}`}
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  class="px-2 py-1 rounded border border-border-weak-base bg-background-stronger text-text-base text-12-regular w-32"
+                  placeholder={DEFAULT_SAMPLING_HOURLY_USD_CAP.toFixed(2)}
+                  value={capFor() ?? ""}
+                  onInput={(e) => {
+                    const raw = e.currentTarget.value.trim()
+                    if (raw === "") {
+                      settings.setSamplingHourlyUsdCap(server, undefined)
+                      return
+                    }
+                    const n = Number(raw)
+                    if (!Number.isFinite(n) || n < 0) return
+                    settings.setSamplingHourlyUsdCap(server, n)
+                  }}
+                />
+                <span class="text-11-regular text-text-weaker">
+                  default ${DEFAULT_SAMPLING_HOURLY_USD_CAP.toFixed(2)}/hr; 0 disables sampling for this app
+                </span>
+                <span class="flex-1" />
+                <Show when={capFor() !== undefined}>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={() => settings.setSamplingHourlyUsdCap(server, undefined)}
+                    title="Reset this server's sampling cap to the default"
                   >
                     Reset
                   </Button>

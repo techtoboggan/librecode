@@ -569,6 +569,21 @@ export {
 } from "./mcp-app-message"
 import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
 
+// sampling/createMessage — see ./mcp-app-sampling.ts for the policy
+// scaffolding. v0.9.49 ships the cost-cap state + settings UI but
+// the actual handler returns a "not yet enabled" isError until the
+// LLM inference path lands in a follow-up.
+export {
+  DEFAULT_SAMPLING_HOURLY_USD_CAP,
+  SAMPLING_CAP_WINDOW_MS,
+  checkSamplingCap,
+  clearSamplingLedger,
+  createSamplingHandler,
+  recordSamplingCost,
+  totalSamplingCostUsd,
+} from "./mcp-app-sampling"
+import { createSamplingHandler } from "./mcp-app-sampling"
+
 /**
  * Wrap an AppBridge handler so each call increments + decrements an
  * in-flight counter. The panel uses the counter to surface a "running"
@@ -746,6 +761,16 @@ function useAppBridge(
       inc,
       dec,
     ) as unknown as NonNullable<typeof bridge.onupdatemodelcontext>
+
+    // sampling/createMessage — v0.9.49 policy + Settings UI ship now;
+    // the actual LLM inference path lands later. AppBridge's default
+    // behaviour for an unregistered method is "method not found" which
+    // is the right answer for an unimplemented surface — apps will
+    // see a deterministic JSON-RPC error. The createSamplingHandler
+    // factory is exported for the follow-up that will register it via
+    // setRequestHandler with the proper Zod schema once the
+    // inference path is plumbed.
+    void createSamplingHandler // touch the import so the module side-effects load
 
     // ui/request-display-mode → toggle the panel's overlay state.
     // ADR-005 §5 + v0.9.45 — fullscreen supported, pip deferred. Per
