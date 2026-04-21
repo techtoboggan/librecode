@@ -8,6 +8,7 @@ import {
   clearAppContext,
   setAppContext,
 } from "../../../mcp/app-context"
+import { performSampling, type SamplingMessage } from "../../../mcp/app-sample"
 import { McpAppUsage } from "../../../mcp/app-usage"
 import { PermissionNext } from "../../../permission/next"
 import * as PermissionService from "../../../permission/service"
@@ -345,6 +346,109 @@ export const SessionMcpAppRoutes = new Hono()
       const { server, uri } = c.req.valid("json")
       clearAppContext(sessionID, server, uri)
       return c.json({ ok: true }, 200)
+    },
+  )
+  .post(
+    "/:sessionID/mcp-apps/sample",
+    describeRoute({
+      summary: "Run a sampling/createMessage call on behalf of an MCP app",
+      description:
+        "v0.9.53 — enables the AppBridge `sampling/createMessage` path. Gates through the permission " +
+        "system (scope `mcp-app:<server>:_sample`), enforces a per-server hourly USD cap (client passes " +
+        "`capUsd` from the user's Settings), runs the LLM inference on the user's account using the " +
+        "session's current model, and records the settled cost in the rolling-window ledger. Returns " +
+        "an MCP-shaped CreateMessageResult with cost telemetry in `_meta`.",
+      operationId: "session.mcpApps.sample",
+      responses: { 200: { description: "OK" }, ...errors(400, 403, 404) },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator(
+      "json",
+      z
+        .object({
+          server: z.string().min(1),
+          uri: z.string().min(1),
+          systemPrompt: z.string().optional(),
+          messages: z
+            .array(
+              z.object({
+                role: z.enum(["user", "assistant"]),
+                content: z.union([
+                  z.object({ type: z.literal("text"), text: z.string() }),
+                  z.array(z.object({ type: z.literal("text"), text: z.string() })),
+                ]),
+              }),
+            )
+            .min(1),
+          maxTokens: z.number().int().positive().max(32_000),
+          temperature: z.number().min(0).max(2).optional(),
+          stopSequences: z.array(z.string()).optional(),
+          capUsd: z.number().nonnegative().optional(),
+        })
+        .strict(),
+    ),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const body = c.req.valid("json")
+
+      if (body.server === BUILTIN_SERVER) {
+        return c.json({ isError: true, error: "Built-in MCP apps cannot request sampling." }, 200)
+      }
+
+      // Permission gate. Sentinel `_sample` tool so the user can grant
+      // or revoke sampling rights independently of other MCP-app calls.
+      // Deliberately *not* using `always` so "Always allow" is not on
+      // offer for sampling (cost exposure is too high to promote to a
+      // project-wide allow): only once / session / reject appear.
+      try {
+        await PermissionNext.ask({
+          sessionID,
+          permission: `mcp-app:${body.server}:_sample`,
+          patterns: [body.uri],
+          always: [],
+          metadata: {
+            kind: "mcp-app",
+            server: body.server,
+            uri: body.uri,
+            tool: "_sample",
+            maxTokens: body.maxTokens,
+            messagePreview: body.messages
+              .map((m) => {
+                const blocks = Array.isArray(m.content) ? m.content : [m.content]
+                return blocks.map((b) => b.text).join(" ")
+              })
+              .join("\n")
+              .slice(0, 400),
+          },
+          ruleset: [],
+        })
+      } catch (err) {
+        if (err instanceof PermissionService.RejectedError || err instanceof PermissionService.CorrectedError) {
+          return c.json({ isError: true, error: "User denied this MCP app's sampling request." }, 200)
+        }
+        if (err instanceof PermissionService.DeniedError) {
+          return c.json({ isError: true, error: "A project rule denies this MCP app from sampling." }, 200)
+        }
+        throw err
+      }
+
+      try {
+        const result = await performSampling({
+          sessionID,
+          server: body.server,
+          uri: body.uri,
+          systemPrompt: body.systemPrompt,
+          messages: body.messages as SamplingMessage[],
+          maxTokens: body.maxTokens,
+          temperature: body.temperature,
+          stopSequences: body.stopSequences,
+          capUsd: body.capUsd,
+        })
+        return c.json(result, 200)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return c.json({ isError: true, error: `Sampling failed: ${message}` }, 200)
+      }
     },
   )
   .get(

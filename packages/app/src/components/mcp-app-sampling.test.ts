@@ -1,10 +1,10 @@
 /**
- * v0.9.49 — tests for the per-app sampling cost-cap policy.
+ * v0.9.49 + v0.9.53 — tests for the per-app sampling cost-cap policy
+ * and the client-side handler.
  *
- * The actual sampling/createMessage handler returns isError today
- * (LLM plumbing deferred), so the test surface is the cap accounting
- * + checkSamplingCap predicate that the future enable-PR will gate
- * with.
+ * v0.9.53 wired the handler to actually call the server route; these
+ * tests use a fake fetchFn so we can assert the request shape + that
+ * client-side book-keeping mirrors the server's settled cost.
  */
 import { afterEach, describe, expect, test } from "bun:test"
 import {
@@ -89,16 +89,92 @@ describe("checkSamplingCap", () => {
 })
 
 describe("createSamplingHandler", () => {
-  test("returns a deterministic isError until the inference path is wired", async () => {
+  const sampleParams = {
+    messages: [{ role: "user" as const, content: { type: "text" as const, text: "hello" } }],
+    maxTokens: 128,
+  }
+
+  test("returns isError with no-session text when sessionID is undefined", async () => {
     const handler = createSamplingHandler({
-      fetchFn: () => Promise.reject(new Error("never called in v0.9.49")),
+      fetchFn: () => Promise.reject(new Error("unreachable")),
       baseUrl: "http://host.example",
-      sessionID: "ses_x",
+      sessionID: undefined,
       server: "acme",
       uri: "ui://acme/x",
     })
-    const result = (await handler({})) as { isError?: boolean; content?: Array<{ text: string }> }
+    const result = (await handler(sampleParams)) as { isError?: boolean; content?: Array<{ text: string }> }
     expect(result.isError).toBe(true)
-    expect(result.content?.[0]?.text).toContain("not yet enabled")
+    expect(result.content?.[0]?.text).toContain("active session")
+  })
+
+  test("posts to the sample route and returns the unwrapped CreateMessageResult", async () => {
+    let capturedUrl = ""
+    let capturedBody: unknown
+    const fetchFn = async (input: RequestInfo | URL, init?: RequestInit) => {
+      capturedUrl = input.toString()
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined
+      return new Response(
+        JSON.stringify({
+          model: "anthropic/claude-opus-4-7",
+          role: "assistant",
+          content: { type: "text", text: "response" },
+          stopReason: "endTurn",
+          _meta: { costUsd: 0.02, remainingUsd: 0.48, windowUsdTotal: 0.02, capUsd: 0.5 },
+        }),
+        { status: 200 },
+      )
+    }
+    const handler = createSamplingHandler({
+      fetchFn,
+      baseUrl: "http://host.example",
+      sessionID: "ses_42",
+      server: "acme",
+      uri: "ui://acme/x",
+      capUsd: 0.5,
+    })
+    const result = (await handler(sampleParams)) as { model?: string; content?: { text: string } }
+    expect(result.model).toBe("anthropic/claude-opus-4-7")
+    expect(result.content?.text).toBe("response")
+    expect(capturedUrl).toBe("http://host.example/session/ses_42/mcp-apps/sample")
+    expect(capturedBody).toMatchObject({
+      server: "acme",
+      uri: "ui://acme/x",
+      maxTokens: 128,
+      capUsd: 0.5,
+    })
+    // Client ledger mirrors the settled server cost so the UI can
+    // show remaining headroom without a follow-up request.
+    expect(totalSamplingCostUsd("acme")).toBeCloseTo(0.02, 6)
+  })
+
+  test("server-reported cap breach surfaces as isError with the reason text", async () => {
+    const fetchFn = async () =>
+      new Response(JSON.stringify({ isError: true, error: "Sampling cap exceeded for acme: ..." }), { status: 200 })
+    const handler = createSamplingHandler({
+      fetchFn,
+      baseUrl: "http://host.example",
+      sessionID: "ses_42",
+      server: "acme",
+      uri: "ui://acme/x",
+    })
+    const result = (await handler(sampleParams)) as { isError?: boolean; content?: Array<{ text: string }> }
+    expect(result.isError).toBe(true)
+    expect(result.content?.[0]?.text).toContain("Sampling cap exceeded")
+  })
+
+  test("transport / fetch failure is wrapped in a deterministic isError", async () => {
+    const fetchFn = async () => {
+      throw new Error("ECONNRESET")
+    }
+    const handler = createSamplingHandler({
+      fetchFn,
+      baseUrl: "http://host.example",
+      sessionID: "ses_42",
+      server: "acme",
+      uri: "ui://acme/x",
+    })
+    const result = (await handler(sampleParams)) as { isError?: boolean; content?: Array<{ text: string }> }
+    expect(result.isError).toBe(true)
+    expect(result.content?.[0]?.text).toContain("network failure")
   })
 })

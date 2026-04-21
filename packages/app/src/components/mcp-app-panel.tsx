@@ -28,6 +28,7 @@ import {
   type JSX,
 } from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
+import z from "zod"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { useTheme } from "@librecode/ui/theme"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -569,10 +570,40 @@ export {
 } from "./mcp-app-message"
 import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
 
-// sampling/createMessage — see ./mcp-app-sampling.ts for the policy
-// scaffolding. v0.9.49 ships the cost-cap state + settings UI but
-// the actual handler returns a "not yet enabled" isError until the
-// LLM inference path lands in a follow-up.
+// v0.9.53 — minimal Zod schema for `sampling/createMessage`. We
+// hand-write it rather than depend on `@modelcontextprotocol/sdk`
+// directly (it's a transitive dep of ext-apps) to keep the app
+// package's dep graph tight. The server route does strict validation
+// a second time, so this only needs to satisfy the bridge's
+// Protocol.setRequestHandler signature — catch the method + forward
+// the params through.
+const SamplingTextContent = z.object({ type: z.literal("text"), text: z.string() })
+const SamplingMessageSchema = z.object({
+  role: z.enum(["user", "assistant"]),
+  content: z.union([SamplingTextContent, z.array(SamplingTextContent)]),
+})
+const SamplingCreateMessageRequestSchema = z.object({
+  method: z.literal("sampling/createMessage"),
+  params: z.object({
+    messages: z.array(SamplingMessageSchema).min(1),
+    maxTokens: z.number().int().positive(),
+    systemPrompt: z.string().optional(),
+    temperature: z.number().optional(),
+    stopSequences: z.array(z.string()).optional(),
+    // Ignored client-side (server picks the model); accepted so the
+    // spec's shape validates.
+    modelPreferences: z.unknown().optional(),
+    includeContext: z.unknown().optional(),
+    metadata: z.unknown().optional(),
+    tools: z.unknown().optional(),
+    toolChoice: z.unknown().optional(),
+  }),
+})
+type SamplingRequestParams = z.infer<typeof SamplingCreateMessageRequestSchema>["params"]
+
+// sampling/createMessage — see ./mcp-app-sampling.ts. v0.9.53
+// enables the full end-to-end path (permission gate + cap + LLM
+// inference).
 export {
   DEFAULT_SAMPLING_HOURLY_USD_CAP,
   SAMPLING_CAP_WINDOW_MS,
@@ -762,15 +793,24 @@ function useAppBridge(
       dec,
     ) as unknown as NonNullable<typeof bridge.onupdatemodelcontext>
 
-    // sampling/createMessage — v0.9.49 policy + Settings UI ship now;
-    // the actual LLM inference path lands later. AppBridge's default
-    // behaviour for an unregistered method is "method not found" which
-    // is the right answer for an unimplemented surface — apps will
-    // see a deterministic JSON-RPC error. The createSamplingHandler
-    // factory is exported for the follow-up that will register it via
-    // setRequestHandler with the proper Zod schema once the
-    // inference path is plumbed.
-    void createSamplingHandler // touch the import so the module side-effects load
+    // sampling/createMessage — v0.9.53 enables the full path. The
+    // server route gates through the permission system + the per-app
+    // hourly USD cap, runs the inference on the user's account using
+    // the session's current model, and records the settled cost
+    // server-side. A breached cap comes back as `{isError: true}`
+    // in-band so the bridge stays connected.
+    const sampleHandler = createSamplingHandler({
+      ...proxyOpts,
+      uri: context.uri,
+      capUsd: mcpAppSettings.samplingHourlyUsdCapOf(context.server),
+    })
+    bridge.setRequestHandler(SamplingCreateMessageRequestSchema, async (req) => {
+      return await withRunning(
+        async (params: SamplingRequestParams) => sampleHandler(params),
+        inc,
+        dec,
+      )(req.params as SamplingRequestParams)
+    })
 
     // ui/request-display-mode → toggle the panel's overlay state.
     // ADR-005 §5 + v0.9.45 — fullscreen supported, pip deferred. Per
