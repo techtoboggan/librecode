@@ -831,11 +831,10 @@ async function callServerTool(
   const clientsSnapshot = await clients()
   const client = clientsSnapshot[clientName]
   if (!client) throw new Error(`MCP client not found: ${clientName}`)
-  return client.callTool(
-    { name: toolName, arguments: toolArgs },
-    CallToolResultSchema,
-    { resetTimeoutOnProgress: true, timeout: options?.timeout },
-  )
+  return client.callTool({ name: toolName, arguments: toolArgs }, CallToolResultSchema, {
+    resetTimeoutOnProgress: true,
+    timeout: options?.timeout,
+  })
 }
 
 /**

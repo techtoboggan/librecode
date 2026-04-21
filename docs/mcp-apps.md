@@ -57,11 +57,9 @@ server.registerResource(
   }),
 )
 
-server.registerTool(
-  "echo",
-  { title: "Echo", inputSchema: { text: z.string() } },
-  async ({ text }) => ({ content: [{ type: "text", text }] }),
-)
+server.registerTool("echo", { title: "Echo", inputSchema: { text: z.string() } }, async ({ text }) => ({
+  content: [{ type: "text", text }],
+}))
 
 await server.connect(new StdioServerTransport())
 ```
@@ -90,12 +88,12 @@ It'll appear in the Apps dropdown in the session header.
 
 The host forwards a fixed allowlist of SSE events into every running MCP app iframe via `postMessage`:
 
-| Event | Use case |
-|---|---|
-| `activity.updated` | File / agent activity for the session |
+| Event                  | Use case                                                   |
+| ---------------------- | ---------------------------------------------------------- |
+| `activity.updated`     | File / agent activity for the session                      |
 | `message.part.updated` | Coalesced message-part updates (tool calls, step finishes) |
-| `message.part.delta` | Streaming token deltas |
-| `session.status` | Session busy / idle |
+| `message.part.delta`   | Streaming token deltas                                     |
+| `session.status`       | Session busy / idle                                        |
 
 Listen with the standard browser API:
 
@@ -161,15 +159,15 @@ The host pushes `ui/notifications/host-context-changed` whenever the user toggle
 
 Deferred — these AppBridge methods return "not supported" errors today:
 
-| Method | Status | Why deferred |
-|---|---|---|
-| `ui/message` | not wired | Easy to abuse as model-exfiltration channel; needs UX |
-| `ui/update-model-context` | not wired | Same concern + context-window cost; needs UX |
-| `ui/request-display-mode` | not wired | Fullscreen / pip needs design work |
-| `ui/download-file` | not wired | Needs confirmation dialog UX |
-| `resources/list`, `resources/read`, etc. | not wired | Needs proxy endpoints; coming in 0.9.40+ |
-| `prompts/list` | not wired | Same |
-| `sampling/createMessage` | not wired | LLM sampling cost + privacy |
+| Method                                   | Status    | Why deferred                                          |
+| ---------------------------------------- | --------- | ----------------------------------------------------- |
+| `ui/message`                             | not wired | Easy to abuse as model-exfiltration channel; needs UX |
+| `ui/update-model-context`                | not wired | Same concern + context-window cost; needs UX          |
+| `ui/request-display-mode`                | not wired | Fullscreen / pip needs design work                    |
+| `ui/download-file`                       | not wired | Needs confirmation dialog UX                          |
+| `resources/list`, `resources/read`, etc. | not wired | Needs proxy endpoints; coming in 0.9.40+              |
+| `prompts/list`                           | not wired | Same                                                  |
+| `sampling/createMessage`                 | not wired | LLM sampling cost + privacy                           |
 
 The bridge structure already accommodates these — they're follow-up work, not architectural limits.
 
@@ -205,6 +203,7 @@ Layered defense in depth:
 5. **Per-call audit trail**: Every tool call is logged at the host with `{server, uri, name, args}`.
 
 Future work (tracked in [ADR-005](adr/005-mcp-app-tool-proxying.md)):
+
 - Per-app permission UI ("Always allow" / "Always deny" the user can revoke).
 - Per-app revoke button surfaced in the tab.
 - Settings panel to manage stored grants.

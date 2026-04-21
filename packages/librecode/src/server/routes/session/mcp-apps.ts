@@ -74,9 +74,7 @@ export const SessionMcpAppRoutes = new Hono().post(
       return c.json(
         {
           isError: true,
-          content: [
-            { type: "text", text: "Built-in MCP apps cannot invoke tools — they are display-only." },
-          ],
+          content: [{ type: "text", text: "Built-in MCP apps cannot invoke tools — they are display-only." }],
         },
         200,
       )
@@ -85,10 +83,7 @@ export const SessionMcpAppRoutes = new Hono().post(
     const allowed = await MCP.appAllowedTools(server, uri)
     const deny = manifestDenyReason(allowed, toolName)
     if (deny) {
-      return c.json(
-        { isError: true, content: [{ type: "text", text: deny.error }] },
-        200,
-      )
+      return c.json({ isError: true, content: [{ type: "text", text: deny.error }] }, 200)
     }
 
     try {
@@ -96,10 +91,7 @@ export const SessionMcpAppRoutes = new Hono().post(
       return c.json(result, 200)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
-      return c.json(
-        { isError: true, content: [{ type: "text", text: `Tool call failed: ${message}` }] },
-        200,
-      )
+      return c.json({ isError: true, content: [{ type: "text", text: `Tool call failed: ${message}` }] }, 200)
     }
   },
 )

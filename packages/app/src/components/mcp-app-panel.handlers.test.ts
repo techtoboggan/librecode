@@ -1,10 +1,5 @@
 import { describe, expect, mock, test } from "bun:test"
-import {
-  OPEN_LINK_ALLOWED_SCHEMES,
-  createLogHandler,
-  createOpenLinkHandler,
-  isSafeOpenUrl,
-} from "./mcp-app-panel"
+import { OPEN_LINK_ALLOWED_SCHEMES, createLogHandler, createOpenLinkHandler, isSafeOpenUrl } from "./mcp-app-panel"
 
 /**
  * Tests for the AppBridge handlers added in v0.9.39:

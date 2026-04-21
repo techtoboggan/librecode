@@ -8,21 +8,21 @@
 
 ## Context
 
-LibreCode hosts MCP "apps" — sandboxed iframes loaded from `ui://` resources advertised by connected MCP servers. Up to v0.9.37 the host instantiated `AppBridge` with a `null` MCP client, meaning apps were purely a one-way display surface: they received SSE-derived events via `postMessage` (activity, message parts, status) but had no way to call back into the host. That's fine for the two built-in widgets (Activity Graph, Session Stats) but blocks any third-party use case where the iframe wants to *do* something — read a file, run a tool, fetch a resource, list prompts.
+LibreCode hosts MCP "apps" — sandboxed iframes loaded from `ui://` resources advertised by connected MCP servers. Up to v0.9.37 the host instantiated `AppBridge` with a `null` MCP client, meaning apps were purely a one-way display surface: they received SSE-derived events via `postMessage` (activity, message parts, status) but had no way to call back into the host. That's fine for the two built-in widgets (Activity Graph, Session Stats) but blocks any third-party use case where the iframe wants to _do_ something — read a file, run a tool, fetch a resource, list prompts.
 
 The MCP App spec defines exactly this surface via JSON-RPC over `postMessage`:
 
-| App → Host request | Purpose |
-|---|---|
-| `tools/call` | Execute a tool exposed by the MCP server |
-| `tools/list` | Enumerate tools |
-| `resources/list`, `resources/read`, `resources/templates/list` | Read resources from the server |
-| `prompts/list` | Read prompts from the server |
-| `ui/open-link` | Ask the host to open an external URL |
-| `ui/download-file` | Ask the host to deliver a file to the user |
-| `ui/message` | Post a message into the chat thread |
-| `ui/update-model-context` | Push context that the model sees on the next turn |
-| `notifications/message` | Logging |
+| App → Host request                                             | Purpose                                           |
+| -------------------------------------------------------------- | ------------------------------------------------- |
+| `tools/call`                                                   | Execute a tool exposed by the MCP server          |
+| `tools/list`                                                   | Enumerate tools                                   |
+| `resources/list`, `resources/read`, `resources/templates/list` | Read resources from the server                    |
+| `prompts/list`                                                 | Read prompts from the server                      |
+| `ui/open-link`                                                 | Ask the host to open an external URL              |
+| `ui/download-file`                                             | Ask the host to deliver a file to the user        |
+| `ui/message`                                                   | Post a message into the chat thread               |
+| `ui/update-model-context`                                      | Push context that the model sees on the next turn |
+| `notifications/message`                                        | Logging                                           |
 
 This ADR commits to wiring the read-only and tool-call paths in v0.9.38–9, and explicitly defers the chat/context-injection paths to a later release.
 
@@ -69,7 +69,7 @@ server.registerResource(
 Every `tools/call` from an iframe flows through the existing `Permission` system with a new principal: `{ kind: "mcp-app", server, uri, tool }`. First-time calls show a permission prompt:
 
 > **Weather app wants to run `get_forecast`.**
-> [ Allow once ]  [ Always allow ]  [ Always deny ]  [ Cancel ]
+> [ Allow once ] [ Always allow ] [ Always deny ] [ Cancel ]
 
 - "Always allow" is stored per-app-per-tool, scoped to the project (re-prompts on a new project).
 - "Always deny" is similarly stored; the bridge returns `isError: true` immediately on subsequent calls.
@@ -93,6 +93,7 @@ Content-Type: application/json
 Response: standard MCP `CallToolResult` JSON, or `{ isError: true, content: [{ type: "text", text: <reason> }] }` for any of the failure modes (server not connected, manifest denial, permission denial, tool error).
 
 The route validates in order:
+
 1. Session exists and the request is authed.
 2. Server `acme-weather` is currently connected.
 3. The resource at `uri` is on that server and lists `name` in its `allowedTools` (or wildcard).
@@ -130,6 +131,7 @@ These are tracked as follow-up work; they're easy to add later because the bridg
 ### 9. Per-app revocation
 
 Each pinned MCP app gets a small "running" indicator + a revoke button in the tab UI. Revoking:
+
 - Closes the bridge transport (terminating in-flight calls)
 - Drops the per-app permission grants for the current session
 - Unmounts the iframe
@@ -148,10 +150,10 @@ The user's "Always allow" choices persist across revoke (project-scoped); the us
 
 ## Implementation order
 
-| Release | Scope |
-|---|---|
+| Release | Scope                                                                                                                                                     |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | v0.9.38 | Endpoint, manifest enforcement, permission gate, `oncalltool` + `onlistresources/onreadresource/onlistresourcetemplates/onlistprompts` wiring, unit tests |
-| v0.9.39 | `onopenlink`, `ondownloadfile`, `onloggingmessage`, `setHostContext` (theme + dimensions + display mode), per-app revoke UI, docs/mcp-apps.md |
+| v0.9.39 | `onopenlink`, `ondownloadfile`, `onloggingmessage`, `setHostContext` (theme + dimensions + display mode), per-app revoke UI, docs/mcp-apps.md             |
 
 ## References
 

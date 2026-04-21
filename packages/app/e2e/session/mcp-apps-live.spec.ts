@@ -112,9 +112,11 @@ test.describe("MCP apps — live event forwarding", () => {
 
     await page.evaluate(
       ({ dir }) => {
-        const emit = (window as typeof window & {
-          __librecode_e2e?: { eventBus?: { emit?: (d: string, p: unknown) => void } }
-        }).__librecode_e2e?.eventBus?.emit
+        const emit = (
+          window as typeof window & {
+            __librecode_e2e?: { eventBus?: { emit?: (d: string, p: unknown) => void } }
+          }
+        ).__librecode_e2e?.eventBus?.emit
         if (!emit) throw new Error("eventBus probe not wired")
         emit(dir, {
           type: "activity.updated",
