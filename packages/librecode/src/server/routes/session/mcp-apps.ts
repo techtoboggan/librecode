@@ -67,89 +67,114 @@ const ToolCallResultLike = z.object({
   isError: z.boolean().optional(),
 })
 
-export const SessionMcpAppRoutes = new Hono().post(
-  "/:sessionID/mcp-apps/tool",
-  describeRoute({
-    summary: "Call an MCP server tool on behalf of an MCP app",
-    description:
-      "Invoked by the host's AppBridge handler when an MCP app iframe issues a `tools/call` request. " +
-      "Enforces the per-resource manifest (`_meta.ui.allowedTools`) before delegating to the connected MCP server. " +
-      "Built-in apps (server `__builtin__`) are rejected unconditionally.",
-    operationId: "session.mcpApps.tool",
-    responses: {
-      200: {
-        description: "Tool call result (may be { isError: true } for in-band failures)",
-        content: { "application/json": { schema: resolver(ToolCallResultLike) } },
+export const SessionMcpAppRoutes = new Hono()
+  .post(
+    "/:sessionID/mcp-apps/disconnect",
+    describeRoute({
+      summary: "Disconnect an MCP app — drop session-scoped grants",
+      description:
+        "Called by the host UI when the user clicks Disconnect on a pinned MCP app. " +
+        "Clears all session-scoped permission grants matching `mcp-app:<server>:` so the " +
+        "next tool call from this app re-prompts the user. Persistent (project-wide) " +
+        "rules are NOT cleared — those are managed via the Settings → Apps pane.",
+      operationId: "session.mcpApps.disconnect",
+      responses: {
+        200: { description: "OK" },
+        ...errors(400, 404),
       },
-      ...errors(400, 403, 404),
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator("json", z.object({ server: z.string().min(1) }).strict()),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const { server } = c.req.valid("json")
+      PermissionService.dropSessionApprovals(sessionID, `mcp-app:${server}:`)
+      return c.json({ ok: true }, 200)
     },
-  }),
-  validator("param", z.object({ sessionID: SessionID.zod })),
-  validator("json", CallToolBody),
-  async (c) => {
-    const { sessionID } = c.req.valid("param")
-    const { server, uri, name: toolName } = c.req.valid("json")
-    const toolArgs = (c.req.valid("json").arguments ?? {}) as Record<string, unknown>
-
-    if (server === BUILTIN_SERVER) {
-      return c.json(
-        {
-          isError: true,
-          content: [{ type: "text", text: "Built-in MCP apps cannot invoke tools — they are display-only." }],
+  )
+  .post(
+    "/:sessionID/mcp-apps/tool",
+    describeRoute({
+      summary: "Call an MCP server tool on behalf of an MCP app",
+      description:
+        "Invoked by the host's AppBridge handler when an MCP app iframe issues a `tools/call` request. " +
+        "Enforces the per-resource manifest (`_meta.ui.allowedTools`) before delegating to the connected MCP server. " +
+        "Built-in apps (server `__builtin__`) are rejected unconditionally.",
+      operationId: "session.mcpApps.tool",
+      responses: {
+        200: {
+          description: "Tool call result (may be { isError: true } for in-band failures)",
+          content: { "application/json": { schema: resolver(ToolCallResultLike) } },
         },
-        200,
-      )
-    }
+        ...errors(400, 403, 404),
+      },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator("json", CallToolBody),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const { server, uri, name: toolName } = c.req.valid("json")
+      const toolArgs = (c.req.valid("json").arguments ?? {}) as Record<string, unknown>
 
-    const allowed = await MCP.appAllowedTools(server, uri)
-    const deny = manifestDenyReason(allowed, toolName)
-    if (deny) {
-      return c.json({ isError: true, content: [{ type: "text", text: deny.error }] }, 200)
-    }
-
-    // ADR-005 §2: per-call permission gate. Routes through the existing
-    // permission system with a `mcp-app:<server>:<tool>` permission name
-    // so wildcard matching + project-wide rules + the new session-scoped
-    // grants all apply. Failures and rejections become in-band isError
-    // responses so the iframe's bridge stays alive.
-    const scope = permissionScope(server, uri, toolName)
-    try {
-      await PermissionNext.ask({
-        sessionID,
-        permission: scope.permission,
-        patterns: [scope.pattern],
-        always: [scope.pattern],
-        metadata: { kind: "mcp-app", server, uri, tool: toolName, arguments: toolArgs },
-        ruleset: [],
-      })
-    } catch (err) {
-      if (err instanceof PermissionService.RejectedError || err instanceof PermissionService.CorrectedError) {
+      if (server === BUILTIN_SERVER) {
         return c.json(
           {
             isError: true,
-            content: [{ type: "text", text: "User denied permission for this MCP app tool call." }],
+            content: [{ type: "text", text: "Built-in MCP apps cannot invoke tools — they are display-only." }],
           },
           200,
         )
       }
-      if (err instanceof PermissionService.DeniedError) {
-        return c.json(
-          {
-            isError: true,
-            content: [{ type: "text", text: "A project rule denies this MCP app tool call." }],
-          },
-          200,
-        )
-      }
-      throw err
-    }
 
-    try {
-      const result = await MCP.callServerTool(server, toolName, toolArgs)
-      return c.json(result, 200)
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return c.json({ isError: true, content: [{ type: "text", text: `Tool call failed: ${message}` }] }, 200)
-    }
-  },
-)
+      const allowed = await MCP.appAllowedTools(server, uri)
+      const deny = manifestDenyReason(allowed, toolName)
+      if (deny) {
+        return c.json({ isError: true, content: [{ type: "text", text: deny.error }] }, 200)
+      }
+
+      // ADR-005 §2: per-call permission gate. Routes through the existing
+      // permission system with a `mcp-app:<server>:<tool>` permission name
+      // so wildcard matching + project-wide rules + the new session-scoped
+      // grants all apply. Failures and rejections become in-band isError
+      // responses so the iframe's bridge stays alive.
+      const scope = permissionScope(server, uri, toolName)
+      try {
+        await PermissionNext.ask({
+          sessionID,
+          permission: scope.permission,
+          patterns: [scope.pattern],
+          always: [scope.pattern],
+          metadata: { kind: "mcp-app", server, uri, tool: toolName, arguments: toolArgs },
+          ruleset: [],
+        })
+      } catch (err) {
+        if (err instanceof PermissionService.RejectedError || err instanceof PermissionService.CorrectedError) {
+          return c.json(
+            {
+              isError: true,
+              content: [{ type: "text", text: "User denied permission for this MCP app tool call." }],
+            },
+            200,
+          )
+        }
+        if (err instanceof PermissionService.DeniedError) {
+          return c.json(
+            {
+              isError: true,
+              content: [{ type: "text", text: "A project rule denies this MCP app tool call." }],
+            },
+            200,
+          )
+        }
+        throw err
+      }
+
+      try {
+        const result = await MCP.callServerTool(server, toolName, toolArgs)
+        return c.json(result, 200)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return c.json({ isError: true, content: [{ type: "text", text: `Tool call failed: ${message}` }] }, 200)
+      }
+    },
+  )

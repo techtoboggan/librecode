@@ -319,12 +319,28 @@ export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
 }
 
 /**
- * Drop all session-scoped grants for a given session id. Called when a
+ * Drop session-scoped grants for a given session id. Called when a
  * session ends, is reverted, or the user explicitly disconnects an
  * MCP app from that session.
+ *
+ * @param sessionID         Session whose grants should be cleared.
+ * @param permissionPrefix  Optional. When set, only grants whose
+ *   `permission` starts with this prefix are dropped — the rest stay.
+ *   Used by the per-app Disconnect action to scope the revoke to a
+ *   single MCP app via `mcp-app:<server>:` (so unrelated agent or
+ *   sibling-app grants in the same session aren't collateral damage).
  */
-export function dropSessionApprovals(sessionID: SessionID): void {
-  state().sessionApproved.delete(sessionID)
+export function dropSessionApprovals(sessionID: SessionID, permissionPrefix?: string): void {
+  const s = state()
+  if (!permissionPrefix) {
+    s.sessionApproved.delete(sessionID)
+    return
+  }
+  const bucket = s.sessionApproved.get(sessionID)
+  if (!bucket) return
+  const remaining = bucket.filter((rule) => !rule.permission.startsWith(permissionPrefix))
+  if (remaining.length === 0) s.sessionApproved.delete(sessionID)
+  else s.sessionApproved.set(sessionID, remaining)
 }
 
 export async function list(): Promise<Request[]> {

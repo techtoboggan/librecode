@@ -143,3 +143,73 @@ test("permissionScope builds the canonical permission/pattern shape", () => {
   expect(scope.permission).toBe("mcp-app:acme-weather:get_forecast")
   expect(scope.pattern).toBe("ui://acme/weather")
 })
+
+test("dropSessionApprovals with prefix only wipes matching grants — sibling grants stay", async () => {
+  // v0.9.44 Disconnect contract: the user disconnects ONE app, so we
+  // drop only `mcp-app:<that-server>:` grants and leave everything else
+  // (other apps, agent grants) intact.
+  await using tmp = await tmpdir()
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const sessionID = SessionID.descending()
+
+      const acmeScope = permissionScope("acme", "ui://acme/weather", "get_forecast")
+      const otherScope = permissionScope("other-server", "ui://other/x", "do_thing")
+
+      // Grant both via session tier.
+      const a = S.ask({
+        sessionID,
+        permission: acmeScope.permission,
+        patterns: [acmeScope.pattern],
+        always: [acmeScope.pattern],
+        metadata: {},
+        ruleset: [],
+      })
+      const [pendingA] = await waitForPending(1)
+      await S.reply({ requestID: pendingA.id, reply: "session" })
+      await a
+
+      const b = S.ask({
+        sessionID,
+        permission: otherScope.permission,
+        patterns: [otherScope.pattern],
+        always: [otherScope.pattern],
+        metadata: {},
+        ruleset: [],
+      })
+      const [pendingB] = await waitForPending(1)
+      await S.reply({ requestID: pendingB.id, reply: "session" })
+      await b
+
+      // Drop only acme's grants.
+      S.dropSessionApprovals(sessionID, "mcp-app:acme:")
+
+      // acme prompts again, but other-server stays auto-approved.
+      const acmeAgain = S.ask({
+        sessionID,
+        permission: acmeScope.permission,
+        patterns: [acmeScope.pattern],
+        always: [acmeScope.pattern],
+        metadata: {},
+        ruleset: [],
+      })
+      const [reAsk] = await waitForPending(1)
+      expect(reAsk.permission).toBe(acmeScope.permission)
+      await S.reply({ requestID: reAsk.id, reply: "reject" })
+      await acmeAgain.catch(() => {})
+
+      // other-server is still auto-approved — no new prompt fires.
+      const otherAgain = S.ask({
+        sessionID,
+        permission: otherScope.permission,
+        patterns: [otherScope.pattern],
+        always: [otherScope.pattern],
+        metadata: {},
+        ruleset: [],
+      })
+      await otherAgain
+      expect((await S.list()).length).toBe(0)
+    },
+  })
+})

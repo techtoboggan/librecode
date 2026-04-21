@@ -549,6 +549,24 @@ export function createCallToolHandler(options: {
   }
 }
 
+/**
+ * Wrap an AppBridge handler so each call increments + decrements an
+ * in-flight counter. The panel uses the counter to surface a "running"
+ * dot on its header. We use `unknown` for the param to fit every
+ * `bridge.on*` shape without per-handler generics — every one takes a
+ * single object argument and returns a promise.
+ */
+function withRunning<F extends (param: never) => Promise<unknown>>(fn: F, inc: () => void, dec: () => void): F {
+  return (async (param: never) => {
+    inc()
+    try {
+      return await fn(param)
+    } finally {
+      dec()
+    }
+  }) as F
+}
+
 function useAppBridge(
   iframeRef: Accessor<HTMLIFrameElement | undefined>,
   context: {
@@ -564,6 +582,9 @@ function useAppBridge(
   const theme = useTheme()
   const dialog = useDialog()
   const [bridgeSignal, setBridgeSignal] = createSignal<AppBridge | undefined>()
+  const [running, setRunning] = createSignal(0)
+  const inc = () => setRunning((n) => n + 1)
+  const dec = () => setRunning((n) => Math.max(0, n - 1))
 
   createEffect(() => {
     const iframe = iframeRef()
@@ -602,23 +623,33 @@ function useAppBridge(
     // strict content union. Our handler returns the same JSON shape but
     // pre-typed as unknown[] (we don't validate the bytes from the server
     // route — they're already a CallToolResult). The runtime contract holds.
-    bridge.oncalltool = callTool as unknown as NonNullable<typeof bridge.oncalltool>
+    bridge.oncalltool = withRunning(callTool, inc, dec) as unknown as NonNullable<typeof bridge.oncalltool>
 
     // Read-only proxies (ADR-005 §4) — no permission gate; scoped to the
     // app's MCP server; resources/read additionally checked server-side
     // against the resources/list result so apps can't read URIs the
     // server didn't advertise.
-    bridge.onlistresources = createListResourcesHandler(proxyOpts) as unknown as NonNullable<
+    bridge.onlistresources = withRunning(createListResourcesHandler(proxyOpts), inc, dec) as unknown as NonNullable<
       typeof bridge.onlistresources
     >
-    bridge.onreadresource = createReadResourceHandler(proxyOpts) as unknown as NonNullable<typeof bridge.onreadresource>
-    bridge.onlistresourcetemplates = createListResourceTemplatesHandler(proxyOpts) as unknown as NonNullable<
-      typeof bridge.onlistresourcetemplates
+    bridge.onreadresource = withRunning(createReadResourceHandler(proxyOpts), inc, dec) as unknown as NonNullable<
+      typeof bridge.onreadresource
     >
-    bridge.onlistprompts = createListPromptsHandler(proxyOpts) as unknown as NonNullable<typeof bridge.onlistprompts>
+    bridge.onlistresourcetemplates = withRunning(
+      createListResourceTemplatesHandler(proxyOpts),
+      inc,
+      dec,
+    ) as unknown as NonNullable<typeof bridge.onlistresourcetemplates>
+    bridge.onlistprompts = withRunning(createListPromptsHandler(proxyOpts), inc, dec) as unknown as NonNullable<
+      typeof bridge.onlistprompts
+    >
 
     // ui/open-link → platform.openLink (with scheme allowlist).
-    bridge.onopenlink = createOpenLinkHandler((url) => platform.openLink(url))
+    bridge.onopenlink = withRunning(
+      createOpenLinkHandler((url) => platform.openLink(url)),
+      inc,
+      dec,
+    )
 
     // ui/download-file → confirm dialog, then deliver inline blobs +
     // open ResourceLink urls. Per ADR-005 §6 + the user's "no
@@ -641,9 +672,10 @@ function useAppBridge(
       deliverBlob: deliverBlobAsDownload,
       openUrl: (url) => platform.openLink(url),
     })
-    bridge.ondownloadfile = onDownload as unknown as NonNullable<typeof bridge.ondownloadfile>
+    bridge.ondownloadfile = withRunning(onDownload, inc, dec) as unknown as NonNullable<typeof bridge.ondownloadfile>
 
-    // notifications/message → console with severity tag.
+    // notifications/message → console with severity tag (no in-flight
+    // tracking — these are fire-and-forget notifications, not requests).
     bridge.onloggingmessage = createLogHandler({ server: context.server })
 
     // Connect once the iframe's srcdoc has loaded
@@ -680,6 +712,37 @@ function useAppBridge(
       // gets the correct theme when it first reads host context.
     }
   })
+
+  /**
+   * v0.9.44 Disconnect action: closes the bridge transport (terminating
+   * any in-flight requests) and POSTs to the host to drop this app's
+   * session-scoped permission grants. Persistent rules stay (those go
+   * through the v0.9.48 Settings pane). After disconnect the iframe
+   * still shows whatever it was showing, but the bridge is dead — new
+   * tools/call requests will fail. The user can re-pin the app to get
+   * a fresh bridge.
+   */
+  const disconnect = async () => {
+    const bridge = bridgeSignal()
+    if (bridge) {
+      await bridge.close().catch(() => {})
+      setBridgeSignal(undefined)
+    }
+    const sessionID = context.sessionID()
+    if (!sessionID) return
+    try {
+      const url = new URL(`${sdk.url}/session/${sessionID}/mcp-apps/disconnect`)
+      await globalSDK.fetch(url.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ server: context.server }),
+      })
+    } catch {
+      // Best-effort — bridge is already closed locally.
+    }
+  }
+
+  return { running, disconnect }
 }
 
 // ─── McpAppPanel component ────────────────────────────────────────────────────
@@ -724,7 +787,10 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   // Wire up AppBridge once we have the iframe ref. The bridge proxies any
   // `tools/call` from the iframe to /session/:id/mcp-apps/tool, gated by
   // the resource's _meta.ui.allowedTools manifest server-side (ADR-005).
-  useAppBridge(iframeSignal, {
+  // `running` is a count of in-flight bridge requests (powers the running
+  // dot); `disconnect` tears down the bridge + drops session grants for
+  // this app (the v0.9.44 Disconnect action).
+  const { running, disconnect } = useAppBridge(iframeSignal, {
     sessionID: () => props.sessionID,
     server: props.server,
     uri: props.uri,
@@ -802,6 +868,37 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
       class={`relative w-full h-full flex flex-col overflow-hidden ${props.class ?? ""}`}
       data-component="mcp-app-panel"
     >
+      {/*
+        v0.9.44 header bar: compact toolbar above the iframe with the
+        app name, a "running" indicator dot when the bridge has any
+        in-flight request, and a Disconnect action that drops session
+        grants for this app and closes the bridge transport. Distinct
+        from Unpin (which removes the tab via the side-panel's close
+        button) per the user's v0.9.44 decision.
+      */}
+      <Show when={srcdoc()}>
+        <div class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular">
+          <span class="text-text-strong truncate">{props.appName ?? props.server}</span>
+          <Show when={running() > 0}>
+            <span
+              class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"
+              title={`${running()} in-flight request${running() === 1 ? "" : "s"}`}
+              aria-label="MCP app is running a request"
+            />
+          </Show>
+          <span class="flex-1" />
+          <button
+            type="button"
+            class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
+            onClick={() => void disconnect()}
+            title="Close the bridge and drop this app's session grants"
+            aria-label="Disconnect MCP app"
+          >
+            Disconnect
+          </button>
+        </div>
+      </Show>
+
       <Show when={html.loading}>
         <div class="absolute inset-0 flex items-center justify-center">
           <span class="text-12-regular text-text-weak animate-pulse">Loading app…</span>
