@@ -549,6 +549,11 @@ export function createCallToolHandler(options: {
   }
 }
 
+// Display-mode helpers live in ./mcp-app-display-mode.ts so tests can
+// import them without pulling in the Solid + Kobalte + router stack.
+export { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
+import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
+
 /**
  * Wrap an AppBridge handler so each call increments + decrements an
  * in-flight counter. The panel uses the counter to surface a "running"
@@ -583,6 +588,7 @@ function useAppBridge(
   const dialog = useDialog()
   const [bridgeSignal, setBridgeSignal] = createSignal<AppBridge | undefined>()
   const [running, setRunning] = createSignal(0)
+  const [displayMode, setDisplayMode] = createSignal<HostDisplayMode>("inline")
   const inc = () => setRunning((n) => n + 1)
   const dec = () => setRunning((n) => Math.max(0, n - 1))
 
@@ -606,7 +612,15 @@ function useAppBridge(
       null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
       { serverTools: {}, serverResources: {}, openLinks: {}, downloadFile: {}, logging: {} },
-      { hostContext: { theme: theme.mode(), displayMode: "inline" } },
+      {
+        hostContext: {
+          theme: theme.mode(),
+          displayMode: displayMode(),
+          // v0.9.45 — surface what we support so apps can hide a
+          // fullscreen toggle if we ever need to drop the capability.
+          availableDisplayModes: [...HOST_AVAILABLE_DISPLAY_MODES],
+        },
+      },
     )
 
     // Common args reused by every proxy factory.
@@ -678,6 +692,20 @@ function useAppBridge(
     // tracking — these are fire-and-forget notifications, not requests).
     bridge.onloggingmessage = createLogHandler({ server: context.server })
 
+    // ui/request-display-mode → toggle the panel's overlay state.
+    // ADR-005 §5 + v0.9.45 — fullscreen supported, pip deferred. Per
+    // the MCP spec we MUST report back the mode actually in effect,
+    // even when the request is unsupported (no exceptions).
+    bridge.onrequestdisplaymode = withRunning(
+      async (params: { mode: string }) => {
+        const next = resolveDisplayModeRequest(params.mode, displayMode())
+        setDisplayMode(next)
+        return { mode: next }
+      },
+      inc,
+      dec,
+    ) as unknown as NonNullable<typeof bridge.onrequestdisplaymode>
+
     // Connect once the iframe's srcdoc has loaded
     const handleLoad = () => {
       bridge.connect(transport).catch((err: unknown) => {
@@ -713,6 +741,19 @@ function useAppBridge(
     }
   })
 
+  // Push display-mode changes too — apps that want to react to fullscreen
+  // entry/exit can listen for ui/notifications/host-context-changed.
+  createEffect(() => {
+    const bridge = bridgeSignal()
+    if (!bridge) return
+    const mode = displayMode()
+    try {
+      bridge.setHostContext({ displayMode: mode })
+    } catch {
+      // pre-handshake — initial value already supplied via constructor.
+    }
+  })
+
   /**
    * v0.9.44 Disconnect action: closes the bridge transport (terminating
    * any in-flight requests) and POSTs to the host to drop this app's
@@ -742,7 +783,7 @@ function useAppBridge(
     }
   }
 
-  return { running, disconnect }
+  return { running, disconnect, displayMode, setDisplayMode }
 }
 
 // ─── McpAppPanel component ────────────────────────────────────────────────────
@@ -789,12 +830,27 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   // the resource's _meta.ui.allowedTools manifest server-side (ADR-005).
   // `running` is a count of in-flight bridge requests (powers the running
   // dot); `disconnect` tears down the bridge + drops session grants for
-  // this app (the v0.9.44 Disconnect action).
-  const { running, disconnect } = useAppBridge(iframeSignal, {
+  // this app (the v0.9.44 Disconnect action). `displayMode` toggles
+  // between "inline" and "fullscreen" via ui/request-display-mode.
+  const { running, disconnect, displayMode, setDisplayMode } = useAppBridge(iframeSignal, {
     sessionID: () => props.sessionID,
     server: props.server,
     uri: props.uri,
     appName: () => props.appName ?? props.server,
+  })
+
+  // Esc exits fullscreen — common keyboard convention. Active only
+  // while the panel is in fullscreen mode so we don't intercept Esc
+  // for other UI when inline.
+  createEffect(() => {
+    if (displayMode() !== "fullscreen") return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDisplayMode("inline")
+      }
+    }
+    window.addEventListener("keydown", onKey)
+    onCleanup(() => window.removeEventListener("keydown", onKey))
   })
 
   // ADR-005 §2: when the host's tool-call route blocks on a permission
@@ -865,16 +921,23 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
 
   return (
     <div
-      class={`relative w-full h-full flex flex-col overflow-hidden ${props.class ?? ""}`}
+      class={`flex flex-col overflow-hidden ${props.class ?? ""}`}
+      classList={{
+        "relative w-full h-full": displayMode() !== "fullscreen",
+        // v0.9.45 fullscreen overlay: pin to viewport, top of stack,
+        // black-out background. Esc + the header X both return to inline.
+        "fixed inset-0 z-50 bg-background-base": displayMode() === "fullscreen",
+      }}
       data-component="mcp-app-panel"
+      data-display-mode={displayMode()}
     >
       {/*
         v0.9.44 header bar: compact toolbar above the iframe with the
         app name, a "running" indicator dot when the bridge has any
-        in-flight request, and a Disconnect action that drops session
-        grants for this app and closes the bridge transport. Distinct
-        from Unpin (which removes the tab via the side-panel's close
-        button) per the user's v0.9.44 decision.
+        in-flight request, a Disconnect action that drops session
+        grants for this app and closes the bridge transport, and (new
+        in v0.9.45) an Exit fullscreen button when the app has
+        requested fullscreen.
       */}
       <Show when={srcdoc()}>
         <div class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular">
@@ -887,6 +950,17 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             />
           </Show>
           <span class="flex-1" />
+          <Show when={displayMode() === "fullscreen"}>
+            <button
+              type="button"
+              class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
+              onClick={() => setDisplayMode("inline")}
+              title="Exit fullscreen (Esc)"
+              aria-label="Exit fullscreen"
+            >
+              Exit fullscreen
+            </button>
+          </Show>
           <button
             type="button"
             class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
