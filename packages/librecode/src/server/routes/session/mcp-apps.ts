@@ -2,6 +2,8 @@ import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { MCP } from "../../../mcp"
+import { PermissionNext } from "../../../permission/next"
+import * as PermissionService from "../../../permission/service"
 import { SessionID } from "../../../session/schema"
 import { errors } from "../../error"
 
@@ -42,6 +44,24 @@ const CallToolBody = z
 // "ui://builtin/*" page can't claim tool access.
 const BUILTIN_SERVER = "__builtin__"
 
+/**
+ * Per-call permission scope for an MCP-app tool call. ADR-005 §2.
+ *
+ * The permission "name" is `mcp-app:<server>:<tool>` so the existing
+ * wildcard matcher can use it. The pattern carries the originating
+ * resource URI — that lets users grant per-app or per-app-per-tool
+ * scopes via the standard rule format.
+ *
+ * Exported for tests + UI; the UI uses these to pre-fill the prompt
+ * with sensible "Allow always for this app" / "Allow once" labels.
+ */
+export function permissionScope(server: string, uri: string, tool: string) {
+  return {
+    permission: `mcp-app:${server}:${tool}`,
+    pattern: uri,
+  }
+}
+
 const ToolCallResultLike = z.object({
   content: z.array(z.unknown()),
   isError: z.boolean().optional(),
@@ -67,6 +87,7 @@ export const SessionMcpAppRoutes = new Hono().post(
   validator("param", z.object({ sessionID: SessionID.zod })),
   validator("json", CallToolBody),
   async (c) => {
+    const { sessionID } = c.req.valid("param")
     const { server, uri, name: toolName } = c.req.valid("json")
     const toolArgs = (c.req.valid("json").arguments ?? {}) as Record<string, unknown>
 
@@ -84,6 +105,43 @@ export const SessionMcpAppRoutes = new Hono().post(
     const deny = manifestDenyReason(allowed, toolName)
     if (deny) {
       return c.json({ isError: true, content: [{ type: "text", text: deny.error }] }, 200)
+    }
+
+    // ADR-005 §2: per-call permission gate. Routes through the existing
+    // permission system with a `mcp-app:<server>:<tool>` permission name
+    // so wildcard matching + project-wide rules + the new session-scoped
+    // grants all apply. Failures and rejections become in-band isError
+    // responses so the iframe's bridge stays alive.
+    const scope = permissionScope(server, uri, toolName)
+    try {
+      await PermissionNext.ask({
+        sessionID,
+        permission: scope.permission,
+        patterns: [scope.pattern],
+        always: [scope.pattern],
+        metadata: { kind: "mcp-app", server, uri, tool: toolName, arguments: toolArgs },
+        ruleset: [],
+      })
+    } catch (err) {
+      if (err instanceof PermissionService.RejectedError || err instanceof PermissionService.CorrectedError) {
+        return c.json(
+          {
+            isError: true,
+            content: [{ type: "text", text: "User denied permission for this MCP app tool call." }],
+          },
+          200,
+        )
+      }
+      if (err instanceof PermissionService.DeniedError) {
+        return c.json(
+          {
+            isError: true,
+            content: [{ type: "text", text: "A project rule denies this MCP app tool call." }],
+          },
+          200,
+        )
+      }
+      throw err
     }
 
     try {

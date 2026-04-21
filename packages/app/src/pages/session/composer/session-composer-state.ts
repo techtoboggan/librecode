@@ -38,6 +38,12 @@ export function createSessionComposerState(options?: { closeMs?: number | (() =>
 
   const permissionRequest = createMemo((): PermissionRequest | undefined => {
     return sessionPermissionRequest(sync.data.session, sync.data.permission, params.id, (item) => {
+      // ADR-005 §2 + user decision: MCP-app permission prompts have a
+      // separate UI surface inside the app's tab. Don't surface them in
+      // the agent's composer dock — that would visually conflate them
+      // with agent-initiated tool calls and preempt the agent's own
+      // prompts.
+      if (item.permission.startsWith("mcp-app:")) return false
       return !permission.autoResponds(item, sdk.directory)
     })
   })

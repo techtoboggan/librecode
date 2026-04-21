@@ -17,7 +17,11 @@ import {
 type PermissionRespondFn = (input: {
   sessionID: string
   permissionID: string
-  response: "once" | "always" | "reject"
+  // "session" was added in v0.9.42 for the MCP-app permission tier
+  // (ADR-005 §2). The generated SDK type still names only the original
+  // three; we widen the contract here and forward the wider value
+  // through — the server accepts it.
+  response: "once" | "session" | "always" | "reject"
   directory?: string
 }) => void
 
@@ -118,9 +122,14 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     }
 
     const respond: PermissionRespondFn = (input) => {
-      globalSDK.client.permission.respond(input).catch(() => {
-        responded.delete(input.permissionID)
-      })
+      // Cast: SDK types still enumerate only "once" | "always" | "reject".
+      // The server accepts "session" (added v0.9.42 for MCP-app prompts).
+      // Until the SDK regenerates, smuggle the wider type through.
+      globalSDK.client.permission
+        .respond(input as Parameters<typeof globalSDK.client.permission.respond>[0])
+        .catch(() => {
+          responded.delete(input.permissionID)
+        })
     }
 
     function respondOnce(permission: PermissionRequest, directory?: string) {

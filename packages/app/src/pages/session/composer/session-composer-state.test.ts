@@ -9,10 +9,11 @@ const session = (input: { id: string; parentID?: string }) =>
     parentID: input.parentID,
   }) as Session
 
-const permission = (id: string, sessionID: string) =>
+const permission = (id: string, sessionID: string, perm = "edit") =>
   ({
     id,
     sessionID,
+    permission: perm,
   }) as PermissionRequest
 
 const question = (id: string, sessionID: string) =>

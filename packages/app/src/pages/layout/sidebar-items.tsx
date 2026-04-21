@@ -201,6 +201,10 @@ export const SessionItem = (props: SessionItemProps): JSX.Element => {
   const [sessionStore] = globalSync.child(props.session.directory)
   const hasPermissions = createMemo(() => {
     return !!sessionPermissionRequest(sessionStore.session, sessionStore.permission, props.session.id, (item) => {
+      // MCP-app permission prompts have their own UI surface inside the
+      // app's tab — don't badge the session item for them (see ADR-005
+      // §2 + the v0.9.42 separate-UI decision).
+      if (item.permission.startsWith("mcp-app:")) return false
       return !permission.autoResponds(item, props.session.directory)
     })
   })

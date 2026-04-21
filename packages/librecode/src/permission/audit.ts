@@ -41,7 +41,7 @@ export const AuditEntry = z.object({
       executesCode: z.boolean().optional(),
     })
     .optional(),
-  reply: z.enum(["once", "always", "reject"]).optional(),
+  reply: z.enum(["once", "session", "always", "reject"]).optional(),
   reason: z.string().optional(),
 })
 export type AuditEntry = z.infer<typeof AuditEntry>
@@ -111,7 +111,7 @@ export function logReplied(input: {
   sessionID: SessionID
   permission: string
   patterns: string[]
-  reply: "once" | "always" | "reject"
+  reply: "once" | "session" | "always" | "reject"
   agent?: string
 }): void {
   const entry: AuditEntry = {

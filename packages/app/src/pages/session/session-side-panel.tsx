@@ -452,6 +452,7 @@ export function SessionSidePanel(props: {
                               server={app.server}
                               uri={app.uri}
                               sessionID={params.id}
+                              appName={app.name}
                               class="flex-1 min-h-0"
                             />
                           </div>

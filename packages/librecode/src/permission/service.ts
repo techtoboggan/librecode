@@ -64,7 +64,10 @@ export const Request = z
   })
 export type Request = z.infer<typeof Request>
 
-export const Reply = z.enum(["once", "always", "reject"])
+// "session" is the third tier requested for MCP-app permissions: stores
+// the grant in-memory keyed by sessionID, so it persists for the rest
+// of this session but does not leak across sessions or restarts.
+export const Reply = z.enum(["once", "session", "always", "reject"])
 export type Reply = z.infer<typeof Reply>
 
 export const Approval = z.object({
@@ -153,6 +156,9 @@ interface PendingEntry {
 interface State {
   pending: Map<PermissionID, PendingEntry>
   approved: Ruleset
+  // Session-scoped grants from "session" replies. Map<sessionID, Ruleset>.
+  // Never persisted; cleared on session teardown / instance restart.
+  sessionApproved: Map<SessionID, Ruleset>
 }
 
 const state = Instance.state(() => {
@@ -162,16 +168,21 @@ const state = Instance.state(() => {
   return {
     pending: new Map<PermissionID, PendingEntry>(),
     approved: (row?.data ?? []) as Ruleset,
-  }
+    sessionApproved: new Map<SessionID, Ruleset>(),
+  } satisfies State
 })
 
 export async function ask(input: z.infer<typeof AskInput>): Promise<void> {
   const s = state()
   const { ruleset, ...request } = input
+  // Session-scoped grants are checked alongside project-wide rules; they
+  // come last so they take precedence (last-match-wins). This is what
+  // makes "Allow for this session" stick for the rest of the conversation.
+  const sessionRuleset = s.sessionApproved.get(request.sessionID) ?? []
   let pending = false
 
   for (const pattern of request.patterns) {
-    const rule = evaluate(request.permission, pattern, ruleset, s.approved)
+    const rule = evaluate(request.permission, pattern, ruleset, s.approved, sessionRuleset)
     log.info("evaluated", { permission: request.permission, pattern, action: rule })
     if (rule.action === "deny") {
       Audit.logDenied({
@@ -232,22 +243,44 @@ function rejectSessionPending(s: State, sessionID: SessionID): void {
   }
 }
 
-function approveMatchingPending(s: State, existing: PendingEntry): void {
-  for (const pattern of existing.info.always) {
-    s.approved.push({ permission: existing.info.permission, pattern, action: "allow" })
+/**
+ * Add the just-replied request's patterns to either the persistent or
+ * session-scoped allow list, then resolve any other pending requests in
+ * the same session that those new rules cover.
+ *
+ * `scope: "always"` writes to s.approved (project-wide, persisted).
+ * `scope: "session"` writes to s.sessionApproved (sessionID-keyed,
+ * in-memory only).
+ */
+function approveMatchingPending(s: State, existing: PendingEntry, scope: "always" | "session"): void {
+  const patterns = existing.info.always.length > 0 ? existing.info.always : existing.info.patterns
+  if (scope === "always") {
+    for (const pattern of patterns) {
+      s.approved.push({ permission: existing.info.permission, pattern, action: "allow" })
+    }
+  } else {
+    let bucket = s.sessionApproved.get(existing.info.sessionID)
+    if (!bucket) {
+      bucket = []
+      s.sessionApproved.set(existing.info.sessionID, bucket)
+    }
+    for (const pattern of patterns) {
+      bucket.push({ permission: existing.info.permission, pattern, action: "allow" })
+    }
   }
 
+  const sessionRuleset = s.sessionApproved.get(existing.info.sessionID) ?? []
   for (const [id, item] of s.pending.entries()) {
     if (item.info.sessionID !== existing.info.sessionID) continue
     const allAllowed = item.info.patterns.every(
-      (pattern) => evaluate(item.info.permission, pattern, s.approved).action === "allow",
+      (pattern) => evaluate(item.info.permission, pattern, s.approved, sessionRuleset).action === "allow",
     )
     if (!allAllowed) continue
     s.pending.delete(id)
     void Bus.publish(Event.Replied, {
       sessionID: item.info.sessionID,
       requestID: item.info.id,
-      reply: "always",
+      reply: scope,
     })
     item.deferred.resolve(undefined)
   }
@@ -279,7 +312,19 @@ export async function reply(input: z.infer<typeof ReplyInput>): Promise<void> {
 
   existing.deferred.resolve(undefined)
   if (input.reply === "once") return
-  approveMatchingPending(s, existing)
+  // "always" persists to the project ruleset; "session" stays in-memory
+  // for the lifetime of this session (and unblocks any other queued
+  // requests in the same session that match the new grant).
+  approveMatchingPending(s, existing, input.reply)
+}
+
+/**
+ * Drop all session-scoped grants for a given session id. Called when a
+ * session ends, is reverted, or the user explicitly disconnects an
+ * MCP app from that session.
+ */
+export function dropSessionApprovals(sessionID: SessionID): void {
+  state().sessionApproved.delete(sessionID)
 }
 
 export async function list(): Promise<Request[]> {

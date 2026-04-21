@@ -17,13 +17,24 @@
  *   <McpAppPanel server="my-server" uri="ui://my-server/app" />
  */
 
-import { type Accessor, createEffect, createResource, createSignal, onCleanup, Show, type JSX } from "solid-js"
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createResource,
+  createSignal,
+  onCleanup,
+  Show,
+  type JSX,
+} from "solid-js"
 import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
 import { useTheme } from "@librecode/ui/theme"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { McpAppPermissionPrompt } from "./mcp-app-permission-prompt"
 
 // ─── CSP helpers ─────────────────────────────────────────────────────────────
 
@@ -642,6 +653,8 @@ export interface McpAppPanelProps {
    * so built-in apps show existing data instead of an empty placeholder.
    */
   sessionID?: string
+  /** Display name of the app — used in the inline permission prompt copy. */
+  appName?: string
   /** Optional explicit class for the wrapper. */
   class?: string
 }
@@ -650,6 +663,7 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
   const sync = useSync()
+  const permission = usePermission()
   let iframeRef: HTMLIFrameElement | undefined
   const [iframeSignal, setIframeSignal] = createSignal<HTMLIFrameElement | undefined>(undefined)
 
@@ -673,6 +687,31 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     server: props.server,
     uri: props.uri,
   })
+
+  // ADR-005 §2: when the host's tool-call route blocks on a permission
+  // prompt for THIS app (matched by mcp-app:server:tool permission name
+  // + uri pattern), surface it inline beneath the iframe. Independent
+  // of the agent's composer dock so MCP-app prompts don't preempt the
+  // agent and the user can tell which side initiated the call.
+  const pendingPrompt = createMemo(() => {
+    const sessionID = props.sessionID
+    if (!sessionID) return undefined
+    const requests = sync.data.permission?.[sessionID] ?? []
+    return requests.find(
+      (req) => req.permission.startsWith(`mcp-app:${props.server}:`) && (req.patterns ?? []).includes(props.uri),
+    )
+  })
+
+  const decideOnPrompt = (decision: "once" | "session" | "always" | "reject") => {
+    const req = pendingPrompt()
+    if (!req) return
+    permission.respond({
+      sessionID: req.sessionID,
+      permissionID: req.id,
+      response: decision,
+      directory: sdk.directory,
+    })
+  }
   // Forward SSE events to the iframe so built-in apps receive live data
   useEventForwarding(iframeSignal)
 
@@ -747,6 +786,17 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             class="w-full flex-1 border-none bg-background-base"
             title="MCP App"
             aria-label={`MCP App: ${props.server}`}
+          />
+        )}
+      </Show>
+
+      <Show when={pendingPrompt()} keyed>
+        {(req) => (
+          <McpAppPermissionPrompt
+            request={req}
+            appName={props.appName ?? props.server}
+            responding={false}
+            onDecide={decideOnPrompt}
           />
         )}
       </Show>
@@ -871,7 +921,13 @@ export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
 
         <Show when={activeApp()}>
           {(app) => (
-            <McpAppPanel server={app().server} uri={app().uri} sessionID={props.sessionID} class="flex-1 min-h-0" />
+            <McpAppPanel
+              server={app().server}
+              uri={app().uri}
+              sessionID={props.sessionID}
+              appName={app().name}
+              class="flex-1 min-h-0"
+            />
           )}
         </Show>
       </Show>
