@@ -554,6 +554,17 @@ export function createCallToolHandler(options: {
 export { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 
+// ui/message helpers — pure validation + handler live in
+// ./mcp-app-message.ts so tests can import without the Solid stack.
+export {
+  DEFAULT_MCP_MESSAGE_CHAR_LIMIT,
+  type McpContentBlock,
+  createUiMessageHandler,
+  summarizeMessageText,
+  validateMessageContent,
+} from "./mcp-app-message"
+import { createUiMessageHandler } from "./mcp-app-message"
+
 /**
  * Wrap an AppBridge handler so each call increments + decrements an
  * in-flight counter. The panel uses the counter to surface a "running"
@@ -611,7 +622,17 @@ function useAppBridge(
     const bridge = new AppBridge(
       null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
-      { serverTools: {}, serverResources: {}, openLinks: {}, downloadFile: {}, logging: {} },
+      {
+        serverTools: {},
+        serverResources: {},
+        openLinks: {},
+        downloadFile: {},
+        // v0.9.46 — declare which content-block kinds we accept on
+        // ui/message. Text only for now; adding image/audio/etc. is
+        // an additive change once renderer support lands.
+        message: { text: {} },
+        logging: {},
+      },
       {
         hostContext: {
           theme: theme.mode(),
@@ -691,6 +712,17 @@ function useAppBridge(
     // notifications/message → console with severity tag (no in-flight
     // tracking — these are fire-and-forget notifications, not requests).
     bridge.onloggingmessage = createLogHandler({ server: context.server })
+
+    // ui/message → POST to /session/:id/mcp-apps/message which gates
+    // through the permission system, char-limits, and posts into the
+    // chat thread. The host returns {} on success and never the model's
+    // follow-up — apps cannot use this as an exfiltration channel
+    // (ADR-005 §8 + the v0.9.46 implementation).
+    bridge.onmessage = withRunning(
+      createUiMessageHandler({ ...proxyOpts, uri: context.uri }),
+      inc,
+      dec,
+    ) as unknown as NonNullable<typeof bridge.onmessage>
 
     // ui/request-display-mode → toggle the panel's overlay state.
     // ADR-005 §5 + v0.9.45 — fullscreen supported, pip deferred. Per

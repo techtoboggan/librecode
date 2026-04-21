@@ -4,6 +4,7 @@ import z from "zod"
 import { MCP } from "../../../mcp"
 import { PermissionNext } from "../../../permission/next"
 import * as PermissionService from "../../../permission/service"
+import { SessionPrompt } from "../../../session/prompt"
 import { SessionID } from "../../../session/schema"
 import { errors } from "../../error"
 
@@ -66,6 +67,21 @@ const ToolCallResultLike = z.object({
   content: z.array(z.unknown()),
   isError: z.boolean().optional(),
 })
+
+/**
+ * Default per-app char limit for ui/message text. Mirrors the client
+ * constant in mcp-app-message.ts; v0.9.48 will let the user override
+ * per-app via the Settings → Apps pane.
+ */
+export const DEFAULT_MCP_MESSAGE_CHAR_LIMIT_SERVER = 8000
+
+const MessageBody = z
+  .object({
+    server: z.string().min(1),
+    uri: z.string().min(1),
+    text: z.string().min(1),
+  })
+  .strict()
 
 export const SessionMcpAppRoutes = new Hono()
   .post(
@@ -175,6 +191,87 @@ export const SessionMcpAppRoutes = new Hono()
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         return c.json({ isError: true, content: [{ type: "text", text: `Tool call failed: ${message}` }] }, 200)
+      }
+    },
+  )
+  .post(
+    "/:sessionID/mcp-apps/message",
+    describeRoute({
+      summary: "Post a message into the chat thread on behalf of an MCP app",
+      description:
+        "Wires the MCP `ui/message` AppBridge request into the host session. Per ADR-005 §8 + " +
+        "the v0.9.46 user decision: default-deny (every call gates through the permission system), " +
+        "char-limit enforced (default 8000, per-app override in v0.9.48), origin metadata attached " +
+        "so the renderer can label the message as app-posted, and the host returns no follow-up " +
+        "to the app (the bridge gets `{}` whether the model replies or not).",
+      operationId: "session.mcpApps.message",
+      responses: { 200: { description: "OK" }, ...errors(400, 403, 404) },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    validator("json", MessageBody),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const { server, uri, text } = c.req.valid("json")
+
+      if (server === BUILTIN_SERVER) {
+        return c.json({ isError: true, error: "Built-in MCP apps cannot post chat messages." }, 200)
+      }
+
+      // Char-limit enforcement. Mirrors the client-side validation in
+      // mcp-app-message.ts; both layers check so a misbehaving client
+      // can't bypass by hitting the route directly.
+      if (text.length > DEFAULT_MCP_MESSAGE_CHAR_LIMIT_SERVER) {
+        return c.json(
+          {
+            isError: true,
+            error: `text exceeds char limit (${text.length} > ${DEFAULT_MCP_MESSAGE_CHAR_LIMIT_SERVER}).`,
+          },
+          200,
+        )
+      }
+
+      // Permission gate: separate scope from tool calls, with a
+      // sentinel `_message` "tool" name so users can grant or deny
+      // chat-posting rights independently of tool calls.
+      try {
+        await PermissionNext.ask({
+          sessionID,
+          permission: `mcp-app:${server}:_message`,
+          patterns: [uri],
+          always: [uri],
+          metadata: { kind: "mcp-app", server, uri, tool: "_message", text: text.slice(0, 200) },
+          ruleset: [],
+        })
+      } catch (err) {
+        if (err instanceof PermissionService.RejectedError || err instanceof PermissionService.CorrectedError) {
+          return c.json({ isError: true, error: "User denied this MCP app's request to post a message." }, 200)
+        }
+        if (err instanceof PermissionService.DeniedError) {
+          return c.json({ isError: true, error: "A project rule denies this MCP app from posting messages." }, 200)
+        }
+        throw err
+      }
+
+      // Post the message into the session. Origin metadata lives in
+      // the part's `_meta` so the renderer can show a "Posted by
+      // <appName>" badge in v0.9.48. We deliberately don't await the
+      // model's reply here — per ADR-005 §8 the host MUST NOT return
+      // any follow-up to the app.
+      try {
+        SessionPrompt.prompt({
+          sessionID,
+          parts: [
+            {
+              type: "text",
+              text,
+              _meta: { mcpApp: { server, uri } },
+            } as never,
+          ],
+        }).catch(() => {})
+        return c.json({ ok: true }, 200)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return c.json({ isError: true, error: `Failed to post message: ${message}` }, 200)
       }
     },
   )
