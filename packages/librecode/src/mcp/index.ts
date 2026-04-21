@@ -798,6 +798,32 @@ async function uiResources() {
 }
 
 /**
+ * Per-server primitives the read-only MCP-app proxy routes use.
+ * Each returns `undefined` when the client isn't connected so callers can
+ * map that to a 404 instead of a 500.
+ */
+async function listResourcesForServer(clientName: string) {
+  const clientsSnapshot = await clients()
+  const client = clientsSnapshot[clientName]
+  if (!client) return undefined
+  return client.listResources()
+}
+
+async function listResourceTemplatesForServer(clientName: string) {
+  const clientsSnapshot = await clients()
+  const client = clientsSnapshot[clientName]
+  if (!client) return undefined
+  return client.listResourceTemplates()
+}
+
+async function listPromptsForServer(clientName: string) {
+  const clientsSnapshot = await clients()
+  const client = clientsSnapshot[clientName]
+  if (!client) return undefined
+  return client.listPrompts()
+}
+
+/**
  * Look up the `_meta.ui.allowedTools` manifest entry for a UI resource.
  * Returns the declared tool list, or undefined when the resource is not found.
  *
@@ -1119,6 +1145,9 @@ export const MCP = {
   fetchAppHtml,
   appAllowedTools,
   callServerTool,
+  listResourcesForServer,
+  listResourceTemplatesForServer,
+  listPromptsForServer,
   getAppResourceUri,
   getPrompt,
   readResource,

@@ -18,6 +18,11 @@ schema/config.json
 # Generated vendor manifests
 packages/desktop/flatpak/cargo-sources.json
 
+# Playwright generated artifacts (already in .gitignore but a fresh
+# `bunx prettier --check .` after a local e2e run still picks them up)
+packages/app/e2e/playwright-report/
+packages/app/e2e/test-results/
+
 # Lockfiles
 bun.lock
 packages/desktop/src-tauri/Cargo.lock

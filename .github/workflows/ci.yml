@@ -34,7 +34,11 @@ jobs:
         with:
           bun-version: "1.3.11"
       - run: bun install --frozen-lockfile
-      - run: bun test --timeout 30000
+      # Package test script runs unit pass first (excluding mcp-integration)
+      # then the integration pass — sibling mcp/ tests install sticky
+      # bun mock.module shims that would break the real-transport
+      # integration tests if they shared the same `bun test` invocation.
+      - run: bun run test
         working-directory: packages/librecode
 
   test-util:

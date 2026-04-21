@@ -370,6 +370,107 @@ export function createLogHandler(options: {
 }
 
 /**
+ * Generic POST → in-band-isError JSON proxy used by every MCP-app
+ * AppBridge handler. Centralises the HTTP-error / network-error /
+ * missing-session shapes so the per-handler factories stay tiny.
+ */
+async function proxyJson(options: {
+  fetchFn: FetchLike
+  url: string
+  body?: unknown
+  method?: "GET" | "POST"
+}): Promise<{ content: unknown[]; isError?: boolean } | Record<string, unknown>> {
+  try {
+    const init: RequestInit = { method: options.method ?? "POST" }
+    if (options.body !== undefined) {
+      init.headers = { "Content-Type": "application/json" }
+      init.body = JSON.stringify(options.body)
+    }
+    const res = await options.fetchFn(options.url, init)
+    if (!res.ok) {
+      return { isError: true, content: [{ type: "text" as const, text: `Host rejected request: HTTP ${res.status}` }] }
+    }
+    return (await res.json()) as Record<string, unknown>
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    return { isError: true, content: [{ type: "text" as const, text: `Transport error: ${message}` }] }
+  }
+}
+
+/**
+ * Build the AppBridge `onlistresources` handler. Proxies to
+ * GET /session/:id/mcp-apps/resources?server=…
+ */
+export function createListResourcesHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  sessionID: string | undefined
+  server: string
+}) {
+  return async () => {
+    if (!options.sessionID) {
+      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
+    }
+    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/resources`)
+    url.searchParams.set("server", options.server)
+    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
+  }
+}
+
+/** Build the AppBridge `onreadresource` handler — POSTs {server, uri} to the read route. */
+export function createReadResourceHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  sessionID: string | undefined
+  server: string
+}) {
+  return async (params: { uri: string }) => {
+    if (!options.sessionID) {
+      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
+    }
+    return proxyJson({
+      fetchFn: options.fetchFn,
+      url: `${options.baseUrl}/session/${options.sessionID}/mcp-apps/resources/read`,
+      body: { server: options.server, uri: params.uri },
+    })
+  }
+}
+
+/** Build the AppBridge `onlistresourcetemplates` handler. */
+export function createListResourceTemplatesHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  sessionID: string | undefined
+  server: string
+}) {
+  return async () => {
+    if (!options.sessionID) {
+      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
+    }
+    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/resource-templates`)
+    url.searchParams.set("server", options.server)
+    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
+  }
+}
+
+/** Build the AppBridge `onlistprompts` handler. */
+export function createListPromptsHandler(options: {
+  fetchFn: FetchLike
+  baseUrl: string
+  sessionID: string | undefined
+  server: string
+}) {
+  return async () => {
+    if (!options.sessionID) {
+      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
+    }
+    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/prompts`)
+    url.searchParams.set("server", options.server)
+    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
+  }
+}
+
+/**
  * Build an `oncalltool` handler that proxies an iframe-originated tool
  * call to the host's `/session/:id/mcp-apps/tool` endpoint. Pure function;
  * exported for tests.
@@ -444,28 +545,47 @@ function useAppBridge(
     // host capabilities advertised to the iframe:
     //   * serverTools — iframe may issue tools/call (proxied via our
     //     oncalltool handler to the host endpoint with manifest gate).
+    //   * serverResources — iframe may issue resources/list +
+    //     resources/read + resources/templates/list. Prompts share the
+    //     same proxy path even though there's no dedicated capability
+    //     in the spec schema.
     //   * openLinks — iframe may issue ui/open-link.
     //   * logging — iframe may issue notifications/message.
     const bridge = new AppBridge(
       null, // not auto-forwarding via a pre-built MCP Client — we proxy
       { name: "librecode", version: "0" },
-      { serverTools: {}, openLinks: {}, logging: {} },
+      { serverTools: {}, serverResources: {}, openLinks: {}, logging: {} },
       { hostContext: { theme: theme.mode(), displayMode: "inline" } },
     )
 
-    // Tool-call proxy → /session/:id/mcp-apps/tool with manifest gate.
-    const callTool = createCallToolHandler({
+    // Common args reused by every proxy factory.
+    const proxyOpts = {
       fetchFn: globalSDK.fetch,
       baseUrl: sdk.url,
       sessionID: context.sessionID(),
       server: context.server,
-      uri: context.uri,
-    })
+    }
+
+    // Tool-call proxy → /session/:id/mcp-apps/tool with manifest gate.
+    const callTool = createCallToolHandler({ ...proxyOpts, uri: context.uri })
     // Cast: AppBridge expects a `CallToolResult` typed against the MCP SDK's
     // strict content union. Our handler returns the same JSON shape but
     // pre-typed as unknown[] (we don't validate the bytes from the server
     // route — they're already a CallToolResult). The runtime contract holds.
     bridge.oncalltool = callTool as unknown as NonNullable<typeof bridge.oncalltool>
+
+    // Read-only proxies (ADR-005 §4) — no permission gate; scoped to the
+    // app's MCP server; resources/read additionally checked server-side
+    // against the resources/list result so apps can't read URIs the
+    // server didn't advertise.
+    bridge.onlistresources = createListResourcesHandler(proxyOpts) as unknown as NonNullable<
+      typeof bridge.onlistresources
+    >
+    bridge.onreadresource = createReadResourceHandler(proxyOpts) as unknown as NonNullable<typeof bridge.onreadresource>
+    bridge.onlistresourcetemplates = createListResourceTemplatesHandler(proxyOpts) as unknown as NonNullable<
+      typeof bridge.onlistresourcetemplates
+    >
+    bridge.onlistprompts = createListPromptsHandler(proxyOpts) as unknown as NonNullable<typeof bridge.onlistprompts>
 
     // ui/open-link → platform.openLink (with scheme allowlist).
     bridge.onopenlink = createOpenLinkHandler((url) => platform.openLink(url))

@@ -69,4 +69,39 @@ server.registerTool(
   async ({ text }) => ({ content: [{ type: "text" as const, text: text ?? "" }] }),
 )
 
+// ─── Track 4 fixtures (read-only proxies) ────────────────────────────────────
+
+export const TEST_TEXT_RESOURCE_URI = "lctest://docs/readme"
+export const TEST_TEXT_RESOURCE_MARKER = "LIBRECODE_TEST_RESOURCE_MARKER_9c2f"
+
+server.registerResource(
+  "test-readme",
+  TEST_TEXT_RESOURCE_URI,
+  {
+    title: "Test README",
+    description: "Plain-text resource used by the Track 4 read-only proxy test.",
+    mimeType: "text/plain",
+  },
+  async () => ({
+    contents: [{ uri: TEST_TEXT_RESOURCE_URI, mimeType: "text/plain", text: TEST_TEXT_RESOURCE_MARKER }],
+  }),
+)
+
+server.registerPrompt(
+  "test-greet",
+  {
+    title: "Greet",
+    description: "Fixture prompt used by the Track 4 prompts/list proxy test.",
+    argsSchema: { name: z.string().optional() },
+  },
+  ({ name }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: { type: "text" as const, text: `Greet ${name ?? "world"}.` },
+      },
+    ],
+  }),
+)
+
 await server.connect(new StdioServerTransport())
