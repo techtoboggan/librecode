@@ -31,6 +31,7 @@ import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/
 import { useDialog } from "@librecode/ui/context/dialog"
 import { useTheme } from "@librecode/ui/theme"
 import { useGlobalSDK } from "@/context/global-sdk"
+import { useMcpAppSettings } from "@/context/mcp-app-settings"
 import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
@@ -600,6 +601,7 @@ function useAppBridge(
   const platform = usePlatform()
   const theme = useTheme()
   const dialog = useDialog()
+  const mcpAppSettings = useMcpAppSettings()
   const [bridgeSignal, setBridgeSignal] = createSignal<AppBridge | undefined>()
   const [running, setRunning] = createSignal(0)
   const [displayMode, setDisplayMode] = createSignal<HostDisplayMode>("inline")
@@ -722,9 +724,14 @@ function useAppBridge(
     // through the permission system, char-limits, and posts into the
     // chat thread. The host returns {} on success and never the model's
     // follow-up — apps cannot use this as an exfiltration channel
-    // (ADR-005 §8 + the v0.9.46 implementation).
+    // (ADR-005 §8 + the v0.9.46 implementation). v0.9.48 lets the
+    // user override the char limit per-server via Settings → MCP Apps.
     bridge.onmessage = withRunning(
-      createUiMessageHandler({ ...proxyOpts, uri: context.uri }),
+      createUiMessageHandler({
+        ...proxyOpts,
+        uri: context.uri,
+        charLimit: mcpAppSettings.messageCharLimitOf(context.server),
+      }),
       inc,
       dec,
     ) as unknown as NonNullable<typeof bridge.onmessage>

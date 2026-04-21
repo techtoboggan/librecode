@@ -33,6 +33,7 @@ import { GlobalSyncProvider } from "@/context/global-sync"
 import { HighlightsProvider } from "@/context/highlights"
 import { LanguageProvider, useLanguage } from "@/context/language"
 import { LayoutProvider } from "@/context/layout"
+import { McpAppSettingsProvider } from "@/context/mcp-app-settings"
 import { ModelsProvider } from "@/context/models"
 import { NotificationProvider } from "@/context/notification"
 import { PermissionProvider } from "@/context/permission"
@@ -92,19 +93,21 @@ function MarkedProviderWithNativeParser(props: ParentProps) {
 function AppShellProviders(props: ParentProps) {
   return (
     <SettingsProvider>
-      <PermissionProvider>
-        <LayoutProvider>
-          <NotificationProvider>
-            <ModelsProvider>
-              <CommandProvider>
-                <HighlightsProvider>
-                  <Layout>{props.children}</Layout>
-                </HighlightsProvider>
-              </CommandProvider>
-            </ModelsProvider>
-          </NotificationProvider>
-        </LayoutProvider>
-      </PermissionProvider>
+      <McpAppSettingsProvider>
+        <PermissionProvider>
+          <LayoutProvider>
+            <NotificationProvider>
+              <ModelsProvider>
+                <CommandProvider>
+                  <HighlightsProvider>
+                    <Layout>{props.children}</Layout>
+                  </HighlightsProvider>
+                </CommandProvider>
+              </ModelsProvider>
+            </NotificationProvider>
+          </LayoutProvider>
+        </PermissionProvider>
+      </McpAppSettingsProvider>
     </SettingsProvider>
   )
 }
