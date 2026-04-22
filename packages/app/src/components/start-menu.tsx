@@ -1,6 +1,7 @@
 import { Button } from "@librecode/ui/button"
 import { Icon } from "@librecode/ui/icon"
-import { createResource, createSignal, For, Show } from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { Portal } from "solid-js/web"
 import { useServer } from "@/context/server"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
@@ -23,6 +24,12 @@ export function StartMenu(props: StartMenuProps) {
   const globalSDK = useGlobalSDK()
   const language = useLanguage()
   const [open, setOpen] = createSignal(false)
+  const [anchor, setAnchor] = createSignal<HTMLButtonElement>()
+  // v0.9.62 — Portal-render the panel so the review pane's
+  // `will-change: width` stacking context doesn't clip it under the
+  // tab strip. Anchor coordinates are recomputed on open + scroll +
+  // resize so the panel stays pinned to the Apps button.
+  const [coords, setCoords] = createSignal<{ top: number; right: number } | undefined>()
 
   const baseUrl = () => server.current?.http?.url ?? globalSDK.url
 
@@ -40,77 +47,133 @@ export function StartMenu(props: StartMenuProps) {
   const builtinApps = () => (apps() ?? []).filter((a) => a.builtin)
   const mcpApps = () => (apps() ?? []).filter((a) => !a.builtin)
 
+  const updateCoords = () => {
+    const el = anchor()
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+  }
+
+  createEffect(() => {
+    if (!open()) return
+    updateCoords()
+    window.addEventListener("resize", updateCoords)
+    window.addEventListener("scroll", updateCoords, { capture: true, passive: true })
+    // Close on click-away. Use mousedown so the button's own click
+    // can still toggle it shut without a race with the document
+    // listener swallowing the event.
+    const onDocDown = (e: MouseEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (anchor()?.contains(target)) return
+      if (document.getElementById("start-menu-panel")?.contains(target)) return
+      setOpen(false)
+    }
+    document.addEventListener("mousedown", onDocDown)
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false)
+    }
+    document.addEventListener("keydown", onEsc)
+    onCleanup(() => {
+      window.removeEventListener("resize", updateCoords)
+      window.removeEventListener("scroll", updateCoords, { capture: true })
+      document.removeEventListener("mousedown", onDocDown)
+      document.removeEventListener("keydown", onEsc)
+    })
+  })
+
   return (
-    <div class="relative">
-      <Button type="button" variant="ghost" class="h-6 px-1.5 text-11-regular gap-1" onClick={() => setOpen(!open())}>
+    <>
+      <Button
+        ref={setAnchor}
+        type="button"
+        variant="ghost"
+        class="h-6 px-1.5 text-11-regular gap-1"
+        onClick={() => setOpen(!open())}
+        aria-haspopup="menu"
+        aria-expanded={open()}
+      >
         <Icon name="dot-grid" class="size-3.5" />
         <span class="hidden lg:inline">Apps</span>
       </Button>
 
-      <Show when={open()}>
-        <div class="absolute top-full right-0 mt-1 w-[300px] max-h-[400px] overflow-y-auto z-50 rounded-md border border-border-weak-base bg-surface-panel shadow-lg">
-          <div class="p-2">
-            <Show when={builtinApps().length > 0}>
-              <div class="px-2 py-1 text-10-regular text-text-weaker uppercase tracking-wider">Built-in</div>
-              <For each={builtinApps()}>
-                {(app) => (
-                  <button
-                    class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
-                    onClick={() => {
-                      // Close the menu first so the dropdown teardown doesn't
-                      // overlap with the new iframe's initial mount — the
-                      // overlap was a visible flicker during pinning.
-                      setOpen(false)
-                      props.onLaunch(app)
-                    }}
-                  >
-                    <div class="text-13-medium text-text-base">{app.name}</div>
-                    <Show when={app.description}>
-                      <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </Show>
+      <Show when={open() && coords()}>
+        {(pos) => (
+          <Portal>
+            <div
+              id="start-menu-panel"
+              role="menu"
+              class="fixed w-[300px] max-h-[400px] overflow-y-auto rounded-md border border-border-weak-base bg-surface-panel shadow-2xl"
+              style={{
+                top: `${pos().top}px`,
+                right: `${pos().right}px`,
+                // Above every other stacking context — the session
+                // side panel's `will-change: width` creates its own
+                // stacking context that would otherwise trap a
+                // sibling-rendered menu below it.
+                "z-index": "1000",
+              }}
+            >
+              <div class="p-2">
+                <Show when={builtinApps().length > 0}>
+                  <div class="px-2 py-1 text-10-regular text-text-weaker uppercase tracking-wider">Built-in</div>
+                  <For each={builtinApps()}>
+                    {(app) => (
+                      <button
+                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
+                        onClick={() => {
+                          setOpen(false)
+                          props.onLaunch(app)
+                        }}
+                      >
+                        <div class="text-13-medium text-text-base">{app.name}</div>
+                        <Show when={app.description}>
+                          <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                </Show>
 
-            <Show when={mcpApps().length > 0}>
-              <div class="px-2 py-1 mt-1 text-10-regular text-text-weaker uppercase tracking-wider">MCP Servers</div>
-              <For each={mcpApps()}>
-                {(app) => (
-                  <button
-                    class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
-                    onClick={() => {
-                      // Close the menu first so the dropdown teardown doesn't
-                      // overlap with the new iframe's initial mount — the
-                      // overlap was a visible flicker during pinning.
-                      setOpen(false)
-                      props.onLaunch(app)
-                    }}
-                  >
-                    <div class="flex items-center gap-2">
-                      <span class="text-13-medium text-text-base">{app.name}</span>
-                      <span class="text-10-regular text-text-weaker">{app.server}</span>
-                    </div>
-                    <Show when={app.description}>
-                      <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
-                    </Show>
-                  </button>
-                )}
-              </For>
-            </Show>
+                <Show when={mcpApps().length > 0}>
+                  <div class="px-2 py-1 mt-1 text-10-regular text-text-weaker uppercase tracking-wider">
+                    MCP Servers
+                  </div>
+                  <For each={mcpApps()}>
+                    {(app) => (
+                      <button
+                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
+                        onClick={() => {
+                          setOpen(false)
+                          props.onLaunch(app)
+                        }}
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="text-13-medium text-text-base">{app.name}</span>
+                          <span class="text-10-regular text-text-weaker">{app.server}</span>
+                        </div>
+                        <Show when={app.description}>
+                          <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
+                        </Show>
+                      </button>
+                    )}
+                  </For>
+                </Show>
 
-            <Show when={!apps.loading && (apps() ?? []).length === 0}>
-              <div class="px-2 py-4 text-12-regular text-text-weak text-center">
-                No apps available. Connect an MCP server with UI resources.
+                <Show when={!apps.loading && (apps() ?? []).length === 0}>
+                  <div class="px-2 py-4 text-12-regular text-text-weak text-center">
+                    {language.t("startmenu.empty") ?? "No apps available. Connect an MCP server with UI resources."}
+                  </div>
+                </Show>
+
+                <Show when={apps.loading}>
+                  <div class="px-2 py-4 text-12-regular text-text-weak text-center animate-pulse">Loading apps...</div>
+                </Show>
               </div>
-            </Show>
-
-            <Show when={apps.loading}>
-              <div class="px-2 py-4 text-12-regular text-text-weak text-center animate-pulse">Loading apps...</div>
-            </Show>
-          </div>
-        </div>
+            </div>
+          </Portal>
+        )}
       </Show>
-    </div>
+    </>
   )
 }

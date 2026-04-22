@@ -1068,12 +1068,22 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     onCleanup(() => window.removeEventListener("message", handleMessage))
   })
 
-  // v0.9.56 — when sessionID changes after mount (user navigates into a
-  // session while the MCP app was already pinned/open), proactively
-  // seed. The mcp-app-ready handshake only fires once per iframe load,
-  // so without this we'd sit on an empty placeholder even though the
-  // session is live. Guarded by a per-(uri, sessionID) flag so we
-  // don't re-seed on every prop re-read.
+  // v0.9.56 + v0.9.62 — seeding lifecycle:
+  //
+  //   a) initial seed when the iframe first reports ready
+  //      (createReadyHandler above), AND
+  //   b) re-seed whenever `props.sessionID` changes post-mount
+  //      (seedForSession below — keyed (uri, sessionID) so we don't
+  //      re-seed on every reactive re-read), AND
+  //   c) re-seed whenever the session's message history grows
+  //      (v0.9.62 fix — `sync.data.message[sessionID]` is empty while
+  //      the session's messages hydrate from SSE, and the initial
+  //      seed fires before hydration completes. Without re-seeding,
+  //      a reload of a session with existing history shows empty
+  //      stats until the next new message arrives).
+  //
+  // The iframe's `session.stats` handler resets state and re-ingests
+  // from scratch each time, so repeated posts are idempotent.
   const seededForSession = new Set<string>()
   createEffect(() => {
     const iframe = iframeSignal()
@@ -1101,6 +1111,34 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
       },
       seedStats: (id) => post(buildStatsSeedPayload(sync.data.message[id] ?? [], (pid) => sync.data.part[pid])),
     })
+  })
+
+  // v0.9.62 — re-seed whenever the session's message history grows.
+  // The initial seed fires before sync's SSE hydration completes, so
+  // a reload of a long-running session would show empty stats until
+  // the next live event. Watching `messages.length` catches history
+  // arrival; the iframe handles repeated seeds idempotently.
+  createEffect(() => {
+    const iframe = iframeSignal()
+    if (!iframe) return
+    const sessionID = props.sessionID
+    if (!sessionID) return
+    // Only the session-stats app consumes buildStatsSeedPayload.
+    // Activity Graph is seeded once from the /activity endpoint and
+    // gets live updates via SSE, so it doesn't need this re-seed.
+    if (props.uri !== BUILTIN_URI_SESSION_STATS) return
+    const messages = sync.data.message[sessionID]
+    if (!messages || messages.length === 0) return
+    // Track the length so we only re-seed when it actually changes.
+    // `messages` read above is reactive via the sync store proxy.
+    try {
+      iframe.contentWindow?.postMessage(
+        buildStatsSeedPayload(messages, (pid) => sync.data.part[pid]),
+        "*",
+      )
+    } catch {
+      // iframe detached — ignore
+    }
   })
 
   return (
