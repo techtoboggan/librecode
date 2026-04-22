@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
-  "version": "0.9.55",
+  "version": "0.9.56",
   "name": "librecode",
   "type": "module",
   "license": "MIT",
