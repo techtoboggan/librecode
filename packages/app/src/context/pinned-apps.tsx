@@ -1,4 +1,4 @@
-import { createContext, createSignal, useContext, type ParentComponent } from "solid-js"
+import { createContext, createSignal, startTransition, useContext, type ParentComponent } from "solid-js"
 import type { McpAppResource } from "@/components/mcp-app-panel"
 
 interface PinnedAppsContextValue {
@@ -15,7 +15,14 @@ export const PinnedAppsProvider: ParentComponent = (props) => {
 
   const pin = (app: McpAppResource) => {
     if (pinned().find((a) => a.uri === app.uri)) return
-    setPinned([...pinned(), app])
+    // v0.9.58 — wrap in startTransition so the new McpAppPanel's
+    // `createResource` for the app HTML (which enters a `loading`
+    // state as soon as it mounts) doesn't trip the SessionRoute
+    // Suspense boundary and blank the entire page. v0.9.54 fixed the
+    // same failure mode on tab *switches*; this fix covers the pin
+    // path that adds a brand-new panel. Without it, the first time
+    // a user pins any app the screen flashes black for ~130ms.
+    void startTransition(() => setPinned([...pinned(), app]))
   }
 
   const unpin = (uri: string) => {
