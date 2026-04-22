@@ -151,11 +151,19 @@ function handlePartUpdated(state: ActivityState, part: ToolPart, sessionID: stri
     updatedAt: now,
   }
 
-  // Update file state when we have a path and the tool is file-oriented
+  // v0.9.59 — keep the classified tool kind (read/write/shell/search)
+  // on the file record regardless of whether the tool is still
+  // running or has just completed. Previously we flipped to "idle"
+  // the moment `status === "completed"`, which for fast tools
+  // (read / grep / glob finish in milliseconds) meant the graph
+  // never showed any colour — the nodes went straight from "not
+  // there" to "grey". The iframe fades nodes via alpha based on
+  // `age`, so stale activity still dims naturally; we just let the
+  // colour reflect what the tool actually did.
   if (filePath && kind !== "other") {
     session.files[filePath] = {
       path: filePath,
-      kind: part.state.status === "completed" ? "idle" : kind,
+      kind,
       tool: part.tool,
       updatedAt: now,
     }
@@ -189,15 +197,12 @@ function handleAgentTransition(state: ActivityState, sessionID: string, _from: s
     phase: to,
     updatedAt: now,
   }
-  // Clear file activity when agent exits (loop is done)
-  if (to === "exit") {
-    for (const filePath of Object.keys(session.files)) {
-      const existing = session.files[filePath]
-      if (existing) {
-        session.files[filePath] = { ...existing, kind: "idle", updatedAt: now }
-      }
-    }
-  }
+  // v0.9.59 — previously we flipped every file's `kind` to "idle" on
+  // agent exit, which immediately wiped the colour-coded activity
+  // trail users wanted to see after a turn ended. Fade is handled
+  // client-side by `age`-based alpha in fs-activity-graph.html;
+  // we just leave the files' classified kind alone so the iframe
+  // can keep showing what the turn touched until natural decay.
   session.updatedAt = now
   publishUpdate(session)
 }

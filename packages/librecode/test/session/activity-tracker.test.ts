@@ -184,7 +184,12 @@ describe("ActivityTracker via bus events — PartUpdated", () => {
     })
   })
 
-  test("completed tool: file kind becomes 'idle'", async () => {
+  test("completed tool: file kind keeps the tool's classified colour (regressed in v0.9.58, fixed v0.9.59)", async () => {
+    // Fast tools like `read` finish in milliseconds — the old behaviour
+    // flipped to "idle" on completion, which meant the Activity Graph
+    // iframe never saw a coloured node for these tools. The iframe
+    // fades nodes via alpha against `age`, so the colour can stay put
+    // without leaving stale-looking state.
     await using tmp = await tmpdir()
     await Instance.provide({
       directory: tmp.path,
@@ -196,7 +201,7 @@ describe("ActivityTracker via bus events — PartUpdated", () => {
         await Bus.publish(MessageV2.Event.PartUpdated, { part: part as never })
 
         const activity = await ActivityTracker.get(sid as never)
-        expect(activity.files["/tmp/done.ts"]?.kind).toBe("idle")
+        expect(activity.files["/tmp/done.ts"]?.kind).toBe("read")
       },
     })
   })
@@ -349,7 +354,11 @@ describe("ActivityTracker via bus events — TransitionEvent", () => {
     })
   })
 
-  test("transition to 'exit' sets all file activities to idle", async () => {
+  test("transition to 'exit' keeps file kinds (iframe fades via age-based alpha)", async () => {
+    // v0.9.59 — previously this flipped every file to "idle" on exit.
+    // The Activity Graph fades old nodes via alpha already, so
+    // keeping the classified kind lets the colour trail stay
+    // visible after a turn ends instead of snapping to grey.
     await using tmp = await tmpdir()
     await Instance.provide({
       directory: tmp.path,
@@ -357,14 +366,12 @@ describe("ActivityTracker via bus events — TransitionEvent", () => {
         await initTracker()
         const sid = "sess-exit-1"
         const mid = "msg-exit-1"
-        // First add a file in 'write' state
         const part = makeToolPart("edit", "running", sid, mid, { filePath: "/tmp/exiting.ts" })
         await Bus.publish(MessageV2.Event.PartUpdated, { part: part as never })
 
         let activity = await ActivityTracker.get(sid as never)
         expect(activity.files["/tmp/exiting.ts"]?.kind).toBe("write")
 
-        // Transition to exit
         await Bus.publish(TransitionEvent, {
           sessionID: sid,
           from: "process",
@@ -373,7 +380,8 @@ describe("ActivityTracker via bus events — TransitionEvent", () => {
         })
 
         activity = await ActivityTracker.get(sid as never)
-        expect(activity.files["/tmp/exiting.ts"]?.kind).toBe("idle")
+        expect(activity.files["/tmp/exiting.ts"]?.kind).toBe("write")
+        expect(activity.agents.main?.phase).toBe("exit")
       },
     })
   })
