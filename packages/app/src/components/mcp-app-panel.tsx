@@ -959,7 +959,16 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   )
 
   const srcdoc = () => {
-    const raw = html()
+    // v0.9.61 — guard against reading an errored resource. Solid's
+    // resource accessor re-throws when the last fetch failed; without
+    // this guard an unreachable MCP app (server disconnected, 404, etc.)
+    // bubbles past our in-panel `<Show when={html.error}>` handler and
+    // crashes the whole app via the root ErrorBoundary. This was
+    // latent until persistence landed — previously `pinnedApps` was
+    // in-memory only, so an app couldn't outlive its server's
+    // availability across a restart.
+    if (html.error) return undefined
+    const raw = html.latest
     if (!raw) return undefined
     const withCsp = injectCsp(raw, DEFAULT_CSP)
     return injectTheme(withCsp, readThemeTokens())
