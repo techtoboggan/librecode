@@ -219,13 +219,26 @@
           layout()
           const count = Object.keys(files).length
           const agentCount = Object.keys(agents).length
-          empty.style.display = count ? "none" : "flex"
-          countEl.textContent = count ? count + " files" : ""
+          // v0.9.56 — hide the empty placeholder whenever the host has
+          // reported *anything* (file or agent). For chat-only turns
+          // (no tool calls) there are no files but agents still run,
+          // and the graph should show that state rather than sitting
+          // on "Start a session to see file activity" forever.
+          const hasAnything = count > 0 || agentCount > 0
+          empty.style.display = hasAnything ? "none" : "flex"
+          if (!hasAnything) empty.textContent = "Waiting for file activity — chat-only turns don't move the graph"
+          countEl.textContent = count ? count + " files" : agentCount ? agentCount + " agents" : ""
           dot.className = "dot " + (agentCount > 0 ? "active" : "idle")
           const agentPhases = Object.values(agents)
             .map((a) => a.phase)
             .filter((p) => p && p !== "exit")
-          label.textContent = agentPhases.length ? agentPhases.join(", ") : count ? "Idle" : "Waiting for activity..."
+          label.textContent = agentPhases.length
+            ? agentPhases.join(", ")
+            : count
+              ? "Idle"
+              : agentCount
+                ? "Agent idle"
+                : "Waiting for activity..."
         }
       })
 

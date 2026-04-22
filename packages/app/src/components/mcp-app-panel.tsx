@@ -225,9 +225,11 @@ export function buildStatsSeedPayload(
 
 /**
  * Build the `mcp-app-ready` listener used to seed a freshly-mounted app
- * iframe with a one-time snapshot. Extracted so the source-verification,
- * fire-once, and built-in-URI dispatch logic can be exercised without
- * standing up a real iframe or a Solid root.
+ * iframe. v0.9.56 — the "seeded" flag is now keyed by sessionID so a
+ * late-arriving session (common when the user pins an app before
+ * entering a session) still seeds once the id appears. Re-entering the
+ * same session does not re-seed; switching to a different session
+ * does.
  */
 export function createReadyHandler(options: {
   /** URI of the app being hosted — used to pick which seed to run. */
@@ -241,18 +243,36 @@ export function createReadyHandler(options: {
   /** Run the session-stats seed (synchronous). */
   seedStats: (sessionID: string) => void
 }) {
-  let seeded = false
+  let seededSession: string | undefined
   return (e: { data?: unknown; source?: unknown }) => {
     if (e.source !== options.contentWindow) return
     const data = e.data as { type?: string } | undefined
     if (!data || data.type !== "mcp-app-ready") return
-    if (seeded) return
-    seeded = true
     const sessionID = options.sessionID
     if (!sessionID) return
+    if (seededSession === sessionID) return
+    seededSession = sessionID
     if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(sessionID)
     else if (options.uri === BUILTIN_URI_SESSION_STATS) options.seedStats(sessionID)
   }
+}
+
+/**
+ * v0.9.56 — proactively seed an iframe when the sessionID becomes
+ * available after the iframe was already mounted. Apps post
+ * `mcp-app-ready` once on load; without this, a user who pins the app
+ * *before* entering a session would never see any data because the
+ * ready signal already fired (when sessionID was undefined) and the
+ * iframe has no reason to post ready again.
+ */
+export function seedForSession(options: {
+  uri: string
+  sessionID: string
+  seedActivity: (sessionID: string) => Promise<void>
+  seedStats: (sessionID: string) => void
+}): void {
+  if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(options.sessionID)
+  else if (options.uri === BUILTIN_URI_SESSION_STATS) options.seedStats(options.sessionID)
 }
 
 // ─── SSE event forwarding ─────────────────────────────────────────────────────
@@ -1037,6 +1057,41 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
 
     window.addEventListener("message", handleMessage)
     onCleanup(() => window.removeEventListener("message", handleMessage))
+  })
+
+  // v0.9.56 — when sessionID changes after mount (user navigates into a
+  // session while the MCP app was already pinned/open), proactively
+  // seed. The mcp-app-ready handshake only fires once per iframe load,
+  // so without this we'd sit on an empty placeholder even though the
+  // session is live. Guarded by a per-(uri, sessionID) flag so we
+  // don't re-seed on every prop re-read.
+  const seededForSession = new Set<string>()
+  createEffect(() => {
+    const iframe = iframeSignal()
+    if (!iframe) return
+    const sessionID = props.sessionID
+    if (!sessionID) return
+    const key = `${props.uri}|${sessionID}`
+    if (seededForSession.has(key)) return
+    seededForSession.add(key)
+
+    const post = (message: unknown) => {
+      try {
+        iframe.contentWindow?.postMessage(message, "*")
+      } catch {
+        // iframe detached
+      }
+    }
+    seedForSession({
+      uri: props.uri,
+      sessionID,
+      seedActivity: async (id) => {
+        const activity = await fetchSessionActivity(globalSDK.fetch, sdk.url, sdk.directory, id)
+        if (!activity) return
+        post(buildActivitySeedPayload(id, activity))
+      },
+      seedStats: (id) => post(buildStatsSeedPayload(sync.data.message[id] ?? [], (pid) => sync.data.part[pid])),
+    })
   })
 
   return (

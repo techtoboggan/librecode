@@ -17,18 +17,27 @@
           sans-serif;
         color: var(--lc-text, #e0e0e0);
         padding: 12px;
+        font-size: 12px;
       }
       .grid {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
         gap: 8px;
         margin-bottom: 12px;
       }
       .card {
+        position: relative;
         background: var(--lc-bg-raised, rgba(255, 255, 255, 0.04));
         border: 1px solid var(--lc-border, #333);
         border-radius: 6px;
         padding: 10px;
+      }
+      .card.clickable {
+        cursor: pointer;
+        transition: border-color 0.15s;
+      }
+      .card.clickable:hover {
+        border-color: var(--lc-border-strong, #555);
       }
       .card-label {
         font-size: 10px;
@@ -36,9 +45,16 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
         margin-bottom: 4px;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .card-label .hint {
+        opacity: 0.5;
+        font-size: 9px;
       }
       .card-value {
-        font-size: 20px;
+        font-size: 18px;
         font-weight: 600;
         font-variant-numeric: tabular-nums;
       }
@@ -48,7 +64,7 @@
         margin-top: 2px;
       }
       h3 {
-        font-size: 12px;
+        font-size: 11px;
         color: var(--lc-text-weak, #888);
         margin: 12px 0 6px;
         text-transform: uppercase;
@@ -95,10 +111,75 @@
         color: var(--lc-text-weaker, #666);
         font-size: 13px;
         text-align: center;
-        padding: 40px 0;
+        padding: 40px 0 12px;
       }
       .cost {
         color: #4ade80;
+      }
+      .history {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        max-height: 160px;
+        overflow: auto;
+      }
+      .history-row {
+        display: grid;
+        grid-template-columns: 20px 1fr 70px 70px 70px;
+        gap: 6px;
+        align-items: baseline;
+        padding: 2px 4px;
+        border-radius: 3px;
+      }
+      .history-row:nth-child(even) {
+        background: var(--lc-bg-raised, rgba(255, 255, 255, 0.02));
+      }
+      .history-row .num {
+        color: var(--lc-text-weaker, #666);
+        text-align: right;
+      }
+      .history-row .model {
+        color: var(--lc-text-weak, #aaa);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .history-row .in {
+        color: #60a5fa;
+        text-align: right;
+      }
+      .history-row .out {
+        color: #f97316;
+        text-align: right;
+      }
+      .history-row .rate {
+        color: var(--lc-text-weak, #888);
+        text-align: right;
+      }
+      /*
+        v0.9.56 — the "Tokens" card doubles as a toggle between three
+        views: accumulated totals, per-request average tok/s, and the
+        per-request history list. Tooltip explains the toggle on hover.
+      */
+      .tip {
+        position: absolute;
+        bottom: calc(100% + 4px);
+        left: 8px;
+        background: var(--lc-bg-raised, #1e1e1e);
+        border: 1px solid var(--lc-border, #333);
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 10px;
+        color: var(--lc-text-weak, #aaa);
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s;
+      }
+      .card.clickable:hover .tip {
+        opacity: 1;
       }
     </style>
   </head>
@@ -106,7 +187,11 @@
     <div id="empty">Send a message to see session statistics</div>
     <div id="stats" style="display: none">
       <div class="grid" id="metric-cards"></div>
-      <h3>Tool Usage</h3>
+      <div id="history-view" style="display: none">
+        <h3>Per-request history</h3>
+        <div class="history" id="history-rows"></div>
+      </div>
+      <h3>Tool usage</h3>
       <div class="bar-chart" id="tool-chart"></div>
     </div>
     <script>
@@ -114,22 +199,41 @@
       const empty = document.getElementById("empty")
       const cards = document.getElementById("metric-cards")
       const chart = document.getElementById("tool-chart")
+      const historyView = document.getElementById("history-view")
+      const historyRows = document.getElementById("history-rows")
 
-      let tokenHistory = []
-      let toolCounts = {}
-      let totalCost = 0
-      let totalInput = 0
-      let totalOutput = 0
-      let messageCount = 0
+      // Per-part state — keyed by part.id so repeated `message.part.updated`
+      // events for the same part don't over-count. We store the latest
+      // snapshot and derive totals from the collection each render.
+      // Token and cost numbers for a part grow monotonically during
+      // streaming, so "latest wins" is correct.
+      const stepParts = new Map() // id → {messageID, cost, input, output, elapsedMs?}
+      const toolParts = new Map() // id → {tool, state, callID}
+      // Per-message snapshot (from buildStatsSeedPayload on ready + from
+      // `message.updated` in the future) — keyed by messageID.
+      const messageSnapshots = new Map() // id → {role, cost, tokens, model}
+      // Per-message timing for tok/s calculation. We capture the first
+      // time we see an assistant message (a proxy for "turn started")
+      // and the latest time a step-finish fires (a proxy for "turn
+      // ended" until message.updated delivers `time.completed`).
+      const messageTiming = new Map() // id → {start, end}
+
+      // UI toggle for the "Tokens" card. Three states cycle on click,
+      // one is shown at a time:
+      //   - totals (default): "12.4k in · 8.1k out" accumulated across requests
+      //   - avg-rate:           average output tokens/sec across requests
+      //   - history:           expands an Nth-request table below
+      let tokensView = "totals"
 
       function fmt(n) {
+        if (!n) return "0"
         if (n >= 1e6) return (n / 1e6).toFixed(1) + "M"
         if (n >= 1e3) return (n / 1e3).toFixed(1) + "k"
-        return String(n)
+        return String(Math.round(n))
       }
 
       function usd(n) {
-        return "$" + n.toFixed(4)
+        return "$" + (n || 0).toFixed(4)
       }
 
       const TOOL_COLORS = {
@@ -139,13 +243,131 @@
         edit: "#f97316",
         write: "#f97316",
         multiedit: "#f97316",
+        patch: "#f97316",
         bash: "#a78bfa",
         webfetch: "#22d3ee",
         websearch: "#22d3ee",
       }
 
+      // Pure: roll up the current per-part collections into the numbers
+      // the UI needs. Exported on `window` below so the unit-test story
+      // can exercise the reducer without a full DOM.
+      function computeTotals() {
+        let totalCost = 0
+        let totalInput = 0
+        let totalOutput = 0
+        const requests = []
+        // Build per-message request entries. Seeded-message snapshots
+        // take precedence over live step-finish aggregation because
+        // they come from the server as canonical final numbers; when
+        // we don't have a seeded snapshot, fall back to summing the
+        // step-finish parts for that message.
+        const messageIDs = new Set()
+        for (const s of stepParts.values()) messageIDs.add(s.messageID)
+        for (const id of messageSnapshots.keys()) messageIDs.add(id)
+        for (const id of messageIDs) {
+          const snap = messageSnapshots.get(id)
+          let input = 0
+          let output = 0
+          let cost = 0
+          if (snap && (snap.tokens?.input || snap.tokens?.output || snap.cost)) {
+            input = snap.tokens?.input ?? 0
+            output = snap.tokens?.output ?? 0
+            cost = snap.cost ?? 0
+          } else {
+            for (const s of stepParts.values()) {
+              if (s.messageID !== id) continue
+              input += s.input
+              output += s.output
+              cost += s.cost
+            }
+          }
+          if (!input && !output && !cost) continue
+          const timing = messageTiming.get(id)
+          const ms = timing?.end && timing?.start ? timing.end - timing.start : 0
+          requests.push({ id, input, output, cost, ms, model: snap?.model })
+          totalInput += input
+          totalOutput += output
+          totalCost += cost
+        }
+        requests.sort((a, b) => (a.id > b.id ? 1 : -1))
+
+        const toolCounts = {}
+        // Dedupe by callID — a tool part fires `updated` for each state
+        // transition (pending → running → completed), so we'd triple-count
+        // without this. We only count each callID once, at its latest state.
+        const seenCallIDs = new Set()
+        for (const t of toolParts.values()) {
+          if (!t.callID || !t.tool) continue
+          if (seenCallIDs.has(t.callID)) continue
+          seenCallIDs.add(t.callID)
+          toolCounts[t.tool] = (toolCounts[t.tool] || 0) + 1
+        }
+
+        const avgTokPerSec = (() => {
+          const timed = requests.filter((r) => r.ms > 0 && r.output > 0)
+          if (!timed.length) return 0
+          const totalOut = timed.reduce((s, r) => s + r.output, 0)
+          const totalMs = timed.reduce((s, r) => s + r.ms, 0)
+          return (totalOut / totalMs) * 1000
+        })()
+
+        return {
+          messageCount: requests.length,
+          totalCost,
+          totalInput,
+          totalOutput,
+          requests,
+          toolCounts,
+          avgTokPerSec,
+        }
+      }
+
+      function tokensCardContent(totals) {
+        if (tokensView === "avg-rate") {
+          return {
+            label: "Tokens · avg rate",
+            value: totals.avgTokPerSec ? totals.avgTokPerSec.toFixed(1) + " tok/s" : "—",
+            sub: totals.requests.filter((r) => r.ms > 0).length + " timed req",
+            tip: "Click to see accumulated totals",
+          }
+        }
+        if (tokensView === "history") {
+          return {
+            label: "Tokens · per request",
+            value: fmt(totals.totalInput) + " ↓ " + fmt(totals.totalOutput) + " ↑",
+            sub: "See table below",
+            tip: "Click to cycle back to totals",
+          }
+        }
+        return {
+          label: "Tokens · total",
+          value: fmt(totals.totalInput) + " ↓ " + fmt(totals.totalOutput) + " ↑",
+          sub: totals.totalInput + totals.totalOutput + " tokens",
+          tip: "Click to see avg tokens/sec",
+        }
+      }
+
+      function renderHistory(requests) {
+        historyRows.innerHTML = requests
+          .map((r, i) => {
+            const rate = r.ms > 0 && r.output > 0 ? ((r.output / r.ms) * 1000).toFixed(1) + " tok/s" : "—"
+            return `
+              <div class="history-row">
+                <span class="num">#${i + 1}</span>
+                <span class="model" title="${r.model?.modelID || ""}">${r.model?.modelID || ""}</span>
+                <span class="in">${fmt(r.input)} in</span>
+                <span class="out">${fmt(r.output)} out</span>
+                <span class="rate">${rate}</span>
+              </div>
+            `
+          })
+          .join("")
+      }
+
       function render() {
-        if (!messageCount) {
+        const totals = computeTotals()
+        if (!totals.messageCount) {
           empty.style.display = "block"
           stats.style.display = "none"
           return
@@ -153,38 +375,91 @@
         empty.style.display = "none"
         stats.style.display = "block"
 
-        cards.innerHTML = [
-          { label: "Messages", value: messageCount, sub: "" },
-          { label: "Tokens In", value: fmt(totalInput), sub: "" },
-          { label: "Tokens Out", value: fmt(totalOutput), sub: "" },
-          { label: "Total Cost", value: usd(totalCost), sub: "", cls: "cost" },
+        const tok = tokensCardContent(totals)
+        const cardSpecs = [
+          { label: "Messages", value: totals.messageCount, sub: "this session" },
+          { label: tok.label, value: tok.value, sub: tok.sub, clickable: true, tip: tok.tip, slot: "tokens" },
+          { label: "Total cost", value: usd(totals.totalCost), sub: "", cls: "cost" },
         ]
+
+        cards.innerHTML = cardSpecs
           .map(
             (c) => `
-    <div class="card">
-      <div class="card-label">${c.label}</div>
-      <div class="card-value ${c.cls || ""}">${c.value}</div>
-      <div class="card-sub">${c.sub}</div>
-    </div>
-  `,
+          <div class="card ${c.clickable ? "clickable" : ""}" ${c.slot ? `data-slot="${c.slot}"` : ""}>
+            <div class="card-label">${c.label}</div>
+            <div class="card-value ${c.cls || ""}">${c.value}</div>
+            <div class="card-sub">${c.sub}</div>
+            ${c.tip ? `<div class="tip">${c.tip}</div>` : ""}
+          </div>`,
           )
           .join("")
 
-        const entries = Object.entries(toolCounts).sort((a, b) => b[1] - a[1])
+        const tokensCard = cards.querySelector('[data-slot="tokens"]')
+        if (tokensCard) {
+          tokensCard.addEventListener("click", () => {
+            tokensView = tokensView === "totals" ? "avg-rate" : tokensView === "avg-rate" ? "history" : "totals"
+            render()
+          })
+        }
+
+        historyView.style.display = tokensView === "history" && totals.requests.length ? "block" : "none"
+        if (tokensView === "history") renderHistory(totals.requests)
+
+        const entries = Object.entries(totals.toolCounts).sort((a, b) => b[1] - a[1])
         const max = entries[0]?.[1] || 1
         chart.innerHTML = entries
           .map(([tool, count]) => {
             const color = TOOL_COLORS[tool] || "#888"
             const pct = (count / max) * 100
             return `
-      <div class="bar-row">
-        <span class="bar-label">${tool}</span>
-        <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
-        <span class="bar-count">${count}</span>
-      </div>
-    `
+              <div class="bar-row">
+                <span class="bar-label">${tool}</span>
+                <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${color}"></div></div>
+                <span class="bar-count">${count}</span>
+              </div>`
           })
           .join("")
+      }
+
+      // --- message handlers -------------------------------------------------
+
+      function ingestSeedMessage(m) {
+        if (m.role !== "assistant") return
+        messageSnapshots.set(m.id ?? m.messageID ?? Symbol(), {
+          role: m.role,
+          cost: m.cost ?? 0,
+          tokens: m.tokens ?? {},
+          model: m.model ?? { modelID: m.modelID, providerID: m.providerID },
+        })
+        for (const p of m.parts || []) {
+          ingestPart(p)
+        }
+      }
+
+      function ingestPart(part, messageID) {
+        if (!part || typeof part !== "object") return
+        const mid = part.messageID || messageID
+        if (part.type === "step-finish" && part.id) {
+          stepParts.set(part.id, {
+            messageID: mid,
+            cost: part.cost ?? 0,
+            input: part.tokens?.input ?? 0,
+            output: part.tokens?.output ?? 0,
+          })
+          // Track message end time for tok/s
+          if (mid) {
+            const t = messageTiming.get(mid) ?? { start: Date.now(), end: Date.now() }
+            t.end = Date.now()
+            messageTiming.set(mid, t)
+          }
+        }
+        if (part.type === "tool" && part.id) {
+          toolParts.set(part.id, {
+            tool: part.tool,
+            state: part.state?.status,
+            callID: part.callID,
+          })
+        }
       }
 
       window.addEventListener("message", (e) => {
@@ -192,41 +467,53 @@
         if (!msg || typeof msg !== "object") return
 
         if (msg.type === "session.stats") {
-          // Bulk update from host
-          if (msg.messages) {
-            messageCount = 0
-            totalCost = 0
-            totalInput = 0
-            totalOutput = 0
-            toolCounts = {}
-            for (const m of msg.messages) {
-              if (m.role !== "assistant") continue
-              messageCount++
-              totalCost += m.cost || 0
-              totalInput += m.tokens?.input || 0
-              totalOutput += m.tokens?.output || 0
-              for (const p of m.parts || []) {
-                if (p.type === "tool") toolCounts[p.tool] = (toolCounts[p.tool] || 0) + 1
-              }
+          stepParts.clear()
+          toolParts.clear()
+          messageSnapshots.clear()
+          messageTiming.clear()
+          for (const m of msg.messages || []) {
+            const mid = m.id ?? m.messageID
+            if (mid && m.role === "assistant") {
+              messageTiming.set(mid, {
+                start: m.time?.created ?? Date.now(),
+                end: m.time?.completed ?? m.time?.created ?? Date.now(),
+              })
             }
+            ingestSeedMessage({ ...m, id: mid })
           }
           render()
+          return
         }
 
-        // Incremental updates
         if (msg.type === "message.part.updated") {
           const part = msg.properties?.part
-          if (part?.type === "step-finish") {
-            totalCost += part.cost || 0
-            totalInput += part.tokens?.input || 0
-            totalOutput += part.tokens?.output || 0
+          if (!part) return
+          // Record start time on first sight of a message's parts
+          if (part.messageID && !messageTiming.has(part.messageID)) {
+            messageTiming.set(part.messageID, { start: Date.now(), end: Date.now() })
           }
-          if (part?.type === "tool") {
-            toolCounts[part.tool] = (toolCounts[part.tool] || 0) + 1
-          }
+          ingestPart(part)
           render()
+          return
         }
       })
+
+      // Exposed for tests that inject the message shape directly
+      // without going through the window.postMessage path.
+      window.__mcpAppSessionStats = {
+        ingestPart,
+        ingestSeedMessage,
+        computeTotals,
+        stepParts,
+        toolParts,
+        messageSnapshots,
+        messageTiming,
+        setView: (v) => {
+          tokensView = v
+          render()
+        },
+        getView: () => tokensView,
+      }
 
       if (window.parent !== window) {
         window.parent.postMessage({ type: "mcp-app-ready" }, "*")

@@ -442,28 +442,31 @@ export function SessionSidePanel(props: {
                     </Show>
                   </Tabs.Content>
 
-                  <For each={pinnedApps()}>
-                    {(app) => {
-                      const tabValue = mcpTabValue(app)
-                      const isActive = () => activeTab() === tabValue
-                      // forceMount keeps every pinned app's iframe alive
-                      // across tab switches. Previously we toggled display:
-                      // none/flex via classList — but display:none pauses
-                      // the iframe's rendering context, and Kobalte layers
-                      // its own `hidden` attr on top, so every switch
-                      // produced a visible flash as the iframe had to
-                      // re-enter layout. Absolute-positioning the content
-                      // and flipping opacity keeps the iframe in layout
-                      // continuously, so nothing re-paints on switch.
-                      return (
-                        <Tabs.Content
-                          value={tabValue}
-                          forceMount
-                          class="h-full overflow-hidden contain-strict"
-                          style={{ position: "relative" }}
-                        >
-                          <div
-                            class="absolute inset-0 flex flex-col overflow-hidden"
+                  {/*
+                    Pinned MCP-app panes: Kobalte Tabs.Content with
+                    forceMount keeps every iframe alive across tab
+                    switches (otherwise the bridge tears down + the
+                    iframe reloads every click — very jarring). With
+                    forceMount all panes are always in the DOM, so we
+                    overlap them via absolute positioning and flip
+                    opacity/pointer-events to show just the active one.
+                    The shared wrapper provides the position:relative
+                    anchor the absolute children need, and the wrapper's
+                    absolute:inset-0 inside the Tabs root keeps the
+                    stack constrained to the tab body area (without
+                    this wrapper the panes would stack vertically and
+                    push the 2nd pinned pane below the visible region).
+                  */}
+                  <div class="relative flex-1 min-h-0">
+                    <For each={pinnedApps()}>
+                      {(app) => {
+                        const tabValue = mcpTabValue(app)
+                        const isActive = () => activeTab() === tabValue
+                        return (
+                          <Tabs.Content
+                            value={tabValue}
+                            forceMount
+                            class="absolute inset-0 flex flex-col overflow-hidden contain-strict"
                             style={{
                               opacity: isActive() ? 1 : 0,
                               "pointer-events": isActive() ? "auto" : "none",
@@ -478,11 +481,11 @@ export function SessionSidePanel(props: {
                               appName={app.name}
                               class="flex-1 min-h-0"
                             />
-                          </div>
-                        </Tabs.Content>
-                      )
-                    }}
-                  </For>
+                          </Tabs.Content>
+                        )
+                      }}
+                    </For>
+                  </div>
 
                   <For each={discoveredPorts()}>
                     {(port) => (

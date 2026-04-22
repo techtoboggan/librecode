@@ -6,6 +6,7 @@ import {
   buildActivitySeedPayload,
   buildStatsSeedPayload,
   createReadyHandler,
+  seedForSession,
 } from "./mcp-app-panel"
 
 describe("buildActivitySeedPayload", () => {
@@ -111,10 +112,10 @@ describe("createReadyHandler", () => {
     expect(seedActivity).toHaveBeenCalledTimes(0)
   })
 
-  test("seeds exactly once — second mcp-app-ready is ignored", () => {
-    // Apps are supposed to send the ready signal once, but a buggy app
-    // could spam it. We don't want to re-seed every time, as that would
-    // wipe any incremental state the app has already accumulated.
+  test("seeds exactly once per session — second mcp-app-ready for the same session is ignored", () => {
+    // v0.9.56 — the dedup key is (sessionID) not (iframe lifetime) so a
+    // buggy app that spams ready for the same session still only seeds
+    // once, but switching sessions correctly re-seeds.
     const { handler, seedActivity } = setup(BUILTIN_URI_ACTIVITY_GRAPH, "ses_c")
     handler({ source: contentWindow, data: { type: "mcp-app-ready" } })
     handler({ source: contentWindow, data: { type: "mcp-app-ready" } })
@@ -137,11 +138,13 @@ describe("createReadyHandler", () => {
     expect(seedActivity).toHaveBeenCalledTimes(0)
   })
 
-  test("with no sessionID: ready fires, nothing seeds, fire-once state still consumed", () => {
-    // If the user opens an app before a session exists, we skip seeding —
-    // but we still mark "seeded" so when the session appears later, we
-    // don't retroactively seed mid-turn. A follow-up ready would already
-    // be abnormal.
+  test("with no sessionID: ready fires, nothing seeds, fire-once state NOT consumed (fix for empty session stats)", () => {
+    // v0.9.56 — previously we set `seeded = true` even when sessionID
+    // was undefined, which meant a user who pinned the app before
+    // entering a session would never get a seed once they did. Now
+    // the dedup is keyed by sessionID, so a future ready from the
+    // same iframe (which in practice only happens via our
+    // `seedForSession` re-seed path) will seed correctly.
     const { handler, seedActivity, seedStats } = setup(BUILTIN_URI_ACTIVITY_GRAPH, undefined)
     handler({ source: contentWindow, data: { type: "mcp-app-ready" } })
     expect(seedActivity).toHaveBeenCalledTimes(0)
@@ -151,6 +154,60 @@ describe("createReadyHandler", () => {
   test("non-builtin URI: ready fires, but no seed runs (third-party apps bring their own data)", () => {
     const { handler, seedActivity, seedStats } = setup("ui://acme/custom-app", "ses_f")
     handler({ source: contentWindow, data: { type: "mcp-app-ready" } })
+    expect(seedActivity).toHaveBeenCalledTimes(0)
+    expect(seedStats).toHaveBeenCalledTimes(0)
+  })
+
+  test("new sessionID after a previous ready: handler re-seeds for the new session", () => {
+    // v0.9.56 — users who navigate between sessions while an MCP app
+    // pane is open need the pane to reflect each new session. The
+    // handler uses options.sessionID (a live accessor), so re-issuing
+    // the ready after the id changed should produce a second seed.
+    const seedActivity = mock<(id: string) => Promise<void>>(async () => {})
+    const seedStats = mock<(id: string) => void>(() => {})
+    const options = {
+      uri: BUILTIN_URI_ACTIVITY_GRAPH,
+      sessionID: "ses_a" as string | undefined,
+      contentWindow,
+      seedActivity,
+      seedStats,
+    }
+    const handler = createReadyHandler(options)
+    handler({ source: contentWindow, data: { type: "mcp-app-ready" } })
+    expect(seedActivity).toHaveBeenCalledTimes(1)
+    expect(seedActivity.mock.calls[0][0]).toBe("ses_a")
+
+    // User navigates to a different session; build a fresh handler
+    // the way the createEffect does when props.sessionID changes.
+    const handler2 = createReadyHandler({ ...options, sessionID: "ses_b" })
+    handler2({ source: contentWindow, data: { type: "mcp-app-ready" } })
+    expect(seedActivity).toHaveBeenCalledTimes(2)
+    expect(seedActivity.mock.calls[1][0]).toBe("ses_b")
+  })
+})
+
+describe("seedForSession", () => {
+  test("activity-graph URI: runs seedActivity with the given session id", () => {
+    const seedActivity = mock<(id: string) => Promise<void>>(async () => {})
+    const seedStats = mock<(id: string) => void>(() => {})
+    seedForSession({ uri: BUILTIN_URI_ACTIVITY_GRAPH, sessionID: "ses_x", seedActivity, seedStats })
+    expect(seedActivity).toHaveBeenCalledTimes(1)
+    expect(seedActivity.mock.calls[0][0]).toBe("ses_x")
+    expect(seedStats).toHaveBeenCalledTimes(0)
+  })
+
+  test("session-stats URI: runs seedStats", () => {
+    const seedActivity = mock<(id: string) => Promise<void>>(async () => {})
+    const seedStats = mock<(id: string) => void>(() => {})
+    seedForSession({ uri: BUILTIN_URI_SESSION_STATS, sessionID: "ses_y", seedActivity, seedStats })
+    expect(seedStats).toHaveBeenCalledTimes(1)
+    expect(seedStats.mock.calls[0][0]).toBe("ses_y")
+  })
+
+  test("non-builtin URI: nothing fires", () => {
+    const seedActivity = mock<(id: string) => Promise<void>>(async () => {})
+    const seedStats = mock<(id: string) => void>(() => {})
+    seedForSession({ uri: "ui://acme/other", sessionID: "ses_z", seedActivity, seedStats })
     expect(seedActivity).toHaveBeenCalledTimes(0)
     expect(seedStats).toHaveBeenCalledTimes(0)
   })
