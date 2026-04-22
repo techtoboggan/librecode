@@ -171,6 +171,11 @@
         const rows = Math.ceil(entries.length / cols)
         const cellW = w / (cols + 1)
         const cellH = h / (rows + 1)
+        // v0.9.60 — keep `updatedAt` on the node, not a pre-computed
+        // `age`. The draw loop recomputes age live every frame so the
+        // radius/alpha/pulse all animate smoothly between server
+        // events instead of freezing at whatever age was snapshotted
+        // when the last `activity.updated` arrived.
         nodes = entries.map((f, i) => {
           const col = i % cols
           const row = Math.floor(i / cols)
@@ -180,7 +185,7 @@
             path: f.path,
             kind: f.kind,
             name: basename(f.path),
-            age: Date.now() - f.updatedAt,
+            updatedAt: f.updatedAt,
           }
         })
       }
@@ -189,12 +194,46 @@
         const w = canvas.width / devicePixelRatio
         const h = canvas.height / devicePixelRatio
         ctx.clearRect(0, 0, w, h)
+        const now = Date.now()
+        // Which agent (if any) is currently working, and which file path
+        // it's touching — used to render a brighter pulsing halo on the
+        // file being actively operated on. Read each frame so the halo
+        // follows the agent without waiting for a new host event.
+        let activeFile = null
+        for (const a of Object.values(agents)) {
+          if (!a || !a.phase || a.phase === "exit") continue
+          if (a.file) {
+            activeFile = a.file
+            break
+          }
+        }
+
         for (const n of nodes) {
-          const r = Math.max(4, 14 - Math.min(n.age / 5000, 10))
-          const alpha = Math.max(0.3, 1 - n.age / 30000)
+          const age = now - (n.updatedAt || now)
+          const r = Math.max(4, 14 - Math.min(age / 5000, 10))
+          const alpha = Math.max(0.3, 1 - age / 30000)
+          const color = COLORS[n.kind] || COLORS.idle
+          const recent = age < 1200 // ms — "just happened" window
+          const isActive = n.path === activeFile
+
+          // Pulsing halo on the actively-worked-on node (agent phase)
+          // OR on any node whose last update was < 1.2s ago (a fresh
+          // tool result just landed). Two overlapping sine waves give
+          // a gentle breathing effect without feeling jittery.
+          if (isActive || recent) {
+            const phase = (now % 900) / 900
+            const pulseR = r + 4 + Math.sin(phase * Math.PI * 2) * 3
+            const pulseAlpha = isActive ? 0.45 : recent ? 0.35 * (1 - age / 1200) : 0
+            ctx.beginPath()
+            ctx.arc(n.x, n.y, pulseR, 0, Math.PI * 2)
+            ctx.fillStyle = color
+            ctx.globalAlpha = pulseAlpha
+            ctx.fill()
+          }
+
           ctx.beginPath()
           ctx.arc(n.x, n.y, r, 0, Math.PI * 2)
-          ctx.fillStyle = COLORS[n.kind] || COLORS.idle
+          ctx.fillStyle = color
           ctx.globalAlpha = alpha
           ctx.fill()
           ctx.globalAlpha = 1
