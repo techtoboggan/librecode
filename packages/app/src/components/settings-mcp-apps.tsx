@@ -201,10 +201,7 @@ export const SettingsMcpApps: Component = () => {
                 </div>
               </Show>
 
-              <div
-                class="pt-2 border-t border-border-weaker-base flex flex-col gap-1"
-                data-slot="mcp-apps-rules"
-              >
+              <div class="pt-2 border-t border-border-weaker-base flex flex-col gap-1" data-slot="mcp-apps-rules">
                 <div class="flex items-baseline gap-2">
                   <span class="text-12-regular text-text-weak">Persisted rules</span>
                   <Show

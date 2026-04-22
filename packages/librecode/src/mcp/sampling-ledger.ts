@@ -55,9 +55,7 @@ export function recordSamplingCost(server: string, costUsd: number, now: number 
   s.byServer.set(server, entries)
 }
 
-export type CapCheckResult =
-  | { ok: true; remainingUsd: number }
-  | { ok: false; reason: string; remainingUsd: number }
+export type CapCheckResult = { ok: true; remainingUsd: number } | { ok: false; reason: string; remainingUsd: number }
 
 /**
  * Would charging `proposedCostUsd` to `server` breach `capUsd`? The
