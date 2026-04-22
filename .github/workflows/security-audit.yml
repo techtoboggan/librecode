@@ -1,0 +1,122 @@
+name: Security audit (daily)
+
+# Scheduled supply-chain scan for the Rust/Tauri dep graph. Runs daily
+# because the RustSec advisory database is a live feed — new advisories
+# land on their own schedule, independent of our releases. Prior to
+# v0.9.57 this check lived inside the release quality gate; a single
+# fresh advisory (e.g. RUSTSEC-2026-0104 on rustls-webpki during v0.9.56)
+# would fail cargo-audit and block the whole release pipeline including
+# COPR submission, even though the advisory was unrelated to anything in
+# the PR being shipped. Decoupling the scan from release gives us a
+# signal (this workflow opens an issue on failure) without holding
+# feature delivery hostage to upstream advisory timing.
+#
+# PR-level scanning still runs in ci.yml when Cargo.lock / Cargo.toml /
+# audit.toml change, so a PR that *introduces* a vulnerable version
+# still fails fast. This workflow catches the case where the graph
+# stayed identical and a new advisory dropped against it.
+
+on:
+  schedule:
+    # 06:00 UTC — shortly after RustSec's daily sync window. Adjust
+    # only if we start missing same-day advisories for hours.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "packages/desktop/src-tauri/Cargo.lock"
+      - "packages/desktop/src-tauri/Cargo.toml"
+      - "packages/desktop/src-tauri/audit.toml"
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  audit:
+    name: cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: Run cargo audit
+        id: audit
+        continue-on-error: true
+        run: |
+          set +e
+          cd packages/desktop/src-tauri
+          cargo audit 2>&1 | tee /tmp/audit-output.txt
+          code=${PIPESTATUS[0]}
+          echo "code=${code}" >> "$GITHUB_OUTPUT"
+          # Extract the short summary block (everything from the first
+          # RUSTSEC id onward, but cap the body so the issue template
+          # stays readable).
+          awk '/^ID:/,0' /tmp/audit-output.txt | head -200 > /tmp/audit-summary.txt
+          exit 0
+
+      - name: Find open audit-failure issue
+        id: find-issue
+        if: steps.audit.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          num=$(gh issue list --label security-audit --state open --limit 1 --json number --jq '.[0].number // ""')
+          echo "number=${num}" >> "$GITHUB_OUTPUT"
+
+      - name: Open or update audit-failure issue
+        if: steps.audit.outputs.code != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="Rust audit failure on $(date -u +%Y-%m-%d)"
+          BODY=$(cat <<EOF
+          The scheduled \`cargo-audit\` run found a new advisory against the
+          desktop Rust dep graph.
+
+          **Summary (first 200 lines of cargo-audit output):**
+          \`\`\`
+          $(cat /tmp/audit-summary.txt)
+          \`\`\`
+
+          Full log: [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+          **Triage:**
+          1. Run \`cargo update -p <crate>\` in \`packages/desktop/src-tauri/\`
+             to pull the patched version (check the advisory's "Solution" line).
+          2. If no upstream fix exists yet, assess exploitability for our use
+             (Tauri desktop, no network server). Accept risk in
+             \`packages/desktop/src-tauri/audit.toml\` only if justified.
+          3. Close this issue when the next commit lands a clean audit.
+
+          This issue was opened automatically by the daily scan. The scan
+          runs at 06:00 UTC; it will reopen a new issue each day until the
+          tree is clean again.
+          EOF
+          )
+
+          if [ -n "${{ steps.find-issue.outputs.number }}" ]; then
+            gh issue comment "${{ steps.find-issue.outputs.number }}" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --label security-audit --body "$BODY"
+          fi
+          # Signal failure AFTER we've reported, so the workflow page itself
+          # still reflects the advisory state for dashboards.
+          exit 1
+
+      - name: Close stale audit-failure issues
+        if: steps.audit.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for n in $(gh issue list --label security-audit --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Audit is clean again as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — closing."
+          done
