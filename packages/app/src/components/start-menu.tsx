@@ -1,10 +1,12 @@
 import { Button } from "@librecode/ui/button"
+import { useDialog } from "@librecode/ui/context/dialog"
 import { Icon } from "@librecode/ui/icon"
 import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js"
 import { Portal } from "solid-js/web"
 import { useServer } from "@/context/server"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
+import { MarketplaceDialog } from "./marketplace-dialog"
 
 type AppEntry = {
   server: string
@@ -23,6 +25,7 @@ export function StartMenu(props: StartMenuProps) {
   const server = useServer()
   const globalSDK = useGlobalSDK()
   const language = useLanguage()
+  const dialog = useDialog()
   const [open, setOpen] = createSignal(false)
   const [anchor, setAnchor] = createSignal<HTMLButtonElement>()
   // v0.9.62 — Portal-render the panel so the review pane's
@@ -94,7 +97,15 @@ export function StartMenu(props: StartMenuProps) {
         aria-expanded={open()}
       >
         <Icon name="dot-grid" class="size-3.5" />
-        <span class="hidden lg:inline">Apps</span>
+        {/*
+          v0.9.64 — relabeled "Apps" → "Start" to match the
+          underlying component name (`StartMenu`) and the agentic-OS
+          framing the project has been building toward. The button
+          opens a launcher that lists pinned built-ins + connected
+          MCP-server apps, with a "Browse marketplace" entry at the
+          bottom that searches mcpapps.vip.
+        */}
+        <span class="hidden lg:inline">Start</span>
       </Button>
 
       <Show when={open() && coords()}>
@@ -169,6 +180,28 @@ export function StartMenu(props: StartMenuProps) {
                 <Show when={apps.loading}>
                   <div class="px-2 py-4 text-12-regular text-text-weak text-center animate-pulse">Loading apps...</div>
                 </Show>
+
+                {/*
+                  v0.9.64 — marketplace entry. Always visible, whether
+                  apps are loaded or empty, so the user has a path to
+                  discover new apps without first connecting an MCP
+                  server locally. Opens a modal that searches
+                  mcpapps.vip through the host's /marketplace proxy.
+                */}
+                <div class="mt-1 pt-1 border-t border-border-weak-base">
+                  <button
+                    class="w-full flex items-center gap-2 px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
+                    onClick={() => {
+                      setOpen(false)
+                      dialog.show(() => <MarketplaceDialog onClose={() => dialog.close()} />)
+                    }}
+                  >
+                    <Icon name="magnifying-glass" class="size-3.5 text-text-weaker" />
+                    <span class="text-12-medium text-text-base">Browse marketplace</span>
+                    <span class="flex-1" />
+                    <span class="text-10-regular text-text-weaker">mcpapps.vip</span>
+                  </button>
+                </div>
               </div>
             </div>
           </Portal>
