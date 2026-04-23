@@ -398,6 +398,9 @@
         if (tokensCard) {
           tokensCard.addEventListener("click", () => {
             tokensView = tokensView === "totals" ? "avg-rate" : tokensView === "avg-rate" ? "history" : "totals"
+            // v0.9.63 — persist the selected view so reopening
+            // LibreCode restores whichever pane the user was last on.
+            saveState({ tokensView })
             render()
           })
         }
@@ -515,8 +518,52 @@
         getView: () => tokensView,
       }
 
+      // v0.9.63 — persistent state helpers. Round-trip JSON blobs
+      // through the host's /mcp/apps/state endpoint (relayed via
+      // postMessage; see `createStateRelay` in mcp-app-panel.tsx).
+      // Fire-and-forget: we don't block rendering on the response.
+      let nextStateRequestID = 1
+      function saveState(state) {
+        if (window.parent === window) return
+        window.parent.postMessage({ type: "mcp-app-state:save", requestID: String(nextStateRequestID++), state }, "*")
+      }
+      function loadState() {
+        return new Promise((resolve) => {
+          if (window.parent === window) {
+            resolve(null)
+            return
+          }
+          const requestID = String(nextStateRequestID++)
+          const onReply = (e) => {
+            const msg = e.data
+            if (!msg || typeof msg !== "object") return
+            if (msg.type !== "mcp-app-state:loaded" || msg.requestID !== requestID) return
+            window.removeEventListener("message", onReply)
+            resolve(msg.state ?? null)
+          }
+          window.addEventListener("message", onReply)
+          window.parent.postMessage({ type: "mcp-app-state:load", requestID }, "*")
+          // Fallback — if the host never replies (older build), resolve
+          // to null after a short timeout so we don't block forever.
+          setTimeout(() => {
+            window.removeEventListener("message", onReply)
+            resolve(null)
+          }, 1500)
+        })
+      }
+
       if (window.parent !== window) {
         window.parent.postMessage({ type: "mcp-app-ready" }, "*")
+        // Restore the user's last selected tokens view, if any.
+        loadState().then((state) => {
+          if (state && typeof state === "object" && typeof state.tokensView === "string") {
+            const next = state.tokensView
+            if (next === "totals" || next === "avg-rate" || next === "history") {
+              tokensView = next
+              render()
+            }
+          }
+        })
       }
     </script>
   </body>

@@ -3,6 +3,7 @@ import { describeRoute, resolver, validator } from "hono-openapi"
 import z from "zod"
 import { Config } from "../../config/config"
 import { MCP } from "../../mcp"
+import { McpAppState } from "../../mcp/app-state"
 import { getBuiltinAppHtml, listBuiltinApps } from "../../mcp/builtin-apps"
 import { lazy } from "../../util/lazy"
 import { errors } from "../error"
@@ -281,6 +282,49 @@ export const McpRoutes = lazy(() =>
           return c.json({ error: `MCP App resource not found: ${uri} on server ${server}` }, 404)
         }
         return c.text(html, 200, { "Content-Type": "text/html; charset=utf-8" })
+      },
+    )
+    .get(
+      "/apps/state",
+      describeRoute({
+        summary: "Load an MCP app's persistent state",
+        description:
+          "v0.9.63 — returns the JSON blob the given (server, uri) app has previously saved via PUT. " +
+          "Returns 200 with `{ state: null }` if the app has no saved state yet. Storage lives at " +
+          "`~/.local/librecode-mcp-apps/<server-slug>/<uri-hash>.json` so users can inspect or reset " +
+          "individual apps' state manually.",
+        operationId: "mcp.apps.state.load",
+        responses: { 200: { description: "OK" }, ...errors(400) },
+      }),
+      validator("query", z.object({ server: z.string().min(1), uri: z.string().min(1) })),
+      async (c) => {
+        const { server, uri } = c.req.valid("query")
+        const state = await McpAppState.load(server, uri)
+        return c.json({ state: state ?? null })
+      },
+    )
+    .put(
+      "/apps/state",
+      describeRoute({
+        summary: "Save an MCP app's persistent state",
+        description:
+          "Writes the provided JSON blob for the given (server, uri) app. Enforces a per-app size cap " +
+          "(see `McpAppState.MAX_STATE_BYTES`); writes atomically via a rename from a .tmp sibling. " +
+          "PUT with `{ state: null }` clears the stored record.",
+        operationId: "mcp.apps.state.save",
+        responses: { 200: { description: "OK" }, 413: { description: "State too large" }, ...errors(400) },
+      }),
+      validator("query", z.object({ server: z.string().min(1), uri: z.string().min(1) })),
+      validator("json", z.object({ state: z.unknown() })),
+      async (c) => {
+        const { server, uri } = c.req.valid("query")
+        const { state } = c.req.valid("json")
+        const result = await McpAppState.save(server, uri, state === null ? undefined : state)
+        if (!result.ok) {
+          const status = result.reason === "too_large" ? 413 : 400
+          return c.json({ error: result.message }, status)
+        }
+        return c.json({ ok: true })
       },
     )
     .post(
