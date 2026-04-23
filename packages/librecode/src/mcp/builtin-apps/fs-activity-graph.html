@@ -199,9 +199,17 @@
         // it's touching — used to render a brighter pulsing halo on the
         // file being actively operated on. Read each frame so the halo
         // follows the agent without waiting for a new host event.
+        //
+        // v0.9.66 — the denylist used to be `phase === "exit"` only,
+        // which meant tool phases like "completed" / "error" /
+        // "cancelled" kept the pulse running long after work had
+        // actually stopped. Now we accept only known in-flight phases
+        // (pending / running / thinking / tool_use). Everything else
+        // — including "completed" — drops out of the halo.
         let activeFile = null
+        const ACTIVE_PHASES = new Set(["pending", "running", "thinking", "tool_use", "working"])
         for (const a of Object.values(agents)) {
-          if (!a || !a.phase || a.phase === "exit") continue
+          if (!a || !a.phase || !ACTIVE_PHASES.has(a.phase)) continue
           if (a.file) {
             activeFile = a.file
             break
@@ -267,7 +275,13 @@
           empty.style.display = hasAnything ? "none" : "flex"
           if (!hasAnything) empty.textContent = "Waiting for file activity — chat-only turns don't move the graph"
           countEl.textContent = count ? count + " files" : agentCount ? agentCount + " agents" : ""
-          dot.className = "dot " + (agentCount > 0 ? "active" : "idle")
+          // v0.9.66 — match the pulse denylist above. The header dot
+          // should pulse only while at least one agent is still in an
+          // active phase; "completed" / "error" / post-turn states
+          // all read as idle so the user sees the work has stopped.
+          const activePhaseSet = new Set(["pending", "running", "thinking", "tool_use", "working"])
+          const hasActive = Object.values(agents).some((a) => a && a.phase && activePhaseSet.has(a.phase))
+          dot.className = "dot " + (hasActive ? "active" : "idle")
           const agentPhases = Object.values(agents)
             .map((a) => a.phase)
             .filter((p) => p && p !== "exit")
