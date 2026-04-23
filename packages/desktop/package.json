@@ -1,7 +1,7 @@
 {
   "name": "@librecode/desktop",
   "private": true,
-  "version": "0.9.62",
+  "version": "0.9.63",
   "type": "module",
   "license": "MIT",
   "scripts": {
