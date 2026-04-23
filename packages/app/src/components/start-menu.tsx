@@ -103,7 +103,7 @@ export function StartMenu(props: StartMenuProps) {
           framing the project has been building toward. The button
           opens a launcher that lists pinned built-ins + connected
           MCP-server apps, with a "Browse marketplace" entry at the
-          bottom that searches mcpapps.vip.
+          bottom that searches mcpappfoundry.app.
         */}
         <span class="hidden lg:inline">Start</span>
       </Button>
@@ -186,7 +186,7 @@ export function StartMenu(props: StartMenuProps) {
                   apps are loaded or empty, so the user has a path to
                   discover new apps without first connecting an MCP
                   server locally. Opens a modal that searches
-                  mcpapps.vip through the host's /marketplace proxy.
+                  mcpappfoundry.app through the host's /marketplace proxy.
                 */}
                 <div class="mt-1 pt-1 border-t border-border-weak-base">
                   <button
@@ -199,7 +199,7 @@ export function StartMenu(props: StartMenuProps) {
                     <Icon name="magnifying-glass" class="size-3.5 text-text-weaker" />
                     <span class="text-12-medium text-text-base">Browse marketplace</span>
                     <span class="flex-1" />
-                    <span class="text-10-regular text-text-weaker">mcpapps.vip</span>
+                    <span class="text-10-regular text-text-weaker">mcpappfoundry.app</span>
                   </button>
                 </div>
               </div>

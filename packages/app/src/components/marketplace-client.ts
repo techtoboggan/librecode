@@ -1,9 +1,9 @@
 /**
  * v0.9.64 — client helpers for the LibreCode MCP App marketplace
- * at mcpapps.vip.
+ * at mcpappfoundry.app.
  *
  * The client hits a LibreCode-local proxy at `/marketplace/*` rather
- * than mcpapps.vip directly — the server adds caching, swallows
+ * than mcpappfoundry.app directly — the server adds caching, swallows
  * CORS, and can fall back to the official MCP registry if the
  * curated marketplace is unreachable. Base URL is env-configurable
  * via `MCPAPPS_REGISTRY_URL` server-side so we can point staging
@@ -205,7 +205,7 @@ export async function searchMarketplace(
  * v0.9.64 scaffold — actual install wiring lives server-side behind
  * `POST /marketplace/install`. The stub implementation stores the
  * intent and returns a success response; real MCP-add flow wires up
- * in the follow-up that lands alongside the first production mcpapps.vip
+ * in the follow-up that lands alongside the first production mcpappfoundry.app
  * launch.
  */
 export async function installFromMarketplace(

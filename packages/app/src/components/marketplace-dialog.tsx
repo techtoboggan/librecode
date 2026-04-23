@@ -2,7 +2,7 @@
  * v0.9.64 — in-app "Browse MCP apps" dialog.
  *
  * Users reach this from the Start menu → "Browse marketplace". It's a
- * search-driven grid of curated apps from mcpapps.vip (proxied via
+ * search-driven grid of curated apps from mcpappfoundry.app (proxied via
  * the host's `/marketplace/*` route). Clicking Install on a card
  * triggers the server-side install flow and, on success, pins the
  * app to the user's Start menu by dropping it into the same
@@ -11,7 +11,7 @@
  * The install path is stubbed in this release (the server endpoint
  * records intent and returns a placeholder). That lets us land the
  * UI plumbing + types + client + proxy shape ahead of the first
- * production mcpapps.vip launch. When the real install flow lands,
+ * production mcpappfoundry.app launch. When the real install flow lands,
  * only `installFromMarketplace`'s server handler needs to change —
  * the client contract is stable.
  */
@@ -97,7 +97,7 @@ export function MarketplaceDialog(props: MarketplaceDialogProps): JSX.Element {
         <div class="flex flex-col gap-0.5">
           <span class="text-14-medium text-text-strong">MCP App Marketplace</span>
           <span class="text-11-regular text-text-weaker">
-            Curated apps from mcpapps.vip · Install adds them to your Start menu
+            Curated apps from mcpappfoundry.app · Install adds them to your Start menu
           </span>
         </div>
         <span class="flex-1" />
@@ -137,7 +137,7 @@ export function MarketplaceDialog(props: MarketplaceDialogProps): JSX.Element {
               <div class="text-12-regular text-text-weak">
                 The marketplace is empty right now.
                 <br />
-                mcpapps.vip is coming online — check back soon.
+                mcpappfoundry.app is coming online — check back soon.
               </div>
               <Button type="button" variant="ghost" size="small" onClick={() => refetch()}>
                 Retry
@@ -224,12 +224,12 @@ export function MarketplaceDialog(props: MarketplaceDialogProps): JSX.Element {
       <footer class="px-4 py-2 border-t border-border-weak-base text-10-regular text-text-weaker">
         Powered by{" "}
         <a
-          href="https://mcpapps.vip"
+          href="https://mcpappfoundry.app"
           target="_blank"
           rel="noopener noreferrer"
           class="text-text-weak hover:text-text-base underline"
         >
-          mcpapps.vip
+          mcpappfoundry.app
         </a>
         {" · "}
         Listings curated for quality + compatibility with the MCP Apps host spec.

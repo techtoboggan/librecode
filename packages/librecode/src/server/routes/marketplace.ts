@@ -1,6 +1,6 @@
 /**
  * v0.9.64 — server-side proxy to the MCP App marketplace at
- * mcpapps.vip.
+ * mcpappfoundry.app.
  *
  * The proxy exists so the client doesn't need cross-origin access,
  * the server can cache listings to spare the marketplace from
@@ -14,7 +14,7 @@
  * endpoint records the intent and returns a placeholder response
  * so the UI's install flow can be exercised end-to-end; real
  * wiring (MCP.add + auth handshake) lands alongside the first
- * production mcpapps.vip launch.
+ * production mcpappfoundry.app launch.
  */
 import { Hono } from "hono"
 import { describeRoute, resolver, validator } from "hono-openapi"
@@ -25,7 +25,7 @@ import { errors } from "../error"
 
 const log = Log.create({ service: "marketplace" })
 
-export const DEFAULT_MARKETPLACE_URL = "https://mcpapps.vip/api/v1"
+export const DEFAULT_MARKETPLACE_URL = "https://mcpappfoundry.app/api/v1"
 
 function marketplaceBase(): string {
   return process.env.LIBRECODE_MCP_MARKETPLACE_URL || DEFAULT_MARKETPLACE_URL
@@ -143,7 +143,7 @@ export const MarketplaceRoutes = lazy(() =>
       describeRoute({
         summary: "Search the MCP App marketplace",
         description:
-          "v0.9.64 — proxies to mcpapps.vip's `/api/v1/apps` with a 5-minute in-process cache. " +
+          "v0.9.64 — proxies to mcpappfoundry.app's `/api/v1/apps` with a 5-minute in-process cache. " +
           "Override the upstream via the `LIBRECODE_MCP_MARKETPLACE_URL` env var (e.g. for local " +
           "fixture playback or an on-prem curated registry). Returns shape-validated entries; " +
           "malformed items are silently dropped so a single bad entry can't take down the grid.",
@@ -188,7 +188,7 @@ export const MarketplaceRoutes = lazy(() =>
         description:
           "v0.9.64 scaffold — records the install intent and returns a stub success response so " +
           "the UI's install flow can be exercised end-to-end. Real MCP.add + OAuth handshake wiring " +
-          "lands alongside the first production mcpapps.vip launch. For now, the best path is for " +
+          "lands alongside the first production mcpappfoundry.app launch. For now, the best path is for " +
           "users to copy the app's install command from the card footer and run it via their " +
           "existing MCP config.",
         operationId: "marketplace.install",
