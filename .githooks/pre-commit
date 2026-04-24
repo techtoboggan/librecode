@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+#
+# LibreCode pre-commit hook — runs prettier + biome on staged files.
+#
+# Enabled via `git config core.hooksPath .githooks` (wired by root
+# package.json's postinstall script on `bun install`).
+#
+# Why a hook at all: four releases since v0.9.52 have been broken by
+# prettier failing in CI — a cheap check on the engineer's laptop
+# would have caught every one. Specifically v0.9.52 blocked the COPR
+# pipeline for days until the cause was traced back to the quality
+# gate. This hook makes the same check locally, on staged files only,
+# in under a second.
+#
+# Philosophy: fast, surgical, non-invasive. Only checks files the
+# commit actually touches. Doesn't modify anything — reports what to
+# run if prettier flags an issue and exits non-zero. If you want the
+# fixes applied automatically, `bunx prettier --write <files>` then
+# `git add -p` them; the hook won't do that for you (too magical).
+#
+# Bypass (rare, e.g. emergency fix-forward): `git commit --no-verify`.
+
+set -eu
+
+RED=$'\033[31m'
+YELLOW=$'\033[33m'
+GREEN=$'\033[32m'
+DIM=$'\033[2m'
+RESET=$'\033[0m'
+
+# Collect staged files matching prettier's configured globs. We mirror
+# the root `.prettierrc` / `prettier` key in package.json — prettier
+# picks up the same globs from its defaults, we just filter to staged.
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+if [ -z "$staged" ]; then
+  exit 0
+fi
+
+# Limit to file types prettier cares about. Extending this list is
+# cheap — if you're adding a file type that prettier formats, add it
+# here too.
+to_check=$(printf '%s\n' "$staged" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|mts|cts|json|jsonc|md|mdx|css|scss|html|yaml|yml)$' || true)
+
+if [ -z "$to_check" ]; then
+  # No formattable files staged — nothing to do.
+  exit 0
+fi
+
+printf '%s→ prettier check%s (%d file%s)\n' "$DIM" "$RESET" "$(echo "$to_check" | wc -l | tr -d ' ')" "$(if [ "$(echo "$to_check" | wc -l | tr -d ' ')" = "1" ]; then echo ""; else echo "s"; fi)"
+
+# `--log-level=warn` keeps the success case silent; failures print.
+# `--ignore-unknown` swallows files prettier doesn't recognise (lets
+# us be permissive with the extension filter above).
+if ! echo "$to_check" | xargs bunx prettier --check --log-level=warn --ignore-unknown 2>&1; then
+  printf '\n%sprettier found formatting issues in staged files.%s\n' "$RED" "$RESET"
+  printf '%sTo fix automatically and re-stage:%s\n' "$YELLOW" "$RESET"
+  printf '  bunx prettier --write %s\n' "$(echo "$to_check" | tr '\n' ' ')"
+  printf '  git add %s\n' "$(echo "$to_check" | tr '\n' ' ')"
+  printf '\n%sOr bypass this hook (only for emergency fix-forwards):%s\n' "$YELLOW" "$RESET"
+  printf '  git commit --no-verify\n\n'
+  exit 1
+fi
+
+printf '%s✓%s prettier clean\n' "$GREEN" "$RESET"
+exit 0

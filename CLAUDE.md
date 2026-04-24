@@ -95,6 +95,11 @@ cd packages/librecode && bun test test/config/  # test a directory
 - Atomic commits — one logical change per commit
 - Commit messages: imperative mood, explain WHY not just WHAT
 - Always include `Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>` when AI-assisted
+- **Pre-commit hook** runs `prettier --check` on staged files. Wired
+  automatically by `bun install` via a `postinstall` that sets
+  `core.hooksPath .githooks`. Hook source at `.githooks/pre-commit`.
+  If it flags an issue, the error message includes a copy-paste fix
+  command. Bypass only for emergency fix-forwards: `git commit --no-verify`.
 
 ## Architecture Constraints
 
@@ -135,7 +140,7 @@ Codifying so we stop paying the tax.
 
 **The smell.** A user interaction flips a signal, and downstream a
 `createResource` (anywhere in the subtree) either (a) gets that signal as
-part of its source key, or (b) gets *remounted* by a conditional render.
+part of its source key, or (b) gets _remounted_ by a conditional render.
 The resource enters `loading`, and because the session route has a
 `<Suspense fallback={<Loading />}>` wrapper around `<Session />` in
 `app.tsx` (and `Loading` is an empty `div`), the whole session pane goes
@@ -143,7 +148,7 @@ blank for the duration of the load → visible white/black flash, text
 reflow, iframe remounts.
 
 **The preferred fix: don't couple interactions to resource loading.** If
-opening a menu, switching a tab, or pinning an app doesn't *need* new
+opening a menu, switching a tab, or pinning an app doesn't _need_ new
 data to fetch, don't key a resource on that state. Fetch at mount
 against a stable source, then let the UI state toggle pure presentation.
 
@@ -170,7 +175,7 @@ const setValue = (next: string) => void startTransition(() => setRawValue(next))
 ```
 
 **Important caveat — `startTransition` is not bulletproof.** When the
-trigger is a cheap synchronous flip that causes a *downstream* resource to
+trigger is a cheap synchronous flip that causes a _downstream_ resource to
 enter `loading` (the Start menu shape: `open` flips → source function
 returns a different value → resource loads), the Suspense fallback can
 commit before the transition settles. Solid's transition tracking is

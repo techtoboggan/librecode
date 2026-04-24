@@ -38,11 +38,11 @@ of the boundary momentarily. The user sees:
 We shipped variants of this bug three times before deciding to
 codify the pattern:
 
-| Release | Trigger                                  | Fix site                                        |
-| ------- | ---------------------------------------- | ----------------------------------------------- |
-| v0.9.54 | Tab switches in the session side panel   | `session-side-panel.tsx` tab-change handler     |
-| v0.9.58 | Pinning a new MCP app for the first time | `context/pinned-apps.tsx` `pin()` setter        |
-| v0.9.70 | Opening / closing the Start menu         | `components/start-menu.tsx` open/close toggle   |
+| Release | Trigger                                  | Fix site                                      |
+| ------- | ---------------------------------------- | --------------------------------------------- |
+| v0.9.54 | Tab switches in the session side panel   | `session-side-panel.tsx` tab-change handler   |
+| v0.9.58 | Pinning a new MCP app for the first time | `context/pinned-apps.tsx` `pin()` setter      |
+| v0.9.70 | Opening / closing the Start menu         | `components/start-menu.tsx` open/close toggle |
 
 Each time the instinct was "that's weird, specific to this surface" rather
 than "this is the same underlying bug." Three is enough: codify it.
@@ -53,7 +53,7 @@ Two complementary rules, in preference order.
 
 ### Primary: decouple user interactions from resource loading
 
-If the fetch doesn't *need* the interaction's new value, don't key the
+If the fetch doesn't _need_ the interaction's new value, don't key the
 resource on it. Fetch against a stable source (mount-time URL, session
 ID, etc.) and let the interaction toggle pure presentation. This
 eliminates the Suspense/transition interaction entirely — there's no
@@ -62,10 +62,7 @@ resource loading to wait on, so no fallback can fire.
 ```typescript
 // WRONG — flipping `open` changes the resource source → loading state
 const [open, setOpen] = createSignal(false)
-const [apps] = createResource(
-  () => (open() ? baseUrl() : undefined),
-  fetcher,
-)
+const [apps] = createResource(() => (open() ? baseUrl() : undefined), fetcher)
 
 // RIGHT — resource keyed on a stable value, fires at mount
 const [open, setOpen] = createSignal(false)
@@ -95,7 +92,7 @@ v0.9.70 wrapped the Start menu's open setter in `startTransition` and
 the Suspense fallback STILL fired. Solid's transition tracking is
 strongest when the resource is directly read inside the transition
 callback, not reached through a chain of reactive dependencies. A cheap
-synchronous flip that causes a *downstream* resource to enter loading
+synchronous flip that causes a _downstream_ resource to enter loading
 can commit the Suspense fallback before the transition settles.
 
 **Rule of thumb: if a `startTransition` fix doesn't hold under visual
@@ -157,12 +154,12 @@ game — SolidJS ASTs make this tractable but it's not on today's backlog.
 
 ## Known hot surfaces (already fixed, don't regress)
 
-| File                                         | Release | Technique                                          |
-| -------------------------------------------- | ------- | -------------------------------------------------- |
-| `app/src/pages/session/session-side-panel.tsx` | v0.9.54 | `startTransition` around tab-change setter         |
-| `app/src/context/pinned-apps.tsx`              | v0.9.58 | `startTransition` around `pin()` setter            |
-| `app/src/components/start-menu.tsx`            | v0.9.70 | `startTransition` around open/close (DIDN'T WORK)  |
-| `app/src/components/start-menu.tsx`            | v0.9.71 | Un-gated resource from `open()` — the actual fix   |
+| File                                           | Release | Technique                                         |
+| ---------------------------------------------- | ------- | ------------------------------------------------- |
+| `app/src/pages/session/session-side-panel.tsx` | v0.9.54 | `startTransition` around tab-change setter        |
+| `app/src/context/pinned-apps.tsx`              | v0.9.58 | `startTransition` around `pin()` setter           |
+| `app/src/components/start-menu.tsx`            | v0.9.70 | `startTransition` around open/close (DIDN'T WORK) |
+| `app/src/components/start-menu.tsx`            | v0.9.71 | Un-gated resource from `open()` — the actual fix  |
 
 v0.9.70 is instructive: the first `startTransition` fix looked correct
 and shipped green. Visual testing revealed the Suspense fallback was

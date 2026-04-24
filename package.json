@@ -13,7 +13,8 @@
     "test": "bun turbo test",
     "lint": "bunx biome lint .",
     "lint:fix": "bunx biome lint . --fix",
-    "quality": "bunx biome lint . --max-diagnostics=5000 2>&1 | tail -5"
+    "quality": "bunx biome lint . --max-diagnostics=5000 2>&1 | tail -5",
+    "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "workspaces": {
     "packages": [
