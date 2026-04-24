@@ -1,7 +1,7 @@
 import { Button } from "@librecode/ui/button"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { Icon } from "@librecode/ui/icon"
-import { createEffect, createResource, createSignal, For, onCleanup, Show } from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show, startTransition } from "solid-js"
 import { Portal } from "solid-js/web"
 import { useServer } from "@/context/server"
 import { useGlobalSDK } from "@/context/global-sdk"
@@ -26,8 +26,18 @@ export function StartMenu(props: StartMenuProps) {
   const globalSDK = useGlobalSDK()
   const language = useLanguage()
   const dialog = useDialog()
-  const [open, setOpen] = createSignal(false)
+  const [open, setRawOpen] = createSignal(false)
   const [anchor, setAnchor] = createSignal<HTMLButtonElement>()
+
+  // v0.9.70 — open/close inside `startTransition` so the `createResource`
+  // that fires when `open()` becomes truthy doesn't bubble its `loading`
+  // state to the nearest Suspense boundary (same SessionRoute boundary
+  // that caused the blank-screen flashes in v0.9.54 tab switches and
+  // v0.9.58 pin-adds). Without this, clicking Start briefly re-renders
+  // every pane behind the dropdown.
+  const setOpen = (next: boolean) => {
+    void startTransition(() => setRawOpen(next))
+  }
   // v0.9.62 — Portal-render the panel so the review pane's
   // `will-change: width` stacking context doesn't clip it under the
   // tab strip. Anchor coordinates are recomputed on open + scroll +
