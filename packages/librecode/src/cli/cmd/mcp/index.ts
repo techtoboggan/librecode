@@ -20,8 +20,10 @@ import {
   isMcpConfigured,
   isMcpRemote,
   printDebugTokenInfo,
+  removeMcpFromConfig,
   resolveAddConfigPath,
   selectOAuthServer,
+  setMcpEnabled,
 } from "./helpers"
 
 export const McpCommand = cmd({
@@ -30,6 +32,9 @@ export const McpCommand = cmd({
   builder: (yargs) =>
     yargs
       .command(McpAddCommand)
+      .command(McpRemoveCommand)
+      .command(McpEnableCommand)
+      .command(McpDisableCommand)
       .command(McpListCommand)
       .command(McpAuthCommand)
       .command(McpLogoutCommand)
@@ -261,55 +266,289 @@ async function selectLogoutServer(
 }
 
 export const McpAddCommand = cmd({
-  command: "add",
+  command: "add [name]",
   describe: "add an MCP server",
-  async handler() {
+  // v0.9.73 — add flag-driven non-interactive mode so upstream tools
+  // (e.g. openwebgoggles's `init librecode` target) can shell out to
+  // `librecode mcp add <name> --local <cmd>` without TTY prompts.
+  // Passing a name positionally + any of `--local` / `--remote` skips
+  // the whole prompt flow.
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        type: "string",
+        describe: "MCP server name (unique key). Omit to run interactively.",
+      })
+      .option("local", {
+        type: "string",
+        describe: "Local command to run (non-interactive). Quote to pass args in one token.",
+      })
+      .option("remote", {
+        type: "string",
+        describe: "Remote server URL (non-interactive).",
+      })
+      .option("oauth", {
+        type: "boolean",
+        default: false,
+        describe: "Enable OAuth for the remote server (used with --remote).",
+      })
+      .option("client-id", { type: "string", describe: "OAuth client ID (used with --oauth)." })
+      .option("client-secret", { type: "string", describe: "OAuth client secret (used with --oauth)." })
+      .option("header", {
+        type: "array",
+        string: true,
+        describe: "HTTP header for remote server, KEY=VALUE. Repeatable.",
+      })
+      .option("disabled", {
+        type: "boolean",
+        default: false,
+        describe: "Add but leave disabled so it doesn't auto-connect.",
+      })
+      .option("global", {
+        type: "boolean",
+        describe: "Write to the global config. Defaults to project config inside a git repo, global otherwise.",
+      })
+      .option("json", {
+        type: "boolean",
+        default: false,
+        describe: "Emit a JSON result instead of the prompts chrome. For scripting.",
+      })
+      .check((argv) => {
+        if (argv.local && argv.remote) throw new Error("--local and --remote are mutually exclusive.")
+        if (argv.name && !argv.local && !argv.remote) {
+          // Positional name without a flag — let the prompt flow handle it
+          return true
+        }
+        return true
+      }),
+  async handler(argv) {
     await Instance.provide({
       directory: process.cwd(),
       async fn() {
-        UI.empty()
-        prompts.intro("Add MCP server")
-        const configPath = await resolveAddConfigPath()
+        const nonInteractive = Boolean(argv.local || argv.remote)
+        if (nonInteractive) {
+          return runAddNonInteractive(argv)
+        }
+        await runAddInteractive(argv.name as string | undefined)
+      },
+    })
+  },
+})
 
-        const name = await prompts.text({
-          message: "Enter MCP server name",
-          validate: (x) => (x && x.length > 0 ? undefined : "Required"),
-        })
-        if (prompts.isCancel(name)) throw new UI.CancelledError()
+async function runAddNonInteractive(argv: {
+  name?: string
+  local?: string
+  remote?: string
+  oauth?: boolean
+  "client-id"?: string
+  "client-secret"?: string
+  header?: string[]
+  disabled?: boolean
+  global?: boolean
+  json?: boolean
+}): Promise<void> {
+  const name = argv.name
+  if (!name) {
+    throw new Error("MCP server name is required as a positional argument when using --local or --remote.")
+  }
+  const configPath = argv.global ? await resolveGlobalConfigPath() : await resolveAddConfigPath({ preferProject: true })
 
-        const type = await prompts.select({
-          message: "Select MCP server type",
-          options: [
-            { label: "Local", value: "local", hint: "Run a local command" },
-            { label: "Remote", value: "remote", hint: "Connect to a remote URL" },
-          ],
-        })
-        if (prompts.isCancel(type)) throw new UI.CancelledError()
+  const mcpConfig = argv.local
+    ? buildLocalConfig(argv.local, argv.disabled)
+    : buildRemoteConfig(argv.remote!, {
+        oauth: argv.oauth,
+        clientId: argv["client-id"],
+        clientSecret: argv["client-secret"],
+        headers: argv.header,
+        disabled: argv.disabled,
+      })
 
-        if (type === "local") {
-          const command = await prompts.text({
-            message: "Enter command to run",
-            placeholder: "e.g., librecode x @modelcontextprotocol/server-filesystem",
-            validate: (x) => (x && x.length > 0 ? undefined : "Required"),
-          })
-          if (prompts.isCancel(command)) throw new UI.CancelledError()
-          await addMcpToConfig(name, { type: "local", command: command.split(" ") }, configPath)
-          prompts.log.success(`MCP server "${name}" added to ${configPath}`)
-          prompts.outro("MCP server added successfully")
+  await addMcpToConfig(name, mcpConfig, configPath)
+  if (argv.json) {
+    process.stdout.write(`${JSON.stringify({ ok: true, name, path: configPath, config: mcpConfig })}\n`)
+    return
+  }
+  UI.println(`added MCP server "${name}" to ${configPath}`)
+}
+
+async function runAddInteractive(prefilledName?: string): Promise<void> {
+  UI.empty()
+  prompts.intro("Add MCP server")
+  const configPath = await resolveAddConfigPath()
+
+  const name =
+    prefilledName ??
+    (await prompts.text({
+      message: "Enter MCP server name",
+      validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+    }))
+  if (prompts.isCancel(name)) throw new UI.CancelledError()
+
+  const type = await prompts.select({
+    message: "Select MCP server type",
+    options: [
+      { label: "Local", value: "local", hint: "Run a local command" },
+      { label: "Remote", value: "remote", hint: "Connect to a remote URL" },
+    ],
+  })
+  if (prompts.isCancel(type)) throw new UI.CancelledError()
+
+  if (type === "local") {
+    const command = await prompts.text({
+      message: "Enter command to run",
+      placeholder: "e.g., librecode x @modelcontextprotocol/server-filesystem",
+      validate: (x) => (x && x.length > 0 ? undefined : "Required"),
+    })
+    if (prompts.isCancel(command)) throw new UI.CancelledError()
+    await addMcpToConfig(name, { type: "local", command: command.split(" ") }, configPath)
+    prompts.log.success(`MCP server "${name}" added to ${configPath}`)
+    prompts.outro("MCP server added successfully")
+    return
+  }
+
+  const url = await prompts.text({
+    message: "Enter MCP server URL",
+    placeholder: "e.g., https://example.com/mcp",
+    validate: (x) => (!x || x.length === 0 ? "Required" : !URL.canParse(x) ? "Invalid URL" : undefined),
+  })
+  if (prompts.isCancel(url)) throw new UI.CancelledError()
+
+  const mcpConfig = await collectOAuthConfig(url)
+  await addMcpToConfig(name, mcpConfig, configPath)
+  prompts.log.success(`MCP server "${name}" added to ${configPath}`)
+  prompts.outro("MCP server added successfully")
+}
+
+/**
+ * Parse the `--local <string>` flag into a local MCP config. Splits on
+ * whitespace so `--local "bun x @foo/mcp"` produces `["bun", "x", "@foo/mcp"]`.
+ * Exported-shape (pure) so tests can hit it without spinning up yargs.
+ */
+export function buildLocalConfig(command: string, disabled?: boolean): Config.Mcp {
+  const parts = command
+    .trim()
+    .split(/\s+/)
+    .filter((x) => x.length > 0)
+  if (parts.length === 0) throw new Error("--local command cannot be empty.")
+  const out: Config.Mcp = { type: "local", command: parts }
+  if (disabled) (out as { enabled?: boolean }).enabled = false
+  return out
+}
+
+/** Parse the `--remote <url>` + OAuth / headers flags into a remote MCP config. */
+export function buildRemoteConfig(
+  url: string,
+  opts: { oauth?: boolean; clientId?: string; clientSecret?: string; headers?: string[]; disabled?: boolean },
+): Config.Mcp {
+  if (!URL.canParse(url)) throw new Error(`--remote URL is not a valid URL: ${url}`)
+  const cfg: Record<string, unknown> = { type: "remote", url }
+  if (opts.headers?.length) {
+    const parsed: Record<string, string> = {}
+    for (const h of opts.headers) {
+      const idx = h.indexOf("=")
+      if (idx <= 0) throw new Error(`--header must be KEY=VALUE, got: ${h}`)
+      parsed[h.slice(0, idx)] = h.slice(idx + 1)
+    }
+    cfg.headers = parsed
+  }
+  if (opts.oauth) {
+    const oauth: Record<string, string> = {}
+    if (opts.clientId) oauth.clientId = opts.clientId
+    if (opts.clientSecret) oauth.clientSecret = opts.clientSecret
+    cfg.oauth = oauth
+  }
+  if (opts.disabled) cfg.enabled = false
+  return cfg as Config.Mcp
+}
+
+async function resolveGlobalConfigPath(): Promise<string> {
+  const { Global } = await import("../../../global")
+  const { resolveConfigPath } = await import("./helpers")
+  return resolveConfigPath(Global.Path.config, true)
+}
+
+export const McpRemoveCommand = cmd({
+  command: "remove <name>",
+  aliases: ["rm"],
+  describe: "remove an MCP server from the config",
+  builder: (yargs) =>
+    yargs
+      .positional("name", {
+        type: "string",
+        demandOption: true,
+        describe: "MCP server name to remove",
+      })
+      .option("global", {
+        type: "boolean",
+        describe: "Write to the global config. Defaults to project config inside a git repo, global otherwise.",
+      })
+      .option("json", { type: "boolean", default: false }),
+  async handler(argv) {
+    await Instance.provide({
+      directory: process.cwd(),
+      async fn() {
+        const configPath = argv.global
+          ? await resolveGlobalConfigPath()
+          : await resolveAddConfigPath({ preferProject: true })
+        const removed = await removeMcpFromConfig(argv.name as string, configPath)
+        if (argv.json) {
+          process.stdout.write(`${JSON.stringify({ ok: true, name: argv.name, path: configPath, removed })}\n`)
           return
         }
+        if (removed) UI.println(`removed MCP server "${argv.name}" from ${configPath}`)
+        else UI.println(`no MCP server "${argv.name}" in ${configPath} — nothing to remove`)
+      },
+    })
+  },
+})
 
-        const url = await prompts.text({
-          message: "Enter MCP server URL",
-          placeholder: "e.g., https://example.com/mcp",
-          validate: (x) => (!x || x.length === 0 ? "Required" : !URL.canParse(x) ? "Invalid URL" : undefined),
-        })
-        if (prompts.isCancel(url)) throw new UI.CancelledError()
+export const McpEnableCommand = cmd({
+  command: "enable <name>",
+  describe: "enable a previously-disabled MCP server",
+  builder: (yargs) =>
+    yargs
+      .positional("name", { type: "string", demandOption: true })
+      .option("global", { type: "boolean" })
+      .option("json", { type: "boolean", default: false }),
+  async handler(argv) {
+    await Instance.provide({
+      directory: process.cwd(),
+      async fn() {
+        const configPath = argv.global
+          ? await resolveGlobalConfigPath()
+          : await resolveAddConfigPath({ preferProject: true })
+        await setMcpEnabled(argv.name as string, true, configPath)
+        if (argv.json) {
+          process.stdout.write(`${JSON.stringify({ ok: true, name: argv.name, enabled: true, path: configPath })}\n`)
+          return
+        }
+        UI.println(`enabled MCP server "${argv.name}" in ${configPath}`)
+      },
+    })
+  },
+})
 
-        const mcpConfig = await collectOAuthConfig(url)
-        await addMcpToConfig(name, mcpConfig, configPath)
-        prompts.log.success(`MCP server "${name}" added to ${configPath}`)
-        prompts.outro("MCP server added successfully")
+export const McpDisableCommand = cmd({
+  command: "disable <name>",
+  describe: "disable an MCP server without removing it",
+  builder: (yargs) =>
+    yargs
+      .positional("name", { type: "string", demandOption: true })
+      .option("global", { type: "boolean" })
+      .option("json", { type: "boolean", default: false }),
+  async handler(argv) {
+    await Instance.provide({
+      directory: process.cwd(),
+      async fn() {
+        const configPath = argv.global
+          ? await resolveGlobalConfigPath()
+          : await resolveAddConfigPath({ preferProject: true })
+        await setMcpEnabled(argv.name as string, false, configPath)
+        if (argv.json) {
+          process.stdout.write(`${JSON.stringify({ ok: true, name: argv.name, enabled: false, path: configPath })}\n`)
+          return
+        }
+        UI.println(`disabled MCP server "${argv.name}" in ${configPath}`)
       },
     })
   },

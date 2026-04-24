@@ -1,6 +1,6 @@
 import path from "node:path"
 import * as prompts from "@clack/prompts"
-import { applyEdits, modify } from "jsonc-parser"
+import { applyEdits, modify, parse as parseJsonc } from "jsonc-parser"
 import type { Config } from "../../../config/config"
 import { Global } from "../../../global"
 import { MCP } from "../../../mcp"
@@ -124,13 +124,18 @@ export async function collectOAuthConfig(url: string): Promise<Config.Mcp> {
   return { type: "remote", url, oauth: { clientId, clientSecret: secret } }
 }
 
-export async function resolveAddConfigPath(): Promise<string> {
+export async function resolveAddConfigPath(opts?: { preferProject?: boolean }): Promise<string> {
   const [projectConfigPath, globalConfigPath] = await Promise.all([
     resolveConfigPath(Instance.worktree),
     resolveConfigPath(Global.Path.config, true),
   ])
   const project = Instance.project
   if (project.vcs !== "git") return globalConfigPath
+  // v0.9.73 — non-interactive paths (flag-driven CLI, REST endpoints)
+  // need a deterministic default. Inside a git project we pick the
+  // project config; outside we fall back to global. Callers that
+  // want global explicitly can pass `--global` at the CLI layer.
+  if (opts?.preferProject) return projectConfigPath
   const scopeResult = await prompts.select({
     message: "Location",
     options: [
@@ -141,6 +146,55 @@ export async function resolveAddConfigPath(): Promise<string> {
   if (prompts.isCancel(scopeResult)) throw new UI.CancelledError()
   return scopeResult
 }
+
+/**
+ * v0.9.73 — remove an MCP server entry from the config file at
+ * `configPath`. Returns true if the entry existed and was removed,
+ * false if the file didn't mention that name. Preserves comments via
+ * jsonc-parser's `modify` + `applyEdits`. Never throws for a missing
+ * name — idempotent by design so callers can safely re-run `remove`.
+ */
+export async function removeMcpFromConfig(name: string, configPath: string): Promise<boolean> {
+  if (!(await Filesystem.exists(configPath))) return false
+  const text = await Filesystem.readText(configPath)
+  // Pass `undefined` to modify() to delete the key.
+  const edits = modify(text, ["mcp", name], undefined, { formattingOptions: { tabSize: 2, insertSpaces: true } })
+  if (edits.length === 0) return false
+  await Filesystem.write(configPath, applyEdits(text, edits))
+  return true
+}
+
+/**
+ * v0.9.73 — toggle the `enabled` flag on a configured MCP server. If
+ * the server isn't in the config at all, throws — enable/disable
+ * semantically assumes the entry exists. For "add-if-missing"
+ * behavior, use `addMcpToConfig` directly.
+ *
+ * jsonc-parser's `modify` happily creates missing intermediate keys,
+ * which would silently convert a typo (`librecode mcp enable foo`
+ * against a config that has `Foo`) into a new half-configured server.
+ * Guard against that by parsing first and throwing on miss.
+ */
+export async function setMcpEnabled(name: string, enabled: boolean, configPath: string): Promise<void> {
+  if (!(await Filesystem.exists(configPath))) {
+    throw new Error(`Config file not found at ${configPath}`)
+  }
+  const text = await Filesystem.readText(configPath)
+  const errors: JsoncParseErrorRecord[] = []
+  const parsed = parseJsonc(text, errors) as { mcp?: Record<string, unknown> } | undefined
+  if (!parsed || !parsed.mcp || !(name in parsed.mcp)) {
+    throw new Error(`MCP server "${name}" not found in ${configPath}`)
+  }
+  const edits = modify(text, ["mcp", name, "enabled"], enabled, {
+    formattingOptions: { tabSize: 2, insertSpaces: true },
+  })
+  if (edits.length === 0) return // already in target state
+  await Filesystem.write(configPath, applyEdits(text, edits))
+}
+
+// Minimal local type so we don't leak jsonc-parser's error union into
+// the public surface.
+type JsoncParseErrorRecord = { error: number; offset: number; length: number }
 
 export async function printDebugTokenInfo(serverName: string): Promise<void> {
   const entry = await McpAuth.get(serverName)
