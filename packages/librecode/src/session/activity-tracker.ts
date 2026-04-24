@@ -248,9 +248,74 @@ const activityState = Instance.state(
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
+/**
+ * v0.9.67 — rebuild a session's activity from its persisted messages.
+ *
+ * The in-memory tracker only has entries for turns that ran in the
+ * current process, so reopening LibreCode (or navigating to an
+ * archived session) shows an empty Activity Graph even though the
+ * session's tool history is sitting in the DB. This replays the
+ * tool parts through the same `handlePartUpdated` logic the live
+ * bus subscription uses so the reconstructed state matches what
+ * was broadcast in real time.
+ *
+ * Lazy-required to avoid a circular dep (`Session.messages` →
+ * `session/index.ts` → activity-tracker via its bus subscription).
+ */
+async function reconstructFromMessages(sessionID: string): Promise<SessionActivity> {
+  const session = emptySession(sessionID)
+  try {
+    // Inline require so the tracker module loads before Session's
+    // full dependency graph is available.
+    const { Session } = await import("./index")
+    const messages = await Session.messages({ sessionID: sessionID as SessionID })
+    for (const m of messages) {
+      for (const part of m.parts ?? []) {
+        if (part.type !== "tool") continue
+        const tp = part as unknown as ToolPart
+        if (!tp.tool || !tp.state) continue
+        // Build a throwaway "state" wrapper so we can reuse the
+        // existing handler without touching the Instance-scoped one.
+        const scratch = { sessions: new Map<string, SessionActivity>([[sessionID, session]]), unsubs: [] }
+        handlePartUpdated(scratch, tp, sessionID)
+      }
+    }
+    // The sessionID's final agent phase — if the latest assistant
+    // message is complete, mark the agent phase so callers that
+    // inspect it (Activity Graph status dot) don't read "pending".
+    const lastAssistant = [...messages].reverse().find((m) => m.info.role === "assistant")
+    if (lastAssistant && session.agents.main === undefined) {
+      session.agents.main = {
+        agentID: "main",
+        phase: "completed",
+        tool: undefined,
+        file: undefined,
+        updatedAt: Date.now(),
+      }
+    }
+  } catch {
+    // Any failure → just return empty. Reconstruction is best-effort;
+    // the caller's UX already copes with an empty state.
+  }
+  return session
+}
+
 async function get(sessionID: SessionID): Promise<SessionActivity> {
   const state = await activityState()
-  return state.sessions.get(sessionID) ?? emptySession(sessionID)
+  const existing = state.sessions.get(sessionID)
+  // If we've seen any live activity for this session in the current
+  // process, return that. Otherwise reconstruct from the session's
+  // messages so the graph isn't empty on the first view after a
+  // restart or navigation to an archived session.
+  if (existing && (Object.keys(existing.files).length > 0 || Object.keys(existing.agents).length > 0)) {
+    return existing
+  }
+  const reconstructed = await reconstructFromMessages(sessionID)
+  // Cache the reconstruction so subsequent calls are cheap and so
+  // live events from this session add on top of the reconstructed
+  // baseline instead of replacing it.
+  state.sessions.set(sessionID, reconstructed)
+  return reconstructed
 }
 
 export const ActivityTracker = {
