@@ -126,6 +126,85 @@ cd packages/librecode && bun test test/config/  # test a directory
 - Migration naming: `YYYYMMDDHHMMSS_description/migration.sql`
 - No direct SQLite queries outside `src/storage/` — use Drizzle ORM.
 
+### SolidJS: Suspense-safe state changes (MANDATORY inside the session route)
+
+Four incidents so far: v0.9.54 tab switches, v0.9.58 first app pin, v0.9.70
+Start menu open (partial — `startTransition` alone didn't fix it), v0.9.71
+Start menu open (actual fix — removed the resource/interaction coupling).
+Codifying so we stop paying the tax.
+
+**The smell.** A user interaction flips a signal, and downstream a
+`createResource` (anywhere in the subtree) either (a) gets that signal as
+part of its source key, or (b) gets *remounted* by a conditional render.
+The resource enters `loading`, and because the session route has a
+`<Suspense fallback={<Loading />}>` wrapper around `<Session />` in
+`app.tsx` (and `Loading` is an empty `div`), the whole session pane goes
+blank for the duration of the load → visible white/black flash, text
+reflow, iframe remounts.
+
+**The preferred fix: don't couple interactions to resource loading.** If
+opening a menu, switching a tab, or pinning an app doesn't *need* new
+data to fetch, don't key a resource on that state. Fetch at mount
+against a stable source, then let the UI state toggle pure presentation.
+
+```typescript
+// WRONG — flipping `open` changes the resource source → loading → fallback
+const [open, setOpen] = createSignal(false)
+const [apps] = createResource(() => (open() ? baseUrl() : undefined), fetcher)
+
+// RIGHT — resource is keyed on a stable mount-time value, UI toggle is free
+const [open, setOpen] = createSignal(false)
+const [apps] = createResource(() => baseUrl(), fetcher) // fires at mount
+```
+
+**Second line of defense: `startTransition` around setters that genuinely
+must trigger a load.** Sometimes the fetch depends on user input (search
+box, selected session, etc.) and can't be prefetched. For those,
+`startTransition` asks Solid to hold the current UI while the resource
+settles. Wrap the setter once so every call site benefits:
+
+```typescript
+import { startTransition } from "solid-js"
+const [value, setRawValue] = createSignal("")
+const setValue = (next: string) => void startTransition(() => setRawValue(next))
+```
+
+**Important caveat — `startTransition` is not bulletproof.** When the
+trigger is a cheap synchronous flip that causes a *downstream* resource to
+enter `loading` (the Start menu shape: `open` flips → source function
+returns a different value → resource loads), the Suspense fallback can
+commit before the transition settles. Solid's transition tracking is
+strongest when the resource is DIRECTLY read inside the transition
+callback, not reached through a chain of reactive dependencies.
+
+If your first `startTransition` fix didn't work on visual testing, the
+answer is the "preferred fix" above — break the coupling, don't try to
+patch the transition harder.
+
+**Known hot surfaces (already fixed — don't regress):**
+
+- `packages/app/src/pages/session/session-side-panel.tsx` — tab switches (v0.9.54, `startTransition`)
+- `packages/app/src/context/pinned-apps.tsx` — `pin()` action (v0.9.58, `startTransition`)
+- `packages/app/src/components/start-menu.tsx` — open/close toggle (v0.9.71, resource un-gated from `open()`)
+
+**Detection for new code.** Before shipping any new component that
+introduces a `createResource` under a session route:
+
+1. Read the fetcher's source function. For every signal it reads, trace
+   where that value is written. If any writer is an event handler and
+   the data doesn't depend on the interaction, key the resource
+   differently so the fetch happens at mount.
+2. If the data genuinely depends on the interaction, wrap the setter in
+   `startTransition` AND manually test — open the feature and watch the
+   surrounding panes for any visible re-render. If you see a flash, the
+   transition isn't catching it and you need to redesign the coupling.
+
+The Suspense boundary itself is at `packages/app/src/app.tsx`
+(`<Suspense>` around the lazy-loaded `<Session />`). Don't move or
+remove it — the fallback is what shows on legitimately slow route
+transitions (session first-load, provider reconnect). The fix is always
+on the feature side, never the boundary.
+
 ## Migration Playbooks
 
 ### Playbook 1: Namespace → Module Export Migration

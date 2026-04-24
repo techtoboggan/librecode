@@ -46,8 +46,30 @@ export function StartMenu(props: StartMenuProps) {
 
   const baseUrl = () => server.current?.http?.url ?? globalSDK.url
 
+  // v0.9.71 — prefetch the app list at mount instead of on open.
+  //
+  // v0.9.70 tried to fix the "open-Start flashes the session pane"
+  // bug with `startTransition` around `setOpen`, but in practice the
+  // fallback still fired. Root cause: the resource's source key was
+  // `open() ? baseUrl() : undefined`, so flipping `open` changed
+  // the source and kicked `createResource` into `loading`. Solid's
+  // transition tracking doesn't reliably defer a Suspense fallback
+  // when the triggering signal is a cheap synchronous flip that
+  // causes a DOWNSTREAM resource to enter loading — the fallback
+  // can commit before the transition settles.
+  //
+  // Cleanest fix: remove the user-interaction → resource-loading
+  // edge entirely. Key the resource only on `baseUrl()` (which is
+  // stable for the session) so it fires once at mount. Opening the
+  // menu then becomes a pure UI state change with zero resource
+  // involvement, which can't touch Suspense at all.
+  //
+  // The `baseUrl()` dependency means the resource re-runs if the
+  // server URL ever rotates (e.g. reconnecting to a different
+  // sidecar). That's an acceptable reload — users actively aware
+  // they're switching servers expect it.
   const [apps] = createResource(
-    () => (open() ? baseUrl() : undefined),
+    () => baseUrl(),
     async (url) => {
       // Use globalSDK.fetch — pre-wired with Basic auth from server.http.password.
       // Plain fetch() 401s in Tauri prod (sidecar ships with a UUID password).
