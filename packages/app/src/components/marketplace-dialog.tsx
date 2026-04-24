@@ -90,7 +90,11 @@ export function MarketplaceDialog(props: MarketplaceDialogProps): JSX.Element {
   return (
     <div
       data-component="marketplace-dialog"
-      class="flex flex-col w-[min(800px,92vw)] max-h-[min(640px,80vh)] bg-surface-panel rounded-md border border-border-weak-base overflow-hidden"
+      // v0.9.69 — `bg-surface-panel` points at an undefined CSS
+      // variable and renders transparent; use the defined
+      // `--surface-float-base` so the dialog is opaque over the
+      // page content.
+      class="flex flex-col w-[min(800px,92vw)] max-h-[min(640px,80vh)] bg-surface-float-base rounded-md border border-border-weak-base overflow-hidden"
     >
       <header class="flex items-center gap-3 px-4 py-3 border-b border-border-weak-base">
         <Icon name="dot-grid" class="size-4 text-text-strong" />

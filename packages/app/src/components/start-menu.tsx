@@ -114,7 +114,12 @@ export function StartMenu(props: StartMenuProps) {
             <div
               id="start-menu-panel"
               role="menu"
-              class="fixed w-[300px] max-h-[400px] overflow-y-auto rounded-md border border-border-weak-base bg-surface-panel shadow-2xl"
+              // v0.9.69 — `--color-surface-panel` isn't defined in
+              // the theme; `bg-surface-panel` rendered transparent
+              // and let the Review panel text bleed through the
+              // Portal-rendered dropdown. Use `--surface-float-base`
+              // which is the theme's defined solid panel colour.
+              class="fixed w-[300px] max-h-[400px] overflow-y-auto rounded-md border border-border-weak-base bg-surface-float-base shadow-2xl"
               style={{
                 top: `${pos().top}px`,
                 right: `${pos().right}px`,
