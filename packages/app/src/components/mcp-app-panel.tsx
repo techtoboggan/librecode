@@ -185,6 +185,35 @@ async function fetchSessionActivity(
   }
 }
 
+/**
+ * v0.9.68 — fetch a session-stats seed payload directly from the host.
+ *
+ * Previously we built the seed client-side from `sync.data.message` /
+ * `sync.data.part`, which failed on reload of a long-running session
+ * because those stores hydrate asynchronously via SSE and there was
+ * no deterministic point at which "everything's loaded" held. The
+ * server already has the full history in SQLite; having it shape the
+ * payload directly makes the iframe's initial state independent of
+ * client-side timing. Mirrors the approach the Activity Graph has
+ * used since it shipped.
+ */
+async function fetchSessionStatsSeed(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  directory: string,
+  sessionID: string,
+): Promise<{ type: "session.stats"; messages: unknown[] } | undefined> {
+  try {
+    const url = new URL(`${baseUrl}/session/${sessionID}/stats-seed`)
+    url.searchParams.set("directory", directory)
+    const res = await fetchFn(url.toString())
+    if (!res.ok) return undefined
+    return (await res.json()) as { type: "session.stats"; messages: unknown[] }
+  } catch {
+    return undefined
+  }
+}
+
 /** Pure: shape the `activity.updated` seed payload for an iframe. */
 export function buildActivitySeedPayload(
   sessionID: string,
@@ -241,7 +270,7 @@ export function createReadyHandler(options: {
   /** Run the activity-graph seed (async fetch + post). */
   seedActivity: (sessionID: string) => Promise<void>
   /** Run the session-stats seed (synchronous). */
-  seedStats: (sessionID: string) => void
+  seedStats: (sessionID: string) => void | Promise<void>
 }) {
   let seededSession: string | undefined
   return (e: { data?: unknown; source?: unknown }) => {
@@ -253,7 +282,7 @@ export function createReadyHandler(options: {
     if (seededSession === sessionID) return
     seededSession = sessionID
     if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(sessionID)
-    else if (options.uri === BUILTIN_URI_SESSION_STATS) options.seedStats(sessionID)
+    else if (options.uri === BUILTIN_URI_SESSION_STATS) void options.seedStats(sessionID)
   }
 }
 
@@ -269,10 +298,10 @@ export function seedForSession(options: {
   uri: string
   sessionID: string
   seedActivity: (sessionID: string) => Promise<void>
-  seedStats: (sessionID: string) => void
+  seedStats: (sessionID: string) => void | Promise<void>
 }): void {
   if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(options.sessionID)
-  else if (options.uri === BUILTIN_URI_SESSION_STATS) options.seedStats(options.sessionID)
+  else if (options.uri === BUILTIN_URI_SESSION_STATS) void options.seedStats(options.sessionID)
 }
 
 // ─── Persistent per-app state bridge ─────────────────────────────────────────
@@ -1132,7 +1161,16 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
       post(buildActivitySeedPayload(sessionID, activity))
     }
 
-    const seedStats = (sessionID: string) => {
+    const seedStats = async (sessionID: string) => {
+      // v0.9.68 — prefer the server-side seed endpoint so initial
+      // state doesn't depend on sync's hydration timing. Falls back
+      // to the client-side sync store on a server error so dev
+      // builds without the new route still work.
+      const server = await fetchSessionStatsSeed(globalSDK.fetch, sdk.url, sdk.directory, sessionID)
+      if (server) {
+        post(server)
+        return
+      }
       post(buildStatsSeedPayload(sync.data.message[sessionID] ?? [], (id) => sync.data.part[id]))
     }
 
@@ -1205,7 +1243,17 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
         if (!activity) return
         post(buildActivitySeedPayload(id, activity))
       },
-      seedStats: (id) => post(buildStatsSeedPayload(sync.data.message[id] ?? [], (pid) => sync.data.part[pid])),
+      seedStats: async (id) => {
+        // v0.9.68 — server-side seed first so the stats populate even
+        // if sync hasn't hydrated yet. Fall through to the client-side
+        // store if the dedicated endpoint is unavailable.
+        const server = await fetchSessionStatsSeed(globalSDK.fetch, sdk.url, sdk.directory, id)
+        if (server) {
+          post(server)
+          return
+        }
+        post(buildStatsSeedPayload(sync.data.message[id] ?? [], (pid) => sync.data.part[pid]))
+      },
     })
   })
 

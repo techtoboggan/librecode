@@ -341,3 +341,32 @@ export const SessionActionRoutes = new Hono()
       return c.json(activity)
     },
   )
+  .get(
+    "/:sessionID/stats-seed",
+    describeRoute({
+      summary: "Get session-stats seed payload",
+      description:
+        "v0.9.68 — dedicated seed endpoint for the built-in Session Stats MCP app. Returns the full " +
+        "message + part history shaped for the app's `session.stats` handler, independent of the " +
+        "client-side sync store's hydration timing. Fixes the empty-dashboard symptom on reload of " +
+        "a session with existing history.",
+      operationId: "session.stats.seed",
+      responses: { 200: { description: "OK" }, ...errors(400, 404) },
+    }),
+    validator("param", z.object({ sessionID: SessionID.zod })),
+    async (c) => {
+      const { sessionID } = c.req.valid("param")
+      const messages = await Session.messages({ sessionID })
+      const seed = messages.map((m) => ({
+        id: m.info.id,
+        role: m.info.role,
+        // Both `cost` and `tokens` live on the message info only for
+        // assistant messages. Defaulting to 0/{} keeps the iframe's
+        // schema validation happy for user messages.
+        cost: (m.info as unknown as { cost?: number }).cost ?? 0,
+        tokens: (m.info as unknown as { tokens?: unknown }).tokens ?? {},
+        parts: m.parts ?? [],
+      }))
+      return c.json({ type: "session.stats", messages: seed })
+    },
+  )
