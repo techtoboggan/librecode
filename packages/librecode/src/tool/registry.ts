@@ -170,9 +170,32 @@ async function registryTools(
   return result
 }
 
+/**
+ * v0.9.74 — listing for the Agentic Control Panel. Returns each
+ * registered tool's id + description without forcing a model+agent
+ * filter. The description comes from `tool.init({})`; tools that
+ * fail to init contribute an empty description rather than blowing
+ * up the listing.
+ */
+async function registryDescriptions(): Promise<Array<{ id: string; description: string }>> {
+  const tools = await all()
+  const out = await Promise.all(
+    tools.map(async (t) => {
+      try {
+        const init = await t.init({})
+        return { id: t.id, description: init.description ?? "" }
+      } catch {
+        return { id: t.id, description: "" }
+      }
+    }),
+  )
+  return out.sort((a, b) => a.id.localeCompare(b.id))
+}
+
 export const ToolRegistry = {
   state: registryState,
   register: registryRegister,
   ids: registryIds,
   tools: registryTools,
+  descriptions: registryDescriptions,
 } as const
