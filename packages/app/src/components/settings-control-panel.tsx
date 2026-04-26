@@ -16,7 +16,12 @@ import { Icon } from "@librecode/ui/icon"
 import { createMemo, createResource, createSignal, For, Match, Show, Switch, type Component } from "solid-js"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { useGlobalSDK } from "@/context/global-sdk"
-import { useSDK } from "@/context/sdk"
+// v0.9.75 — Control Panel endpoints are GLOBAL (not directory-scoped),
+// so we deliberately do NOT call useSDK() here. The Settings dialog is
+// opened from pages/layout.tsx at app-shell scope which is OUTSIDE
+// any SDKProvider — useSDK() would throw "SDK context must be used
+// within a context provider" the moment any of these tabs mounted.
+// useGlobalSDK() lives at app root so it's always available.
 import {
   type AgentEntry,
   fetchAgents,
@@ -37,9 +42,9 @@ const sectionTitleClass = "text-14-medium text-text-strong"
 const sectionHintClass = "text-11-regular text-text-weaker"
 
 export const SettingsAgents: Component = () => {
-  const sdk = useSDK()
+  // Global URL only — see header comment for why no useSDK().
   const globalSDK = useGlobalSDK()
-  const [agents, { refetch }] = createResource(() => fetchAgents(globalSDK.fetch, sdk.url))
+  const [agents, { refetch }] = createResource(() => fetchAgents(globalSDK.fetch, globalSDK.url))
   const grouped = createMemo(() => groupAgents(agents() ?? []))
 
   return (
@@ -111,10 +116,10 @@ const AgentSection: Component<{ title: string; entries: AgentEntry[] }> = (props
 )
 
 export const SettingsSkills: Component = () => {
-  const sdk = useSDK()
+  // Global URL only — see header comment for why no useSDK().
   const globalSDK = useGlobalSDK()
   const dialog = useDialog()
-  const [skills, { refetch }] = createResource(() => fetchSkills(globalSDK.fetch, sdk.url))
+  const [skills, { refetch }] = createResource(() => fetchSkills(globalSDK.fetch, globalSDK.url))
 
   return (
     <div class="flex flex-col h-full overflow-hidden" data-component="settings-skills">
@@ -189,9 +194,9 @@ export const SettingsSkills: Component = () => {
 }
 
 export const SettingsPlugins: Component = () => {
-  const sdk = useSDK()
+  // Global URL only — see header comment for why no useSDK().
   const globalSDK = useGlobalSDK()
-  const [plugins, { refetch }] = createResource(() => fetchPlugins(globalSDK.fetch, sdk.url))
+  const [plugins, { refetch }] = createResource(() => fetchPlugins(globalSDK.fetch, globalSDK.url))
 
   return (
     <div class="flex flex-col h-full overflow-hidden" data-component="settings-plugins">
@@ -243,9 +248,9 @@ export const SettingsPlugins: Component = () => {
 }
 
 export const SettingsTools: Component = () => {
-  const sdk = useSDK()
+  // Global URL only — see header comment for why no useSDK().
   const globalSDK = useGlobalSDK()
-  const [tools, { refetch }] = createResource(() => fetchTools(globalSDK.fetch, sdk.url))
+  const [tools, { refetch }] = createResource(() => fetchTools(globalSDK.fetch, globalSDK.url))
 
   return (
     <div class="flex flex-col h-full overflow-hidden" data-component="settings-tools">
@@ -302,9 +307,9 @@ const EmptyState: Component<{ icon: string; title: string; hint: string }> = (pr
 )
 
 const ImportDialog: Component<{ onClose: () => void; onImported: () => void }> = (props) => {
-  const sdk = useSDK()
+  // Global URL only — see header comment for why no useSDK().
   const globalSDK = useGlobalSDK()
-  const [sources] = createResource(() => fetchImportSources(globalSDK.fetch, sdk.url))
+  const [sources] = createResource(() => fetchImportSources(globalSDK.fetch, globalSDK.url))
   const [busy, setBusy] = createSignal<string | undefined>()
   const [status, setStatus] = createSignal<{ kind: "ok" | "err"; message: string } | undefined>()
 
@@ -312,7 +317,7 @@ const ImportDialog: Component<{ onClose: () => void; onImported: () => void }> =
     setBusy(s.id)
     setStatus(undefined)
     try {
-      const result = await runImport(globalSDK.fetch, sdk.url, s.id)
+      const result = await runImport(globalSDK.fetch, globalSDK.url, s.id)
       if (!result.ok) {
         setStatus({ kind: "err", message: `Import failed: ${result.error}` })
         return
@@ -328,7 +333,7 @@ const ImportDialog: Component<{ onClose: () => void; onImported: () => void }> =
     setBusy(s.id)
     setStatus(undefined)
     try {
-      const removed = await removeImport(globalSDK.fetch, sdk.url, s.id)
+      const removed = await removeImport(globalSDK.fetch, globalSDK.url, s.id)
       setStatus({
         kind: "ok",
         message: removed ? `Removed imports from ${s.name}` : `${s.name} had nothing to remove`,
