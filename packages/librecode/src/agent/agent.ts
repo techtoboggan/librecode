@@ -7,6 +7,7 @@ import { PermissionNext } from "@/permission/next"
 import { Plugin } from "@/plugin"
 import { Auth } from "../auth"
 import { Config } from "../config/config"
+import { ConfigMarkdown } from "../config/markdown"
 import { Instance } from "../project/instance"
 import { Provider } from "../provider/provider"
 import { ModelID, ProviderID } from "../provider/schema"
@@ -14,11 +15,15 @@ import { ProviderTransform } from "../provider/transform"
 import { SystemPrompt } from "../session/system"
 import { Skill } from "../skill"
 import { Truncate } from "../tool/truncation"
+import { Glob } from "../util/glob"
+import { Log } from "../util/log"
 import PROMPT_GENERATE from "./generate.txt"
 import PROMPT_COMPACTION from "./prompt/compaction.txt"
 import PROMPT_EXPLORE from "./prompt/explore.txt"
 import PROMPT_SUMMARY from "./prompt/summary.txt"
 import PROMPT_TITLE from "./prompt/title.txt"
+
+const log = Log.create({ service: "agent" })
 
 export const AgentInfo = z
   .object({
@@ -243,6 +248,25 @@ const state = Instance.state(async () => {
     applyUserAgentConfig(item, value)
   }
 
+  // v0.9.74 — also load file-based agents from
+  // `~/.config/librecode/agents/**/*.md`. Each file is one agent
+  // with YAML frontmatter (name, description, optional mode/model
+  // /prompt) + a markdown body that becomes the system prompt.
+  // Mirrors the format used by Skill.md so imports from upstream
+  // skill packs (Superpowers, Anthropic skills) drop straight in.
+  // Config-defined agents win over file-defined agents on name
+  // collision so the user's hand-tuned config can override an
+  // imported default without removing the file.
+  const fileAgents = await loadMarkdownAgents(defaults, user).catch((err) => {
+    log.warn("failed to load markdown agents", { error: String(err) })
+    return [] as AgentInfo[]
+  })
+  for (const agent of fileAgents) {
+    if (!result[agent.name]) {
+      result[agent.name] = agent
+    }
+  }
+
   ensureTruncateGlobAllowed(result)
 
   return result
@@ -336,6 +360,85 @@ export async function agentGenerate(input: {
 
   const result = await generateObject(params)
   return result.object
+}
+
+/**
+ * v0.9.74 — discover agents from `<config>/agents/**\/*.md`. The
+ * frontmatter shape mirrors Skill.md so imports from upstream skill
+ * packs (Superpowers, Anthropic skills) work without translation:
+ *
+ *   ---
+ *   name: code-reviewer
+ *   description: Review uncommitted changes for security + correctness
+ *   mode: subagent     # optional — defaults to "subagent" for file-based agents
+ *   model: anthropic/claude-opus-4-7  # optional, "providerID/modelID"
+ *   ---
+ *   <markdown body becomes the system prompt>
+ *
+ * `name` and the markdown body are the only required fields. Path
+ * collisions across config dirs follow the same precedence as
+ * skills — first scan wins.
+ *
+ * `agentDirs` is parameterised so tests can inject a temp dir.
+ * Production callers omit it to use the default
+ * `~/.config/librecode/agents/`.
+ */
+export async function loadMarkdownAgents(
+  defaults: PermissionNext.Ruleset,
+  user: PermissionNext.Ruleset,
+  agentDirs: string[] = [path.join(Global.Path.config, "agents")],
+): Promise<AgentInfo[]> {
+  const out: AgentInfo[] = []
+  const seen = new Set<string>()
+  for (const dir of agentDirs) {
+    const matches = await Glob.scan("**/*.md", {
+      cwd: dir,
+      absolute: true,
+      include: "file",
+      symlink: true,
+    }).catch(() => [] as string[])
+    for (const match of matches) {
+      const md = await ConfigMarkdown.parse(match).catch((err) => {
+        log.warn("failed to parse markdown agent", { path: match, error: String(err) })
+        return undefined
+      })
+      if (!md) continue
+      const data = md.data as Record<string, unknown>
+      const name = typeof data.name === "string" && data.name.length > 0 ? data.name : path.basename(match, ".md")
+      if (seen.has(name)) continue
+      seen.add(name)
+      const description = typeof data.description === "string" ? data.description : undefined
+      const mode = data.mode === "primary" || data.mode === "all" ? data.mode : "subagent"
+      const model = parseModelString(data.model)
+      const agent: AgentInfo = {
+        name,
+        description,
+        mode,
+        permission: PermissionNext.merge(defaults, user),
+        options: {},
+        native: false,
+        prompt: md.content.trim() || undefined,
+        ...(model ? { model } : {}),
+      }
+      out.push(agent)
+    }
+  }
+  return out
+}
+
+/**
+ * Pure: parse "providerID/modelID" → `{providerID, modelID}`. Returns
+ * undefined for any other shape so callers can decide whether the
+ * absence is fatal or just a "use the default" signal.
+ */
+export function parseModelString(value: unknown): { providerID: ProviderID; modelID: ModelID } | undefined {
+  if (typeof value !== "string") return undefined
+  const slash = value.indexOf("/")
+  if (slash <= 0 || slash === value.length - 1) return undefined
+  return {
+    providerID: ProviderID.make(value.slice(0, slash)),
+    modelID: ModelID.make(value.slice(slash + 1)),
+  }
 }
 
 export const Agent = {

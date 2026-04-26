@@ -39,6 +39,7 @@ import { ConfigRoutes } from "./routes/config"
 import { ExperimentalRoutes } from "./routes/experimental"
 import { FileRoutes } from "./routes/file"
 import { GlobalRoutes } from "./routes/global"
+import { ControlPanelRoutes } from "./routes/control-panel"
 import { MarketplaceRoutes } from "./routes/marketplace"
 import { McpRoutes } from "./routes/mcp"
 import { PermissionRoutes } from "./routes/permission"
@@ -375,6 +376,7 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
     .route("/", FileRoutes())
     .route("/mcp", McpRoutes())
     .route("/marketplace", MarketplaceRoutes())
+    .route("/control-panel", ControlPanelRoutes())
     .route("/system", SystemRoutes())
     .route("/tui", TuiRoutes())
     .post(
