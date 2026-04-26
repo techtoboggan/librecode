@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multica Board</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: var(--lc-bg, #0a0a0a);
+        --text: var(--lc-text, #e8e8e8);
+        --text-weak: var(--lc-text-weak, #a0a0a0);
+        --text-weaker: var(--lc-text-weaker, #707070);
+        --border: var(--lc-border, #2a2a2a);
+        --accent: var(--lc-accent, #5da7ff);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        overflow: hidden;
+      }
+      .frame {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+      }
+      .empty,
+      .config {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        gap: 12px;
+        padding: 24px;
+        text-align: center;
+      }
+      .empty h2,
+      .config h2 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 500;
+      }
+      .empty p,
+      .config p {
+        margin: 0;
+        color: var(--text-weak);
+        font-size: 13px;
+        max-width: 480px;
+        line-height: 1.5;
+      }
+      code {
+        background: rgba(255, 255, 255, 0.05);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      v0.9.76 — Multica MCP-app HTML.
+
+      The MCP server returns this as the `ui://multica/board` resource.
+      LibreCode renders it inside its sandboxed iframe (`allow-scripts`,
+      null origin). On load, we read host context (which Multica URL +
+      workspace slug to embed) from the postMessage `host-context-changed`
+      event and replace the placeholder with an iframe pointing at the
+      configured Multica web UI.
+
+      Deliberately small: no framework, no build step. The MCP-app spec's
+      string-resource pattern keeps this self-contained.
+    -->
+    <div id="root">
+      <div class="config">
+        <h2>Multica board</h2>
+        <p>
+          Waiting for Multica configuration — this MCP app expects a host context with a Multica URL + workspace slug.
+        </p>
+        <p>
+          Configure via:
+          <code>MULTICA_WEB_URL</code>,
+          <code>MULTICA_WORKSPACE_SLUG</code>
+          (env vars on the MCP server).
+        </p>
+        <p>
+          Multica project:
+          <a href="https://github.com/multica-ai/multica" target="_blank">github.com/multica-ai/multica</a>
+        </p>
+      </div>
+    </div>
+
+    <script type="module">
+      // Read web URL + workspace from a `<meta name="multica-board:...">` tag
+      // injected at fetch time by the MCP server (see resources.ts). Falls
+      // back to defaults so the page is still useful when run standalone.
+      function readMeta(name) {
+        const el = document.querySelector(`meta[name="${name}"]`)
+        return el?.getAttribute("content") || ""
+      }
+
+      const webUrl = readMeta("multica-board:web-url") || "http://localhost:3000"
+      const workspaceSlug = readMeta("multica-board:workspace-slug")
+      const path = readMeta("multica-board:path") || "/board"
+
+      // If the server didn't fill in the workspace slug, leave the
+      // placeholder visible — the user needs to configure the MCP app
+      // before the iframe is meaningful.
+      if (workspaceSlug) {
+        const target = `${webUrl.replace(/\/+$/, "")}/${encodeURIComponent(workspaceSlug)}${path}`
+        const iframe = document.createElement("iframe")
+        iframe.src = target
+        iframe.className = "frame"
+        // Multica's UI is a Next.js app — give it the standard sandbox
+        // permissions a web app expects. We deliberately do NOT pass
+        // `allow-same-origin` because LibreCode hosts this in a
+        // null-origin sandbox; anything that requires same-origin
+        // cookies belongs in a future Multica-OAuth flow.
+        iframe.setAttribute(
+          "sandbox",
+          "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals",
+        )
+        document.getElementById("root").replaceChildren(iframe)
+      }
+
+      if (window.parent !== window) {
+        window.parent.postMessage({ type: "mcp-app-ready" }, "*")
+      }
+    </script>
+  </body>
+</html>

@@ -24,14 +24,18 @@ import { useGlobalSDK } from "@/context/global-sdk"
 // useGlobalSDK() lives at app root so it's always available.
 import {
   type AgentEntry,
+  checkPhoenixHealth,
   fetchAgents,
   fetchImportSources,
   fetchPlugins,
   fetchSkills,
+  fetchTelemetryConfig,
   fetchTools,
+  formatLatency,
   formatSkillLocation,
   groupAgents,
   type ImportSourceEntry,
+  type PhoenixHealthResult,
   removeImport,
   runImport,
   summariseImport,
@@ -305,6 +309,142 @@ const EmptyState: Component<{ icon: string; title: string; hint: string }> = (pr
     <p class="text-11-regular text-text-weaker max-w-md">{props.hint}</p>
   </div>
 )
+
+/**
+ * v0.9.76 — Telemetry tab. Shows the Phoenix Arize config + a live
+ * health probe with a "Test connection" button. The user runs the
+ * Phoenix daemon themselves (`pip install arize-phoenix && phoenix
+ * serve` or the Docker image); this UI just confirms it's reachable.
+ *
+ * Read-only on settings — toggling enabled / endpoint / projectName
+ * still happens in librecode.jsonc for now. The button + status
+ * indicator give immediate feedback that the configured endpoint is
+ * actually live, which is the v0.9.76 core ask.
+ */
+export const SettingsTelemetry: Component = () => {
+  const globalSDK = useGlobalSDK()
+  const [config, { refetch: refetchConfig }] = createResource(() =>
+    fetchTelemetryConfig(globalSDK.fetch, globalSDK.url),
+  )
+  const [health, setHealth] = createSignal<PhoenixHealthResult | undefined>()
+  const [testing, setTesting] = createSignal(false)
+
+  const runHealthCheck = async () => {
+    setTesting(true)
+    try {
+      // Pass no override so the server uses the saved config — that's
+      // the round-trip we actually care about for the live indicator.
+      const result = await checkPhoenixHealth(globalSDK.fetch, globalSDK.url)
+      setHealth(result)
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div class="flex flex-col h-full overflow-hidden" data-component="settings-telemetry">
+      <header class={sectionHeaderClass}>
+        <h2 class={sectionTitleClass}>Telemetry</h2>
+        <span class={sectionHintClass}>
+          Ship LLM spans to Phoenix Arize for observability. Run the daemon yourself (`phoenix serve` or the Docker
+          image), then point this at it.
+        </span>
+        <span class="flex-1" />
+        <Button type="button" variant="ghost" size="small" onClick={() => refetchConfig()}>
+          Refresh
+        </Button>
+      </header>
+      <div class="flex-1 overflow-y-auto px-6 pb-6 flex flex-col gap-5">
+        <Show
+          when={!config.loading && config()}
+          fallback={<p class="text-12-regular text-text-weaker animate-pulse">Loading telemetry config…</p>}
+        >
+          {(c) => (
+            <section class="flex flex-col gap-3">
+              <h3 class="text-11-medium text-text-weaker uppercase tracking-wider">Phoenix Arize</h3>
+              <div
+                class="rounded-md border border-border-weak-base bg-background-stronger p-4 flex flex-col gap-3"
+                data-slot="phoenix-card"
+                data-enabled={c().phoenix.enabled}
+              >
+                <div class="flex items-baseline gap-2">
+                  <span class="text-13-medium text-text-strong">Status</span>
+                  <span class="flex-1" />
+                  <span
+                    class="text-11-medium px-2 py-0.5 rounded uppercase tracking-wider"
+                    classList={{
+                      "bg-success-surface text-success-text": c().phoenix.enabled,
+                      "bg-background-stronger text-text-weaker": !c().phoenix.enabled,
+                    }}
+                  >
+                    {c().phoenix.enabled ? "Enabled" : "Disabled"}
+                  </span>
+                </div>
+                <div class="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-2 items-baseline text-12-regular">
+                  <span class="text-text-weaker">Endpoint</span>
+                  <code class="text-text-strong font-mono truncate">
+                    {c().phoenix.endpoint || "http://localhost:6006/v1/traces (default)"}
+                  </code>
+                  <span class="text-text-weaker">Project</span>
+                  <span class="text-text-strong">{c().phoenix.projectName || "librecode (default)"}</span>
+                  <span class="text-text-weaker">API key</span>
+                  <span class="text-text-strong">
+                    {c().phoenix.apiKeyPresent ? "set (hidden)" : "not set (self-hosted)"}
+                  </span>
+                </div>
+
+                <div class="flex items-center gap-2 pt-2 border-t border-border-weaker-base">
+                  <Show
+                    when={health()}
+                    fallback={
+                      <span class="text-11-regular text-text-weaker">Click "Test connection" to probe Phoenix.</span>
+                    }
+                  >
+                    {(h) => (
+                      <span
+                        class="text-11-regular flex items-center gap-2"
+                        classList={{
+                          "text-success-text": h().ok,
+                          "text-danger-text": !h().ok,
+                        }}
+                      >
+                        <span
+                          class="size-2 rounded-full"
+                          classList={{
+                            "bg-success-text": h().ok,
+                            "bg-danger-text": !h().ok,
+                          }}
+                        />
+                        {h().ok
+                          ? `Reachable · ${formatLatency(h().latencyMs)}`
+                          : `Unreachable: ${h().error ?? "no response"}`}
+                      </span>
+                    )}
+                  </Show>
+                  <span class="flex-1" />
+                  <Button type="button" variant="primary" size="small" onClick={runHealthCheck} disabled={testing()}>
+                    {testing() ? "Testing…" : "Test connection"}
+                  </Button>
+                </div>
+              </div>
+
+              <p class="text-11-regular text-text-weaker">
+                To enable, edit <code class="font-mono">~/.config/librecode/librecode.jsonc</code> and add:
+              </p>
+              <pre class="text-11-regular font-mono p-3 bg-background-stronger rounded-md border border-border-weak-base text-text-weak overflow-x-auto">{`"telemetry": {
+  "phoenix": {
+    "enabled": true,
+    "endpoint": "http://localhost:6006/v1/traces",
+    "projectName": "librecode"
+  }
+}`}</pre>
+            </section>
+          )}
+        </Show>
+      </div>
+    </div>
+  )
+}
 
 const ImportDialog: Component<{ onClose: () => void; onImported: () => void }> = (props) => {
   // Global URL only — see header comment for why no useSDK().

@@ -149,6 +149,58 @@ export async function removeImport(fetchFn: FetchLike, baseUrl: string, id: stri
   }
 }
 
+// ─── Telemetry (v0.9.76) ─────────────────────────────────────────────────────
+
+export interface TelemetryConfig {
+  phoenix: {
+    enabled: boolean
+    endpoint: string
+    projectName: string
+    apiKeyPresent: boolean
+  }
+}
+
+export interface PhoenixHealthResult {
+  ok: boolean
+  endpoint: string
+  status?: number
+  latencyMs: number
+  error?: string
+}
+
+export async function fetchTelemetryConfig(fetchFn: FetchLike, baseUrl: string): Promise<TelemetryConfig> {
+  return getJson<TelemetryConfig>(fetchFn, baseUrl, "/control-panel/telemetry", {
+    phoenix: { enabled: false, endpoint: "", projectName: "", apiKeyPresent: false },
+  })
+}
+
+export async function checkPhoenixHealth(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  override?: { endpoint?: string; apiKey?: string },
+): Promise<PhoenixHealthResult> {
+  try {
+    const res = await fetchFn(`${baseUrl}/control-panel/telemetry/health-check`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(override ?? {}),
+    })
+    if (!res.ok) {
+      return { ok: false, endpoint: "", latencyMs: 0, error: `HTTP ${res.status}` }
+    }
+    return (await res.json()) as PhoenixHealthResult
+  } catch (err) {
+    return { ok: false, endpoint: "", latencyMs: 0, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** Format a latency ms value as "12 ms" / "1.2 s" so the UI stays compact. */
+export function formatLatency(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "—"
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  return `${(ms / 1000).toFixed(1)} s`
+}
+
 // ─── Pure formatters used by the dialog ──────────────────────────────────────
 
 /** Compact a discovered skill location into a short, human-scannable label. */

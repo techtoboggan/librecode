@@ -4,7 +4,13 @@ import { Tabs } from "@librecode/ui/tabs"
 import { Icon } from "@librecode/ui/icon"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
-import { SettingsAgents, SettingsPlugins, SettingsSkills, SettingsTools } from "./settings-control-panel"
+import {
+  SettingsAgents,
+  SettingsPlugins,
+  SettingsSkills,
+  SettingsTelemetry,
+  SettingsTools,
+} from "./settings-control-panel"
 import { SettingsGeneral } from "./settings-general"
 import { SettingsKeybinds } from "./settings-keybinds"
 import { SettingsMcpApps } from "./settings-mcp-apps"
@@ -83,6 +89,10 @@ export const DialogSettings: Component = () => {
                       <Icon name="settings-gear" />
                       Tools
                     </Tabs.Trigger>
+                    <Tabs.Trigger value="telemetry">
+                      <Icon name="status-active" />
+                      Telemetry
+                    </Tabs.Trigger>
                   </div>
                 </div>
               </div>
@@ -119,6 +129,9 @@ export const DialogSettings: Component = () => {
         </Tabs.Content>
         <Tabs.Content value="tools" class="no-scrollbar">
           <SettingsTools />
+        </Tabs.Content>
+        <Tabs.Content value="telemetry" class="no-scrollbar">
+          <SettingsTelemetry />
         </Tabs.Content>
       </Tabs>
     </Dialog>

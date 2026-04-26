@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@librecode/multica-mcp-app",
+  "description": "MCP App: Multica kanban + agent-activity mirror — embeds Multica's Linear-style board into LibreCode and pushes agent activity to Multica issues",
+  "version": "0.9.76",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/techtoboggan/librecode",
+    "directory": "mcpapps/multica"
+  },
+  "_note": [
+    "Lives at mcpapps/multica/ inside the LibreCode monorepo for now;",
+    "designed as a self-contained package so a future `git filter-repo`",
+    "extraction into a dedicated `librecode-multica-mcp-app` repository is",
+    "trivial. Nothing in this package imports from other LibreCode packages."
+  ],
+  "main": "src/index.ts",
+  "bin": {
+    "librecode-multica-mcp": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.25.2",
+    "zod": "4.1.8"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.9"
+  }
+}

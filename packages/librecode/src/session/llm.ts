@@ -145,6 +145,21 @@ export async function llmStream(input: LLMStreamInput): Promise<LLMStreamOutput>
     Provider.getProvider(input.model.providerID),
     Auth.get(input.model.providerID),
   ])
+
+  // v0.9.76 — initialise Phoenix telemetry pipeline if enabled.
+  // initPhoenix is idempotent: same config = no-op, changed config =
+  // shutdown old provider + reconfigure. Doing it here (just-in-time)
+  // means users not running Phoenix never load the OTel SDK.
+  if (cfg.telemetry?.phoenix?.enabled) {
+    const { initPhoenix } = await import("../telemetry/phoenix")
+    initPhoenix({
+      enabled: true,
+      endpoint: cfg.telemetry.phoenix.endpoint,
+      projectName: cfg.telemetry.phoenix.projectName,
+      apiKey: cfg.telemetry.phoenix.apiKey,
+    })
+  }
+
   if (!providerOrUndefined) throw new Error(`Provider not found: ${input.model.providerID}`)
   const provider: ProviderInfo = providerOrUndefined
   const isCodex = provider.id === "openai" && auth?.type === "oauth"
@@ -224,7 +239,13 @@ export async function llmStream(input: LLMStreamInput): Promise<LLMStreamOutput>
       ],
     }),
     experimental_telemetry: {
-      isEnabled: cfg.experimental?.openTelemetry,
+      // v0.9.76 — Phoenix Arize integration. When telemetry.phoenix.enabled
+      // is set in config, we flip on AI SDK telemetry so the OTel pipeline
+      // wired in `telemetry/phoenix.ts` captures the gen_ai.* spans and
+      // ships them to the user's local Phoenix instance. The original
+      // experimental.openTelemetry flag remains a usable opt-in for users
+      // who only want raw OTel without Phoenix's OpenInference rewriting.
+      isEnabled: cfg.telemetry?.phoenix?.enabled === true || cfg.experimental?.openTelemetry === true,
       metadata: { userId: cfg.username ?? "unknown", sessionId: input.sessionID },
     },
   })

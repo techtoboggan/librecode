@@ -16,9 +16,11 @@ import { Hono } from "hono"
 import { describeRoute, validator } from "hono-openapi"
 import z from "zod"
 import { Agent } from "../../agent/agent"
+import { Config } from "../../config/config"
 import { Importer } from "../../importer"
 import { Plugin } from "../../plugin"
 import { Skill } from "../../skill"
+import { checkPhoenixHealth } from "../../telemetry/phoenix"
 import { ToolRegistry } from "../../tool/registry"
 import { lazy } from "../../util/lazy"
 import { errors } from "../error"
@@ -145,6 +147,62 @@ export const ControlPanelRoutes = lazy(() =>
           return c.json({ ok: false, error: result.error, step: result.step }, status)
         }
         return c.json(result, 200)
+      },
+    )
+    .get(
+      "/telemetry",
+      describeRoute({
+        summary: "Read the current telemetry configuration",
+        description:
+          "v0.9.76 — returns the current `telemetry.*` block from librecode.jsonc plus a flag indicating " +
+          "whether the Phoenix endpoint is reachable right now. The Control Panel uses this to render " +
+          "the Telemetry tab.",
+        operationId: "controlPanel.telemetry.read",
+        responses: { 200: { description: "OK" } },
+      }),
+      async (c) => {
+        const cfg = await Config.get()
+        const phoenix = cfg.telemetry?.phoenix
+        return c.json({
+          phoenix: {
+            enabled: phoenix?.enabled === true,
+            endpoint: phoenix?.endpoint ?? "",
+            projectName: phoenix?.projectName ?? "",
+            // Never echo the apiKey to the client — only confirm presence.
+            apiKeyPresent: typeof phoenix?.apiKey === "string" && phoenix.apiKey.length > 0,
+          },
+        })
+      },
+    )
+    .post(
+      "/telemetry/health-check",
+      describeRoute({
+        summary: "Probe a Phoenix endpoint for liveness",
+        description:
+          "Pings the configured (or override) Phoenix `/healthz` and reports whether it answered. Used " +
+          "by the Telemetry tab's 'Test connection' button + the live status indicator.",
+        operationId: "controlPanel.telemetry.healthCheck",
+        responses: { 200: { description: "OK" } },
+      }),
+      validator(
+        "json",
+        z.object({
+          endpoint: z.string().optional(),
+          apiKey: z.string().optional(),
+        }),
+      ),
+      async (c) => {
+        const body = c.req.valid("json")
+        const cfg = await Config.get()
+        // Allow caller to override the endpoint so the UI can ping a
+        // hypothetical endpoint before saving config — handy for the
+        // "Test connection" button on a freshly-typed URL.
+        const result = await checkPhoenixHealth({
+          enabled: true,
+          endpoint: body.endpoint || cfg.telemetry?.phoenix?.endpoint,
+          apiKey: body.apiKey || cfg.telemetry?.phoenix?.apiKey,
+        })
+        return c.json(result)
       },
     )
     .delete(

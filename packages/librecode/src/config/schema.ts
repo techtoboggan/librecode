@@ -660,6 +660,24 @@ export const Info = z
           .describe("Token buffer for compaction. Leaves enough window to avoid overflow during compaction."),
       })
       .optional(),
+    telemetry: z
+      .object({
+        phoenix: z
+          .object({
+            enabled: z.boolean().describe("Ship LLM spans to a local Phoenix Arize daemon for observability"),
+            endpoint: z
+              .string()
+              .url()
+              .optional()
+              .describe("OTLP/HTTP traces URL. Defaults to http://localhost:6006/v1/traces."),
+            projectName: z.string().optional().describe("Phoenix project name; spans group under this in the UI."),
+            apiKey: z.string().optional().describe("Bearer token for hosted Phoenix. Self-hosted ignores this."),
+          })
+          .optional()
+          .describe("Phoenix Arize OpenTelemetry sink. v0.9.76+."),
+      })
+      .optional()
+      .describe("Telemetry sinks. Currently supports Phoenix Arize for LLM observability."),
     experimental: z
       .object({
         disable_paste_summary: z.boolean().optional(),
