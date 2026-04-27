@@ -22,19 +22,44 @@ const dir = path.resolve(__dirname, "..")
 const modelsUrl = process.env.LIBRECODE_MODELS_URL || "https://models.dev"
 const outFile = path.join(dir, "src/provider/models-snapshot.ts")
 
+async function fetchWithRetry(url: string, attempts = 5): Promise<string> {
+  let lastError: unknown
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    console.log(`Fetching models from ${url} (attempt ${attempt}/${attempts})`)
+    try {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 30_000)
+      try {
+        const response = await fetch(url, { signal: controller.signal })
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status} ${response.statusText}`)
+        }
+        return await response.text()
+      } finally {
+        clearTimeout(timer)
+      }
+    } catch (err) {
+      lastError = err
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`  attempt ${attempt} failed: ${msg}`)
+      if (attempt < attempts) {
+        const backoffMs = Math.min(2_000 * 2 ** (attempt - 1), 30_000)
+        console.error(`  retrying in ${backoffMs}ms…`)
+        await new Promise((resolve) => setTimeout(resolve, backoffMs))
+      }
+    }
+  }
+  console.error(`Failed to fetch models after ${attempts} attempts: ${String(lastError)}`)
+  process.exit(1)
+}
+
 let modelsData: string
 
 if (process.env.MODELS_DEV_API_JSON) {
   console.log(`Reading models from ${process.env.MODELS_DEV_API_JSON}`)
   modelsData = await Bun.file(process.env.MODELS_DEV_API_JSON).text()
 } else {
-  console.log(`Fetching models from ${modelsUrl}/api.json`)
-  const response = await fetch(`${modelsUrl}/api.json`)
-  if (!response.ok) {
-    console.error(`Failed to fetch models: ${response.status} ${response.statusText}`)
-    process.exit(1)
-  }
-  modelsData = await response.text()
+  modelsData = await fetchWithRetry(`${modelsUrl}/api.json`)
 }
 
 // Validate it's actually JSON
