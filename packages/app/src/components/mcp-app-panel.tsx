@@ -13,6 +13,11 @@
  * - Verifies postMessage by `event.source` rather than `event.origin` (which is
  *   always `"null"` for srcdoc/blob iframes)
  *
+ * Modules in `./mcp-app-panel/` own the pure pieces (CSP, theme, fetch,
+ * seed payloads, state relay, SSE forwarding, AppBridge handler factories).
+ * This file owns the Solid-aware glue: `useEventForwarding`, `useAppBridge`,
+ * and the two visible components (`McpAppPanel` + `McpAppsTab`).
+ *
  * Usage:
  *   <McpAppPanel server="my-server" uri="ui://my-server/app" />
  */
@@ -39,394 +44,96 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { McpAppDownloadDialog } from "./mcp-app-download-dialog"
 import { McpAppPermissionPrompt } from "./mcp-app-permission-prompt"
+import { createDownloadHandler, deliverBlobAsDownload } from "./mcp-app-download"
+import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
+import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
+import { createSamplingHandler } from "./mcp-app-sampling"
+import { DEFAULT_CSP, injectCsp } from "./mcp-app-panel/csp"
+import { injectTheme, readThemeTokens } from "./mcp-app-panel/theme"
+import { fetchAppHtml, fetchAppList, fetchSessionActivity, fetchSessionStatsSeed } from "./mcp-app-panel/fetch"
+import {
+  BUILTIN_URI_SESSION_STATS,
+  buildActivitySeedPayload,
+  buildStatsSeedPayload,
+  createReadyHandler,
+  seedForSession,
+} from "./mcp-app-panel/seed"
+import { createStateRelay } from "./mcp-app-panel/state-relay"
+import { createEventForwarder } from "./mcp-app-panel/events"
+import {
+  createCallToolHandler,
+  createListPromptsHandler,
+  createListResourceTemplatesHandler,
+  createListResourcesHandler,
+  createLogHandler,
+  createOpenLinkHandler,
+  createReadResourceHandler,
+  withRunning,
+} from "./mcp-app-panel/handlers"
+import type { McpAppResource } from "./mcp-app-panel/types"
 
-// ─── CSP helpers ─────────────────────────────────────────────────────────────
+// ─── Backward-compatible re-exports ──────────────────────────────────────────
+//
+// Tests + sibling modules import these from `./mcp-app-panel`. Forwarding
+// here keeps every import path unchanged after the split.
 
-/**
- * Default Content Security Policy injected into MCP App iframes.
- *
- * - `script-src 'unsafe-inline' 'unsafe-eval'` — most MCP apps are bundled
- *   single-file SPAs with no nonces; unsafe-eval required for some bundlers
- * - `connect-src 'none'` — apps communicate exclusively through the AppBridge
- *   postMessage channel, not direct HTTP (security boundary)
- * - `frame-src 'none'` — no nested iframes
- */
-const DEFAULT_CSP =
-  "default-src 'none'; " +
-  "script-src 'unsafe-inline' 'unsafe-eval'; " +
-  "style-src 'unsafe-inline'; " +
-  "img-src data: blob:; " +
-  "font-src data: blob:; " +
-  "connect-src 'none'; " +
-  "frame-src 'none';"
+export { DEFAULT_CSP, injectCsp } from "./mcp-app-panel/csp"
+export { buildThemeCss, injectTheme } from "./mcp-app-panel/theme"
+export {
+  BUILTIN_URI_ACTIVITY_GRAPH,
+  BUILTIN_URI_SESSION_STATS,
+  SEEDABLE_BUILTIN_URIS,
+  buildActivitySeedPayload,
+  buildStatsSeedPayload,
+  createReadyHandler,
+  seedForSession,
+} from "./mcp-app-panel/seed"
+export { createStateRelay } from "./mcp-app-panel/state-relay"
+export { FORWARDED_EVENT_TYPES, createEventForwarder, shouldForwardEvent } from "./mcp-app-panel/events"
+export {
+  OPEN_LINK_ALLOWED_SCHEMES,
+  createCallToolHandler,
+  createListPromptsHandler,
+  createListResourceTemplatesHandler,
+  createListResourcesHandler,
+  createLogHandler,
+  createOpenLinkHandler,
+  createReadResourceHandler,
+  isSafeOpenUrl,
+} from "./mcp-app-panel/handlers"
+export type { McpAppResource } from "./mcp-app-panel/types"
 
-function injectCsp(html: string, csp: string): string {
-  const metaTag = `<meta http-equiv="Content-Security-Policy" content="${csp.replace(/"/g, "&quot;")}">`
-  // Insert after <head> if present, otherwise prepend a <head> block
-  if (/<head(\s[^>]*)?>/i.test(html)) {
-    return html.replace(/(<head(\s[^>]*)?>)/i, `$1\n${metaTag}`)
-  }
-  return `<head>\n${metaTag}\n</head>\n${html}`
-}
+// Download / display-mode / message / sampling helpers — already in their
+// own files, re-exported here for the same reason.
+export type { DownloadItem } from "./mcp-app-download"
+export {
+  createDownloadHandler,
+  deliverBlobAsDownload,
+  downloadItemFilename,
+  embeddedResourceToBlob,
+  isSafeDownloadUrl,
+} from "./mcp-app-download"
+export { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
+export {
+  DEFAULT_MCP_MESSAGE_CHAR_LIMIT,
+  type McpContentBlock,
+  createUiMessageHandler,
+  createUpdateContextHandler,
+  summarizeContextContent,
+  summarizeMessageText,
+  validateMessageContent,
+} from "./mcp-app-message"
+export {
+  DEFAULT_SAMPLING_HOURLY_USD_CAP,
+  SAMPLING_CAP_WINDOW_MS,
+  checkSamplingCap,
+  clearSamplingLedger,
+  createSamplingHandler,
+  recordSamplingCost,
+  totalSamplingCostUsd,
+} from "./mcp-app-sampling"
 
-// ─── Theme sync ──────────────────────────────────────────────────────────────
-
-/**
- * Theme tokens forwarded into MCP App iframes as CSS custom properties on
- * `:root`. Built-in apps (and cooperating MCP apps) can style themselves via
- * `var(--lc-bg)`, `var(--lc-text)`, etc. Without this, apps look like they
- * don't belong to the host — hardcoded dark colors that clash with light
- * mode, wrong borders, etc.
- *
- * Kept small on purpose: the app owns its own layout; the host just gives
- * it the palette.
- */
-const THEME_TOKENS = [
-  ["--lc-bg", "--background-base"],
-  ["--lc-bg-subtle", "--background-subtle"],
-  ["--lc-bg-raised", "--surface-raised-base"],
-  ["--lc-bg-panel", "--surface-panel"],
-  ["--lc-text", "--text-base"],
-  ["--lc-text-strong", "--text-strong"],
-  ["--lc-text-weak", "--text-weak"],
-  ["--lc-text-weaker", "--text-weaker"],
-  ["--lc-border", "--border-weak-base"],
-  ["--lc-border-weaker", "--border-weaker-base"],
-  ["--lc-accent", "--text-accent"],
-  ["--lc-danger", "--text-danger"],
-] as const
-
-function readThemeTokens(): Record<string, string> {
-  if (typeof document === "undefined") return {}
-  const style = getComputedStyle(document.documentElement)
-  const out: Record<string, string> = {}
-  for (const [appVar, hostVar] of THEME_TOKENS) {
-    const value = style.getPropertyValue(hostVar).trim()
-    if (value) out[appVar] = value
-  }
-  return out
-}
-
-export function buildThemeCss(tokens: Record<string, string>): string {
-  const vars = Object.entries(tokens)
-    .map(([k, v]) => `  ${k}: ${v};`)
-    .join("\n")
-  // Inject defaults so the iframe inherits the host look even if the app's
-  // own stylesheet doesn't reference the vars explicitly. body fallbacks to
-  // --lc-bg / --lc-text; html is transparent so the host container shows
-  // through during the CSP-enforced srcdoc load.
-  return `<style>
-:root {
-${vars}
-}
-html, body {
-  background: var(--lc-bg, transparent);
-  color: var(--lc-text, inherit);
-  color-scheme: light dark;
-}
-</style>`
-}
-
-export function injectTheme(html: string, tokens: Record<string, string>): string {
-  const styleTag = buildThemeCss(tokens)
-  if (/<head[\s>]/i.test(html)) {
-    return html.replace(/(<head(\s[^>]*)?>)/i, `$1\n${styleTag}`)
-  }
-  return `<head>\n${styleTag}\n</head>\n${html}`
-}
-
-// ─── Fetch helpers ────────────────────────────────────────────────────────────
-
-type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
-
-async function fetchAppHtml(
-  fetchFn: FetchLike,
-  baseUrl: string,
-  directory: string,
-  server: string,
-  uri: string,
-): Promise<string> {
-  const url = new URL(`${baseUrl}/mcp/apps/html`)
-  url.searchParams.set("server", server)
-  url.searchParams.set("uri", uri)
-  url.searchParams.set("directory", directory)
-  const res = await fetchFn(url.toString())
-  if (!res.ok) throw new Error(`Failed to fetch MCP App HTML: ${res.status} ${res.statusText}`)
-  return res.text()
-}
-
-// ─── Initial snapshot forwarding ──────────────────────────────────────────────
-
-/** Built-in URI → seed responsibility map. Exported for test coverage. */
-export const BUILTIN_URI_ACTIVITY_GRAPH = "ui://builtin/activity-graph"
-export const BUILTIN_URI_SESSION_STATS = "ui://builtin/session-stats"
-
-export const SEEDABLE_BUILTIN_URIS = new Set<string>([BUILTIN_URI_ACTIVITY_GRAPH, BUILTIN_URI_SESSION_STATS])
-
-/**
- * Fetch a session's current activity state. Used to seed the Activity Graph
- * iframe on mount so it shows existing data immediately instead of
- * "Waiting for activity…" until the next SSE tick.
- */
-async function fetchSessionActivity(
-  fetchFn: FetchLike,
-  baseUrl: string,
-  directory: string,
-  sessionID: string,
-): Promise<{ files: Record<string, unknown>; agents: Record<string, unknown> } | undefined> {
-  try {
-    const url = new URL(`${baseUrl}/session/${sessionID}/activity`)
-    url.searchParams.set("directory", directory)
-    const res = await fetchFn(url.toString())
-    if (!res.ok) return undefined
-    return (await res.json()) as { files: Record<string, unknown>; agents: Record<string, unknown> }
-  } catch {
-    return undefined
-  }
-}
-
-/**
- * v0.9.68 — fetch a session-stats seed payload directly from the host.
- *
- * Previously we built the seed client-side from `sync.data.message` /
- * `sync.data.part`, which failed on reload of a long-running session
- * because those stores hydrate asynchronously via SSE and there was
- * no deterministic point at which "everything's loaded" held. The
- * server already has the full history in SQLite; having it shape the
- * payload directly makes the iframe's initial state independent of
- * client-side timing. Mirrors the approach the Activity Graph has
- * used since it shipped.
- */
-async function fetchSessionStatsSeed(
-  fetchFn: FetchLike,
-  baseUrl: string,
-  directory: string,
-  sessionID: string,
-): Promise<{ type: "session.stats"; messages: unknown[] } | undefined> {
-  try {
-    const url = new URL(`${baseUrl}/session/${sessionID}/stats-seed`)
-    url.searchParams.set("directory", directory)
-    const res = await fetchFn(url.toString())
-    if (!res.ok) return undefined
-    return (await res.json()) as { type: "session.stats"; messages: unknown[] }
-  } catch {
-    return undefined
-  }
-}
-
-/** Pure: shape the `activity.updated` seed payload for an iframe. */
-export function buildActivitySeedPayload(
-  sessionID: string,
-  activity: { files: Record<string, unknown>; agents: Record<string, unknown> },
-  now: number = Date.now(),
-) {
-  return {
-    type: "activity.updated" as const,
-    properties: {
-      sessionID,
-      files: activity.files,
-      agents: activity.agents,
-      updatedAt: now,
-    },
-  }
-}
-
-type SeedMessage = { role: string; cost: number; tokens: unknown; parts: unknown[] }
-
-/**
- * Pure: shape the `session.stats` seed payload. Accepts raw message + part
- * lookups so tests don't need to stand up a whole sync context.
- */
-export function buildStatsSeedPayload(
-  messages: ReadonlyArray<{ id: string; role: string; cost?: number; tokens?: unknown }>,
-  getParts: (messageID: string) => unknown[] | undefined,
-): { type: "session.stats"; messages: SeedMessage[] } {
-  return {
-    type: "session.stats",
-    messages: messages.map((m) => ({
-      role: m.role,
-      cost: m.cost ?? 0,
-      tokens: m.tokens ?? {},
-      parts: getParts(m.id) ?? [],
-    })),
-  }
-}
-
-/**
- * Build the `mcp-app-ready` listener used to seed a freshly-mounted app
- * iframe. v0.9.56 — the "seeded" flag is now keyed by sessionID so a
- * late-arriving session (common when the user pins an app before
- * entering a session) still seeds once the id appears. Re-entering the
- * same session does not re-seed; switching to a different session
- * does.
- */
-export function createReadyHandler(options: {
-  /** URI of the app being hosted — used to pick which seed to run. */
-  uri: string
-  /** Current session id; without one, no seeding happens. */
-  sessionID: string | undefined
-  /** The iframe's contentWindow — events with a different `source` are ignored. */
-  contentWindow: unknown
-  /** Run the activity-graph seed (async fetch + post). */
-  seedActivity: (sessionID: string) => Promise<void>
-  /** Run the session-stats seed (synchronous). */
-  seedStats: (sessionID: string) => void | Promise<void>
-}) {
-  let seededSession: string | undefined
-  return (e: { data?: unknown; source?: unknown }) => {
-    if (e.source !== options.contentWindow) return
-    const data = e.data as { type?: string } | undefined
-    if (!data || data.type !== "mcp-app-ready") return
-    const sessionID = options.sessionID
-    if (!sessionID) return
-    if (seededSession === sessionID) return
-    seededSession = sessionID
-    if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(sessionID)
-    else if (options.uri === BUILTIN_URI_SESSION_STATS) void options.seedStats(sessionID)
-  }
-}
-
-/**
- * v0.9.56 — proactively seed an iframe when the sessionID becomes
- * available after the iframe was already mounted. Apps post
- * `mcp-app-ready` once on load; without this, a user who pins the app
- * *before* entering a session would never see any data because the
- * ready signal already fired (when sessionID was undefined) and the
- * iframe has no reason to post ready again.
- */
-export function seedForSession(options: {
-  uri: string
-  sessionID: string
-  seedActivity: (sessionID: string) => Promise<void>
-  seedStats: (sessionID: string) => void | Promise<void>
-}): void {
-  if (options.uri === BUILTIN_URI_ACTIVITY_GRAPH) void options.seedActivity(options.sessionID)
-  else if (options.uri === BUILTIN_URI_SESSION_STATS) void options.seedStats(options.sessionID)
-}
-
-// ─── Persistent per-app state bridge ─────────────────────────────────────────
-
-/**
- * v0.9.63 — wire a relay between the iframe's postMessage channel and
- * the host's `/mcp/apps/state` endpoint so apps can persist
- * per-(server, uri) JSON state across restarts.
- *
- * Protocol (iframe → host):
- *   postMessage({ type: "mcp-app-state:load", requestID })
- *   postMessage({ type: "mcp-app-state:save", requestID, state })
- *
- * Host → iframe reply on the same `requestID`:
- *   { type: "mcp-app-state:loaded", requestID, state }
- *   { type: "mcp-app-state:saved",  requestID, ok, error? }
- *
- * A missing `requestID` is tolerated — the iframe just doesn't know
- * which save/load completed. We still drive the round-trip so built-in
- * apps that save fire-and-forget can stay simple.
- */
-export function createStateRelay(options: {
-  server: string
-  uri: string
-  fetchFn: FetchLike
-  baseUrl: string
-  contentWindow: Window | null
-}): (e: { data?: unknown; source?: unknown }) => void {
-  const post = (message: Record<string, unknown>) => {
-    try {
-      options.contentWindow?.postMessage(message, "*")
-    } catch {
-      // iframe detached
-    }
-  }
-  return async (e) => {
-    if (e.source !== options.contentWindow) return
-    const data = e.data as { type?: string; requestID?: string; state?: unknown } | undefined
-    if (!data || typeof data.type !== "string") return
-    const requestID = typeof data.requestID === "string" ? data.requestID : undefined
-
-    if (data.type === "mcp-app-state:load") {
-      const url = new URL(`${options.baseUrl}/mcp/apps/state`)
-      url.searchParams.set("server", options.server)
-      url.searchParams.set("uri", options.uri)
-      try {
-        const res = await options.fetchFn(url.toString())
-        if (!res.ok) {
-          post({ type: "mcp-app-state:loaded", requestID, state: null })
-          return
-        }
-        const body = (await res.json()) as { state: unknown }
-        post({ type: "mcp-app-state:loaded", requestID, state: body.state ?? null })
-      } catch {
-        post({ type: "mcp-app-state:loaded", requestID, state: null })
-      }
-      return
-    }
-
-    if (data.type === "mcp-app-state:save") {
-      const url = new URL(`${options.baseUrl}/mcp/apps/state`)
-      url.searchParams.set("server", options.server)
-      url.searchParams.set("uri", options.uri)
-      try {
-        const res = await options.fetchFn(url.toString(), {
-          method: "PUT",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ state: data.state ?? null }),
-        })
-        if (!res.ok) {
-          const reason = await res.text().catch(() => `HTTP ${res.status}`)
-          post({ type: "mcp-app-state:saved", requestID, ok: false, error: reason })
-          return
-        }
-        post({ type: "mcp-app-state:saved", requestID, ok: true })
-      } catch (err) {
-        post({ type: "mcp-app-state:saved", requestID, ok: false, error: String(err) })
-      }
-    }
-  }
-}
-
-// ─── SSE event forwarding ─────────────────────────────────────────────────────
-
-/**
- * Event types forwarded from the host SSE stream into the iframe via postMessage.
- *   - activity.updated        (for the FS Activity Graph)
- *   - message.part.updated    (for Session Stats token/cost tracking)
- *   - message.part.delta      (for streaming indicators)
- *   - session.status          (for busy/idle signals)
- */
-export const FORWARDED_EVENT_TYPES = new Set([
-  "activity.updated",
-  "message.part.updated",
-  "message.part.delta",
-  "session.status",
-])
-
-/** Pure predicate — is this event eligible to be forwarded into an MCP app iframe? */
-export function shouldForwardEvent(event: unknown): boolean {
-  if (!event || typeof event !== "object" || !("type" in event)) return false
-  return FORWARDED_EVENT_TYPES.has((event as { type: unknown }).type as string)
-}
-
-type PostTarget = { postMessage: (message: unknown, targetOrigin: string) => void } | null | undefined
-
-/**
- * Wire a global-event listener to a postMessage target. Returns an unsubscribe.
- * Extracted from the hook so the forwarding logic is unit-testable without
- * Solid reactivity or a full iframe.
- */
-export function createEventForwarder(
-  listen: (cb: (e: { name: string; details: unknown }) => void) => () => void,
-  getTarget: () => PostTarget,
-): () => void {
-  return listen((e) => {
-    const event = e.details
-    if (!shouldForwardEvent(event)) return
-    try {
-      getTarget()?.postMessage(event, "*")
-    } catch {
-      // iframe may be detached during re-render
-    }
-  })
-}
+// ─── SSE event forwarding hook ───────────────────────────────────────────────
 
 function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
   const globalSDK = useGlobalSDK()
@@ -442,270 +149,15 @@ function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) 
   })
 }
 
-// ─── AppBridge lifecycle ──────────────────────────────────────────────────────
+// ─── Sampling request schema ─────────────────────────────────────────────────
+//
+// v0.9.53 — minimal Zod schema for `sampling/createMessage`. Hand-written
+// rather than depending on `@modelcontextprotocol/sdk` directly (it's a
+// transitive dep of ext-apps) to keep the app package's dep graph tight.
+// The server route does strict validation a second time, so this only
+// needs to satisfy the bridge's `Protocol.setRequestHandler` signature
+// — catch the method + forward the params through.
 
-/**
- * Allowlist for `ui/open-link` requests. Apps may only ask the host to
- * open standard web URLs — `javascript:`, `data:`, `file:`, `blob:` and
- * any scheme not in this set are silently rejected. ADR-005 §5.
- */
-export const OPEN_LINK_ALLOWED_SCHEMES = new Set(["http:", "https:"])
-
-/** Pure: validate that a string is a safe link target. */
-export function isSafeOpenUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url)
-    return OPEN_LINK_ALLOWED_SCHEMES.has(parsed.protocol)
-  } catch {
-    return false
-  }
-}
-
-/**
- * Build the `bridge.onopenlink` handler. Returns a permissive `{}` on
- * success and `{isError: true}` on a rejected scheme — the iframe sees a
- * standard MCP UI result either way and stays alive.
- */
-export function createOpenLinkHandler(open: (url: string) => void) {
-  return async (params: { url: string }) => {
-    if (!isSafeOpenUrl(params.url)) return { isError: true }
-    try {
-      open(params.url)
-      return {}
-    } catch {
-      return { isError: true }
-    }
-  }
-}
-
-type LogLevel = "debug" | "info" | "notice" | "warning" | "error" | "critical" | "alert" | "emergency"
-
-/**
- * Build the `bridge.onloggingmessage` handler. Routes app-emitted
- * notifications/message frames to the browser console with the matching
- * severity. We tag them with [mcp-app: <server>] so they're easy to find.
- */
-export function createLogHandler(options: {
-  server: string
-  console?: Pick<Console, "log" | "info" | "warn" | "error">
-}) {
-  const target = options.console ?? console
-  return (params: { level: LogLevel; logger?: string; data: unknown }) => {
-    const tag = `[mcp-app:${options.server}${params.logger ? "/" + params.logger : ""}]`
-    switch (params.level) {
-      case "debug":
-      case "info":
-      case "notice":
-        target.info(tag, params.data)
-        return
-      case "warning":
-        target.warn(tag, params.data)
-        return
-      case "error":
-      case "critical":
-      case "alert":
-      case "emergency":
-        target.error(tag, params.data)
-        return
-      default:
-        target.log(tag, params.data)
-    }
-  }
-}
-
-// Download-file (ui/download-file) helpers live in ./mcp-app-download.ts so
-// the test suite can import them without dragging Solid + Kobalte + the
-// Dialog context (which doesn't load under bun's test runner). Re-export
-// the shapes consumers might need.
-export type { DownloadItem } from "./mcp-app-download"
-export {
-  createDownloadHandler,
-  deliverBlobAsDownload,
-  downloadItemFilename,
-  embeddedResourceToBlob,
-  isSafeDownloadUrl,
-} from "./mcp-app-download"
-import { createDownloadHandler, deliverBlobAsDownload } from "./mcp-app-download"
-
-/**
- * Generic POST → in-band-isError JSON proxy used by every MCP-app
- * AppBridge handler. Centralises the HTTP-error / network-error /
- * missing-session shapes so the per-handler factories stay tiny.
- */
-async function proxyJson(options: {
-  fetchFn: FetchLike
-  url: string
-  body?: unknown
-  method?: "GET" | "POST"
-}): Promise<{ content: unknown[]; isError?: boolean } | Record<string, unknown>> {
-  try {
-    const init: RequestInit = { method: options.method ?? "POST" }
-    if (options.body !== undefined) {
-      init.headers = { "Content-Type": "application/json" }
-      init.body = JSON.stringify(options.body)
-    }
-    const res = await options.fetchFn(options.url, init)
-    if (!res.ok) {
-      return { isError: true, content: [{ type: "text" as const, text: `Host rejected request: HTTP ${res.status}` }] }
-    }
-    return (await res.json()) as Record<string, unknown>
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err)
-    return { isError: true, content: [{ type: "text" as const, text: `Transport error: ${message}` }] }
-  }
-}
-
-/**
- * Build the AppBridge `onlistresources` handler. Proxies to
- * GET /session/:id/mcp-apps/resources?server=…
- */
-export function createListResourcesHandler(options: {
-  fetchFn: FetchLike
-  baseUrl: string
-  sessionID: string | undefined
-  server: string
-}) {
-  return async () => {
-    if (!options.sessionID) {
-      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
-    }
-    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/resources`)
-    url.searchParams.set("server", options.server)
-    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
-  }
-}
-
-/** Build the AppBridge `onreadresource` handler — POSTs {server, uri} to the read route. */
-export function createReadResourceHandler(options: {
-  fetchFn: FetchLike
-  baseUrl: string
-  sessionID: string | undefined
-  server: string
-}) {
-  return async (params: { uri: string }) => {
-    if (!options.sessionID) {
-      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
-    }
-    return proxyJson({
-      fetchFn: options.fetchFn,
-      url: `${options.baseUrl}/session/${options.sessionID}/mcp-apps/resources/read`,
-      body: { server: options.server, uri: params.uri },
-    })
-  }
-}
-
-/** Build the AppBridge `onlistresourcetemplates` handler. */
-export function createListResourceTemplatesHandler(options: {
-  fetchFn: FetchLike
-  baseUrl: string
-  sessionID: string | undefined
-  server: string
-}) {
-  return async () => {
-    if (!options.sessionID) {
-      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
-    }
-    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/resource-templates`)
-    url.searchParams.set("server", options.server)
-    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
-  }
-}
-
-/** Build the AppBridge `onlistprompts` handler. */
-export function createListPromptsHandler(options: {
-  fetchFn: FetchLike
-  baseUrl: string
-  sessionID: string | undefined
-  server: string
-}) {
-  return async () => {
-    if (!options.sessionID) {
-      return { isError: true, content: [{ type: "text" as const, text: "No active session." }] }
-    }
-    const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/prompts`)
-    url.searchParams.set("server", options.server)
-    return proxyJson({ fetchFn: options.fetchFn, url: url.toString(), method: "GET" })
-  }
-}
-
-/**
- * Build an `oncalltool` handler that proxies an iframe-originated tool
- * call to the host's `/session/:id/mcp-apps/tool` endpoint. Pure function;
- * exported for tests.
- *
- * The handler maps any HTTP / network failure into the standard MCP
- * `CallToolResult` `{isError: true, content: [...]}` shape so the iframe
- * always gets a valid response — never a JSON-RPC fault that would tear
- * down the bridge.
- */
-export function createCallToolHandler(options: {
-  fetchFn: FetchLike
-  baseUrl: string
-  /** Session id this app is bound to. */
-  sessionID: string | undefined
-  /** Server name + URI of the originating MCP App resource. */
-  server: string
-  uri: string
-}) {
-  return async (params: { name: string; arguments?: Record<string, unknown> }) => {
-    if (!options.sessionID) {
-      return {
-        isError: true,
-        content: [{ type: "text" as const, text: "MCP app cannot call tools — no active session." }],
-      }
-    }
-    try {
-      const url = new URL(`${options.baseUrl}/session/${options.sessionID}/mcp-apps/tool`)
-      const res = await options.fetchFn(url.toString(), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          server: options.server,
-          uri: options.uri,
-          name: params.name,
-          arguments: params.arguments ?? {},
-        }),
-      })
-      if (!res.ok) {
-        return {
-          isError: true,
-          content: [{ type: "text" as const, text: `Host rejected tool call: HTTP ${res.status}` }],
-        }
-      }
-      return (await res.json()) as { content: unknown[]; isError?: boolean }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return { isError: true, content: [{ type: "text" as const, text: `Tool call transport error: ${message}` }] }
-    }
-  }
-}
-
-// Display-mode helpers live in ./mcp-app-display-mode.ts so tests can
-// import them without pulling in the Solid + Kobalte + router stack.
-export { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
-import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
-
-// ui/message + ui/update-model-context helpers — pure validation +
-// handlers live in ./mcp-app-message.ts so tests can import without
-// the Solid stack.
-export {
-  DEFAULT_MCP_MESSAGE_CHAR_LIMIT,
-  type McpContentBlock,
-  createUiMessageHandler,
-  createUpdateContextHandler,
-  summarizeContextContent,
-  summarizeMessageText,
-  validateMessageContent,
-} from "./mcp-app-message"
-import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
-
-// v0.9.53 — minimal Zod schema for `sampling/createMessage`. We
-// hand-write it rather than depend on `@modelcontextprotocol/sdk`
-// directly (it's a transitive dep of ext-apps) to keep the app
-// package's dep graph tight. The server route does strict validation
-// a second time, so this only needs to satisfy the bridge's
-// Protocol.setRequestHandler signature — catch the method + forward
-// the params through.
 const SamplingTextContent = z.object({ type: z.literal("text"), text: z.string() })
 const SamplingMessageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -730,37 +182,7 @@ const SamplingCreateMessageRequestSchema = z.object({
 })
 type SamplingRequestParams = z.infer<typeof SamplingCreateMessageRequestSchema>["params"]
 
-// sampling/createMessage — see ./mcp-app-sampling.ts. v0.9.53
-// enables the full end-to-end path (permission gate + cap + LLM
-// inference).
-export {
-  DEFAULT_SAMPLING_HOURLY_USD_CAP,
-  SAMPLING_CAP_WINDOW_MS,
-  checkSamplingCap,
-  clearSamplingLedger,
-  createSamplingHandler,
-  recordSamplingCost,
-  totalSamplingCostUsd,
-} from "./mcp-app-sampling"
-import { createSamplingHandler } from "./mcp-app-sampling"
-
-/**
- * Wrap an AppBridge handler so each call increments + decrements an
- * in-flight counter. The panel uses the counter to surface a "running"
- * dot on its header. We use `unknown` for the param to fit every
- * `bridge.on*` shape without per-handler generics — every one takes a
- * single object argument and returns a promise.
- */
-function withRunning<F extends (param: never) => Promise<unknown>>(fn: F, inc: () => void, dec: () => void): F {
-  return (async (param: never) => {
-    inc()
-    try {
-      return await fn(param)
-    } finally {
-      dec()
-    }
-  }) as F
-}
+// ─── AppBridge lifecycle hook ────────────────────────────────────────────────
 
 function useAppBridge(
   iframeRef: Accessor<HTMLIFrameElement | undefined>,
@@ -789,7 +211,7 @@ function useAppBridge(
 
     const transport = new PostMessageTransport(iframe.contentWindow, iframe.contentWindow)
 
-    // host capabilities advertised to the iframe:
+    // Host capabilities advertised to the iframe:
     //   * serverTools — iframe may issue tools/call (proxied via our
     //     oncalltool handler to the host endpoint with manifest gate).
     //   * serverResources — iframe may issue resources/list +
@@ -1385,21 +807,6 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
 }
 
 // ─── McpAppsTab — the side-panel tab content ──────────────────────────────────
-
-export interface McpAppResource {
-  server: string
-  name: string
-  uri: string
-  description?: string
-}
-
-async function fetchAppList(fetchFn: FetchLike, baseUrl: string, directory: string): Promise<McpAppResource[]> {
-  const url = new URL(`${baseUrl}/mcp/apps`)
-  url.searchParams.set("directory", directory)
-  const res = await fetchFn(url.toString())
-  if (!res.ok) throw new Error(`Failed to fetch MCP App list: ${res.status}`)
-  return res.json() as Promise<McpAppResource[]>
-}
 
 export interface McpAppsTabProps {
   /** URIs that are currently pinned as dedicated tabs (so we can show "pinned" state). */
