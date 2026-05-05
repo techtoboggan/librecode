@@ -12,6 +12,12 @@
 import { describe, expect, mock, test } from "bun:test"
 
 // ─── Mock MCP SDK transports so no real connections are made ─────────────────
+//
+// IMPORTANT: bun's `mock.module()` mutates the module registry for the entire
+// test process — `mock.restore()` does NOT unwind module mocks (Phase 36B
+// investigation). The integration tests in test/mcp-integration/ that need
+// the real SDK are already split into a separate `bun test` invocation via
+// the `test:integration` script in package.json.
 
 mock.module("@modelcontextprotocol/sdk/client/streamableHttp.js", () => ({
   StreamableHTTPClientTransport: class {

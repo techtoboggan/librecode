@@ -18,6 +18,10 @@ import { MCP } from "../../src/mcp"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { TEST_TEXT_RESOURCE_MARKER, TEST_TEXT_RESOURCE_URI } from "../fixtures/mcp-apps/test-app-server"
+import { SHOULD_RUN_INTEGRATION, SKIP_REASON } from "./_guard"
+
+const guarded = SHOULD_RUN_INTEGRATION ? describe : describe.skip
+if (!SHOULD_RUN_INTEGRATION) console.log(`[mcp-integration] skipping read-proxy: ${SKIP_REASON}`)
 
 const FIXTURE_SCRIPT = path.join(import.meta.dir, "..", "fixtures", "mcp-apps", "test-app-server.ts")
 const SERVER_NAME = "lc-test-app"
@@ -33,7 +37,7 @@ afterAll(async () => {
   await workspace?.[Symbol.asyncDispose]()
 })
 
-describe("MCP app read-only proxies", () => {
+guarded("MCP app read-only proxies", () => {
   test("list + read + templates + prompts all return data from the live server", async () => {
     await Instance.provide({
       directory: workspace.path,

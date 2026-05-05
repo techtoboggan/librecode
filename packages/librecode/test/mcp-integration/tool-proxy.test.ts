@@ -17,6 +17,10 @@ import { MCP } from "../../src/mcp"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { TEST_APP_URI } from "../fixtures/mcp-apps/test-app-server"
+import { SHOULD_RUN_INTEGRATION, SKIP_REASON } from "./_guard"
+
+const guarded = SHOULD_RUN_INTEGRATION ? describe : describe.skip
+if (!SHOULD_RUN_INTEGRATION) console.log(`[mcp-integration] skipping tool-proxy: ${SKIP_REASON}`)
 
 const FIXTURE_SCRIPT = path.join(import.meta.dir, "..", "fixtures", "mcp-apps", "test-app-server.ts")
 const SERVER_NAME = "lc-test-app"
@@ -32,7 +36,7 @@ afterAll(async () => {
   await workspace?.[Symbol.asyncDispose]()
 })
 
-describe("MCP app tool proxying — manifest + transport", () => {
+guarded("MCP app tool proxying — manifest + transport", () => {
   test("manifest is read from _meta.ui.allowedTools, callServerTool delivers result", async () => {
     await Instance.provide({
       directory: workspace.path,

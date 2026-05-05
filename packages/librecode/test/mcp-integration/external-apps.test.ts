@@ -13,6 +13,10 @@ import { MCP } from "../../src/mcp"
 import { Instance } from "../../src/project/instance"
 import { tmpdir } from "../fixture/fixture"
 import { TEST_APP_MARKER, TEST_APP_URI } from "../fixtures/mcp-apps/test-app-server"
+import { SHOULD_RUN_INTEGRATION, SKIP_REASON } from "./_guard"
+
+const guarded = SHOULD_RUN_INTEGRATION ? describe : describe.skip
+if (!SHOULD_RUN_INTEGRATION) console.log(`[mcp-integration] skipping external-apps: ${SKIP_REASON}`)
 
 const FIXTURE_SCRIPT = path.join(import.meta.dir, "..", "fixtures", "mcp-apps", "test-app-server.ts")
 const SERVER_NAME = "lc-test-app"
@@ -43,7 +47,7 @@ afterAll(async () => {
  * built-in registry — so a regression in the external-server path could
  * have shipped silently. This is the canary.
  */
-describe("external MCP server with ui:// resource", () => {
+guarded("external MCP server with ui:// resource", () => {
   test("uiResources() discovers and fetchAppHtml() returns the resource", async () => {
     await Instance.provide({
       directory: workspace.path,
