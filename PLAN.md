@@ -577,25 +577,19 @@ Non-interactive `librecode mcp add/remove/enable/disable` so upstream tools (e.g
 
 ### Files over 1000 lines (violates CLAUDE.md)
 
-| File                                                                                       | Lines | Split strategy                                                       |
-| ------------------------------------------------------------------------------------------ | ----- | -------------------------------------------------------------------- |
-| `packages/librecode/src/provider/sdk/copilot/responses/openai-responses-language-model.ts` | 1,785 | Split by capability: tool-call/streaming/non-streaming               |
-| `packages/app/src/components/mcp-app-panel.tsx`                                            | 1,516 | **NEW** — split per UX concern (CSP, AppBridge, perm gate, sampling) |
-| `packages/librecode/src/mcp/index.ts`                                                      | 1,168 | Extract OAuth flow + built-in-apps merge into submodules             |
-| `packages/ui/src/components/file-icons/types.ts`                                           | 1,102 | Codegen — exclude from size rule or generate from a TOML             |
-| `packages/app/src/components/prompt-input.tsx`                                             | 1,051 | Extract voice input, file attachments, suggestion list               |
-| `packages/app/src/pages/session.tsx`                                                       | 1,024 | Extract side-panel orchestration, header assembly                    |
-| `packages/app/src/pages/layout.tsx`                                                        | 1,020 | Extract nav, command palette, settings modal wiring                  |
+| File                                                                                       | Lines               | Split strategy                                           | Status                          |
+| ------------------------------------------------------------------------------------------ | ------------------- | -------------------------------------------------------- | ------------------------------- |
+| `packages/librecode/src/provider/sdk/copilot/responses/openai-responses-language-model.ts` | 1,785               | Split by capability: tool-call/streaming/non-streaming   | Phase 36C                       |
+| ~~`packages/app/src/components/mcp-app-panel.tsx`~~                                        | ~~1,516~~ → **923** | Decomposed into 7 focused modules in `mcp-app-panel/`    | ✅ Phase 36A (commit `a8cbdc7`) |
+| `packages/librecode/src/mcp/index.ts`                                                      | 1,168               | Extract OAuth flow + built-in-apps merge into submodules | Phase 36C                       |
+| `packages/ui/src/components/file-icons/types.ts`                                           | 1,102               | Codegen — exclude from size rule or generate from a TOML | Phase 36C                       |
+| `packages/app/src/components/prompt-input.tsx`                                             | 1,051               | Extract voice input, file attachments, suggestion list   | Phase 36C                       |
+| `packages/app/src/pages/session.tsx`                                                       | 1,024               | Extract side-panel orchestration, header assembly        | Phase 36C                       |
+| `packages/app/src/pages/layout.tsx`                                                        | 1,020               | Extract nav, command palette, settings modal wiring      | Phase 36C                       |
 
-### Flaky integration tests (3, isolation-only)
+### Integration test isolation ✅ Phase 36B (commit `090c438`)
 
-These pass when run as `bun test test/mcp-integration` but fail when run in the full suite — almost certainly a global state leak from a prior test (Bus listener? MCP client cache?). Currently masked by the split `test:unit` / `test:integration` lanes in `package.json`.
-
-| File                                                | Description                                       |
-| --------------------------------------------------- | ------------------------------------------------- |
-| `test/mcp-integration/external-ui-resource.test.ts` | external MCP server exposing `ui://` resource     |
-| `test/mcp-integration/tool-proxying.test.ts`        | manifest read from `_meta.ui.allowedTools`        |
-| `test/mcp-integration/read-proxy.test.ts`           | resources/list/read/templates/prompts return data |
+The 3 tests under `test/mcp-integration/` are now gated on `LIBRECODE_RUN_INTEGRATION=1`. Root cause: bun's `mock.module()` permanently mutates the test process's module registry (`mock.restore()` doesn't unwind it), and sibling tests in `test/mcp/` stub the SDK transport modules. Architectural fix is process isolation, which `package.json`'s `test:unit && test:integration` chain already provides — `bun test` (no script) now cleanly skips them with a printed reason instead of failing.
 
 ### Remaining namespace migrations (Playbook 1)
 
@@ -633,15 +627,13 @@ No GitHub issues currently open. These are candidate workstreams we've discussed
 
 **Release policy:** Staying on `0.9.x` patch tags. No `1.0.0-preview.x` until real beta testing validates the product end-to-end. Every "Phase 3X" below ships as a 0.9.y patch.
 
-### Phase 36: File-Size + Test-Isolation Cleanup (next up)
+### Phase 36: File-Size + Test-Isolation Cleanup
 
-Close the debt surfaced by Phases 30–35:
+- **A: Decompose `mcp-app-panel.tsx`** ✅ shipped (commit `a8cbdc7`) — 1,516 → 923 lines, 7 focused modules in `mcp-app-panel/{csp,theme,fetch,seed,state-relay,events,handlers,types}.ts`. Backward compat preserved via re-exports from the main file.
+- **B: Diagnose flaky integration tests** ✅ shipped (commit `090c438`) — root cause: bun's `mock.module()` permanently mutates the test process's module registry. Fix: gate on `LIBRECODE_RUN_INTEGRATION=1`, set by the `test:integration` script. `bun test` now cleanly skips them.
+- **C: Remaining 1000+ line splits** (next up) — `openai-responses-language-model.ts` (1,785), `mcp/index.ts` (1,168), `prompt-input.tsx`, `pages/session.tsx`, `pages/layout.tsx`. The codegen file (`file-icons/types.ts` — 1,102) likely just needs an exclusion from the rule rather than a real split.
 
-- **A: Decompose `mcp-app-panel.tsx`** (1,516 lines, now the second-largest source file after Phase 31). Split per UX concern — CSP injection / AppBridge wiring / per-call permission gate / sampling cost-cap / display-mode / per-app state / download confirm / portal dropdown. Every MCP-Apps bug currently touches this one file.
-- **B: Diagnose flaky integration tests** (3 tests pass in isolation but fail in the full suite). Find the global-state leak — likely a Bus listener or MCP client cache that survives across files.
-- **C: Other 1000+ line splits** — `openai-responses-language-model.ts` (1,785), `mcp/index.ts` (1,168), `prompt-input.tsx`, `pages/session.tsx`, `pages/layout.tsx`.
-
-Medium effort across all three sub-phases.
+Medium effort for sub-phase C; A and B are done.
 
 ### Phase 37: BDD/E2E Coverage Push
 
