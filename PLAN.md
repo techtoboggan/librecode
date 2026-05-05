@@ -2,9 +2,9 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-19 | ~255 commits | Tests: 1715 pass, 0 fail | **v0.9.19** (Phase 29 complete, Phase 30 in progress)
+> Last updated: 2026-04-27 | ~377 commits | Tests: 1915 pass, 9 skip, 3 flaky-isolation | **v0.9.77** (Phase 35 shipped)
 >
-> **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phase 30 (best-practices cleanup) is in flight — housekeeping + BDD/E2E coverage + file-size splits.
+> **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
 ---
 
@@ -457,53 +457,173 @@ Full OWASP Top 10 audit was performed 2026-04-18. Initial posture: **NEEDS WORK*
 
 ---
 
-## 📋 Best-Practices Audit (snapshot 2026-04-18)
+## v0.9.x Continued — Phases 30 through 35 ✅ SHIPPED
 
-| Check                     | Target        | Actual                                                                     | Status |
-| ------------------------- | ------------- | -------------------------------------------------------------------------- | ------ |
-| Tests pass                | all green     | 1,616 pass, 9 skip, 0 fail                                                 | ✅     |
-| Typecheck                 | 0 errors      | 0 errors                                                                   | ✅     |
-| Lint warnings             | 0 net-new     | 38 (mostly `any` in TUI legacy; no new code)                               | ⚠️     |
-| Files over 1000 lines     | 0             | **6** (must split)                                                         | ❌     |
-| `export namespace` usages | 0 in new code | 6 remain (ACP, Provider, MessageV2, Session, ServerConnection, Identifier) | ⚠️     |
-| Complexity > 12           | 0             | 0                                                                          | ✅     |
+After Phase 29 closed all OWASP findings, six more phases shipped between v0.9.20 and v0.9.77 (122 commits, 58 patch versions).
+
+### Phase 30: Tauri/Desktop Hardening (v0.9.21–.34)
+
+| Item                                                     | Versions | Status |
+| -------------------------------------------------------- | -------- | ------ |
+| RPM `librecode-desktop` declares `Requires: librecode`   | v0.9.21  | ✅     |
+| Zero-drama CLI availability across all install paths     | v0.9.21  | ✅     |
+| Linux-focused beta CI (disable macOS/Win desktop)        | v0.9.22  | ✅     |
+| KDE 6 `qtpaths: command not found` silenced              | v0.9.23  | ✅     |
+| CSP allow `127.0.0.1:*` + `::1:*`; DevTools enabled      | v0.9.24  | ✅     |
+| Revert strict CSP that broke Tauri IPC in prod           | v0.9.25  | ✅     |
+| Drop `_csp_note` from Tauri config (schema violation)    | v0.9.26  | ✅     |
+| Rate limiter no longer blocks local UI                   | v0.9.27  | ✅     |
+| Typecheck fix: drop out-of-scope `rl.count`              | v0.9.28  | ✅     |
+| Drop IPv6 bracket URL Tauri can't parse                  | v0.9.29  | ✅     |
+| MCP apps auth + tab switching + auto-nav on pin          | v0.9.30  | ✅     |
+| Remove dead i18n waiters from release workflows          | v0.9.31  | ✅     |
+| MCP UX cleanup: dedup tabs, theme sync, no forced Review | v0.9.31  | ✅     |
+| MCP apps data seeding + pinned-tab persistence           | v0.9.32  | ✅     |
+| MCP tab flicker + Review tab restore                     | v0.9.33  | ✅     |
+| MCP iframe flash on tab switch                           | v0.9.34  | ✅     |
+
+### Phase 31: MCP Apps Full Host (v0.9.35–.53) — ADR-005
+
+Built out the full MCP Apps protocol host beyond Phase 15's protocol layer.
+
+| Item                                                             | Versions | Status |
+| ---------------------------------------------------------------- | -------- | ------ |
+| Test fixtures: external MCP servers exposing `ui://` resources   | v0.9.36  | ✅     |
+| Lock in MCP app event forwarding + snapshot seeding tests        | v0.9.35  | ✅     |
+| `AppBridge tools/call` → server tool proxying (ADR-005)          | v0.9.37  | ✅     |
+| Host context push + open-link + logging handlers + docs          | v0.9.38  | ✅     |
+| Read-only proxies (`resources/list/read/templates` + `prompts`)  | v0.9.40  | ✅     |
+| Per-call permission gate with 3-tier scope-aware grants          | v0.9.41  | ✅     |
+| `ui/download-file` with confirm dialog                           | v0.9.42  | ✅     |
+| Per-app Disconnect action + bridge running indicator             | v0.9.43  | ✅     |
+| `ui/request-display-mode` (fullscreen support)                   | v0.9.44  | ✅     |
+| `ui/message` with permission gate + char limit + origin metadata | v0.9.45  | ✅     |
+| `ui/update-model-context` with caps + fork-forward               | v0.9.46  | ✅     |
+| Settings → MCP Apps pane with per-app char-limit override        | v0.9.47  | ✅     |
+| `sampling/createMessage` policy + per-app cost cap               | v0.9.48  | ✅     |
+| "Posted by `<app>`" badge on MCP-app-origin messages             | v0.9.49  | ✅     |
+| Per-session usage telemetry in Settings                          | v0.9.50  | ✅     |
+| Persistent rule editor + "Always allow" DB writeback             | v0.9.51  | ✅     |
+| `sampling/createMessage` LLM inference enabled                   | v0.9.52  | ✅     |
+
+### Phase 32: UX Polish Wave (v0.9.54–.71) — ADR-006
+
+Activity Graph + Session Stats live, persistent, polished. Suspense-flash class of bug codified in ADR-006 after four incidents.
+
+| Item                                                                                  | Versions | Status |
+| ------------------------------------------------------------------------------------- | -------- | ------ |
+| Stop full-page flash when switching review tabs (ADR-006)                             | v0.9.54  | ✅     |
+| Session Stats + Activity Graph data collection fix                                    | v0.9.55  | ✅     |
+| `rust-audit` decoupled from release path; `rustls-webpki` bump                        | v0.9.56  | ✅     |
+| Always-visible streaming indicator + pin-flash fix (ADR-006)                          | v0.9.57  | ✅     |
+| Activity Graph nodes show tool's color (not grey)                                     | v0.9.58  | ✅     |
+| Live draw loop + pulse on fresh and active nodes                                      | v0.9.59  | ✅     |
+| Persistent pinned apps across restarts + crash guard on unreachable server            | v0.9.60  | ✅     |
+| Portal dropdown + re-seed stats on history hydration                                  | v0.9.61  | ✅     |
+| Per-app persistent state at `~/.local/librecode-mcp-apps/`                            | v0.9.62  | ✅     |
+| Marketplace scaffold (mcpapps.vip) + relabel Apps→Start                               | v0.9.63  | ✅     |
+| Marketplace pivot: `mcpapps.vip` → `mcpappfoundry.app`                                | v0.9.64  | ✅     |
+| Activity Graph stops pulsing after agent reaches "completed"                          | v0.9.65  | ✅     |
+| Reconstruct session activity from DB on first access                                  | v0.9.66  | ✅     |
+| Server-side seed endpoint for Session Stats reload persistence                        | v0.9.67  | ✅     |
+| Start-menu: dropdown transparency fix                                                 | v0.9.68  | ✅     |
+| Start-menu: `startTransition` (insufficient on its own)                               | v0.9.69  | ✅     |
+| Start-menu: prefetch app list — root cause was resource→interaction coupling          | v0.9.70  | ✅     |
+| Pre-commit prettier hook (`.githooks/pre-commit` + postinstall sets `core.hooksPath`) | v0.9.71  | ✅     |
+
+### Phase 33: Native MCP CLI (v0.9.72)
+
+Non-interactive `librecode mcp add/remove/enable/disable` so upstream tools (e.g. openwebgoggles) can shell out cleanly without a TTY prompt. Small effort, high external-integration value.
+
+### Phase 34: Agentic Control Panel (v0.9.73–.74) — ADR-007
+
+| Item                                                                                     | Status |
+| ---------------------------------------------------------------------------------------- | ------ |
+| Settings dialog: Agents / Skills / Plugins / Tools tabs                                  | ✅     |
+| Import from curated git-repo catalog (Superpowers, Superpowers-Chrome, Anthropic skills) | ✅     |
+| Markdown-defined agents at `~/.config/librecode/agents/*.md` (`loadMarkdownAgents`)      | ✅     |
+| Per-tab REST endpoints under `/control-panel/*`                                          | ✅     |
+| Hot-fix: Settings dialog opens at app-shell scope → `useGlobalSDK()` not `useSDK()`      | ✅     |
+
+### Phase 35: Multica + Phoenix Arize Telemetry (v0.9.75–.77) — ADR-008
+
+| Item                                                                                      | Status |
+| ----------------------------------------------------------------------------------------- | ------ |
+| Self-contained Multica MCP server at `mcpapps/multica/` (`@librecode/multica-mcp-app`)    | ✅     |
+| 3 tools: `multica_create_issue`, `multica_update_status`, `multica_add_comment`           | ✅     |
+| Sandboxed iframe board wrapper (HTML-escaped meta tags, configurable workspace)           | ✅     |
+| `MulticaClient` REST wrapper + `MulticaError` (preserves status + endpoint)               | ✅     |
+| 30 unit tests with fake `fetchFn`                                                         | ✅     |
+| Phoenix Arize NodeTracerProvider + OpenInference span processor + OTLP exporter           | ✅     |
+| Vercel AI SDK `experimental_telemetry` flipped on when `telemetry.phoenix.enabled`        | ✅     |
+| Lazy-imported (~50–80MB OTel deps don't load unless Phoenix is enabled)                   | ✅     |
+| Settings → Telemetry tab: status badge, endpoint/project rows, Test connection button     | ✅     |
+| `GET /control-panel/telemetry` (read-only, never echoes apiKey) + `POST .../health-check` | ✅     |
+| 11 Phoenix unit tests (`healthzUrlFor`, `checkPhoenixHealth` w/ fake fetch + abort)       | ✅     |
+| **Release-pipeline hardening**: `models.dev` fetch retries 5× with exponential backoff    | ✅     |
+
+---
+
+## 📋 Best-Practices Audit (snapshot 2026-04-27)
+
+| Check                     | Target        | Actual                                                             | Status |
+| ------------------------- | ------------- | ------------------------------------------------------------------ | ------ |
+| Tests pass                | all green     | 1,915 pass, 9 skip, 3 flaky-on-full-suite (pass in isolation)      | ⚠️     |
+| Typecheck                 | 0 errors      | 0 errors                                                           | ✅     |
+| Lint warnings             | 0 net-new     | ~38 (legacy TUI `any`; no new code)                                | ⚠️     |
+| Files over 1000 lines     | 0             | **7** (one new — `mcp-app-panel.tsx` at 1,516 lines from Phase 31) | ❌     |
+| `export namespace` usages | 0 in new code | 5 remain (ACP, Provider, Session, ServerConnection, Identifier)    | ⚠️     |
+| Complexity > 12           | 0             | 0                                                                  | ✅     |
 
 ### Files over 1000 lines (violates CLAUDE.md)
 
-| File                                                                                       | Lines | Split strategy                                           |
-| ------------------------------------------------------------------------------------------ | ----- | -------------------------------------------------------- |
-| `packages/librecode/src/provider/sdk/copilot/responses/openai-responses-language-model.ts` | 1,778 | Split by capability: tool-call/streaming/non-streaming   |
-| `packages/ui/src/components/file-icons/types.ts`                                           | 1,095 | Codegen — exclude from size rule or generate from a TOML |
-| `packages/librecode/src/mcp/index.ts`                                                      | 1,082 | Extract OAuth flow + built-in-apps merge into submodules |
-| `packages/app/src/components/prompt-input.tsx`                                             | 1,037 | Extract voice input, file attachments, suggestion list   |
-| `packages/app/src/pages/session.tsx`                                                       | 1,010 | Extract side-panel orchestration, header assembly        |
-| `packages/app/src/pages/layout.tsx`                                                        | 1,007 | Extract nav, command palette, settings modal wiring      |
+| File                                                                                       | Lines | Split strategy                                                       |
+| ------------------------------------------------------------------------------------------ | ----- | -------------------------------------------------------------------- |
+| `packages/librecode/src/provider/sdk/copilot/responses/openai-responses-language-model.ts` | 1,785 | Split by capability: tool-call/streaming/non-streaming               |
+| `packages/app/src/components/mcp-app-panel.tsx`                                            | 1,516 | **NEW** — split per UX concern (CSP, AppBridge, perm gate, sampling) |
+| `packages/librecode/src/mcp/index.ts`                                                      | 1,168 | Extract OAuth flow + built-in-apps merge into submodules             |
+| `packages/ui/src/components/file-icons/types.ts`                                           | 1,102 | Codegen — exclude from size rule or generate from a TOML             |
+| `packages/app/src/components/prompt-input.tsx`                                             | 1,051 | Extract voice input, file attachments, suggestion list               |
+| `packages/app/src/pages/session.tsx`                                                       | 1,024 | Extract side-panel orchestration, header assembly                    |
+| `packages/app/src/pages/layout.tsx`                                                        | 1,020 | Extract nav, command palette, settings modal wiring                  |
 
-### Remaining namespace migrations (Playbook 1 in CLAUDE.md)
+### Flaky integration tests (3, isolation-only)
+
+These pass when run as `bun test test/mcp-integration` but fail when run in the full suite — almost certainly a global state leak from a prior test (Bus listener? MCP client cache?). Currently masked by the split `test:unit` / `test:integration` lanes in `package.json`.
+
+| File                                                | Description                                       |
+| --------------------------------------------------- | ------------------------------------------------- |
+| `test/mcp-integration/external-ui-resource.test.ts` | external MCP server exposing `ui://` resource     |
+| `test/mcp-integration/tool-proxying.test.ts`        | manifest read from `_meta.ui.allowedTools`        |
+| `test/mcp-integration/read-proxy.test.ts`           | resources/list/read/templates/prompts return data |
+
+### Remaining namespace migrations (Playbook 1)
 
 Apply barrel-export pattern, one PR each (per Playbook 1 rules):
 
-1. `packages/librecode/src/acp/agent.ts:715` — `export namespace ACP`
-2. `packages/librecode/src/provider/provider.ts:544` — `export namespace Provider` (partial migration already)
-3. `packages/librecode/src/session/message-v2.ts:819` — `export namespace MessageV2`
-4. `packages/librecode/src/session/index.ts:910` — `export namespace Session`
-5. `packages/app/src/context/server.tsx:36` — `export namespace ServerConnection`
-6. `packages/app/src/utils/id.ts:17` — `export namespace Identifier`
+1. `packages/librecode/src/acp/agent.ts` — `export namespace ACP`
+2. `packages/librecode/src/provider/provider.ts` — `export namespace Provider` (partial migration already)
+3. `packages/librecode/src/session/index.ts` — `export namespace Session`
+4. `packages/app/src/context/server.tsx` — `export namespace ServerConnection`
+5. `packages/app/src/utils/id.ts` — `export namespace Identifier`
 
 ---
 
 ## 📦 Deferred Items (from earlier phases, still valid)
 
-| Item                                                                                                                                                                                                                                                                                                                                            | Source             | Priority | Status   |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------- | -------- |
-| Flathub submission (public listing; manifest already builds in CI)                                                                                                                                                                                                                                                                              | Phase 22           | Low      | Deferred |
-| **Re-introduce Tauri CSP in object form** so Tauri auto-amends script-src with IPC nonces. Flat-string form (what we tried in Phase 29) breaks Tauri's runtime IPC bridge — user-visible as a blank app window / "Could not reach Local Server". Re-test with `"csp": { "default-src": [...], "script-src": [...], ... }` per-directive object. | Phase 29 follow-up | Medium   | TODO     |
-| AppImage end-to-end verification (`APPIMAGE_EXTRACT_AND_RUN=1` wired but not validated on fresh system)                                                                                                                                                                                                                                         | Phase 22           | Low      | Deferred |
-| Desktop locale parity: human-review `th.ts`/`tr.ts` translations                                                                                                                                                                                                                                                                                | Phase 22           | Low      | Deferred |
-| Design-debt TODOs in `session/prompt-builder.ts:374, 503`                                                                                                                                                                                                                                                                                       | Phase 22           | Low      | Deferred |
-| Design-debt TODOs in `plugin/copilot.ts:192-193`                                                                                                                                                                                                                                                                                                | Phase 22           | Low      | Deferred |
-| Coverage gap in `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` (<20% each; needs BDD/E2E with running agent, not unit tests)                                                                                                                                                                                                 | Phase 20           | Medium   | Deferred |
-| Update Homebrew formula sha256s to match `v0.9.8` `SHA256SUMS` (currently points at v1.0.0-preview.1)                                                                                                                                                                                                                                           | Phase 22           | Small    | TODO     |
+| Item                                                                                                                                                                                                                                                                                                           | Source             | Priority | Status   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ | -------- | -------- |
+| Flathub submission (public listing; manifest already builds in CI)                                                                                                                                                                                                                                             | Phase 22           | Low      | Deferred |
+| **Re-introduce Tauri CSP in object form** so Tauri auto-amends script-src with IPC nonces. Flat-string form (what we tried in Phase 29) breaks Tauri's runtime IPC bridge — user-visible as a blank app window. Re-test with `"csp": { "default-src": [...], "script-src": [...], ... }` per-directive object. | Phase 29 follow-up | Medium   | TODO     |
+| AppImage end-to-end verification (`APPIMAGE_EXTRACT_AND_RUN=1` wired but not validated on fresh system)                                                                                                                                                                                                        | Phase 22           | Low      | Deferred |
+| Desktop locale parity: human-review `th.ts`/`tr.ts` translations                                                                                                                                                                                                                                               | Phase 22           | Low      | Deferred |
+| Design-debt TODOs in `session/prompt-builder.ts:374, 503`                                                                                                                                                                                                                                                      | Phase 22           | Low      | Deferred |
+| Design-debt TODOs in `plugin/copilot.ts:192-193`                                                                                                                                                                                                                                                               | Phase 22           | Low      | Deferred |
+| Coverage gap in `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` (<20% each; needs BDD/E2E with running agent, not unit tests)                                                                                                                                                                | Phase 20           | Medium   | Deferred |
+| Update Homebrew formula sha256s to current `SHA256SUMS` (still references v1.0.0-preview.1)                                                                                                                                                                                                                    | Phase 22           | Small    | TODO     |
+| **Decompose `mcp-app-panel.tsx`** (1,516 lines after Phase 31 — every MCP-Apps bug touches this file)                                                                                                                                                                                                          | Phase 31 follow-up | Medium   | TODO     |
+| **Diagnose 3 flaky `mcp-integration` tests** (pass in isolation, fail in full suite — likely a global state leak)                                                                                                                                                                                              | Phase 31 follow-up | Medium   | TODO     |
+| **Static lint rule for ADR-006 pattern**: forbid `createResource` source functions reading signals written by event handlers in the same component (under `pages/session/*`)                                                                                                                                   | Phase 32 follow-up | Medium   | TODO     |
 
 ---
 
@@ -513,33 +633,49 @@ No GitHub issues currently open. These are candidate workstreams we've discussed
 
 **Release policy:** Staying on `0.9.x` patch tags. No `1.0.0-preview.x` until real beta testing validates the product end-to-end. Every "Phase 3X" below ships as a 0.9.y patch.
 
-### Phase 30: Best-Practices Cleanup (in progress)
+### Phase 36: File-Size + Test-Isolation Cleanup (next up)
 
-Resolve the CLAUDE.md debt surfaced after Phase 29:
+Close the debt surfaced by Phases 30–35:
 
-- A: Housekeeping — PLAN.md renumbering (this edit), Homebrew formula sha256s to v0.9.19, design-debt TODOs in `prompt-builder.ts:374,503` + `plugin/copilot.ts:192-193`
-- B: BDD/E2E coverage push — close the gap on `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts`. Requires a running agent + mock LLM; pytest-bdd scaffolding already in place.
-- C: File-size splits — 6 files currently violate the 1000-line rule. Each is a Playbook-worthy decomposition.
+- **A: Decompose `mcp-app-panel.tsx`** (1,516 lines, now the second-largest source file after Phase 31). Split per UX concern — CSP injection / AppBridge wiring / per-call permission gate / sampling cost-cap / display-mode / per-app state / download confirm / portal dropdown. Every MCP-Apps bug currently touches this one file.
+- **B: Diagnose flaky integration tests** (3 tests pass in isolation but fail in the full suite). Find the global-state leak — likely a Bus listener or MCP client cache that survives across files.
+- **C: Other 1000+ line splits** — `openai-responses-language-model.ts` (1,785), `mcp/index.ts` (1,168), `prompt-input.tsx`, `pages/session.tsx`, `pages/layout.tsx`.
 
 Medium effort across all three sub-phases.
 
-### Phase 31: MCP Co-editing App (deferred from Phase 28 per ADR-005)
+### Phase 37: BDD/E2E Coverage Push
+
+Close the unit-test gap on `processor.ts`, `prompt.ts`, `prompt-builder.ts`, `compaction.ts` (<20% each — needs a running agent + mock LLM). pytest-bdd scaffolding already in place at `tests/features/` + `tests/steps/`. Add a mock-LLM provider so behavior specs can drive the full agent loop. **Unblocks 80% line coverage target without faking unit tests.**
+
+### Phase 38: ADR-006 Static Enforcement
+
+Land a custom biome/eslint rule: in components under `pages/session/*`, `createResource` source functions MUST NOT read signals written by event handlers in the same component. ADR-006 codified the rule after four Suspense-flash incidents (v0.9.54, .58, .70, .71) — each cost 2-3 patch versions to land. **Static enforcement catches the next instance before it ships.**
+
+### Phase 39: Plugin Marketplace (mcpappfoundry.app)
+
+Natural follow-on to the marketplace pivot (v0.9.64) + the new git-repo catalog import in Control Panel (Phase 34). Pieces in place: `@librecode/sdk`, `@librecode/plugin`, npm OIDC provenance, Control Panel import flow. Need: hosted index file, search UI, one-click install + uninstall, signing/verification story. Large effort.
+
+### Phase 40: Remaining Namespace Migrations (Playbook 1)
+
+5 `export namespace` declarations remain. Apply barrel-export pattern, one PR each. Mechanical, low-risk, but adds review noise.
+
+### Phase 41: MCP Co-editing App (deferred from Phase 28 per ADR-005)
 
 CRDT/OT implementation for collaborative real-time editing of shared documents in MCP apps. Design-only as ADR-005 today. Large effort.
 
-### Phase 32: Windows Code-Signing + Store Submission
+### Phase 42: Windows Code-Signing + Store Submission
 
 Sign the `.exe` installer with an EV certificate, submit to Microsoft Store (or partner channels) to avoid SmartScreen warnings. Medium effort + cert-procurement cost.
 
-### Phase 33: Linux AppImage Auto-Update
+### Phase 43: Linux AppImage Auto-Update
 
 The Tauri updater currently disabled on Linux. Once AppImage is validated (deferred item above), wire up zsync-based delta updates via the AppImage updater framework. Small effort.
 
-### Phase 34: Plugin Marketplace
+### Phase 44: Release Preflight Verification
 
-Extend the 3rd-party providers pattern to arbitrary plugins/tools/MCP servers — searchable registry, publish CLI, one-click install from desktop UI. Large effort.
+Cheap-but-high-value: a `scripts/preflight-release.sh` that runs `bun run build` for the current platform + smoke-imports the npm tarball before tagging. Would have caught the v0.9.76 darwin-arm64 ConnectionRefused failure. Small effort.
 
-### Phase 35: Enterprise Features (post-1.0)
+### Phase 45: Enterprise Features (post-1.0)
 
 Deferred per local-first charter but listed for completeness: SSO/SAML, audit-log forwarding to SIEM, multi-tenant config, secrets management integration. Out-of-scope for 0.9.x / 1.0 stable.
 
@@ -547,23 +683,26 @@ Deferred per local-first charter but listed for completeness: SSO/SAML, audit-lo
 
 ## Project Stats
 
-| Metric                       | Value                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------- |
-| Total commits                | ~235                                                                                              |
-| Tests passing                | 1,715                                                                                             |
-| Tests failing                | 0                                                                                                 |
-| Tests skipped                | 9                                                                                                 |
-| Test files                   | 134                                                                                               |
-| Current version              | **v0.9.10** (Phase 29 — OWASP hardening — complete)                                               |
-| Complexity violations        | 0                                                                                                 |
-| Source files over 1000 lines | 6 (tracked for split; unchanged in Phase 29)                                                      |
-| Lint warnings total          | 38 (legacy TUI `any`; down from 1,933)                                                            |
-| Remaining `export namespace` | 6 (Playbook 1)                                                                                    |
-| OWASP audit posture          | **STRONG** — 7/7 high + 7/7 medium closed as of v0.9.10; re-audit scheduled before `v1.0.0`       |
-| bun audit                    | 7 high, 9 moderate (all transitive; latest available versions of seroval/dompurify/undici)        |
-| cargo audit                  | 0 vulnerabilities (15 unmaintained-GTK3 warnings documented in audit.toml)                        |
-| ADRs                         | 4 (Effect-ts, Storage, Agent Loop, Auth Prompts) + ADR-005 planned (co-editing)                   |
-| npm packages                 | 7 published via OIDC (sdk, plugin, provider-{anthropic,openai,openrouter}, provider-bundle, i18n) |
-| Sister repos                 | librecode-3rdparty-providers, librecode-i18n (both on v0.9.8, OIDC-synced)                        |
-| Core providers               | LiteLLM, Ollama, Amazon Bedrock, Azure                                                            |
-| Release artifacts per tag    | 16 (7 CLI archives, 5 desktop installers, Flatpak, SHA256SUMS, config schema, source zip/tarball) |
+| Metric                       | Value                                                                                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Total commits                | ~377                                                                                                                                                |
+| Tests passing                | 1,915                                                                                                                                               |
+| Tests failing                | 0 (3 flaky on full-suite run; pass in isolation — tracked Phase 36B)                                                                                |
+| Tests skipped                | 9                                                                                                                                                   |
+| Test files                   | 155                                                                                                                                                 |
+| Current version              | **v0.9.77** (Phase 35 — Multica + Phoenix telemetry — shipped)                                                                                      |
+| Complexity violations        | 0                                                                                                                                                   |
+| Source files over 1000 lines | 7 (one new — `mcp-app-panel.tsx` 1,516 lines; tracked Phase 36A)                                                                                    |
+| Lint warnings total          | ~38 (legacy TUI `any`; down from 1,933)                                                                                                             |
+| Remaining `export namespace` | 5 (Playbook 1, Phase 40)                                                                                                                            |
+| OWASP audit posture          | **STRONG** — 7/7 high + 7/7 medium closed as of v0.9.10; re-audit scheduled before `v1.0.0`                                                         |
+| bun audit                    | 7 high, 9 moderate (all transitive; latest available versions of seroval/dompurify/undici)                                                          |
+| cargo audit                  | 0 vulnerabilities (15 unmaintained-GTK3 warnings documented in audit.toml)                                                                          |
+| ADRs                         | **8** (001 Effect-ts, 002 Storage, 003 Agent Loop, 004 Auth Prompts, 005 MCP Tool Proxying, 006 Suspense, 007 Control Panel, 008 Multica + Phoenix) |
+| npm packages                 | 7 published via OIDC (sdk, plugin, provider-{anthropic,openai,openrouter}, provider-bundle, i18n)                                                   |
+| MCP apps                     | 2 self-contained (`@librecode/multica-mcp-app`; built-in fs-activity-graph, session-stats)                                                          |
+| Telemetry pipelines          | 1 (Phoenix Arize — opt-in via `telemetry.phoenix.enabled`; lazy-imports OTel SDK)                                                                   |
+| Sister repos                 | librecode-3rdparty-providers, librecode-i18n (OIDC-synced)                                                                                          |
+| Core providers               | LiteLLM, Ollama, Amazon Bedrock, Azure                                                                                                              |
+| Release artifacts per tag    | 14 (7 CLI archives, 2 desktop installers, SHA256SUMS, config schema, 2 SBOMs)                                                                       |
+| Release pipeline duration    | ~18m end-to-end on v0.9.77 (Lint → npm publish → 7 CLI builds + desktop → GitHub Release → COPR)                                                    |
