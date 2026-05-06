@@ -1,17 +1,18 @@
-// CLAUDE.md file-size exception (PLAN.md Phase 30c).
-// This file (1082 lines) exceeds the 1000-line rule. Natural split
-// candidates are the OAuth flow (~230 lines in startAuth/authenticate/
-// finishAuth/removeAuth/supportsOAuth/hasStoredTokens/getAuthStatus)
-// and the transport creation block (~200 lines in buildRemoteAuthProvider/
+// CLAUDE.md file-size rule — category 3 exception (tightly-shared private state).
+//
+// This file (1,168 lines) exceeds the 1,000-line budget. Natural split
+// candidates are the OAuth flow (~230 lines: startAuth/authenticate/
+// finishAuth/removeAuth/supportsOAuth/hasStoredTokens/getAuthStatus) and
+// the transport creation block (~200 lines: buildRemoteAuthProvider/
 // classifyAuthError/handleRegistrationError/handleNeedsAuthError/
 // tryConnectTransport/createRemoteClient/createLocalClient/create).
 //
-// Both extractions are tractable but depend on private helpers like
-// `state()`, `add()`, `pendingOAuthTransports` and would either need
-// those promoted to the public barrel (changes the shape of MCP.*)
-// or a new intermediate `mcp/shared.ts` module. Deferred to a
-// dedicated refactor that also addresses the MCP client-caching
-// design the comment block below alludes to.
+// Both depend on private helpers (`state()`, `add()`,
+// `pendingOAuthTransports`) that would need to be either promoted to the
+// public barrel (changing the shape of `MCP.*`) or relocated into a new
+// `mcp/_shared.ts` indirection. Neither actually reduces coupling — the
+// state stays shared. Deferred to the next real refactor of this area
+// that also addresses the MCP client-caching design discussed below.
 
 import { NamedError } from "@librecode/util/error"
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"

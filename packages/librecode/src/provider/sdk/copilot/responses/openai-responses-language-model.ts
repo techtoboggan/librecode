@@ -1,9 +1,9 @@
-// NOTE: This file is vendored from @ai-sdk/openai's Responses API
-// implementation. It exceeds CLAUDE.md's 1000-line rule by design —
-// splitting it would diverge from upstream's layout and make future
-// merges painful. Schema groupings and handler ordering match upstream
-// to make diffs readable. Tracked as an exception in PLAN.md Phase 30.
-// If upstream splits this file, we should follow suit.
+// CLAUDE.md file-size rule — category 2 exception (vendored upstream code).
+//
+// Vendored from @ai-sdk/openai's Responses API implementation. Splitting
+// would diverge from upstream's layout and make future merges painful.
+// Schema groupings and handler ordering match upstream to keep diffs
+// readable. If upstream splits this file, we should follow suit.
 
 import {
   APICallError,
