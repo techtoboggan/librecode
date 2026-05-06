@@ -215,6 +215,17 @@ remove it — the fallback is what shows on legitimately slow route
 transitions (session first-load, provider reconnect). The fix is always
 on the feature side, never the boundary.
 
+**Static enforcement (Phase 38).** A custom checker at
+`scripts/lint-adr-006.ts` runs as part of `bun run lint` and the
+pre-commit hook. Every `createResource` call in the danger-zone files
+(currently `pages/session/**`, `start-menu.tsx`, `mcp-app-panel.tsx` and
+its submodules, `pinned-apps.tsx`) MUST carry an inline
+`// adr-006: <reason>` comment naming what the source key is and why
+it's safe. The checker doesn't reason about cross-function dataflow —
+it forces the conscious decision and requires you to write the
+justification down. Add new danger-zone files to `DANGER_ZONE_GLOBS`
+when they enter the Suspense subtree.
+
 ## Migration Playbooks
 
 ### Playbook 1: Namespace → Module Export Migration

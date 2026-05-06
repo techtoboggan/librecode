@@ -68,6 +68,10 @@ export function StartMenu(props: StartMenuProps) {
   // server URL ever rotates (e.g. reconnecting to a different
   // sidecar). That's an acceptable reload — users actively aware
   // they're switching servers expect it.
+  //
+  // adr-006: keyed on baseUrl() — stable for the session, not written by
+  // any event handler in this component. `open()`, `coords()`, etc. are
+  // pure UI state and don't gate this resource.
   const [apps] = createResource(
     () => baseUrl(),
     async (url) => {

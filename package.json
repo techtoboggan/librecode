@@ -11,8 +11,9 @@
     "dev:web": "bun --cwd packages/app dev",
     "typecheck": "bun turbo typecheck",
     "test": "bun turbo test",
-    "lint": "bunx biome lint .",
+    "lint": "bunx biome lint . && bun run scripts/lint-adr-006.ts",
     "lint:fix": "bunx biome lint . --fix",
+    "lint:adr-006": "bun run scripts/lint-adr-006.ts",
     "quality": "bunx biome lint . --max-diagnostics=5000 2>&1 | tail -5",
     "postinstall": "git config core.hooksPath .githooks 2>/dev/null || true"
   },

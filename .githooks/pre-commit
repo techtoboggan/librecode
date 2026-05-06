@@ -63,4 +63,20 @@ if ! echo "$to_check" | xargs bunx prettier --check --log-level=warn --ignore-un
 fi
 
 printf '%s✓%s prettier clean\n' "$GREEN" "$RESET"
+
+# ─── ADR-006 / Phase 38 ──────────────────────────────────────────────────────
+# If a staged file is in the danger zone for the Suspense/createResource
+# pattern, run the static checker. Cheap (~150ms) and catches the next flash
+# bug before it ships. Skip if no danger-zone files are staged so most
+# commits stay zero-cost.
+adr006_files=$(printf '%s\n' "$to_check" | grep -E '^packages/app/src/(pages/session/|components/(start-menu|mcp-app-panel)|context/pinned-apps)' || true)
+if [ -n "$adr006_files" ]; then
+  printf '%s→ adr-006 check%s\n' "$DIM" "$RESET"
+  if ! bun run scripts/lint-adr-006.ts 2>&1; then
+    printf '\n%sBypass this hook (only for emergency fix-forwards):%s\n' "$YELLOW" "$RESET"
+    printf '  git commit --no-verify\n\n'
+    exit 1
+  fi
+fi
+
 exit 0

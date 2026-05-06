@@ -484,6 +484,9 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   let iframeRef: HTMLIFrameElement | undefined
   const [iframeSignal, setIframeSignal] = createSignal<HTMLIFrameElement | undefined>(undefined)
 
+  // adr-006: keyed on (server, uri) — both are props supplied at mount and
+  // never written by event handlers in this component. Re-keys only when
+  // the parent picks a different app, which is a legitimate reload.
   const [html] = createResource(
     () => ({ server: props.server, uri: props.uri }),
     ({ server, uri }) => fetchAppHtml(globalSDK.fetch, sdk.url, sdk.directory, server, uri),
@@ -822,6 +825,8 @@ export interface McpAppsTabProps {
 export function McpAppsTab(props: McpAppsTabProps): JSX.Element {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
+  // adr-006: no-arg fetcher — fires once at mount, never re-keys. The
+  // active-app signal below is pure UI state and doesn't gate this resource.
   const [apps] = createResource(() => fetchAppList(globalSDK.fetch, sdk.url, sdk.directory))
   const [activeApp, setActiveApp] = createSignal<McpAppResource | undefined>(undefined)
 
