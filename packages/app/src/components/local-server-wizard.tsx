@@ -15,6 +15,12 @@ type DiscoveredModel = {
   id: string
   name: string
   selected: boolean
+  /**
+   * `existing` — already present in the user's config for this provider before
+   * this rescan. Pre-checked and labelled "already added" so it's clear what
+   * action a check/uncheck represents. v0.9.78.
+   */
+  existing: boolean
 }
 
 type DiscoveredServer = {
@@ -97,11 +103,43 @@ async function fetchModels(baseUrl: string, apiKey?: string): Promise<Array<{ id
   return models
 }
 
-function makeProviderID(url: string): string {
+export function makeProviderID(url: string): string {
   return `local-${url
     .replace(/[^a-z0-9]/gi, "-")
     .replace(/-+/g, "-")
     .toLowerCase()}`
+}
+
+/**
+ * v0.9.78 — pure helper that produces the model-picker entries for a given
+ * server's live `models` list combined with the user's `existing` configured
+ * model IDs (from `provider[providerID].models`). Pulled out so test/component
+ * coverage can pin the merge semantics:
+ *
+ *   - every server-side model becomes an entry, pre-checked, marked `existing`
+ *     iff it was already configured;
+ *   - configured models that are NOT in the live server list are appended
+ *     (so the user can see they're orphaned), pre-checked + marked `existing`.
+ *
+ * Order: server-side first, then orphaned-existing — keeps newly-added live
+ * models at the top.
+ */
+export function buildModelPickerEntries(
+  serverModels: ReadonlyArray<{ id: string; name: string }>,
+  existingModelIDs: ReadonlySet<string>,
+): DiscoveredModel[] {
+  const onServer = new Set(serverModels.map((m) => m.id))
+  const entries: DiscoveredModel[] = serverModels.map((m) => ({
+    id: m.id,
+    name: m.name,
+    selected: true,
+    existing: existingModelIDs.has(m.id),
+  }))
+  for (const id of existingModelIDs) {
+    if (onServer.has(id)) continue
+    entries.push({ id, name: id, selected: true, existing: true })
+  }
+  return entries
 }
 
 export function LocalServerWizard() {
@@ -119,6 +157,12 @@ export function LocalServerWizard() {
   const [saving, setSaving] = createSignal(false)
 
   const selectedCount = () => models.filter((m) => m.selected).length
+  /** New models that aren't already configured AND that the user wants to keep. */
+  const newModelCount = () => models.filter((m) => m.selected && !m.existing).length
+  /** Existing configured models that the user has unchecked. v0.9.78. */
+  const removedModelCount = () => models.filter((m) => !m.selected && m.existing).length
+  /** True when at least one model in the picker is already in the config. */
+  const isUpdate = () => models.some((m) => m.existing)
 
   const connectedProviderIDs = createMemo(() => new Set(globalSync.data.provider.connected ?? []))
 
@@ -168,9 +212,21 @@ export function LocalServerWizard() {
     }
   }
 
-  const showServerModels = (server: DiscoveredServer) => {
-    setUrl(server.url)
-    setModels(server.models.map((m) => ({ id: m.id, name: m.name, selected: true })))
+  /**
+   * v0.9.78 — read existing models for an already-configured provider so the
+   * model picker can pre-check + label them when the user re-clicks a connected
+   * server. Returns an empty set for new servers.
+   */
+  const existingModelsFor = (serverUrl: string): Set<string> => {
+    const providerID = makeProviderID(serverUrl.replace(/\/+$/, ""))
+    const cfg = globalSync.data.config?.provider?.[providerID]
+    if (!cfg?.models) return new Set()
+    return new Set(Object.keys(cfg.models))
+  }
+
+  const showServerModels = (s: DiscoveredServer) => {
+    setUrl(s.url)
+    setModels(buildModelPickerEntries(s.models, existingModelsFor(s.url)))
     setStep("models")
   }
 
@@ -213,7 +269,7 @@ export function LocalServerWizard() {
 
     const discovered = await fetchModels(baseUrl, apiKey().trim() || undefined)
     if (discovered.length > 0) {
-      setModels(discovered.map((m) => ({ ...m, selected: true })))
+      setModels(buildModelPickerEntries(discovered, existingModelsFor(baseUrl)))
       setStep("models")
     } else {
       setError("Could not connect or no models found at this address.")
@@ -253,10 +309,16 @@ export function LocalServerWizard() {
       })
 
       setStep("added")
+      const wasUpdate = models.some((m) => m.existing)
+      const newCount = selected.filter((m) => !m.existing).length
       showToast({
         variant: "success",
         icon: "circle-check",
-        title: `Added ${selected.length} model${selected.length === 1 ? "" : "s"} from ${serverName}`,
+        title: wasUpdate
+          ? newCount > 0
+            ? `Updated ${serverName} — ${newCount} new model${newCount === 1 ? "" : "s"} added`
+            : `${serverName} is up to date`
+          : `Added ${selected.length} model${selected.length === 1 ? "" : "s"} from ${serverName}`,
         description: `Connected to ${baseUrl}`,
       })
     } catch (err) {
@@ -309,8 +371,12 @@ export function LocalServerWizard() {
                     {(server) => (
                       <button
                         class="flex items-center justify-between w-full px-3 py-2.5 hover:bg-surface-raised-base cursor-pointer transition-colors text-left"
-                        onClick={() => !server.connected && showServerModels(server)}
-                        disabled={server.connected}
+                        onClick={() => showServerModels(server)}
+                        title={
+                          server.connected
+                            ? "Already connected — click to rescan available models"
+                            : "Click to add models from this server"
+                        }
                       >
                         <div class="flex flex-col gap-0.5">
                           <div class="flex items-center gap-2">
@@ -319,14 +385,14 @@ export function LocalServerWizard() {
                           </div>
                           <span class="text-12-regular text-text-weak">
                             {server.modelCount} model{server.modelCount === 1 ? "" : "s"}
-                            {server.connected ? " — already connected" : " available"}
+                            {server.connected ? " — connected · click to refresh" : " available"}
                           </span>
                         </div>
                         <Show
                           when={server.connected}
                           fallback={<Icon name="chevron-right" class="text-icon-weak-base size-4" />}
                         >
-                          <Icon name="check" class="text-icon-positive-base size-4" />
+                          <Icon name="dot-grid" class="text-icon-positive-base size-4" />
                         </Show>
                       </button>
                     )}
@@ -434,12 +500,30 @@ export function LocalServerWizard() {
                   {(model, index) => (
                     <label class="flex items-center gap-2.5 px-3 py-1.5 hover:bg-surface-raised-base cursor-pointer transition-colors">
                       <Checkbox checked={model.selected} onChange={(checked) => setModelSelected(index(), checked)}>
-                        <span class="text-13-regular text-text-base font-mono">{model.name}</span>
+                        <span class="flex items-center gap-2 flex-1">
+                          <span class="text-13-regular text-text-base font-mono">{model.name}</span>
+                          <Show when={model.existing}>
+                            <span class="text-11-regular text-text-weaker px-1.5 py-0.5 rounded-sm bg-background-subtle">
+                              already added
+                            </span>
+                          </Show>
+                          <Show when={!model.existing && isUpdate()}>
+                            <span class="text-11-regular text-text-positive px-1.5 py-0.5 rounded-sm bg-background-subtle">
+                              new
+                            </span>
+                          </Show>
+                        </span>
                       </Checkbox>
                     </label>
                   )}
                 </For>
               </div>
+              <Show when={isUpdate() && removedModelCount() > 0}>
+                <p class="text-12-regular text-text-weak">
+                  Unchecking a model leaves it in your config — to actually remove it, edit{" "}
+                  <code class="font-mono">~/.config/librecode/librecode.json</code>.
+                </p>
+              </Show>
 
               <div class="flex items-center gap-2">
                 <Button
@@ -448,10 +532,19 @@ export function LocalServerWizard() {
                   onClick={handleAddModels}
                   disabled={selectedCount() === 0 || saving()}
                 >
-                  <Show when={saving()} fallback={`Add ${selectedCount()} model${selectedCount() === 1 ? "" : "s"}`}>
+                  <Show
+                    when={saving()}
+                    fallback={
+                      isUpdate()
+                        ? newModelCount() > 0
+                          ? `Update — add ${newModelCount()} new`
+                          : `Save (${selectedCount()} model${selectedCount() === 1 ? "" : "s"})`
+                        : `Add ${selectedCount()} model${selectedCount() === 1 ? "" : "s"}`
+                    }
+                  >
                     <span class="flex items-center gap-1.5">
                       <Spinner class="size-3" />
-                      Adding...
+                      {isUpdate() ? "Updating..." : "Adding..."}
                     </span>
                   </Show>
                 </Button>
