@@ -154,6 +154,49 @@ export const GlobalRoutes = lazy(() =>
       },
     )
     .post(
+      "/config/delete-paths",
+      describeRoute({
+        summary: "Delete keys from global configuration",
+        description:
+          "Surgically remove the specified paths from the global config. Each path is " +
+          "an array of string segments — e.g. ['provider','local-foo','models','llama:8b'] " +
+          "removes that single model entry without touching anything else. The path's first " +
+          "segment must be a known top-level config field (provider, mcp, agent, command, " +
+          "permission, disabled_providers, experimental, skills, keybinds, telemetry); " +
+          "anything else is rejected with HTTP 400. Used by the local-server-wizard to " +
+          "actually drop unchecked models — the patch endpoint can't express deletion " +
+          "because its merge step skips undefined values.",
+        operationId: "global.config.deletePaths",
+        responses: {
+          200: {
+            description: "Successfully deleted requested paths",
+            content: {
+              "application/json": {
+                schema: resolver(Config.Info),
+              },
+            },
+          },
+          ...errors(400),
+        },
+      }),
+      validator(
+        "json",
+        z.object({
+          paths: z.array(z.array(z.string().min(1)).min(2)),
+        }),
+      ),
+      async (c) => {
+        const { paths } = c.req.valid("json")
+        try {
+          const next = await Config.deleteGlobalPaths(paths)
+          return c.json(next)
+        } catch (err) {
+          log.error("delete-paths failed", { error: err })
+          return c.json({ error: err instanceof Error ? err.message : String(err) }, 400)
+        }
+      },
+    )
+    .post(
       "/dispose",
       describeRoute({
         summary: "Dispose instance",

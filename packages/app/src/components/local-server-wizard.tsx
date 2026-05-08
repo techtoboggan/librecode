@@ -277,9 +277,38 @@ export function LocalServerWizard() {
     }
   }
 
+  /**
+   * v0.9.78 — call the dedicated delete-paths endpoint to actually drop
+   * configured models the user unchecked. The patch path can't express
+   * deletion (its merge step skips undefined values), so we POST a list
+   * of `["provider", "<id>", "models", "<modelID>"]` paths after the
+   * additive update has landed. Returns the count successfully removed.
+   */
+  async function deleteModelsFromConfig(providerID: string, modelIDs: ReadonlyArray<string>): Promise<number> {
+    if (modelIDs.length === 0) return 0
+    const httpBase = server.current?.http
+    const baseUrl = httpBase?.url ?? globalSDK.url
+    const headers: Record<string, string> = { "Content-Type": "application/json" }
+    if (httpBase?.password) {
+      headers["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
+    }
+    const paths = modelIDs.map((id) => ["provider", providerID, "models", id])
+    const res = await fetch(`${baseUrl}/config/delete-paths`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ paths }),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => `HTTP ${res.status}`)
+      throw new Error(`config delete-paths failed: ${text}`)
+    }
+    return modelIDs.length
+  }
+
   const handleAddModels = async () => {
     const selected = models.filter((m) => m.selected)
-    if (selected.length === 0) return
+    const removed = models.filter((m) => !m.selected && m.existing)
+    if (selected.length === 0 && removed.length === 0) return
 
     setSaving(true)
 
@@ -293,30 +322,46 @@ export function LocalServerWizard() {
     const nextDisabled = disabledProviders.filter((id: string) => id !== providerID)
 
     try {
-      await globalSync.updateConfig({
-        provider: {
-          [providerID]: {
-            npm: "@ai-sdk/openai-compatible",
-            name: `${serverName} (${baseUrl})`,
-            options: {
-              baseURL: `${baseUrl}/v1`,
-              ...(key ? { headers: { Authorization: `Bearer ${key}` } } : {}),
+      // Phase 1: write any new/kept models. Merge semantics — additive only.
+      if (selected.length > 0) {
+        await globalSync.updateConfig({
+          provider: {
+            [providerID]: {
+              npm: "@ai-sdk/openai-compatible",
+              name: `${serverName} (${baseUrl})`,
+              options: {
+                baseURL: `${baseUrl}/v1`,
+                ...(key ? { headers: { Authorization: `Bearer ${key}` } } : {}),
+              },
+              models: modelConfig,
             },
-            models: modelConfig,
           },
-        },
-        disabled_providers: nextDisabled,
-      })
+          disabled_providers: nextDisabled,
+        })
+      }
+      // Phase 2: actually delete unchecked-existing models. v0.9.78 — couldn't
+      // do this before because mergeDeep can't express deletion.
+      if (removed.length > 0) {
+        await deleteModelsFromConfig(
+          providerID,
+          removed.map((m) => m.id),
+        )
+        await globalSync.bootstrap()
+      }
 
       setStep("added")
       const wasUpdate = models.some((m) => m.existing)
       const newCount = selected.filter((m) => !m.existing).length
+      const removedCount = removed.length
+      const partsForUpdate: string[] = []
+      if (newCount > 0) partsForUpdate.push(`${newCount} added`)
+      if (removedCount > 0) partsForUpdate.push(`${removedCount} removed`)
       showToast({
         variant: "success",
         icon: "circle-check",
         title: wasUpdate
-          ? newCount > 0
-            ? `Updated ${serverName} — ${newCount} new model${newCount === 1 ? "" : "s"} added`
+          ? partsForUpdate.length > 0
+            ? `Updated ${serverName} — ${partsForUpdate.join(", ")}`
             : `${serverName} is up to date`
           : `Added ${selected.length} model${selected.length === 1 ? "" : "s"} from ${serverName}`,
         description: `Connected to ${baseUrl}`,
@@ -324,7 +369,7 @@ export function LocalServerWizard() {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       setError(message)
-      showToast({ title: "Failed to add models", description: message })
+      showToast({ title: "Failed to update models", description: message })
     } finally {
       setSaving(false)
     }
@@ -520,8 +565,8 @@ export function LocalServerWizard() {
               </div>
               <Show when={isUpdate() && removedModelCount() > 0}>
                 <p class="text-12-regular text-text-weak">
-                  Unchecking a model leaves it in your config — to actually remove it, edit{" "}
-                  <code class="font-mono">~/.config/librecode/librecode.json</code>.
+                  {removedModelCount()} unchecked model{removedModelCount() === 1 ? "" : "s"} will be removed from your
+                  config.
                 </p>
               </Show>
 
@@ -530,15 +575,19 @@ export function LocalServerWizard() {
                   size="small"
                   variant="primary"
                   onClick={handleAddModels}
-                  disabled={selectedCount() === 0 || saving()}
+                  disabled={(selectedCount() === 0 && removedModelCount() === 0) || saving()}
                 >
                   <Show
                     when={saving()}
                     fallback={
                       isUpdate()
-                        ? newModelCount() > 0
-                          ? `Update — add ${newModelCount()} new`
-                          : `Save (${selectedCount()} model${selectedCount() === 1 ? "" : "s"})`
+                        ? newModelCount() > 0 && removedModelCount() > 0
+                          ? `Update — +${newModelCount()} / −${removedModelCount()}`
+                          : newModelCount() > 0
+                            ? `Update — add ${newModelCount()} new`
+                            : removedModelCount() > 0
+                              ? `Remove ${removedModelCount()} model${removedModelCount() === 1 ? "" : "s"}`
+                              : `Save (${selectedCount()} model${selectedCount() === 1 ? "" : "s"})`
                         : `Add ${selectedCount()} model${selectedCount() === 1 ? "" : "s"}`
                     }
                   >

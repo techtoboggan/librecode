@@ -605,6 +605,135 @@ async function configDirectories(): Promise<string[]> {
   return configState().then((x) => x.directories)
 }
 
+/**
+ * v0.9.78 — surgical key removal from a JSON object by path.
+ *
+ * `mergeDeep` and the existing `patchJsonc` recursion both skip
+ * `undefined` values, so neither has a way to express "remove this
+ * key" — which is why the local-server-wizard couldn't actually drop
+ * a model the user unchecked. Caller passes a list of paths through
+ * the config (e.g. `["provider", "local-foo", "models", "llama:8b"]`)
+ * and the leaf at each path is removed if present.
+ */
+function deleteAtPath(obj: Record<string, unknown>, path: ReadonlyArray<string>): boolean {
+  if (path.length === 0) return false
+  const cursor: Record<string, unknown> = obj
+  let parent: Record<string, unknown> = cursor
+  let current: unknown = cursor
+  for (let i = 0; i < path.length - 1; i++) {
+    if (!isRecord(current)) return false
+    parent = current
+    current = current[path[i]]
+  }
+  if (!isRecord(current)) return false
+  const leafKey = path[path.length - 1]
+  if (!Object.prototype.hasOwnProperty.call(current, leafKey)) return false
+  delete current[leafKey]
+  // Tell TypeScript we did mutate the parent — exists so the caller can
+  // observe the chain stayed live; current is reachable from obj via path[0..n-1].
+  void parent
+  return true
+}
+
+/**
+ * Validates that a delete-path stays inside the writeable surface of
+ * Config.Info. Refuses anything that doesn't start with a known top-level
+ * field — defensive against an attacker (or a buggy client) trying to
+ * delete the whole config or unrelated state.
+ */
+const ALLOWED_DELETE_TOPS: ReadonlySet<string> = new Set([
+  "provider",
+  "mcp",
+  "agent",
+  "command",
+  "permission",
+  "disabled_providers",
+  "experimental",
+  "skills",
+  "keybinds",
+  "telemetry",
+])
+
+function validateDeletePath(p: ReadonlyArray<string>): void {
+  if (p.length < 2) {
+    throw new TypeError(`Refusing too-shallow delete path (need at least 2 segments): ${JSON.stringify(p)}`)
+  }
+  if (!ALLOWED_DELETE_TOPS.has(p[0])) {
+    throw new TypeError(`Refusing delete path outside the known config surface: ${JSON.stringify(p)}`)
+  }
+  for (const segment of p) {
+    if (typeof segment !== "string" || segment.length === 0) {
+      throw new TypeError(`Refusing invalid path segment: ${JSON.stringify(p)}`)
+    }
+  }
+}
+
+/**
+ * v0.9.78 — remove the specified paths from the global config file.
+ *
+ * Path format: `["provider", "local-x", "models", "llama:8b"]` — every
+ * segment is a string property name; arrays aren't supported because none
+ * of the deletable surfaces are array-typed today.
+ *
+ * Returns the new merged config (after `Instance.disposeAll` re-broadcasts
+ * the change). Behaves identically across `.json` and `.jsonc` config
+ * files via the same `patchJsonc` plumbing the update path uses (with the
+ * jsonc-parser deletion semantic — `modify(text, path, undefined, ...)`).
+ */
+async function configDeleteGlobalPaths(paths: ReadonlyArray<ReadonlyArray<string>>): Promise<InfoType> {
+  for (const p of paths) validateDeletePath(p)
+
+  const filepath = globalConfigFile()
+  // biome-ignore lint/suspicious/noExplicitAny: catch variable typed for .code property access
+  const before = await Filesystem.readText(filepath).catch((err: any) => {
+    if (err.code === "ENOENT") return "{}"
+    throw new configJsonError({ path: filepath }, { cause: err })
+  })
+
+  const next = await (async () => {
+    if (!filepath.endsWith(".jsonc")) {
+      const existing = parseConfig(before, filepath)
+      // Plain JSON: walk the parsed object, mutate, write.
+      const cloned = structuredClone(existing) as Record<string, unknown>
+      for (const p of paths) deleteAtPath(cloned, p)
+      const reparsed = _Info.parse(cloned)
+      await Filesystem.writeJson(filepath, reparsed)
+      return reparsed
+    }
+
+    // JSONC: use jsonc-parser's `modify(text, path, undefined, ...)` which
+    // emits the right edits to remove the property AND clean up any trailing
+    // commas / whitespace. Apply each path's edit serially so successive
+    // removals see the previous file state.
+    let text = before
+    for (const p of paths) {
+      const edits = modify(text, [...p], undefined, {
+        formattingOptions: { insertSpaces: true, tabSize: 2 },
+      })
+      text = applyEdits(text, edits)
+    }
+    const merged = parseConfig(text, filepath)
+    await Filesystem.write(filepath, text)
+    return merged
+  })()
+
+  configGlobal.reset()
+
+  void Instance.disposeAll()
+    .catch(() => undefined)
+    .finally(() => {
+      GlobalBus.emit("event", {
+        directory: "global",
+        payload: {
+          type: Event.Disposed.type,
+          properties: {},
+        },
+      })
+    })
+
+  return next
+}
+
 // ---------------------------------------------------------------------------
 // Barrel export — preserves Config.X call syntax for all consumers
 // ---------------------------------------------------------------------------
@@ -657,6 +786,7 @@ export const Config = {
   getGlobal: configGetGlobal,
   update: configUpdate,
   updateGlobal: configUpdateGlobal,
+  deleteGlobalPaths: configDeleteGlobalPaths,
   directories: configDirectories,
 }
 
