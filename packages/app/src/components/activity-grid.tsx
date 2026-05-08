@@ -22,14 +22,11 @@
 
 import { createEffect, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
-import type { EventActivityAgentEntry, EventActivityFileEntry, EventActivityUpdated } from "@librecode/sdk/v2/client"
+import type { AgentActivity, EventActivityUpdated, FileActivity } from "@librecode/sdk/v2/client"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-
-type FileActivity = EventActivityFileEntry
-type AgentActivity = EventActivityAgentEntry
 
 type ActivityState = {
   files: Record<string, FileActivity>

@@ -19,6 +19,17 @@ import type {
   ConfigProvidersResponses,
   ConfigUpdateErrors,
   ConfigUpdateResponses,
+  ControlPanelAgentsListResponses,
+  ControlPanelImportRemoveErrors,
+  ControlPanelImportRemoveResponses,
+  ControlPanelImportRunErrors,
+  ControlPanelImportRunResponses,
+  ControlPanelImportSourcesResponses,
+  ControlPanelPluginsListResponses,
+  ControlPanelSkillsListResponses,
+  ControlPanelTelemetryHealthCheckResponses,
+  ControlPanelTelemetryReadResponses,
+  ControlPanelToolsListResponses,
   EventSubscribeResponses,
   EventTuiCommandExecute,
   EventTuiPromptAppend,
@@ -40,6 +51,8 @@ import type {
   FindSymbolsResponses,
   FindTextResponses,
   FormatterStatusResponses,
+  GlobalConfigDeletePathsErrors,
+  GlobalConfigDeletePathsResponses,
   GlobalConfigGetResponses,
   GlobalConfigUpdateErrors,
   GlobalConfigUpdateResponses,
@@ -48,8 +61,19 @@ import type {
   GlobalHealthResponses,
   InstanceDisposeResponses,
   LspStatusResponses,
+  MarketplaceAppsSearchErrors,
+  MarketplaceAppsSearchResponses,
+  MarketplaceInstallErrors,
+  MarketplaceInstallResponses,
   McpAddErrors,
   McpAddResponses,
+  McpAppsHtmlErrors,
+  McpAppsHtmlResponses,
+  McpAppsListResponses,
+  McpAppsStateLoadErrors,
+  McpAppsStateLoadResponses,
+  McpAppsStateSaveErrors,
+  McpAppsStateSaveResponses,
   McpAuthAuthenticateErrors,
   McpAuthAuthenticateResponses,
   McpAuthCallbackErrors,
@@ -75,7 +99,12 @@ import type {
   PermissionReplyResponses,
   PermissionRespondErrors,
   PermissionRespondResponses,
+  PermissionRulesDeleteErrors,
+  PermissionRulesDeleteResponses,
   PermissionRuleset,
+  PermissionRulesListResponses,
+  PermissionRulesReplaceErrors,
+  PermissionRulesReplaceResponses,
   ProjectCurrentResponses,
   ProjectInitGitResponses,
   ProjectListResponses,
@@ -109,6 +138,8 @@ import type {
   QuestionReplyResponses,
   SessionAbortErrors,
   SessionAbortResponses,
+  SessionActivityErrors,
+  SessionActivityResponses,
   SessionChildrenErrors,
   SessionChildrenResponses,
   SessionCommandErrors,
@@ -126,6 +157,23 @@ import type {
   SessionInitErrors,
   SessionInitResponses,
   SessionListResponses,
+  SessionMcpAppsContextClearErrors,
+  SessionMcpAppsContextClearResponses,
+  SessionMcpAppsContextErrors,
+  SessionMcpAppsContextResponses,
+  SessionMcpAppsDisconnectErrors,
+  SessionMcpAppsDisconnectResponses,
+  SessionMcpAppsMessageErrors,
+  SessionMcpAppsMessageResponses,
+  SessionMcpAppsPromptsListErrors,
+  SessionMcpAppsResourcesListErrors,
+  SessionMcpAppsResourcesReadErrors,
+  SessionMcpAppsResourceTemplatesListErrors,
+  SessionMcpAppsSampleErrors,
+  SessionMcpAppsSampleResponses,
+  SessionMcpAppsToolErrors,
+  SessionMcpAppsToolResponses,
+  SessionMcpAppsUsageResponses,
   SessionMessageErrors,
   SessionMessageResponses,
   SessionMessagesErrors,
@@ -138,6 +186,8 @@ import type {
   SessionRevertResponses,
   SessionShellErrors,
   SessionShellResponses,
+  SessionStatsSeedErrors,
+  SessionStatsSeedResponses,
   SessionStatusErrors,
   SessionStatusResponses,
   SessionSummarizeErrors,
@@ -149,6 +199,7 @@ import type {
   SessionUpdateErrors,
   SessionUpdateResponses,
   SubtaskPartInput,
+  SystemInfoResponses,
   TextPartInput,
   ToolIdsErrors,
   ToolIdsResponses,
@@ -246,14 +297,42 @@ export class Config extends HeyApiClient {
    * Update global LibreCode configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
-    parameters?: {
-      config?: Config3
+    parameters: {
+      config: Config3
     },
     options?: Options<never, ThrowOnError>,
   ) {
     const params = buildClientParams([parameters], [{ args: [{ key: "config", map: "body" }] }])
     return (options?.client ?? this.client).patch<GlobalConfigUpdateResponses, GlobalConfigUpdateErrors, ThrowOnError>({
       url: "/global/config",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Delete keys from global configuration
+   *
+   * Surgically remove the specified paths from the global config. Each path is an array of string segments — e.g. ['provider','local-foo','models','llama:8b'] removes that single model entry without touching anything else. The path's first segment must be a known top-level config field (provider, mcp, agent, command, permission, disabled_providers, experimental, skills, keybinds, telemetry); anything else is rejected with HTTP 400. Used by the local-server-wizard to actually drop unchecked models — the patch endpoint can't express deletion because its merge step skips undefined values.
+   */
+  public deletePaths<ThrowOnError extends boolean = false>(
+    parameters?: {
+      paths?: Array<Array<string>>
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams([parameters], [{ args: [{ in: "body", key: "paths" }] }])
+    return (options?.client ?? this.client).post<
+      GlobalConfigDeletePathsResponses,
+      GlobalConfigDeletePathsErrors,
+      ThrowOnError
+    >({
+      url: "/global/config/delete-paths",
       ...options,
       ...params,
       headers: {
@@ -336,7 +415,7 @@ export class Auth extends HeyApiClient {
   public set<ThrowOnError extends boolean = false>(
     parameters: {
       providerID: string
-      auth?: Auth3
+      auth: Auth3
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -764,10 +843,10 @@ export class Config2 extends HeyApiClient {
    * Update LibreCode configuration settings and preferences.
    */
   public update<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      config?: Config3
+      config: Config3
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1107,10 +1186,10 @@ export class Worktree extends HeyApiClient {
    * Remove a git worktree and delete its branch.
    */
   public remove<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      worktreeRemoveInput?: WorktreeRemoveInput
+      worktreeRemoveInput: WorktreeRemoveInput
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1174,10 +1253,10 @@ export class Worktree extends HeyApiClient {
    * Create a new git worktree for the current project and run any configured startup scripts.
    */
   public create<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      worktreeCreateInput?: WorktreeCreateInput
+      worktreeCreateInput: WorktreeCreateInput
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1211,10 +1290,10 @@ export class Worktree extends HeyApiClient {
    * Reset a worktree branch to the primary default branch.
    */
   public reset<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      worktreeResetInput?: WorktreeResetInput
+      worktreeResetInput: WorktreeResetInput
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -1240,6 +1319,536 @@ export class Worktree extends HeyApiClient {
         ...params.headers,
       },
     })
+  }
+}
+
+export class Stats extends HeyApiClient {
+  /**
+   * Get session-stats seed payload
+   *
+   * v0.9.68 — dedicated seed endpoint for the built-in Session Stats MCP app. Returns the full message + part history shaped for the app's `session.stats` handler, independent of the client-side sync store's hydration timing. Fixes the empty-dashboard symptom on reload of a session with existing history.
+   */
+  public seed<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionStatsSeedResponses, SessionStatsSeedErrors, ThrowOnError>({
+      url: "/session/{sessionID}/stats-seed",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Context extends HeyApiClient {
+  /**
+   * Clear an MCP app's model-context contribution
+   *
+   * Removes the per-app entry. Used by the v0.9.48 Settings → Apps pane and by Disconnect. Permission-free — clearing is always safe (it can only reduce model context, never expand it).
+   */
+  public clear<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionMcpAppsContextClearResponses,
+      SessionMcpAppsContextClearErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/mcp-apps/context/clear",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Resources extends HeyApiClient {
+  /**
+   * List resources advertised by an MCP server (proxy for MCP apps)
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<unknown, SessionMcpAppsResourcesListErrors, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/resources",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Read a resource from an MCP server (proxy for MCP apps)
+   */
+  public read<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<unknown, SessionMcpAppsResourcesReadErrors, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/resources/read",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class ResourceTemplates extends HeyApiClient {
+  /**
+   * List resource templates advertised by an MCP server
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<unknown, SessionMcpAppsResourceTemplatesListErrors, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/resource-templates",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Prompts extends HeyApiClient {
+  /**
+   * List prompts advertised by an MCP server
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<unknown, SessionMcpAppsPromptsListErrors, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/prompts",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class McpApps extends HeyApiClient {
+  /**
+   * Disconnect an MCP app — drop session-scoped grants
+   *
+   * Called by the host UI when the user clicks Disconnect on a pinned MCP app. Clears all session-scoped permission grants matching `mcp-app:<server>:` so the next tool call from this app re-prompts the user. Persistent (project-wide) rules are NOT cleared — those are managed via the Settings → Apps pane.
+   */
+  public disconnect<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionMcpAppsDisconnectResponses,
+      SessionMcpAppsDisconnectErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/mcp-apps/disconnect",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Call an MCP server tool on behalf of an MCP app
+   *
+   * Invoked by the host's AppBridge handler when an MCP app iframe issues a `tools/call` request. Enforces the per-resource manifest (`_meta.ui.allowedTools`) before delegating to the connected MCP server. Built-in apps (server `__builtin__`) are rejected unconditionally.
+   */
+  public tool<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+      name?: string
+      arguments?: {
+        [key: string]: unknown
+      }
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+            { in: "body", key: "name" },
+            { in: "body", key: "arguments" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<SessionMcpAppsToolResponses, SessionMcpAppsToolErrors, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/tool",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Post a message into the chat thread on behalf of an MCP app
+   *
+   * Wires the MCP `ui/message` AppBridge request into the host session. Per ADR-005 §8 + the v0.9.46 user decision: default-deny (every call gates through the permission system), char-limit enforced (default 8000, per-app override in v0.9.48), origin metadata attached so the renderer can label the message as app-posted, and the host returns no follow-up to the app (the bridge gets `{}` whether the model replies or not).
+   */
+  public message<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+      text?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+            { in: "body", key: "text" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionMcpAppsMessageResponses,
+      SessionMcpAppsMessageErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/mcp-apps/message",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Update an MCP app's model-context contribution for the next turn
+   *
+   * Wires the MCP `ui/update-model-context` AppBridge request. Per ADR-005 §7 + the v0.9.47 user decisions: replace-on-write per (server, uri); per-app + per-session char caps enforced; contexts copy forward when the session is forked; user can clear via the v0.9.48 Settings → Apps pane. Returns {ok: true} on success or {isError: true} with a reason string on cap breach so the iframe sees the failure mode.
+   */
+  public context<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+      content?: string
+      structuredContent?: unknown
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+            { in: "body", key: "content" },
+            { in: "body", key: "structuredContent" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionMcpAppsContextResponses,
+      SessionMcpAppsContextErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/mcp-apps/context",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Run a sampling/createMessage call on behalf of an MCP app
+   *
+   * v0.9.53 — enables the AppBridge `sampling/createMessage` path. Gates through the permission system (scope `mcp-app:<server>:_sample`), enforces a per-server hourly USD cap (client passes `capUsd` from the user's Settings), runs the LLM inference on the user's account using the session's current model, and records the settled cost in the rolling-window ledger. Returns an MCP-shaped CreateMessageResult with cost telemetry in `_meta`.
+   */
+  public sample<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+      server?: string
+      uri?: string
+      systemPrompt?: string
+      messages?: Array<{
+        role: "user" | "assistant"
+        content:
+          | {
+              type: "text"
+              text: string
+            }
+          | Array<{
+              type: "text"
+              text: string
+            }>
+      }>
+      maxTokens?: number
+      temperature?: number
+      stopSequences?: Array<string>
+      capUsd?: number
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "server" },
+            { in: "body", key: "uri" },
+            { in: "body", key: "systemPrompt" },
+            { in: "body", key: "messages" },
+            { in: "body", key: "maxTokens" },
+            { in: "body", key: "temperature" },
+            { in: "body", key: "stopSequences" },
+            { in: "body", key: "capUsd" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      SessionMcpAppsSampleResponses,
+      SessionMcpAppsSampleErrors,
+      ThrowOnError
+    >({
+      url: "/session/{sessionID}/mcp-apps/sample",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List MCP-app call telemetry for a session
+   *
+   * Per ADR-005 follow-up (v0.9.51): returns the lastUsedAt + callsInSession counters aggregated from permission audit events, keyed by (server, permission). Settings → MCP Apps consumes this to show the per-server activity line. Scoped per session and cleared on session teardown.
+   */
+  public usage<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionMcpAppsUsageResponses, unknown, ThrowOnError>({
+      url: "/session/{sessionID}/mcp-apps/usage",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _context?: Context
+  get context2(): Context {
+    return (this._context ??= new Context({ client: this.client }))
+  }
+
+  private _resources?: Resources
+  get resources(): Resources {
+    return (this._resources ??= new Resources({ client: this.client }))
+  }
+
+  private _resourceTemplates?: ResourceTemplates
+  get resourceTemplates(): ResourceTemplates {
+    return (this._resourceTemplates ??= new ResourceTemplates({ client: this.client }))
+  }
+
+  private _prompts?: Prompts
+  get prompts(): Prompts {
+    return (this._prompts ??= new Prompts({ client: this.client }))
   }
 }
 
@@ -1791,6 +2400,38 @@ export class Session2 extends HeyApiClient {
   }
 
   /**
+   * Get session activity
+   *
+   * Get real-time file and agent activity state for a session.
+   */
+  public activity<ThrowOnError extends boolean = false>(
+    parameters: {
+      sessionID: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "sessionID" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SessionActivityResponses, SessionActivityErrors, ThrowOnError>({
+      url: "/session/{sessionID}/activity",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
    * Get session messages
    *
    * Retrieve all messages in a session, including user prompts and AI responses.
@@ -2121,6 +2762,132 @@ export class Session2 extends HeyApiClient {
       },
     })
   }
+
+  private _stats?: Stats
+  get stats(): Stats {
+    return (this._stats ??= new Stats({ client: this.client }))
+  }
+
+  private _mcpApps?: McpApps
+  get mcpApps(): McpApps {
+    return (this._mcpApps ??= new McpApps({ client: this.client }))
+  }
+}
+
+export class Rules extends HeyApiClient {
+  /**
+   * Delete a single permission rule
+   *
+   * Remove the rule matching the given (permission, pattern) pair. Returns the remaining ruleset.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      permission?: string
+      pattern?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "permission" },
+            { in: "body", key: "pattern" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      PermissionRulesDeleteResponses,
+      PermissionRulesDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/permission/rules",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * List persisted permission rules
+   *
+   * Return the project-wide 'Always allow/deny' ruleset. v0.9.52: these are the rules that now actually survive a restart — previously they were in-memory only.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<PermissionRulesListResponses, unknown, ThrowOnError>({
+      url: "/permission/rules",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Replace the persisted permission ruleset
+   *
+   * Atomically overwrite the project's approved ruleset. Used by Settings when the user edits rules.
+   */
+  public replace<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      permissionRuleset: PermissionRuleset
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { key: "permissionRuleset", map: "body" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<
+      PermissionRulesReplaceResponses,
+      PermissionRulesReplaceErrors,
+      ThrowOnError
+    >({
+      url: "/permission/rules",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
 }
 
 export class Permission extends HeyApiClient {
@@ -2137,7 +2904,7 @@ export class Permission extends HeyApiClient {
       permissionID: string
       directory?: string
       workspace?: string
-      response?: "once" | "always" | "reject"
+      response?: "once" | "session" | "always" | "reject"
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -2177,7 +2944,7 @@ export class Permission extends HeyApiClient {
       requestID: string
       directory?: string
       workspace?: string
-      reply?: "once" | "always" | "reject"
+      reply?: "once" | "session" | "always" | "reject"
       message?: string
     },
     options?: Options<never, ThrowOnError>,
@@ -2237,6 +3004,11 @@ export class Permission extends HeyApiClient {
       ...params,
     })
   }
+
+  private _rules?: Rules
+  get rules(): Rules {
+    return (this._rules ??= new Rules({ client: this.client }))
+  }
 }
 
 export class Part extends HeyApiClient {
@@ -2284,7 +3056,7 @@ export class Part extends HeyApiClient {
       partID: string
       directory?: string
       workspace?: string
-      part?: Part2
+      part: Part2
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3006,6 +3778,154 @@ export class Auth2 extends HeyApiClient {
   }
 }
 
+export class State extends HeyApiClient {
+  /**
+   * Load an MCP app's persistent state
+   *
+   * v0.9.63 — returns the JSON blob the given (server, uri) app has previously saved via PUT. Returns 200 with `{ state: null }` if the app has no saved state yet. Storage lives at `~/.local/librecode-mcp-apps/<server-slug>/<uri-hash>.json` so users can inspect or reset individual apps' state manually.
+   */
+  public load<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      server: string
+      uri: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+            { in: "query", key: "uri" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpAppsStateLoadResponses, McpAppsStateLoadErrors, ThrowOnError>({
+      url: "/mcp/apps/state",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Save an MCP app's persistent state
+   *
+   * Writes the provided JSON blob for the given (server, uri) app. Enforces a per-app size cap (see `McpAppState.MAX_STATE_BYTES`); writes atomically via a rename from a .tmp sibling. PUT with `{ state: null }` clears the stored record.
+   */
+  public save<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      server: string
+      uri: string
+      state?: unknown
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+            { in: "query", key: "uri" },
+            { in: "body", key: "state" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).put<McpAppsStateSaveResponses, McpAppsStateSaveErrors, ThrowOnError>({
+      url: "/mcp/apps/state",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Apps extends HeyApiClient {
+  /**
+   * List MCP App UI resources
+   *
+   * Returns all UI resources (mimeType text/html;profile=mcp-app) across connected MCP servers. Each entry represents an MCP App that can be rendered in a sandboxed iframe.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpAppsListResponses, unknown, ThrowOnError>({
+      url: "/mcp/apps",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Fetch MCP App HTML
+   *
+   * Fetches the HTML content for a specific MCP App UI resource identified by server name and uri.
+   */
+  public html<ThrowOnError extends boolean = false>(
+    parameters: {
+      directory?: string
+      workspace?: string
+      server: string
+      uri: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "server" },
+            { in: "query", key: "uri" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<McpAppsHtmlResponses, McpAppsHtmlErrors, ThrowOnError>({
+      url: "/mcp/apps/html",
+      ...options,
+      ...params,
+    })
+  }
+
+  private _state?: State
+  get state(): State {
+    return (this._state ??= new State({ client: this.client }))
+  }
+}
+
 export class Mcp extends HeyApiClient {
   /**
    * Get MCP status
@@ -3140,6 +4060,474 @@ export class Mcp extends HeyApiClient {
   get auth(): Auth2 {
     return (this._auth ??= new Auth2({ client: this.client }))
   }
+
+  private _apps?: Apps
+  get apps(): Apps {
+    return (this._apps ??= new Apps({ client: this.client }))
+  }
+}
+
+export class Apps2 extends HeyApiClient {
+  /**
+   * Search the MCP App marketplace
+   *
+   * v0.9.64 — proxies to mcpappfoundry.app's `/api/v1/apps` with a 5-minute in-process cache. Override the upstream via the `LIBRECODE_MCP_MARKETPLACE_URL` env var (e.g. for local fixture playback or an on-prem curated registry). Returns shape-validated entries; malformed items are silently dropped so a single bad entry can't take down the grid.
+   */
+  public search<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      q?: string
+      limit?: number
+      cursor?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "query", key: "q" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "cursor" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<
+      MarketplaceAppsSearchResponses,
+      MarketplaceAppsSearchErrors,
+      ThrowOnError
+    >({
+      url: "/marketplace/apps",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Marketplace extends HeyApiClient {
+  /**
+   * Install an MCP app from the marketplace (stub)
+   *
+   * v0.9.64 scaffold — records the install intent and returns a stub success response so the UI's install flow can be exercised end-to-end. Real MCP.add + OAuth handshake wiring lands alongside the first production mcpappfoundry.app launch. For now, the best path is for users to copy the app's install command from the card footer and run it via their existing MCP config.
+   */
+  public install<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<MarketplaceInstallResponses, MarketplaceInstallErrors, ThrowOnError>({
+      url: "/marketplace/install",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  private _apps?: Apps2
+  get apps(): Apps2 {
+    return (this._apps ??= new Apps2({ client: this.client }))
+  }
+}
+
+export class Agents extends HeyApiClient {
+  /**
+   * List configured agents
+   *
+   * Returns every agent visible to the host: built-in (build, plan, general, …), config-defined (`[agent.<name>]` in librecode.jsonc), and v0.9.74 file-based (`~/.config/librecode/agents/<name>.md`).
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelAgentsListResponses, unknown, ThrowOnError>({
+      url: "/control-panel/agents",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Skills extends HeyApiClient {
+  /**
+   * List discovered skills
+   *
+   * Walks every skill discovery path (config dirs, ~/.claude/skills, ~/.agents/skills, project .librecode/skills, etc.) and returns the parsed frontmatter + content preview for each.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelSkillsListResponses, unknown, ThrowOnError>({
+      url: "/control-panel/skills",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Plugins extends HeyApiClient {
+  /**
+   * List loaded plugin hooks
+   *
+   * Returns the hook objects each loaded plugin contributed. Plugins are TS modules loaded from npm or local file:// paths and provide things like provider auth flows + custom tools.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelPluginsListResponses, unknown, ThrowOnError>({
+      url: "/control-panel/plugins",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Tools extends HeyApiClient {
+  /**
+   * List registered tools
+   *
+   * Every tool the host has registered, with its id + description. Built-ins (bash, read, edit, …), custom tools loaded from `<config>/tools*.{js,ts}`, and plugin-contributed tools all surface here.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelToolsListResponses, unknown, ThrowOnError>({
+      url: "/control-panel/tools",
+      ...options,
+      ...params,
+    })
+  }
+}
+
+export class Import extends HeyApiClient {
+  /**
+   * List available import sources
+   *
+   * Curated catalog of public git repos that match LibreCode's skills/agents layout. The UI uses this to populate the import dialog.
+   */
+  public sources<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelImportSourcesResponses, unknown, ThrowOnError>({
+      url: "/control-panel/import-sources",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Remove all imports from a source
+   *
+   * Wipes the source's cache + the imported skills/agents under `~/.config/librecode/{skills,agents}/imported/<source>/`. Returns `removed: false` if the source was never imported.
+   */
+  public remove<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).delete<
+      ControlPanelImportRemoveResponses,
+      ControlPanelImportRemoveErrors,
+      ThrowOnError
+    >({
+      url: "/control-panel/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+
+  /**
+   * Import skills + agents from a catalog source
+   *
+   * Clones (or refreshes) the source's git repo into the LibreCode cache and copies its skill + agent files into `~/.config/librecode/{skills,agents}/imported/<source>/`. Idempotent — re-running an import refreshes the cache and overwrites the imported files.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      id?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "id" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<
+      ControlPanelImportRunResponses,
+      ControlPanelImportRunErrors,
+      ThrowOnError
+    >({
+      url: "/control-panel/import",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class Telemetry extends HeyApiClient {
+  /**
+   * Read the current telemetry configuration
+   *
+   * v0.9.76 — returns the current `telemetry.*` block from librecode.jsonc plus a flag indicating whether the Phoenix endpoint is reachable right now. The Control Panel uses this to render the Telemetry tab.
+   */
+  public read<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<ControlPanelTelemetryReadResponses, unknown, ThrowOnError>({
+      url: "/control-panel/telemetry",
+      ...options,
+      ...params,
+    })
+  }
+
+  /**
+   * Probe a Phoenix endpoint for liveness
+   *
+   * Pings the configured (or override) Phoenix `/healthz` and reports whether it answered. Used by the Telemetry tab's 'Test connection' button + the live status indicator.
+   */
+  public healthCheck<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+      endpoint?: string
+      apiKey?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+            { in: "body", key: "endpoint" },
+            { in: "body", key: "apiKey" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<ControlPanelTelemetryHealthCheckResponses, unknown, ThrowOnError>({
+      url: "/control-panel/telemetry/health-check",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    })
+  }
+}
+
+export class ControlPanel extends HeyApiClient {
+  private _agents?: Agents
+  get agents(): Agents {
+    return (this._agents ??= new Agents({ client: this.client }))
+  }
+
+  private _skills?: Skills
+  get skills(): Skills {
+    return (this._skills ??= new Skills({ client: this.client }))
+  }
+
+  private _plugins?: Plugins
+  get plugins(): Plugins {
+    return (this._plugins ??= new Plugins({ client: this.client }))
+  }
+
+  private _tools?: Tools
+  get tools(): Tools {
+    return (this._tools ??= new Tools({ client: this.client }))
+  }
+
+  private _import?: Import
+  get import(): Import {
+    return (this._import ??= new Import({ client: this.client }))
+  }
+
+  private _telemetry?: Telemetry
+  get telemetry(): Telemetry {
+    return (this._telemetry ??= new Telemetry({ client: this.client }))
+  }
+}
+
+export class System extends HeyApiClient {
+  /**
+   * System information
+   *
+   * Detect OS, architecture, and GPU for local compute setup recommendations.
+   */
+  public info<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).get<SystemInfoResponses, unknown, ThrowOnError>({
+      url: "/system/info",
+      ...options,
+      ...params,
+    })
+  }
 }
 
 export class Control extends HeyApiClient {
@@ -3179,10 +4567,10 @@ export class Control extends HeyApiClient {
    * Submit a response to the TUI request queue to complete a pending request.
    */
   public response<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      body?: unknown
+      body: unknown
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -3515,10 +4903,10 @@ export class Tui extends HeyApiClient {
    * Publish a TUI event
    */
   public publish<ThrowOnError extends boolean = false>(
-    parameters?: {
+    parameters: {
       directory?: string
       workspace?: string
-      body?: EventTuiPromptAppend | EventTuiCommandExecute | EventTuiToastShow | EventTuiSessionSelect
+      body: EventTuiPromptAppend | EventTuiCommandExecute | EventTuiToastShow | EventTuiSessionSelect
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -4006,6 +5394,21 @@ export class LibrecodeClient extends HeyApiClient {
   private _mcp?: Mcp
   get mcp(): Mcp {
     return (this._mcp ??= new Mcp({ client: this.client }))
+  }
+
+  private _marketplace?: Marketplace
+  get marketplace(): Marketplace {
+    return (this._marketplace ??= new Marketplace({ client: this.client }))
+  }
+
+  private _controlPanel?: ControlPanel
+  get controlPanel(): ControlPanel {
+    return (this._controlPanel ??= new ControlPanel({ client: this.client }))
+  }
+
+  private _system?: System
+  get system(): System {
+    return (this._system ??= new System({ client: this.client }))
   }
 
   private _tui?: Tui

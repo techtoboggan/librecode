@@ -1,4 +1,4 @@
-import type { EventActivityAgentEntry, EventActivityFileEntry } from "@librecode/sdk/v2"
+import type { AgentActivity, FileActivity } from "@librecode/sdk/v2"
 import { RGBA } from "@opentui/core"
 import { createMemo, createResource, For, onCleanup, Show, type JSX } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -7,8 +7,8 @@ import { useSDK } from "@tui/context/sdk"
 import { useTheme } from "@tui/context/theme"
 
 type ActivityState = {
-  files: Record<string, EventActivityFileEntry>
-  agents: Record<string, EventActivityAgentEntry>
+  files: Record<string, FileActivity>
+  agents: Record<string, AgentActivity>
 }
 
 const CELL_CHAR = "■"
@@ -38,7 +38,7 @@ function shortPath(filePath: string, maxLen: number): string {
   return `…/${filename}`
 }
 
-function AgentStatusRow(props: { entry: EventActivityAgentEntry; theme: ReturnType<typeof useTheme>["theme"] }) {
+function AgentStatusRow(props: { entry: AgentActivity; theme: ReturnType<typeof useTheme>["theme"] }) {
   const phase = () => props.entry.phase
   const tool = () => props.entry.tool
   const file = () => props.entry.file
@@ -67,7 +67,7 @@ function AgentStatusRow(props: { entry: EventActivityAgentEntry; theme: ReturnTy
   )
 }
 
-function FileRow(props: { entry: EventActivityFileEntry; theme: ReturnType<typeof useTheme>["theme"] }) {
+function FileRow(props: { entry: FileActivity; theme: ReturnType<typeof useTheme>["theme"] }) {
   const color = createMemo(() => kindColor(props.entry.kind, props.theme))
   return (
     <box flexDirection="row" gap={1} flexShrink={0}>
