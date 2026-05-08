@@ -7,7 +7,10 @@
  * the part most likely to regress and the easiest to test in isolation.
  */
 import { describe, expect, test } from "bun:test"
-import { buildModelPickerEntries, makeProviderID } from "./local-server-wizard"
+// Imports from the helpers file directly — NOT `./local-server-wizard`.
+// The .tsx pulls in @librecode/ui → @kobalte/core, which calls a client-only
+// API at module-init time and crashes bun test even with happydom preloaded.
+import { buildModelPickerEntries, makeProviderID } from "./local-server-wizard/helpers"
 
 describe("makeProviderID", () => {
   test("strips scheme + non-alphanumerics into a stable slug", () => {
