@@ -171,15 +171,134 @@ async function snapshotRestore(snapshot: string): Promise<void> {
   })
 }
 
+type RevertOp = { hash: string; file: string; rel: string }
+
+/** Paths that would interfere if checked out in the same batch — e.g.
+ *  `foo` (a file) and `foo/bar` (a path inside a now-deleted dir).
+ *  Adjacent ops with this relationship must be reverted one at a time
+ *  so git's checkout doesn't trip over half-applied state. */
+function pathsClash(a: string, b: string): boolean {
+  return a === b || a.startsWith(`${b}/`) || b.startsWith(`${a}/`)
+}
+
+/**
+ * Phase 39 / upstream #20564 — batch snapshot revert without reordering.
+ *
+ * Previously: one `git checkout HASH -- <file>` subprocess per file. A
+ * 200-file revert spawned 200 git processes; large reverts (project-wide
+ * rollback after a botched refactor) could take 30+ seconds with most of
+ * the time in subprocess overhead. Worse, on Windows the spawn cost is
+ * 5-10× higher.
+ *
+ * Now: walk the ops list in order (preserving patch sequence — crucial
+ * for cases where `foo` is a file in one patch and `foo/bar` exists in
+ * a later patch). Group adjacent same-hash operations whose paths don't
+ * clash into a single `git checkout HASH -- f1 f2 ...` call, gated by
+ * a single `git ls-tree --name-only HASH -- <rels...>` to pre-filter
+ * paths that don't exist in the snapshot. A 200-file revert now takes
+ * 2-5 git subprocesses.
+ *
+ * Safety: every batched failure falls back to per-file revert (the
+ * pre-fix code path). The `pathsClash` predicate ensures we never batch
+ * operations that could interact with each other.
+ */
 async function snapshotRevert(patches: SnapshotPatch[]): Promise<void> {
-  const files = new Set<string>()
   const git = snapshotGitdir()
+  const seen = new Set<string>()
+  const ops: RevertOp[] = []
   for (const item of patches) {
     for (const file of item.files) {
-      if (files.has(file)) continue
-      await revertFile(git, file, item.hash)
-      files.add(file)
+      if (seen.has(file)) continue
+      seen.add(file)
+      ops.push({
+        hash: item.hash,
+        file,
+        rel: path.relative(Instance.worktree, file).replaceAll("\\", "/"),
+      })
     }
+  }
+
+  for (let i = 0; i < ops.length; ) {
+    const first = ops[i]!
+    const run: RevertOp[] = [first]
+    let j = i + 1
+    while (j < ops.length && run.length < 100) {
+      const next = ops[j]!
+      if (next.hash !== first.hash) break
+      if (run.some((op) => pathsClash(op.rel, next.rel))) break
+      run.push(next)
+      j += 1
+    }
+
+    if (run.length === 1) {
+      await revertFile(git, first.file, first.hash)
+      i = j
+      continue
+    }
+
+    await revertBatch(git, run)
+    i = j
+  }
+}
+
+/** Phase 39 — multi-file checkout for a run of same-hash ops. */
+async function revertBatch(git: string, run: RevertOp[]): Promise<void> {
+  const hash = run[0]!.hash
+  const tree = await Process.text(
+    [
+      "git",
+      "-c",
+      "core.longpaths=true",
+      "-c",
+      "core.symlinks=true",
+      ...snapshotArgs(git, ["ls-tree", "--name-only", hash, "--", ...run.map((op) => op.rel)]),
+    ],
+    { cwd: Instance.worktree, nothrow: true },
+  )
+
+  if (tree.code !== 0) {
+    snapshotLog.info("batched ls-tree failed, falling back to single-file revert", { hash, files: run.length })
+    for (const op of run) await revertFile(git, op.file, op.hash)
+    return
+  }
+
+  const have = new Set(
+    tree.text
+      .trim()
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  )
+  const existing = run.filter((op) => have.has(op.rel))
+  const missing = run.filter((op) => !have.has(op.rel))
+
+  if (existing.length > 0) {
+    snapshotLog.info("reverting", { hash, files: existing.length })
+    const result = await Process.run(
+      [
+        "git",
+        "-c",
+        "core.longpaths=true",
+        "-c",
+        "core.symlinks=true",
+        ...snapshotArgs(git, ["checkout", hash, "--", ...existing.map((op) => op.file)]),
+      ],
+      { cwd: Instance.worktree, nothrow: true },
+    )
+    if (result.code !== 0) {
+      snapshotLog.info("batched checkout failed, falling back to single-file revert", {
+        hash,
+        files: existing.length,
+      })
+      for (const op of existing) await revertFile(git, op.file, op.hash)
+    }
+  }
+
+  // Files not present in the snapshot get deleted — same intent as the
+  // single-file path's handleRevertFailure when ls-tree returns empty.
+  for (const op of missing) {
+    snapshotLog.info("file did not exist in snapshot, deleting", { file: op.file, hash })
+    await fs.unlink(op.file).catch(() => {})
   }
 }
 

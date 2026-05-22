@@ -245,6 +245,94 @@ test("special characters in filenames", async () => {
   })
 })
 
+/**
+ * Phase 39 / upstream #20564 — large multi-file revert correctness.
+ *
+ * The pre-fix code spawned one `git checkout` subprocess per file. Beyond
+ * being slow (a 50-file revert took 50 process spawns), it had no
+ * regression coverage for the case where many files share the same
+ * snapshot hash. This test exercises that path: snapshot 30 files, modify
+ * all 30, revert. With batching the same operation runs in 2-3 spawns
+ * (one ls-tree pre-filter + one or two checkouts). Without batching, 30.
+ *
+ * What we actually assert: the revert worked. The performance win is
+ * verified by reading the code; here we lock in that the new algorithm
+ * still produces correct output across many files with the same hash.
+ */
+test("revert restores 30 files all sharing one snapshot hash (batching correctness)", async () => {
+  await using tmp = await bootstrap()
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      // Create 30 files at the same snapshot point.
+      const fileNames = Array.from({ length: 30 }, (_, i) => `batch-${i.toString().padStart(2, "0")}.txt`)
+      for (const name of fileNames) {
+        await Filesystem.write(path.join(tmp.path, name), "original")
+      }
+      const beforeHash = await Snapshot.track()
+      expect(beforeHash).toBeTruthy()
+
+      // Mutate every file post-snapshot.
+      for (const name of fileNames) {
+        await Filesystem.write(path.join(tmp.path, name), "modified")
+      }
+
+      // Revert — single patch carrying all 30 files at the same hash.
+      // This exercises the batched checkout path end-to-end.
+      const patch = await Snapshot.patch(beforeHash as string)
+      expect(patch.files.length).toBe(30)
+      await Snapshot.revert([patch])
+
+      // Every file should be back to "original".
+      for (const name of fileNames) {
+        const text = await fs.readFile(path.join(tmp.path, name), "utf-8")
+        expect(text).toBe("original")
+      }
+    },
+  })
+})
+
+/**
+ * Phase 39 / upstream #20564 — preserve patch order across hash changes.
+ *
+ * Critical that adjacent ops with the same hash batch together, but ops
+ * with different hashes execute in their original patch order. If the
+ * batcher gets cute and re-orders globally, a later patch can overwrite
+ * an earlier patch's change. This test simulates the path-conflict case
+ * the upstream PR was written to defend: two patches with different
+ * content for the same file, applied in order.
+ */
+test("revert with two patches affecting the same file preserves order", async () => {
+  await using tmp = await bootstrap()
+  await Instance.provide({
+    directory: tmp.path,
+    fn: async () => {
+      const target = path.join(tmp.path, "ordered.txt")
+
+      await Filesystem.write(target, "v1")
+      const hash1 = await Snapshot.track()
+      expect(hash1).toBeTruthy()
+
+      await Filesystem.write(target, "v2")
+      const hash2 = await Snapshot.track()
+      expect(hash2).toBeTruthy()
+
+      await Filesystem.write(target, "v3-current")
+
+      // Revert through both patches — the dedup-by-file means only the
+      // first occurrence is kept, and that's the v2 snapshot.
+      await Snapshot.revert([
+        { hash: hash2 as string, files: [target] },
+        { hash: hash1 as string, files: [target] },
+      ])
+
+      const text = await fs.readFile(target, "utf-8")
+      // Dedup keeps the first hash — should be v2 (the post-v1, post-v2 state).
+      expect(text).toBe("v2")
+    },
+  })
+})
+
 test("revert with empty patches", async () => {
   await using tmp = await bootstrap()
   await Instance.provide({

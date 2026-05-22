@@ -99,6 +99,12 @@ async function copyMessagesToSession(
     await Session.updateMessage(newInfo as Parameters<typeof Session.updateMessage>[0])
 
     for (const part of msg.parts) {
+      // Phase 39 / upstream #24898 investigated — not applicable to us.
+      // Upstream's CompactionPart has a `tail_start_id` field that pointed
+      // at original-session message IDs after fork; we identify the
+      // compaction boundary differently (via assistant.parentID + the
+      // assistant's `summary: true` flag, both already remapped above on
+      // line 95-97). No equivalent bug in our codebase.
       await Session.updatePart({ ...part, id: PartID.ascending(), messageID: newMessageID, sessionID: newSessionID })
       partsCopied++
     }
