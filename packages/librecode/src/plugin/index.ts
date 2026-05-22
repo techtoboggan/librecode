@@ -12,6 +12,7 @@ import { CodexAuthPlugin } from "./codex"
 import { CopilotAuthPlugin } from "./copilot"
 import { LiteLLMAuthPlugin } from "./litellm"
 import { OllamaAuthPlugin } from "./ollama"
+import { XaiAuthPlugin } from "./xai"
 
 const log = Log.create({ service: "plugin" })
 
@@ -24,7 +25,13 @@ const log = Log.create({ service: "plugin" })
 const BUILTIN: string[] = []
 
 // Built-in plugins that are directly imported (not installed from npm)
-const INTERNAL_PLUGINS: PluginInstance[] = [CodexAuthPlugin, CopilotAuthPlugin, LiteLLMAuthPlugin, OllamaAuthPlugin]
+const INTERNAL_PLUGINS: PluginInstance[] = [
+  CodexAuthPlugin,
+  CopilotAuthPlugin,
+  LiteLLMAuthPlugin,
+  OllamaAuthPlugin,
+  XaiAuthPlugin,
+]
 
 // Lazy import to break circular dep: Session → SessionPrompt → Plugin → Server → Session.
 // Can't use require() because server.ts transitively has top-level await.
