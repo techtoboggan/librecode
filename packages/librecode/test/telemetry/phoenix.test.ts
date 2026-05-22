@@ -9,7 +9,12 @@
  * which is exercised manually before each Phoenix-related release.
  */
 import { afterEach, describe, expect, test } from "bun:test"
-import { checkPhoenixHealth, healthzUrlFor, resetPhoenixRuntime } from "../../src/telemetry/phoenix"
+import {
+  checkPhoenixHealth,
+  healthzUrlFor,
+  parseOtelResourceAttributes,
+  resetPhoenixRuntime,
+} from "../../src/telemetry/phoenix"
 
 afterEach(async () => {
   await resetPhoenixRuntime()
@@ -105,5 +110,59 @@ describe("checkPhoenixHealth", () => {
     )
     expect(result.ok).toBe(false)
     expect(result.error).toBeTruthy()
+  })
+})
+
+/**
+ * Phase 40 / upstream v1.14.17 — OTEL_RESOURCE_ATTRIBUTES parsing.
+ *
+ * Format is W3C-Baggage-flavoured: comma-separated `k=v`, percent-encoded
+ * on either side. Malformed entries skipped silently to match the
+ * official SDK's behavior; we don't want a typo'd env var to crash the
+ * tracer init.
+ */
+describe("parseOtelResourceAttributes", () => {
+  test("undefined / empty → empty object", () => {
+    expect(parseOtelResourceAttributes(undefined)).toEqual({})
+    expect(parseOtelResourceAttributes("")).toEqual({})
+  })
+
+  test("single pair", () => {
+    expect(parseOtelResourceAttributes("deployment.environment=production")).toEqual({
+      "deployment.environment": "production",
+    })
+  })
+
+  test("multiple comma-separated pairs", () => {
+    expect(
+      parseOtelResourceAttributes("deployment.environment=prod,service.namespace=team-a,region=us-east-1"),
+    ).toEqual({ "deployment.environment": "prod", "service.namespace": "team-a", region: "us-east-1" })
+  })
+
+  test("trims whitespace around keys and values", () => {
+    expect(parseOtelResourceAttributes("  env  =  staging  ,  team  =  platform  ")).toEqual({
+      env: "staging",
+      team: "platform",
+    })
+  })
+
+  test("percent-decodes keys and values (OTel spec requirement)", () => {
+    expect(parseOtelResourceAttributes("region=us%2Deast-1")).toEqual({ region: "us-east-1" })
+    expect(parseOtelResourceAttributes("k%20ey=v%20al")).toEqual({ "k ey": "v al" })
+  })
+
+  test("malformed entries are dropped silently", () => {
+    expect(parseOtelResourceAttributes("good=ok,=novalkey,nokey,alsogood=yes")).toEqual({
+      good: "ok",
+      alsogood: "yes",
+    })
+  })
+
+  test("undecodable percent-encoding skips that pair (not the whole input)", () => {
+    expect(parseOtelResourceAttributes("good=ok,bad=%E0%A4%A")).toEqual({ good: "ok" })
+  })
+
+  test("value can contain = signs after the first one (only first = splits)", () => {
+    expect(parseOtelResourceAttributes("formula=a=b+c")).toEqual({ formula: "a=b+c" })
   })
 })

@@ -33,6 +33,38 @@ const log = Log.create({ service: "telemetry.phoenix" })
 export const DEFAULT_PHOENIX_ENDPOINT = "http://localhost:6006/v1/traces"
 export const DEFAULT_PHOENIX_PROJECT = "librecode"
 
+/**
+ * Phase 40 / upstream v1.14.17 — parse OTEL_RESOURCE_ATTRIBUTES.
+ *
+ * The OTel spec's W3C Baggage format: comma-separated `key=value` pairs,
+ * each key and value may be percent-encoded. Examples:
+ *   - `deployment.environment=production,service.namespace=team-a`
+ *   - `region=us%2Deast-1` (percent-encoded `us-east-1`)
+ *
+ * Returns a flat attribute map suitable for `resourceFromAttributes`.
+ * Malformed entries (no `=`, empty key, undecodable) are dropped
+ * silently — matches the OTel SDK reference behavior.
+ *
+ * Exported for test coverage.
+ */
+export function parseOtelResourceAttributes(raw: string | undefined): Record<string, string> {
+  if (!raw) return {}
+  const out: Record<string, string> = {}
+  for (const entry of raw.split(",")) {
+    const idx = entry.indexOf("=")
+    if (idx <= 0) continue
+    const rawKey = entry.slice(0, idx).trim()
+    const rawValue = entry.slice(idx + 1).trim()
+    if (!rawKey) continue
+    try {
+      out[decodeURIComponent(rawKey)] = decodeURIComponent(rawValue)
+    } catch {
+      // malformed percent-encoding — skip this pair
+    }
+  }
+  return out
+}
+
 export interface PhoenixConfig {
   enabled: boolean
   /** OTLP/HTTP endpoint, e.g. `http://localhost:6006/v1/traces`. */
@@ -101,6 +133,10 @@ export function initPhoenix(config: PhoenixConfig): void {
       // OpenInference uses this attribute as the project key in
       // Phoenix's sidebar. Without it everything lands under "default".
       "openinference.project.name": projectName,
+      // Phase 40 / upstream v1.14.17 — let users tag spans with arbitrary
+      // attributes via the OTel-standard env var. Lets e.g. SREs filter
+      // by `deployment.environment` in Phoenix without rebuilding.
+      ...parseOtelResourceAttributes(process.env.OTEL_RESOURCE_ATTRIBUTES),
     }),
     spanProcessors: [openinference, fallthrough],
   })
