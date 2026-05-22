@@ -151,6 +151,43 @@ describe("tool.read external_directory permission", () => {
       },
     })
   })
+
+  /**
+   * Phase 39 / upstream v1.14.45 — the read permission pattern MUST be
+   * worktree-relative so user allowlists/denylists like `src/secrets/**`
+   * match. Previously sent the absolute filepath, causing rules to
+   * silently fail.
+   */
+  test("read permission pattern is worktree-relative (matches edit/write basis)", async () => {
+    await using tmp = await tmpdir({
+      git: true,
+      init: async (dir) => {
+        await Bun.write(path.join(dir, "src", "secrets", "token.ts"), "shh")
+      },
+    })
+    await Instance.provide({
+      directory: tmp.path,
+      fn: async () => {
+        const read = await ReadTool.init()
+        const requests: Array<Omit<PermissionNext.Request, "id" | "sessionID" | "tool">> = []
+        const testCtx = {
+          ...ctx,
+          ask: async (req: Omit<PermissionNext.Request, "id" | "sessionID" | "tool">) => {
+            requests.push(req)
+          },
+        }
+        const abs = path.join(tmp.path, "src", "secrets", "token.ts")
+        await read.execute({ filePath: abs }, testCtx)
+        const readReq = requests.find((r) => r.permission === "read")
+        expect(readReq).toBeDefined()
+        // Worktree-relative — `src/secrets/token.ts`, NOT the absolute path.
+        // A user's `patterns: ["src/secrets/**"]` rule now matches.
+        expect(readReq?.patterns).toEqual([path.join("src", "secrets", "token.ts")])
+        // Sanity: must NOT carry the absolute path the way it used to.
+        expect(readReq?.patterns).not.toEqual([abs])
+      },
+    })
+  })
 })
 
 function applyPermissionPattern(

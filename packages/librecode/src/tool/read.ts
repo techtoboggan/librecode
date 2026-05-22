@@ -242,7 +242,18 @@ export const ReadTool = Tool.define("read", {
       bypass: Boolean(ctx.extra?.bypassCwdCheck),
       kind: stat?.isDirectory() ? "directory" : "file",
     })
-    await ctx.ask({ permission: "read", patterns: [filepath], always: ["*"], metadata: {} })
+    // Phase 39 / upstream v1.14.45 — match the path basis edit/write/apply_patch
+    // use (worktree-relative). Previously sent the absolute `filepath` as the
+    // permission pattern, so a user's read-allowlist or denylist would silently
+    // fail to match (they configure patterns like `src/secrets/**`, not
+    // `/home/.../src/secrets/**`). Out-of-worktree files end up with `../..` —
+    // matches upstream behavior; consistent with how edit/write report them.
+    await ctx.ask({
+      permission: "read",
+      patterns: [path.relative(Instance.worktree, filepath)],
+      always: ["*"],
+      metadata: {},
+    })
 
     if (!stat) {
       await throwNotFoundWithSuggestions(filepath)
