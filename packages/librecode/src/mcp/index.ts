@@ -460,9 +460,16 @@ async function tryConnectTransport(
     const authClass = classifyAuthError(lastError, authProvider)
     if (authClass !== null) {
       log.info("mcp server requires authentication", { key, transport: transportName })
+      // Auth flow keeps the transport open intentionally — the caller will
+      // re-use it after the user completes the auth handshake.
       const status = authClass === "registration" ? handleRegistrationError(key) : handleNeedsAuthError(key, transport)
       return { connected: false, status, stop: true }
     }
+    // Phase 39 / upstream #19200 — connect failed for a non-auth reason, so
+    // the transport is unusable. Close it explicitly to release the leaked
+    // HTTP connection (StreamableHTTP/SSE) before the caller tries the next
+    // transport. Without this, every failed remote connect leaks a socket.
+    await transport.close().catch(() => {})
     log.debug("transport connection failed", { key, transport: transportName, url, error: lastError.message })
     return { connected: false, status: { status: "failed", error: lastError.message }, stop: false }
   }
@@ -530,6 +537,12 @@ async function createLocalClient(key: string, mcp: Extract<Config.Mcp, { type: "
     registerNotificationHandlers(client, key)
     return { mcpClient: client, status: { status: "connected" } }
   } catch (error) {
+    // Phase 39 / upstream #19200 — without this close(), the child process
+    // spawned by StdioClientTransport stays alive after a failed connect
+    // (the SDK only spawns; it doesn't reap on its own). Long-running
+    // sessions accumulate zombie processes every time an MCP server is
+    // misconfigured or slow to start. close() sends SIGTERM + closes pipes.
+    await transport.close().catch(() => {})
     log.error("local mcp startup failed", {
       key,
       command: mcp.command,
