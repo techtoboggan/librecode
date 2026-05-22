@@ -102,6 +102,13 @@ interface SpawnResult {
   exitCode: number | null
   timedOut: boolean
   aborted: boolean
+  /**
+   * v0.9.80 — number of bytes the process emitted in total (not the
+   * bounded `output.length`). When this exceeds `output.length` the
+   * accumulator dropped older chunks to cap memory; the truncation
+   * message reports how much was lost.
+   */
+  totalBytesSeen: number
 }
 
 async function spawnAndWait(
@@ -122,7 +129,25 @@ async function spawnAndWait(
     windowsHide: process.platform === "win32",
   })
 
-  let output = ""
+  // Phase 39 / upstream #22660 — bounded memory accumulator.
+  //
+  // Previously: `let output = ""` then `output += chunk.toString()` on every
+  // stdout/stderr event. Plain string concatenation in JS allocates a new
+  // string every append, so a command producing 100 MB of output cost
+  // O(n²) — a ~30s `find /` could leave the process gone but the heap
+  // pinned at gigabytes.
+  //
+  // Now: chunk-buffer ring keyed on byte count. When the running total
+  // exceeds RETAIN_BYTES (4× MAX_METADATA_LENGTH — enough to render the
+  // truncation preview plus a generous tail) we shift the oldest chunk off
+  // the front. Net memory is O(RETAIN_BYTES) regardless of total output.
+  //
+  // `totalBytesSeen` is the unbounded counter the truncation message uses
+  // ("dropped 4.2 GB") so the user knows what was lost.
+  const RETAIN_BYTES = MAX_METADATA_LENGTH * 4
+  const chunks: Buffer[] = []
+  let retainedBytes = 0
+  let totalBytesSeen = 0
   let timedOut = false
   let aborted = false
   let exited = false
@@ -144,7 +169,13 @@ async function spawnAndWait(
   }, timeout + 100)
 
   const append = (chunk: Buffer) => {
-    output += chunk.toString()
+    chunks.push(chunk)
+    retainedBytes += chunk.length
+    totalBytesSeen += chunk.length
+    while (retainedBytes > RETAIN_BYTES && chunks.length > 1) {
+      const dropped = chunks.shift()
+      if (dropped) retainedBytes -= dropped.length
+    }
     onChunk(chunk)
   }
   proc.stdout?.on("data", append)
@@ -167,7 +198,8 @@ async function spawnAndWait(
     })
   })
 
-  return { output, exitCode: proc.exitCode, timedOut, aborted }
+  const output = Buffer.concat(chunks).toString()
+  return { output, exitCode: proc.exitCode, timedOut, aborted, totalBytesSeen }
 }
 
 function dirToGlob(dir: string): string {
@@ -175,9 +207,29 @@ function dirToGlob(dir: string): string {
   return path.join(dir, "*")
 }
 
-function truncateOutput(output: string): string {
-  return output.length > MAX_METADATA_LENGTH ? `${output.slice(0, MAX_METADATA_LENGTH)}\n\n...` : output
+/**
+ * Phase 39 / upstream #22660 — keep the TAIL when truncating.
+ *
+ * Pre-fix behavior kept the first MAX_METADATA_LENGTH characters and
+ * dropped the rest. Two problems:
+ *   1. The useful part of a long command's output is usually at the end —
+ *      summary lines, error messages, exit codes. Keeping the head meant
+ *      the agent saw build logs but not the failure.
+ *   2. Combined with the (now-fixed) unbounded accumulator, an unaware
+ *      caller printed gigabytes only to read the first 30 KB.
+ *
+ * Net: prefix with "..." so the agent knows output was trimmed, then
+ * keep the tail.
+ *
+ * @internal — exported for unit testing (test/tool/bash-truncate.test.ts).
+ */
+export function truncateOutput(output: string): string {
+  if (output.length <= MAX_METADATA_LENGTH) return output
+  return `...\n\n${output.slice(-MAX_METADATA_LENGTH)}`
 }
+
+/** @internal — exposed so tests can assert tail-keeping uses this exact value. */
+export const _BASH_MAX_METADATA_LENGTH = MAX_METADATA_LENGTH
 
 function buildBashMetadataSuffix(timedOut: boolean, aborted: boolean, timeout: number): string {
   const parts: string[] = []
@@ -324,7 +376,7 @@ export const BashTool = Tool.define("bash", async () => {
         }
       }
 
-      const { output, exitCode, timedOut, aborted } = await spawnAndWait(
+      const { output, exitCode, timedOut, aborted, totalBytesSeen } = await spawnAndWait(
         params.command,
         shell,
         cwd,
@@ -334,7 +386,12 @@ export const BashTool = Tool.define("bash", async () => {
         onChunk,
       )
 
-      const finalOutput = output + buildBashMetadataSuffix(timedOut, aborted, timeout)
+      // v0.9.80 — when the accumulator dropped older chunks to cap memory,
+      // surface that to the agent. Otherwise it sees a "Bash" tool result
+      // missing whatever logs came before the tail and has no clue why.
+      const wasTrimmed = totalBytesSeen > Buffer.byteLength(output, "utf-8")
+      const trimSuffix = wasTrimmed ? `\n\n(output truncated — ${totalBytesSeen} bytes total, kept the tail)` : ""
+      const finalOutput = output + trimSuffix + buildBashMetadataSuffix(timedOut, aborted, timeout)
       return {
         title: params.description,
         metadata: { output: truncateOutput(finalOutput), exit: exitCode, description: params.description },
