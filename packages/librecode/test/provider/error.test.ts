@@ -244,4 +244,61 @@ describe("ProviderError.parseAPICallError", () => {
     const result = ProviderError.parseAPICallError({ providerID: "anthropic" as never, error: e })
     expect(result.type).toBe("context_overflow")
   })
+
+  /**
+   * Phase 39 / upstream #17763 — vLLM's two distinct overflow strings.
+   * Local-server users (LibreCode's core audience) hit these regularly
+   * via Ollama, LiteLLM, vLLM, or any OpenAI-compatible self-hosted
+   * server. Without these patterns, sessions saw a generic
+   * `api_error` and never triggered auto-compaction.
+   */
+  test("vLLM 'context length is only N tokens' triggers overflow", () => {
+    const e = makeAPICallError({ message: "This model's context length is only 4096 tokens." })
+    const result = ProviderError.parseAPICallError({ providerID: "anthropic" as never, error: e })
+    expect(result.type).toBe("context_overflow")
+  })
+
+  test("vLLM 'input length exceeds context length' triggers overflow", () => {
+    const e = makeAPICallError({ message: "Your input length (9999) exceeds the model's context length (4096)." })
+    const result = ProviderError.parseAPICallError({ providerID: "anthropic" as never, error: e })
+    expect(result.type).toBe("context_overflow")
+  })
+
+  /**
+   * Phase 39 / upstream #17748 — enterprise OpenAI proxies sometimes send
+   * a generic-looking message but a structured body with
+   * `error.code === "context_length_exceeded"`. Without parsing the body,
+   * the call falls through to `api_error` and never compacts.
+   */
+  test("responseBody with error.code: context_length_exceeded triggers overflow", () => {
+    const e = makeAPICallError({
+      message: "Request failed",
+      statusCode: 400,
+      responseBody: JSON.stringify({
+        error: { code: "context_length_exceeded", message: "Request failed" },
+      }),
+    })
+    const result = ProviderError.parseAPICallError({ providerID: "openai" as never, error: e })
+    expect(result.type).toBe("context_overflow")
+  })
+
+  test("responseBody with unrelated code does NOT trigger overflow", () => {
+    const e = makeAPICallError({
+      message: "Internal server error",
+      statusCode: 500,
+      responseBody: JSON.stringify({ error: { code: "internal_error" } }),
+    })
+    const result = ProviderError.parseAPICallError({ providerID: "openai" as never, error: e })
+    expect(result.type).toBe("api_error")
+  })
+
+  test("malformed responseBody is ignored — falls through to message-based detection", () => {
+    const e = makeAPICallError({
+      message: "server error",
+      statusCode: 500,
+      responseBody: "not valid json {{{",
+    })
+    const result = ProviderError.parseAPICallError({ providerID: "openai" as never, error: e })
+    expect(result.type).toBe("api_error")
+  })
 })

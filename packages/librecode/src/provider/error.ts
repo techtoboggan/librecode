@@ -12,7 +12,7 @@ const OVERFLOW_PATTERNS = [
   /input token count.*exceeds the maximum/i, // Google (Gemini)
   /maximum prompt length is \d+/i, // xAI (Grok)
   /reduce the length of the messages/i, // Groq
-  /maximum context length is \d+ tokens/i, // OpenRouter, DeepSeek
+  /maximum context length is \d+ tokens/i, // OpenRouter, DeepSeek, vLLM
   /exceeds the limit of \d+/i, // GitHub Copilot
   /exceeds the available context size/i, // llama.cpp server
   /greater than the context length/i, // LM Studio
@@ -20,6 +20,12 @@ const OVERFLOW_PATTERNS = [
   /exceeded model token limit/i, // Kimi For Coding, Moonshot
   /context[_ ]length[_ ]exceeded/i, // Generic fallback
   /request entity too large/i, // HTTP 413
+  // Phase 39 / upstream #17763 — vLLM ships these two distinct strings
+  // across its OpenAI-compatible engine + entrypoint code paths. Local
+  // server users (our core audience) hit these regularly. See
+  // vllm/entrypoints/{utils,openai/engine/serving}.py.
+  /context length is only \d+ tokens/i, // vLLM
+  /input length.*exceeds.*context length/i, // vLLM
 ]
 
 function isOpenAiErrorRetryable(e: APICallError) {
@@ -172,7 +178,13 @@ export type ParsedAPICallError =
 
 function parseAPICallError(input: { providerID: ProviderID; error: APICallError }): ParsedAPICallError {
   const m = errorMessage(input.providerID, input.error)
-  if (isOverflow(m) || input.error.statusCode === 413) {
+  // Phase 39 / upstream #17748 — some providers (notably enterprise OpenAI
+  // proxies) return an error body whose `code` is "context_length_exceeded"
+  // but whose message is generic. Without checking the code, those calls
+  // fall through to "api_error" and never trigger auto-compaction.
+  const body = jsonParse(input.error.responseBody)
+  const code = body && typeof body === "object" ? (body as { error?: { code?: unknown } }).error?.code : undefined
+  if (isOverflow(m) || input.error.statusCode === 413 || code === "context_length_exceeded") {
     return {
       type: "context_overflow",
       message: m,
