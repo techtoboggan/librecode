@@ -1,0 +1,5 @@
+export { AppDock } from "./dock"
+export { AppDockProvider, useAppDockState } from "./use-dock-state"
+export { DockToggleButton } from "./toggle-button"
+export { useDockToggleShortcut } from "./keyboard"
+export type { DockEntry, DockState, DockVisibility } from "./types"
