@@ -32,8 +32,8 @@ describe("proxied", () => {
     expect(proxied()).toBe(false)
   })
 
-  test.each(KEYS)("returns true when %s is set", (key) => {
-    process.env[key] = "http://proxy.corp.example:8080"
+  test.each([...KEYS])("returns true when %s is set", (key) => {
+    ;(process.env as Record<string, string>)[key] = "http://proxy.corp.example:8080"
     expect(proxied()).toBe(true)
   })
 
