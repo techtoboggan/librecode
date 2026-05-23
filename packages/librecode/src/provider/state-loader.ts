@@ -331,6 +331,29 @@ async function loadMainPluginAuth(ctx: StateMutableCtx, plugin: PluginEntry, pro
   if (!plugin.auth?.loader) return
   const auth = await Auth.get(providerID)
   if (!auth) return
+  // Phase 40.5 / upstream v1.14.45 #26561 — DEFERRED.
+  //
+  // Upstream's fix: clone the provider before passing to plugin loader so
+  // third-party plugins can't mutate other providers' shared model state
+  // (e.g. zero-out costs across the whole app, redirect models, etc.).
+  // Their `toPublicInfo()` helper deep-clones the single provider; the
+  // plugin's models() hook RETURNS the new map rather than mutating.
+  //
+  // Our built-in plugins (codex.ts, xai.ts) currently mutate
+  // `provider.models` in place — they don't return a new map. Cloning
+  // here would silently break them: filterCodexModels(),
+  // ensureDefaultCodexModel(), zeroOutModelCosts() would all run on a
+  // throwaway clone and have no effect.
+  //
+  // Doing this properly requires either:
+  //   (a) Restructuring the built-in plugin API to return-don't-mutate
+  //       (matches upstream's pattern), or
+  //   (b) Distinguishing built-in vs third-party plugins and only
+  //       cloning for third-party (fragile boundary).
+  //
+  // Threat model: a malicious third-party plugin the user voluntarily
+  // installed. Real but small audience today. Deferring as its own
+  // dedicated PR — out of scope for the Phase 40 stability sweep.
   const options = await plugin.auth.loader(() => Auth.get(providerID) as never, ctx.database[plugin.auth.provider])
   const opts = options ?? {}
   const patch: Partial<InfoType> = ctx.providers[providerID] ? { options: opts } : { source: "custom", options: opts }
