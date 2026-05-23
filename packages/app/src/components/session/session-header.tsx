@@ -25,6 +25,7 @@ import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { useMode } from "@/context/mode"
 import { usePinnedApps } from "@/context/pinned-apps"
+import { DockToggleButton } from "@/components/app-dock"
 import { StartMenu } from "../start-menu"
 import { StatusPopover } from "../status-popover"
 import { StreamingIndicator } from "./streaming-indicator"
@@ -532,6 +533,9 @@ export function SessionHeader() {
                     </Button>
                   </TooltipKeybind>
                 </div>
+                <Show when={sync.data.config.experimental?.app_dock}>
+                  <DockToggleButton />
+                </Show>
               </div>
             </div>
           </Portal>
