@@ -1635,6 +1635,10 @@ export type Config = {
      * Timeout in milliseconds for model context protocol (MCP) requests
      */
     mcp_timeout?: number
+    /**
+     * Enable the experimental App Dock for MCP apps. Phase 42 prototype.
+     */
+    app_dock?: boolean
   }
 }
 

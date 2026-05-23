@@ -697,6 +697,7 @@ export const Info = z
           .positive()
           .optional()
           .describe("Timeout in milliseconds for model context protocol (MCP) requests"),
+        app_dock: z.boolean().optional().describe("Enable the experimental App Dock for MCP apps. Phase 42 prototype."),
       })
       .optional(),
   })
