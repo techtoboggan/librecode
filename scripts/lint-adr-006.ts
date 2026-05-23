@@ -48,6 +48,7 @@ const DANGER_ZONE_GLOBS: ReadonlyArray<string> = [
   "packages/app/src/components/mcp-app-panel.tsx",
   "packages/app/src/components/mcp-app-panel/**/*.{ts,tsx}",
   "packages/app/src/context/pinned-apps.tsx",
+  "packages/app/src/components/app-dock/**/*.{ts,tsx}", // Phase 42 — dock under session Suspense boundary
 ]
 
 interface Violation {
