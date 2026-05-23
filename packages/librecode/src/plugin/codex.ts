@@ -6,6 +6,7 @@ import { ProviderTransform } from "@/provider/transform"
 import { OAUTH_DUMMY_KEY } from "../auth"
 import { Installation } from "../installation"
 import { Log } from "../util/log"
+import { createSingleFlight } from "../util/single-flight"
 
 const log = Log.create({ service: "plugin.codex" })
 
@@ -537,17 +538,47 @@ export async function CodexAuthPlugin(input: PluginInput): Promise<Hooks> {
         ensureDefaultCodexModel(provider as { models: Record<string, unknown> })
         zeroOutModelCosts(provider.models as Parameters<typeof zeroOutModelCosts>[0])
 
+        // Phase 40.3 / upstream #20503 — single-flight refresh.
+        //
+        // Without this, every concurrent fetch() that arrives while the token
+        // is expired calls `refreshAccessToken` in parallel. The first call
+        // succeeds, rotates the refresh_token, and persists the new pair;
+        // the second call retries with the now-revoked old refresh_token
+        // and gets 4xx'd by OpenAI. The user sees the session intermittently
+        // fail until they /connect again.
+        //
+        // Coalesce: every fetch that observes an expired token shares the
+        // same `refreshSingleFlight`. First-arriving fetch creates the inner
+        // promise; followers await it. After it settles each waiter
+        // re-reads `getAuth()` so it sees the persisted fresh tokens (the
+        // refresh path mutates an OpenAI auth.set entry that getAuth reads
+        // — without the re-read, late waiters would carry their stale
+        // pre-refresh snapshot into the request and 401).
+        const refreshSingleFlight = createSingleFlight(async () => {
+          const fresh = await getAuth()
+          if (fresh.type !== "oauth") return
+          const freshWithAccount = fresh as typeof fresh & { accountId?: string }
+          await maybeRefreshCodexToken(fresh, freshWithAccount, input.client.auth as unknown as CodexAuthClient)
+        })
+
         return {
           apiKey: OAUTH_DUMMY_KEY,
           async fetch(requestInput: RequestInfo | URL, init?: RequestInit) {
             stripAuthorizationHeader(init)
 
-            const currentAuth = await getAuth()
+            let currentAuth = await getAuth()
             if (currentAuth.type !== "oauth") return fetch(requestInput, init)
 
-            const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
-            await maybeRefreshCodexToken(currentAuth, authWithAccount, input.client.auth as unknown as CodexAuthClient)
+            if (!currentAuth.access || currentAuth.expires < Date.now()) {
+              await refreshSingleFlight()
+              // Re-read after the shared refresh so we pick up the persisted
+              // new tokens (our local `currentAuth` snapshot was taken
+              // BEFORE the refresh ran).
+              currentAuth = await getAuth()
+              if (currentAuth.type !== "oauth") return fetch(requestInput, init)
+            }
 
+            const authWithAccount = currentAuth as typeof currentAuth & { accountId?: string }
             // biome-ignore lint/style/noNonNullAssertion: access token is refreshed/validated before this point
             const headers = buildRequestHeaders(init, currentAuth.access!, authWithAccount.accountId)
             const url = resolveCodexUrl(requestInput)
