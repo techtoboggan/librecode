@@ -1,0 +1,30 @@
+import type { McpAppResource } from "@/components/mcp-app-panel/types"
+
+/** A single entry in the dock. v0.9.x prototype — single-pane only. */
+export interface DockEntry {
+  /** Stable identifier — uses the app's MCP `ui://` URI. */
+  uri: string
+  /** The full MCP app resource, captured at add-time. */
+  app: McpAppResource
+  /** When the entry was added — used for diagnostics, not display. */
+  addedAt: number
+}
+
+/** Dock visibility states. */
+export type DockVisibility = "hidden" | "visible"
+
+/** Persisted-to-disk shape of the dock's state. */
+export interface DockState {
+  visibility: DockVisibility
+  /** Dock pane width in px. Clamped to [MIN_WIDTH, MAX_WIDTH] on load. */
+  width: number
+  /** v0.9.x prototype — single entry only. Array shape for Phase 43 extension. */
+  entries: DockEntry[]
+}
+
+export const DOCK_MIN_WIDTH = 280
+export const DOCK_MAX_WIDTH = 600
+export const DOCK_DEFAULT_WIDTH = 320
+
+/** localStorage key suffix (combines with workspace prefix). */
+export const DOCK_STATE_KEY = "app-dock-state"
