@@ -1,8 +1,10 @@
-import { createContext, startTransition, untrack, useContext, type JSX } from "solid-js"
+import { createContext, onMount, startTransition, untrack, useContext, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { useSDK } from "@/context/sdk"
+import { usePinnedApps } from "@/context/pinned-apps"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
+import { showToast } from "@librecode/ui/toast"
 import { DOCK_STATE_KEY, type DockState } from "./types"
 import {
   addEntry,
@@ -14,6 +16,7 @@ import {
   setWidth,
   toggleVisibility,
 } from "./state"
+import { planLegacyMigration, markMigrated } from "./migration"
 import { reorderEntriesByUri } from "./reorder"
 import { applyDividerDrag as applyDividerDragFn } from "./sizing"
 
@@ -52,6 +55,34 @@ export function AppDockProvider(props: ProviderProps): JSX.Element {
     { ...target, migrate: migrateDockState },
     createStore<DockState>(defaultDockState()),
   )
+
+  // Phase 44 — one-shot legacy pinned-apps migration.
+  // PinnedAppsProvider wraps AppDockProvider in session.tsx, so
+  // usePinnedApps() is always available here.
+  const pinnedApps = usePinnedApps()
+  onMount(() => {
+    // One-shot read — don't subscribe reactively so future pin/unpin
+    // actions don't re-trigger migration. (ADR-006: no reactive source
+    // coupling on a user interaction.)
+    const snapshot = untrack(() => pinnedApps.pinned())
+    const next = planLegacyMigration(store as DockState, snapshot)
+    if (next !== null) {
+      void startTransition(() => setStore(next))
+      // Toast only when we actually seeded entries from legacy pins.
+      if (snapshot.length > 0 && (store as DockState).entries.length === 0) {
+        showToast({
+          variant: "success",
+          icon: "circle-check",
+          title: `Restored ${snapshot.length} app${snapshot.length === 1 ? "" : "s"} from your tab pins`,
+          description: "Find them in the App Dock on the right.",
+        })
+      }
+    } else if (typeof (store as DockState).migratedFromPinnedAt !== "number") {
+      // No legacy pins and no migration needed — still mark migrated so we
+      // don't run through this check on every subsequent mount.
+      void setStore(markMigrated(store as DockState))
+    }
+  })
 
   const state = () => store as DockState
   const toggle = () => void startTransition(() => setStore(toggleVisibility(store as DockState)))
