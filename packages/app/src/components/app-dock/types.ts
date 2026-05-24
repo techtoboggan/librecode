@@ -1,6 +1,6 @@
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 
-/** A single entry in the dock. v0.9.x prototype — single-pane only. */
+/** A single entry in the dock. */
 export interface DockEntry {
   /** Stable identifier — uses the app's MCP `ui://` URI. */
   uri: string
@@ -8,6 +8,12 @@ export interface DockEntry {
   app: McpAppResource
   /** When the entry was added — used for diagnostics, not display. */
   addedAt: number
+  /** Phase 43 — when true, only the header is rendered; body iframe
+   *  stays mounted (display:none) for state preservation. */
+  collapsed?: boolean
+  /** Phase 43 — explicit height in px. Undefined = equal share of
+   *  un-overridden panes. */
+  heightPx?: number
 }
 
 /** Dock visibility states. */

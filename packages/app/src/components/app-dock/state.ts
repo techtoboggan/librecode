@@ -60,6 +60,8 @@ export function migrateDockState(raw: unknown): DockState {
         uri: a.uri,
         description: typeof a.description === "string" ? a.description : undefined,
       },
+      collapsed: typeof rec.collapsed === "boolean" ? rec.collapsed : false,
+      heightPx: typeof rec.heightPx === "number" ? rec.heightPx : undefined,
     })
   }
 
@@ -87,4 +89,16 @@ export function toggleVisibility(state: DockState): DockState {
 /** Set width — clamps to allowed range. Returns new state. */
 export function setWidth(state: DockState, width: number): DockState {
   return { ...state, width: clampWidth(width) }
+}
+
+/** Set collapsed flag on an entry. Missing URI → identity. Returns new state. */
+export function setEntryCollapsed(state: DockState, uri: string, collapsed: boolean): DockState {
+  if (!state.entries.some((e) => e.uri === uri)) return state
+  return { ...state, entries: state.entries.map((e) => (e.uri === uri ? { ...e, collapsed } : e)) }
+}
+
+/** Set explicit height on an entry. Missing URI → identity. Returns new state. */
+export function setEntryHeight(state: DockState, uri: string, heightPx: number): DockState {
+  if (!state.entries.some((e) => e.uri === uri)) return state
+  return { ...state, entries: state.entries.map((e) => (e.uri === uri ? { ...e, heightPx } : e)) }
 }

@@ -5,6 +5,8 @@ import {
   defaultDockState,
   migrateDockState,
   removeEntry,
+  setEntryCollapsed,
+  setEntryHeight,
   setWidth,
   toggleVisibility,
 } from "./state"
@@ -194,5 +196,78 @@ describe("setWidth", () => {
 
   test("clamps above MAX", () => {
     expect(setWidth(defaultDockState(), 9999).width).toBe(DOCK_MAX_WIDTH)
+  })
+})
+
+describe("setEntryCollapsed", () => {
+  test("sets collapsed to true", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = setEntryCollapsed(s, SAMPLE_APP.uri, true)
+    expect(next.entries[0].collapsed).toBe(true)
+  })
+
+  test("sets collapsed to false", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const with1 = setEntryCollapsed(s, SAMPLE_APP.uri, true)
+    const with2 = setEntryCollapsed(with1, SAMPLE_APP.uri, false)
+    expect(with2.entries[0].collapsed).toBe(false)
+  })
+
+  test("missing URI returns identity", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = setEntryCollapsed(s, "ui://does/not/exist", true)
+    expect(next).toBe(s)
+  })
+})
+
+describe("setEntryHeight", () => {
+  test("sets heightPx on the entry", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = setEntryHeight(s, SAMPLE_APP.uri, 200)
+    expect(next.entries[0].heightPx).toBe(200)
+  })
+
+  test("missing URI returns identity", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = setEntryHeight(s, "ui://does/not/exist", 200)
+    expect(next).toBe(s)
+  })
+})
+
+describe("migrateDockState Phase 43 fields", () => {
+  test("reads collapsed: true from raw input", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP, collapsed: true }],
+    })
+    expect(result.entries[0].collapsed).toBe(true)
+  })
+
+  test("reads heightPx: 200 from raw input", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP, heightPx: 200 }],
+    })
+    expect(result.entries[0].heightPx).toBe(200)
+  })
+
+  test("defaults collapsed to false when missing", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP }],
+    })
+    expect(result.entries[0].collapsed).toBe(false)
+  })
+
+  test("defaults heightPx to undefined when missing", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP }],
+    })
+    expect(result.entries[0].heightPx).toBeUndefined()
   })
 })
