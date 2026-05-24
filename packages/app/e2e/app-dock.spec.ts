@@ -496,3 +496,64 @@ test('Phase 45: "in dock" badge prevents re-adding from Start menu', async ({ pa
     { extraConfig: appDockConfig },
   )
 })
+
+// ─── Phase 46: Activity → Timeline rename + View-as-graph ─────────────────────
+
+test(
+  'Phase 46: session tab strip shows "Timeline", not "Activity"',
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(async ({ gotoSession }) => {
+      await gotoSession()
+
+      // Open the review panel so the side panel / tab strip is visible.
+      await page
+        .getByRole("button", { name: /review/i })
+        .first()
+        .click()
+
+      // The tab labeled "Timeline" must exist.
+      const timelineTab = page.getByRole("tab", { name: "Timeline" })
+      await expect(timelineTab).toBeVisible({ timeout: 5000 })
+
+      // The tab labeled "Activity" must NOT exist — no duplicate.
+      const activityTab = page.getByRole("tab", { name: "Activity" })
+      await expect(activityTab).not.toBeAttached({ timeout: 2000 })
+    })
+  },
+)
+
+test(
+  'Phase 46: "View as graph" button adds Activity Graph to dock',
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(
+      async ({ gotoSession }) => {
+        await gotoSession()
+
+        // Open the side panel and navigate to the Timeline tab.
+        await page
+          .getByRole("button", { name: /review/i })
+          .first()
+          .click()
+        await page.getByRole("tab", { name: "Timeline" }).click()
+
+        // The "View as graph →" button must be visible.
+        const viewAsGraph = page.getByTestId("timeline-view-as-graph")
+        await expect(viewAsGraph).toBeVisible({ timeout: 5000 })
+        await expect(viewAsGraph).not.toBeDisabled()
+
+        // Click it — Activity Graph should appear in the dock.
+        await viewAsGraph.click()
+        const dock = page.locator(DOCK_SELECTOR)
+        await expect(dock).toBeVisible({ timeout: 3000 })
+        await expect(page.locator(`[data-testid="pane-header-${GRAPH_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+        // Button now shows "In dock" and is disabled.
+        await expect(viewAsGraph).toBeDisabled()
+        await expect(viewAsGraph).toContainText("In dock")
+      },
+      { extraConfig: appDockConfig },
+    )
+  },
+)
