@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-23 | ~387 commits | Tests: 1982 pass, 12 skip, 0 flaky | **v0.9.82** (Phase 42 shipped)
+> Last updated: 2026-05-24 | ~397 commits | Tests: 2027 pass, 12 skip, 0 flaky | **v0.9.83** (Phase 43 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -678,19 +678,46 @@ Deviations from spec: `dock.test.tsx` tests component behaviour via `createRoot`
 than DOM render (Bun resolves solid-js/web to server build in the test environment;
 DOM assertions covered by Playwright e2e). See phase-42-spec.md §Verification checklist.
 
-### Phase 42b: Windows Code-Signing + Store Submission
+### Phase 43: Multi-pane Dock + Reorder + Collapse ✅
+
+Detail: `docs/plans/phase-43-spec.md`
+ADR: `docs/adr/009-app-dock.md` (status updated to Multi-pane in-place)
+
+Shipped v0.9.83. Extends the App Dock from one app to N apps stacked vertically.
+Key deliverables: multi-pane `<For>` loop keyed on stable URIs (iframe-safe reorder),
+`PaneHeader` with drag-to-reorder (`createDraggable`), `PaneDivider` for height
+redistribution, `AddAppPopover` (Kobalte Popover outside `DragDropProvider` per
+Pitfall #3), per-pane collapse with `display:none` iframe preservation, `reorder.ts`
+and `sizing.ts` pure helpers, Phase 43 BDD E2E scenarios. +45 new unit tests
+(120 total in app-dock/).
+PLAN.md numbering: legacy Phase 42b/43/44/45 renumbered to 60/61/62/63 to free
+42–51 for the MCP-Apps overhaul arc.
+Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
+`entries.length > 0`) so the first app can be added via popover without the "Try it"
+CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
+for cleaner separation of drag handle vs. drop target.
+
+### Phase 60: Windows Code-Signing + Store Submission
+
+_(Previously Phase 42b — renumbered to free 42–51 for the MCP-Apps overhaul arc.)_
 
 Sign the `.exe` installer with an EV certificate, submit to Microsoft Store (or partner channels) to avoid SmartScreen warnings. Medium effort + cert-procurement cost.
 
-### Phase 43: Linux AppImage Auto-Update
+### Phase 61: Linux AppImage Auto-Update
+
+_(Previously Phase 43 — renumbered.)_
 
 The Tauri updater currently disabled on Linux. Once AppImage is validated (deferred item above), wire up zsync-based delta updates via the AppImage updater framework. Small effort.
 
-### Phase 44: Release Preflight Verification
+### Phase 62: Release Preflight Verification
+
+_(Previously Phase 44 — renumbered.)_
 
 Cheap-but-high-value: a `scripts/preflight-release.sh` that runs `bun run build` for the current platform + smoke-imports the npm tarball before tagging. Would have caught the v0.9.76 darwin-arm64 ConnectionRefused failure. Small effort.
 
-### Phase 45: Enterprise Features (post-1.0)
+### Phase 63: Enterprise Features (post-1.0)
+
+_(Previously Phase 45 — renumbered.)_
 
 Deferred per local-first charter but listed for completeness: SSO/SAML, audit-log forwarding to SIEM, multi-tenant config, secrets management integration. Out-of-scope for 0.9.x / 1.0 stable.
 
