@@ -24,7 +24,7 @@
       "version": "0.9.85",
       "dependencies": {
         "@kobalte/core": "catalog:",
-        "@librecode/i18n": "^1.0.0-preview.1",
+        "@librecode/i18n": "^0.9.33",
         "@librecode/sdk": "workspace:*",
         "@librecode/ui": "workspace:*",
         "@librecode/util": "workspace:*",
@@ -77,7 +77,7 @@
       "version": "0.9.85",
       "dependencies": {
         "@librecode/app": "workspace:*",
-        "@librecode/i18n": "^1.0.0-preview.1",
+        "@librecode/i18n": "^0.9.33",
         "@librecode/ui": "workspace:*",
         "@solid-primitives/i18n": "2.2.1",
         "@solid-primitives/storage": "catalog:",
@@ -270,7 +270,7 @@
       "version": "0.9.85",
       "dependencies": {
         "@kobalte/core": "catalog:",
-        "@librecode/i18n": "^1.0.0-preview.1",
+        "@librecode/i18n": "^0.9.33",
         "@librecode/sdk": "workspace:*",
         "@librecode/util": "workspace:*",
         "@pierre/diffs": "catalog:",
@@ -800,7 +800,7 @@
 
     "@librecode/desktop": ["@librecode/desktop@workspace:packages/desktop"],
 
-    "@librecode/i18n": ["@librecode/i18n@1.0.0-preview.1", "", {}, "sha512-7qfsElruGnhi6u3kg44NExaidqZ5Um86C8tT5K3ZEdQIoQ/vY++IS1VE59eH4wbIo9eeMbGvn0qiT9OLmnoygQ=="],
+    "@librecode/i18n": ["@librecode/i18n@0.9.33", "", {}, "sha512-h8yr7pDn0nonBue6QBwzjHkR0V7TKfJkpnbYz0zdPmGr6klVPgLbrvvZ2C+tYcH467+CBaBZNM/mpaBSzo0xFQ=="],
 
     "@librecode/plugin": ["@librecode/plugin@workspace:packages/plugin"],
 
