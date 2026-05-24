@@ -175,3 +175,31 @@ canonical entry point for adding MCP apps when the dock is enabled.
 - **Tests.** +16 unit tests in `start-menu.test.tsx` (inDock predicate,
   row filtering, onLaunch branching). +4 BDD E2E scenarios in
   `packages/app/e2e/app-dock.spec.ts`.
+
+## Phase 46 — Activity duplication resolution (display-only rename)
+
+The session tab strip's "Activity" label is now "Timeline". The
+internal tab identifier and component name (`ActivityTab`) are
+unchanged — display-only rename in the i18n layer (`session.tab.activity`
+value: `"Activity"` → `"Timeline"`). The full identifier rename is
+deferred to Phase 48 alongside the legacy pinned-apps removal.
+
+The Timeline tab gains a "View as graph →" button (visible only when
+the dock is enabled) that adds the Activity Graph MCP app to the dock.
+Clicking when the graph is already docked shows "In dock" and is
+disabled.
+
+Net effect: users no longer see "Activity" in two places. The tab is
+the chronological event log (Timeline); the dock app is the live
+visualization (Activity Graph). The bridge between them is the
+View-as-graph button.
+
+- **i18n.** `@librecode/i18n@0.9.33` changes only the English value.
+  Other locales fall back to English. Internal key unchanged.
+- **Phase 45 redirect untouched.** The `createEffect` in
+  `session-side-panel.tsx` that redirects `activeTab === "apps"` →
+  `"activity"` is unmodified; it still works because the internal
+  value is still `"activity"`.
+- **Tests.** +13 unit tests in `activity-grid.test.tsx`. +2 BDD E2E
+  scenarios in `packages/app/e2e/app-dock.spec.ts` (Timeline label +
+  View-as-graph flow).
