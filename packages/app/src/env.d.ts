@@ -13,6 +13,8 @@ declare module "solid-js" {
   namespace JSX {
     interface Directives {
       sortable: true
+      /** @thisbeyond/solid-dnd createDraggable directive. */
+      draggable: true
     }
   }
 }
