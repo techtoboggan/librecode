@@ -145,3 +145,33 @@ model before the dock existed.
 - **Pure helper.** `migration.ts` contains `planLegacyMigration`,
   `markMigrated`, and `migrationCount` — all pure functions with no
   Solid or DOM dependencies. 23 unit tests cover all branches.
+
+## Phase 45 — Discovery consolidation
+
+Shipped in v0.9.85. After this phase the Start menu is the single
+canonical entry point for adding MCP apps when the dock is enabled.
+
+- **Apps tab gated.** The session strip's "Apps" tab Trigger and Content
+  are both wrapped in `<Show when={!dockEnabled()}>` in
+  `session-side-panel.tsx`. Users with the flag off see zero change.
+- **Active-tab redirect.** A `createEffect` in `session-side-panel.tsx`
+  watches `activeTab()`. If the flag flips on while "apps" is active
+  (e.g. from a previous session with the flag off), the active tab is
+  redirected to "activity" via `startTransition` to avoid a blank panel.
+- **Start-menu routing.** `session-header.tsx` `onLaunch` now branches:
+  `experimental.app_dock = true` → `dockCtx.add(app)` + auto-open the
+  dock if it's currently hidden. Flag off → legacy `pinnedApps.pin()` +
+  `tabs().open()` path unchanged from v0.9.84.
+- **"in dock" badge.** `start-menu.tsx` reads `DockContext` (always
+  available — `AppDockProvider` is unconditionally mounted in
+  `session.tsx`) and marks apps whose URI is present in
+  `dockCtx.state().entries` as disabled + labeled "in dock".
+- **Marketplace link.** The "Browse marketplace" button was already
+  present from v0.9.64 (opens `MarketplaceDialog` which surfaces
+  `mcpappfoundry.app`). No new link added; existing button satisfies
+  the Phase 45 discoverability requirement.
+- **Legacy path untouched.** `context/pinned-apps.tsx` is still not
+  modified. Both systems coexist until Phase 48.
+- **Tests.** +16 unit tests in `start-menu.test.tsx` (inDock predicate,
+  row filtering, onLaunch branching). +4 BDD E2E scenarios in
+  `packages/app/e2e/app-dock.spec.ts`.
