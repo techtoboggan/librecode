@@ -402,3 +402,97 @@ test("Phase 44: migration runs at most once per workspace", async ({ page, withP
     { extraConfig: appDockConfig },
   )
 })
+
+// ── Phase 45: Discovery consolidation scenarios ──────────────────────────────
+//
+// These tests validate the "single canonical discovery path" that Phase 45
+// introduces: when the dock is enabled the session strip's Apps tab is hidden
+// and Start-menu launches go to dock.add() instead of pinnedApps.pin().
+
+test("Phase 45: Apps tab hidden when dock is enabled", { tag: "@smoke" }, async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession }) => {
+      await gotoSession()
+      // When dock flag is on, the "Apps" tab trigger must not be present in
+      // the session side panel strip.
+      const appsTab = page.getByRole("tab", { name: "Apps" })
+      await expect(appsTab).not.toBeAttached({ timeout: 5000 })
+    },
+    { extraConfig: appDockConfig },
+  )
+})
+
+test("Phase 45: Apps tab visible when dock is disabled (regression)", async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession }) => {
+      await gotoSession()
+      // With the flag off the Apps tab must still appear — no regression from v0.9.84.
+      // Open the review panel first so the side panel is visible.
+      await page
+        .getByRole("button", { name: /review/i })
+        .first()
+        .click()
+      const appsTab = page.getByRole("tab", { name: "Apps" })
+      await expect(appsTab).toBeVisible({ timeout: 5000 })
+    },
+    // No extraConfig — flag defaults to false
+  )
+})
+
+test(
+  "Phase 45: Start menu launches go to the dock when flag is on",
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(
+      async ({ gotoSession }) => {
+        await gotoSession()
+
+        // Open the Start menu
+        const startBtn = page.getByRole("button", { name: /start/i })
+        await expect(startBtn).toBeVisible({ timeout: 5000 })
+        await startBtn.click()
+
+        // Click Session Stats — should add it to the dock, NOT create a new
+        // tab in the session strip.
+        const statsEntry = page.getByRole("button", { name: "Session Stats" }).first()
+        await expect(statsEntry).toBeVisible({ timeout: 3000 })
+        await statsEntry.click()
+
+        // Dock should open automatically and contain Session Stats.
+        const dock = page.locator(DOCK_SELECTOR)
+        await expect(dock).toBeVisible({ timeout: 3000 })
+        await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+        // No new "Session Stats" tab in the session strip (the review panel
+        // strip only contains Review / Activity / file tabs in dock mode).
+        const sessionStatsTab = page.getByRole("tab", { name: "Session Stats" })
+        await expect(sessionStatsTab).not.toBeAttached({ timeout: 2000 })
+      },
+      { extraConfig: appDockConfig },
+    )
+  },
+)
+
+test('Phase 45: "in dock" badge prevents re-adding from Start menu', async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession }) => {
+      await gotoSession()
+
+      // Add Session Stats via the dock's Try-it button.
+      await page.getByRole("button", { name: TOGGLE_BUTTON_LABEL_SHOW }).click()
+      await page.locator(DOCK_TRY_BUTTON_SELECTOR).click()
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+      // Open the Start menu.
+      const startBtn = page.getByRole("button", { name: /start/i })
+      await startBtn.click()
+
+      // Session Stats row should show the "in dock" badge and be disabled.
+      const statsRow = page.getByRole("button", { name: "Session Stats" }).first()
+      await expect(statsRow).toBeVisible({ timeout: 3000 })
+      await expect(statsRow).toBeDisabled()
+      await expect(statsRow).toContainText("in dock")
+    },
+    { extraConfig: appDockConfig },
+  )
+})
