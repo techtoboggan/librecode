@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-24 | ~397 commits | Tests: 2027 pass, 12 skip, 0 flaky | **v0.9.83** (Phase 43 shipped)
+> Last updated: 2026-05-24 | ~405 commits | Tests: 2058 pass, 12 skip, 0 flaky | **v0.9.84** (Phase 44 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,25 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 44: Legacy Pinned-Apps Migration ✅
+
+Detail: `docs/plans/phase-44-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 44 changelog appended in-place)
+
+Shipped v0.9.84. One-shot migration from the legacy tab-strip pinned-apps
+system to the App Dock. On first `AppDockProvider` mount per workspace,
+legacy pins are read (via `untrack`) and seeded into the dock in pin order;
+the dock auto-opens and a toast confirms: "Restored N apps from your tab
+pins". Migration is keyed on `DockState.migratedFromPinnedAt?: number` —
+once set, never re-runs. Manual dock entries are preserved (user wins). The
+legacy `pinned-apps` storage is read-only in this phase; both systems
+coexist until Phase 48.
+New files: `migration.ts` (pure planner), `migration.test.ts` (+23 tests),
+`use-dock-state.test.tsx` (+5 tests). Modified: `types.ts`, `state.ts`,
+`state.test.ts` (+3 tests), `use-dock-state.tsx`, `e2e/app-dock.spec.ts`
+(+2 BDD E2E scenarios). Net: +31 unit tests.
+Deviations from spec: none.
 
 ### Phase 60: Windows Code-Signing + Store Submission
 
