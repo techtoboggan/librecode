@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-24 | ~413 commits | Tests: 2074 pass, 12 skip, 0 flaky | **v0.9.85** (Phase 45 shipped)
+> Last updated: 2026-05-25 | ~420 commits | Tests: 2087 pass, 12 skip, 0 flaky | **v0.9.86** (Phase 46 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,28 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 46: Activity Duplication Resolution ✅
+
+Detail: `docs/plans/phase-46-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 46 changelog appended in-place)
+
+Shipped v0.9.86. The session tab strip's "Activity" label is now "Timeline"
+(display-only rename: `session.tab.activity` value changed in
+`@librecode/i18n@0.9.33`; internal identifier and Phase 45's redirect
+effect are unchanged). The Timeline tab gains a "View as graph →" button
+(dock-enabled only) that adds the Activity Graph built-in app to the dock;
+if the dock is hidden it auto-opens. Button reads "In dock" + disabled when
+the graph is already present.
+New files: `activity-grid.test.tsx` (+13 unit tests). Modified:
+`activity-grid.tsx` (ViewAsGraphButton sub-component + openActivityGraph
+helper), `e2e/app-dock.spec.ts` (+2 BDD E2E scenarios). Cross-repo:
+`librecode-i18n` v0.9.33 published (c6b788e).
+Deviations from spec: (1) App package.json dep updated from `^1.0.0-preview.1`
+(not `^0.9.32` as spec assumed) to `^0.9.33` — the preview track was an
+orphan side branch; all three packages (app, desktop, ui) updated. (2) Unit
+tests use mirror-function pattern (no component imports) per server-side test
+env constraint, matching Phases 43–45 style.
 
 ### Phase 45: Discovery Consolidation ✅
 
