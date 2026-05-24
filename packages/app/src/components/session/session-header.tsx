@@ -8,7 +8,7 @@ import { Spinner } from "@librecode/ui/spinner"
 import { showToast } from "@librecode/ui/toast"
 import { Tooltip, TooltipKeybind } from "@librecode/ui/tooltip"
 import { getFilename } from "@librecode/util/path"
-import { batch, createEffect, createMemo, For, onCleanup, Show } from "solid-js"
+import { batch, createEffect, createMemo, For, onCleanup, Show, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
 import { useCommand } from "@/context/command"
@@ -25,7 +25,7 @@ import { decode64 } from "@/utils/base64"
 import { Persist, persisted } from "@/utils/persist"
 import { useMode } from "@/context/mode"
 import { usePinnedApps } from "@/context/pinned-apps"
-import { DockToggleButton } from "@/components/app-dock"
+import { DockContext, DockToggleButton } from "@/components/app-dock"
 import { StartMenu } from "../start-menu"
 import { StatusPopover } from "../status-popover"
 import { StreamingIndicator } from "./streaming-indicator"
@@ -145,6 +145,10 @@ export function SessionHeader() {
   const terminal = useTerminal()
   const appMode = useMode()
   const pinnedApps = usePinnedApps()
+  // Phase 45 — dock context for the Start-menu launch branch. AppDockProvider
+  // is always mounted in session.tsx (not feature-flagged), so useContext is
+  // safe here and will never return undefined inside the session route.
+  const dockCtx = useContext(DockContext)
   const { params, view, tabs } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
@@ -337,11 +341,27 @@ export function SessionHeader() {
               </Tooltip>
               <StartMenu
                 onLaunch={(app) => {
-                  // batch the pin + tabs.open so the tab list and active tab
-                  // update in a single reactive tick — otherwise Solid can
-                  // flush two intermediate renders (new trigger appears, then
-                  // active swaps to it), which shows up as a flicker while
-                  // the new McpAppPanel mounts + fetches its HTML.
+                  // Phase 45 — when the dock is enabled, add to the dock instead
+                  // of pinning a legacy tab. The dock auto-opens if hidden so the
+                  // user sees their new pane immediately.
+                  if (sync.data.config?.experimental?.app_dock === true && dockCtx) {
+                    dockCtx.add({
+                      server: app.server,
+                      name: app.name,
+                      uri: app.uri,
+                      description: app.description,
+                    })
+                    // dock.add() does not change visibility — open if hidden so
+                    // the new pane is immediately visible (Phase 45 pitfall #5).
+                    if (dockCtx.state().visibility === "hidden") {
+                      dockCtx.toggle()
+                    }
+                    return
+                  }
+                  // Legacy path (dock flag off): batch the pin + tabs.open so
+                  // the tab list and active tab update in a single reactive tick
+                  // — otherwise Solid flushes two intermediate renders (trigger
+                  // appears, then active swaps), causing a McpAppPanel flicker.
                   batch(() => {
                     pinnedApps.pin({
                       server: app.server,
