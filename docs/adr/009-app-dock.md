@@ -1,7 +1,7 @@
 # ADR-009: App Dock as first-class layout for MCP apps
 
 Date: 2026-05-23
-Status: Prototype (Phase 42)
+Status: Multi-pane (Phase 43)
 
 ## Context
 
@@ -51,8 +51,9 @@ Key properties of the dock:
   synchronous localStorage hydration (no async resource). See
   `use-dock-state.tsx` for the justification comment.
 
-This ADR covers Phase 42 (prototype): single-pane, no multi-app, no
-reorder. Subsequent phases (43–51) flesh out the full model. See
+Phase 42 shipped the prototype: single-pane, no multi-app, no reorder.
+Phase 43 extends to the full multi-pane model (see Phase 43 changelog
+below). Subsequent phases (44–51) continue the overhaul. See
 `docs/plans/mcp-apps-overhaul-roadmap.md`.
 
 ## Consequences
@@ -88,5 +89,36 @@ dock is validated.
 - Implementation: `packages/app/src/components/app-dock/`
 - Session integration: `packages/app/src/pages/session.tsx`
 - Config flag: `packages/librecode/src/config/schema.ts` (`experimental.app_dock`)
-- Phase spec: `docs/plans/phase-42-spec.md`
+- Phase 42 spec: `docs/plans/phase-42-spec.md`
+- Phase 43 spec: `docs/plans/phase-43-spec.md`
 - Roadmap: `docs/plans/mcp-apps-overhaul-roadmap.md`
+
+## Phase 43 changelog
+
+Shipped in v0.9.83. Extends the prototype to full multi-pane behaviour:
+
+- **N-pane stack.** `entries: DockEntry[]` was already array-shaped in
+  Phase 42. Phase 43 renders all entries via a `<For>` loop keyed on
+  stable URI strings (prevents iframe remount on reorder — Pitfall #1).
+- **`+ Add` popover.** `AddAppPopover` (`add-app-popover.tsx`) fetches
+  the MCP app list once at mount and shows already-docked apps as
+  disabled. Rendered outside `DragDropProvider` to avoid click
+  interception (Pitfall #3).
+- **Drag-to-reorder.** `PaneHeader` (`pane-header.tsx`) uses
+  `createDraggable`. Each `DockPane` uses `createDroppable`. `onDragOver`
+  in the `DragDropProvider` calls `dock.reorder(draggedUri, overUri)`.
+  Order is persisted to localStorage on every reorder.
+- **Per-pane collapse.** `collapsed?: boolean` added to `DockEntry`.
+  Pane body uses `display:none` (not unmount) to preserve iframe state.
+  Collapse chevron in `PaneHeader` toggles the flag.
+- **Horizontal divider.** `PaneDivider` (`divider.tsx`) sits between
+  consecutive panes. Drag calls `dock.applyDividerDrag()` to allocate
+  height between adjacent panes. `heightPx?: number` persisted per entry.
+- **Height computation.** `paneHeight()` in `sizing.ts`: equal share by
+  default; respects `heightPx` override; collapsed pane gets header
+  height only.
+- **Pure helpers.** `reorder.ts` and `sizing.ts` are pure functions with
+  full unit-test coverage. `state.ts` extended with `setEntryCollapsed`
+  and `setEntryHeight`.
+- **New tests.** +45 unit tests. BDD E2E scenarios added in
+  `packages/app/e2e/app-dock.spec.ts`.
