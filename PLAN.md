@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-04-27 | ~377 commits | Tests: 1915 pass, 9 skip, 3 flaky-isolation | **v0.9.77** (Phase 35 shipped)
+> Last updated: 2026-05-23 | ~387 commits | Tests: 1982 pass, 12 skip, 0 flaky | **v0.9.82** (Phase 42 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -663,7 +663,22 @@ Natural follow-on to the marketplace pivot (v0.9.64) + the new git-repo catalog 
 
 CRDT/OT implementation for collaborative real-time editing of shared documents in MCP apps. Design-only as ADR-005 today. Large effort.
 
-### Phase 42: Windows Code-Signing + Store Submission
+### Phase 42: App Dock Prototype ✅
+
+Detail: `docs/plans/phase-42-spec.md`
+Roadmap context: `docs/plans/mcp-apps-overhaul-roadmap.md`
+ADR: `docs/adr/009-app-dock.md`
+
+Shipped v0.9.82. Feature-flagged right-side App Dock that hosts one MCP app at a time
+as a sibling to the session side panel. Key deliverables: `app-dock/` component tree,
+`experimental.app_dock` config flag, Ctrl+\\ keyboard shortcut, workspace-scoped
+localStorage persistence, iframe-preservation via CSS `display:none`, Session Stats
+as the prototype built-in. +18 new unit tests (534 total in packages/app).
+Deviations from spec: `dock.test.tsx` tests component behaviour via `createRoot` rather
+than DOM render (Bun resolves solid-js/web to server build in the test environment;
+DOM assertions covered by Playwright e2e). See phase-42-spec.md §Verification checklist.
+
+### Phase 42b: Windows Code-Signing + Store Submission
 
 Sign the `.exe` installer with an EV certificate, submit to Microsoft Store (or partner channels) to avoid SmartScreen warnings. Medium effort + cert-procurement cost.
 

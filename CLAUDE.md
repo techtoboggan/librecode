@@ -136,6 +136,13 @@ cd packages/librecode && bun test test/config/  # test a directory
 - Migration naming: `YYYYMMDDHHMMSS_description/migration.sql`
 - No direct SQLite queries outside `src/storage/` — use Drizzle ORM.
 
+### App Dock (ADR-009)
+
+MCP apps live in the right-side App Dock (`packages/app/src/components/app-dock/`).
+The session tab strip is session-scoped only — do not add MCP apps as
+tabs there. The dock is feature-flagged via `experimental.app_dock` in
+`librecode.jsonc` while Phases 42–51 land.
+
 ### SolidJS: Suspense-safe state changes (MANDATORY inside the session route)
 
 Four incidents so far: v0.9.54 tab switches, v0.9.58 first app pin, v0.9.70
