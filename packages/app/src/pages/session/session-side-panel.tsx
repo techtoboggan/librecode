@@ -59,6 +59,11 @@ export function SessionSidePanel(props: {
   const globalSDK = useGlobalSDK()
   const { params, sessionKey, tabs, view } = useSessionLayout()
 
+  // ── Dock-enabled flag ─────────────────────────────────────────────────────────
+  // When the dock is on, the Apps tab is hidden (Phase 45). Users who haven't
+  // flipped `experimental.app_dock` see zero change from v0.9.84.
+  const dockEnabled = () => sync.data.config?.experimental?.app_dock === true
+
   // ── Pinned MCP app tabs (state shared via PinnedAppsContext) ─────────────────
   const pinnedAppsCtx = usePinnedApps()
   const pinnedApps = pinnedAppsCtx.pinned
@@ -205,6 +210,17 @@ export function SessionSidePanel(props: {
     openedTabs().filter((tab) => !tab.startsWith("mcp-app:") && !tab.startsWith("port:")),
   )
 
+  // Phase 45 — if the user had `activeTab = "apps"` persisted and then enables
+  // the dock flag, the Apps tab disappears but the stored active value stays as
+  // "apps" (no Tabs.Trigger renders for it). Redirect to "activity" so something
+  // is visible. Runs at most once per mount cycle; subsequent tab changes are
+  // driven by the user.
+  createEffect(() => {
+    if (!dockEnabled()) return
+    if (tabState.activeTab() !== "apps") return
+    void startTransition(() => tabs().setActive("activity"))
+  })
+
   const fileTreeTab = () => layout.fileTree.tab()
 
   const setFileTreeTabValue = (value: string) => {
@@ -325,9 +341,11 @@ export function SessionSidePanel(props: {
                           </div>
                         </Tabs.Trigger>
                       </Show>
-                      <Tabs.Trigger value="apps">
-                        <div>{language.t("session.tab.apps")}</div>
-                      </Tabs.Trigger>
+                      <Show when={!dockEnabled()}>
+                        <Tabs.Trigger value="apps">
+                          <div>{language.t("session.tab.apps")}</div>
+                        </Tabs.Trigger>
+                      </Show>
                       <Tabs.Trigger value="activity">
                         <div>{language.t("session.tab.activity")}</div>
                       </Tabs.Trigger>
@@ -431,16 +449,18 @@ export function SessionSidePanel(props: {
                     </Tabs.Content>
                   </Show>
 
-                  <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
-                    <Show when={activeTab() === "apps"}>
-                      <McpAppsTab
-                        pinnedUris={pinnedApps().map((a) => a.uri)}
-                        onPin={pinApp}
-                        onUnpin={unpinApp}
-                        sessionID={params.id}
-                      />
-                    </Show>
-                  </Tabs.Content>
+                  <Show when={!dockEnabled()}>
+                    <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
+                      <Show when={activeTab() === "apps"}>
+                        <McpAppsTab
+                          pinnedUris={pinnedApps().map((a) => a.uri)}
+                          onPin={pinApp}
+                          onUnpin={unpinApp}
+                          sessionID={params.id}
+                        />
+                      </Show>
+                    </Tabs.Content>
+                  </Show>
 
                   {/*
                     Pinned MCP-app panes: Kobalte Tabs.Content with
