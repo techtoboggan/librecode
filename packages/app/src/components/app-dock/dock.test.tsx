@@ -25,7 +25,9 @@
 import { describe, expect, test } from "bun:test"
 import { createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
-import { defaultDockState, addEntry, removeEntry, toggleVisibility, setWidth } from "./state"
+import { defaultDockState, addEntry, removeEntry, toggleVisibility, setWidth, setEntryCollapsed } from "./state"
+import { reorderEntriesByUri } from "./reorder"
+import { paneHeight, applyDividerDrag, PANE_MIN_HEIGHT, PANE_HEADER_HEIGHT } from "./sizing"
 import { DOCK_MIN_WIDTH, DOCK_MAX_WIDTH, DOCK_DEFAULT_WIDTH, type DockState } from "./types"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 
@@ -143,5 +145,113 @@ describe("AppDock reactive width updates", () => {
 
   test("default width is DOCK_DEFAULT_WIDTH", () => {
     expect(defaultDockState().width).toBe(DOCK_DEFAULT_WIDTH)
+  })
+})
+
+// ── Phase 43: multi-pane logic ─────────────────────────────────────────────────
+
+const APP_A: McpAppResource = { server: "s", name: "A", uri: "ui://a" }
+const APP_B: McpAppResource = { server: "s", name: "B", uri: "ui://b" }
+const APP_C: McpAppResource = { server: "s", name: "C", uri: "ui://c" }
+
+describe("AppDock multi-pane state", () => {
+  test("adding multiple entries creates multiple panes in order", () => {
+    let s = defaultDockState()
+    s = addEntry(s, { uri: APP_A.uri, app: APP_A })
+    s = addEntry(s, { uri: APP_B.uri, app: APP_B })
+    s = addEntry(s, { uri: APP_C.uri, app: APP_C })
+    expect(s.entries).toHaveLength(3)
+    expect(s.entries.map((e) => e.uri)).toEqual(["ui://a", "ui://b", "ui://c"])
+  })
+
+  test("N panes produce N-1 divider slots (idx < length-1)", () => {
+    let s = defaultDockState()
+    s = addEntry(s, { uri: APP_A.uri, app: APP_A })
+    s = addEntry(s, { uri: APP_B.uri, app: APP_B })
+    s = addEntry(s, { uri: APP_C.uri, app: APP_C })
+    // dividers are shown for idx 0 and 1 (not for last idx 2)
+    const dividerCount = s.entries.filter((_, idx) => idx < s.entries.length - 1).length
+    expect(dividerCount).toBe(2)
+  })
+
+  test("collapsed pane takes only header height in paneHeight()", () => {
+    let s = defaultDockState()
+    s = addEntry(s, { uri: APP_A.uri, app: APP_A })
+    s = setEntryCollapsed(s, APP_A.uri, true)
+    expect(paneHeight(s, APP_A.uri, 400)).toBe(PANE_HEADER_HEIGHT)
+  })
+
+  test("non-collapsed pane gets expanded height", () => {
+    let s = defaultDockState()
+    s = addEntry(s, { uri: APP_A.uri, app: APP_A })
+    expect(paneHeight(s, APP_A.uri, 400)).toBeGreaterThan(PANE_HEADER_HEIGHT)
+  })
+
+  test("collapse toggle via setEntryCollapsed doesn't lose other entries", () => {
+    createRoot((dispose) => {
+      const [store, setStore] = createStore<DockState>(
+        addEntry(addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A }), { uri: APP_B.uri, app: APP_B }),
+      )
+
+      setStore(setEntryCollapsed(store as DockState, APP_A.uri, true))
+      expect(store.entries).toHaveLength(2)
+      expect(store.entries.find((e) => e.uri === APP_A.uri)?.collapsed).toBe(true)
+      expect(store.entries.find((e) => e.uri === APP_B.uri)?.collapsed).toBeFalsy()
+
+      dispose()
+    })
+  })
+
+  test("reorder updates entry order without losing entries", () => {
+    createRoot((dispose) => {
+      let s = addEntry(addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A }), { uri: APP_B.uri, app: APP_B })
+      s = reorderEntriesByUri(s, APP_B.uri, APP_A.uri)
+      expect(s.entries.map((e) => e.uri)).toEqual(["ui://b", "ui://a"])
+      dispose()
+    })
+  })
+
+  test("divider drag adjusts heights of adjacent panes", () => {
+    let s = addEntry(addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A }), { uri: APP_B.uri, app: APP_B })
+    s = applyDividerDrag(s, APP_A.uri, APP_B.uri, 50, 400)
+    expect(s.entries[0].heightPx).toBe(250) // 200 + 50
+    expect(s.entries[1].heightPx).toBe(150) // 200 - 50
+  })
+
+  test("pane heights survive collapse + expand cycle", () => {
+    createRoot((dispose) => {
+      const [store, setStore] = createStore<DockState>(addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A }))
+
+      const beforeH = paneHeight(store as DockState, APP_A.uri, 400)
+      setStore(setEntryCollapsed(store as DockState, APP_A.uri, true))
+      expect(paneHeight(store as DockState, APP_A.uri, 400)).toBe(PANE_HEADER_HEIGHT)
+      setStore(setEntryCollapsed(store as DockState, APP_A.uri, false))
+      // After un-collapse, explicit heightPx was not set so we get equal share again
+      expect(paneHeight(store as DockState, APP_A.uri, 400)).toBe(beforeH)
+
+      dispose()
+    })
+  })
+
+  test("pane URI array is stable across collapse (no new entries, just flag changes)", () => {
+    createRoot((dispose) => {
+      const [store, setStore] = createStore<DockState>(
+        addEntry(addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A }), { uri: APP_B.uri, app: APP_B }),
+      )
+
+      const urisBefore = (store as DockState).entries.map((e) => e.uri)
+      setStore(setEntryCollapsed(store as DockState, APP_A.uri, true))
+      const urisAfter = (store as DockState).entries.map((e) => e.uri)
+      expect(urisAfter).toEqual(urisBefore)
+
+      dispose()
+    })
+  })
+
+  test("minimum pane count for divider is 2", () => {
+    const s = addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A })
+    // Single pane → no dividers needed
+    const dividerCount = s.entries.filter((_, idx) => idx < s.entries.length - 1).length
+    expect(dividerCount).toBe(0)
   })
 })

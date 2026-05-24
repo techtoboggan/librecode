@@ -1,30 +1,60 @@
-import { Show, createSignal, onCleanup, type JSX } from "solid-js"
+import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { DragDropProvider, DragDropSensors, closestCenter } from "@thisbeyond/solid-dnd"
+import type { DragEvent } from "@thisbeyond/solid-dnd"
+import { createDroppable } from "@thisbeyond/solid-dnd"
 import { McpAppPanel } from "@/components/mcp-app-panel"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 import { useAppDockState } from "./use-dock-state"
-import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH } from "./types"
+import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, type DockEntry } from "./types"
+import { PaneHeader } from "./pane-header"
+import { PaneDivider } from "./divider"
+import { AddAppPopover } from "./add-app-popover"
+import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
 
 export interface AppDockProps {
   sessionID?: string
   /**
-   * Called when the empty-state "Try it" button is clicked. The parent supplies a
-   * built-in app reference (typically Session Stats) so the dock doesn't need to
-   * reach into the built-in-apps registry directly.
+   * Supplied by the parent: used to populate the "Try it" CTA in the
+   * empty state. Phase 42 compatibility — dock does not need to reach
+   * into the built-in-apps registry directly.
    */
   exampleApp?: McpAppResource
 }
 
 /**
- * Right-side App Dock pane.
+ * Right-side App Dock pane — Phase 43 multi-pane edition.
  *
- * ADR-006 / iframe preservation: visibility toggling uses CSS `display:none`
- * rather than conditional unmount. The McpAppPanel iframe stays alive across
- * hide/show cycles so the AppBridge, postMessage transport, and accumulated
- * app state all survive a Ctrl+\ toggle.
+ * Displays N stacked panes, each hosting a McpAppPanel iframe.
+ * Supports:
+ *   - Drag-to-reorder via @thisbeyond/solid-dnd
+ *   - Per-pane collapse (iframe preserved via display:none)
+ *   - Horizontal divider drag to resize adjacent panes
+ *   - "+ Add" popover for adding new apps
+ *
+ * ADR-006 / iframe preservation:
+ *   The outer wrapper uses display:none (not unmount) for dock
+ *   visibility. Collapse also uses display:none on the pane body.
+ *   Reorder uses <For> keyed on stable URI strings so iframes
+ *   survive reordering without re-mount.
  */
 export function AppDock(props: AppDockProps): JSX.Element {
   const dock = useAppDockState()
   const [dragging, setDragging] = createSignal(false)
+  const [containerRef, setContainerRef] = createSignal<HTMLDivElement>()
+  const [availablePx, setAvailablePx] = createSignal(400)
+
+  // Measure the pane-list container height so paneHeight() can compute
+  // equal distributions. Updated whenever the container resizes.
+  createEffect(() => {
+    const el = containerRef()
+    if (!el) return
+    setAvailablePx(el.clientHeight)
+    const obs = new ResizeObserver(() => setAvailablePx(el.clientHeight))
+    obs.observe(el)
+    onCleanup(() => obs.disconnect())
+  })
+
+  // ── Dock-width resize handle ──────────────────────────────────────────────
 
   const onResizePointerDown = (e: PointerEvent) => {
     e.preventDefault()
@@ -35,8 +65,7 @@ export function AppDock(props: AppDockProps): JSX.Element {
 
   const onResizePointerMove = (e: PointerEvent) => {
     if (!dragging()) return
-    const newWidth = window.innerWidth - e.clientX
-    dock.resize(newWidth)
+    dock.resize(window.innerWidth - e.clientX)
   }
 
   const onResizePointerUp = (e: PointerEvent) => {
@@ -45,15 +74,23 @@ export function AppDock(props: AppDockProps): JSX.Element {
     setDragging(false)
   }
 
-  onCleanup(() => {
-    setDragging(false)
-  })
+  onCleanup(() => setDragging(false))
 
-  const entry = () => dock.state().entries[0]
+  // ── Drag-to-reorder ───────────────────────────────────────────────────────
+
+  const handleDragOver = (event: DragEvent) => {
+    const { draggable: d, droppable } = event
+    if (!d || !droppable) return
+    dock.reorder(String(d.id), String(droppable.id))
+  }
+
+  // Derived: stable array of URIs for <For> keying (avoids iframe remount
+  // on reorder — see Pitfall #1 in phase-43-spec.md).
+  const paneUris = () => dock.state().entries.map((e) => e.uri)
+
+  const entryByUri = (uri: string): DockEntry | undefined => dock.state().entries.find((e) => e.uri === uri)
 
   return (
-    // Outer wrapper: always in DOM when dock feature is active, hidden via
-    // display:none when visibility === "hidden". This preserves the iframe.
     <div
       data-testid="app-dock"
       style={{
@@ -74,16 +111,49 @@ export function AppDock(props: AppDockProps): JSX.Element {
         onPointerUp={onResizePointerUp}
       />
 
-      {/* Content area */}
-      <Show when={entry()} fallback={<EmptyDockState exampleApp={props.exampleApp} onAdd={(app) => dock.add(app)} />}>
-        {(e) => (
-          <DockPane
-            entry={{ server: e().app.server, uri: e().app.uri, name: e().app.name }}
-            sessionID={props.sessionID}
-            onRemove={() => dock.remove(e().uri)}
-          />
-        )}
-      </Show>
+      {/* Content area — pane list or empty state */}
+      <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Show
+          when={dock.state().entries.length > 0}
+          fallback={<EmptyDockState exampleApp={props.exampleApp} onAdd={(app) => dock.add(app)} />}
+        >
+          {/* DragDropProvider must NOT wrap the AddAppPopover — see Pitfall #3. */}
+          <DragDropProvider onDragOver={handleDragOver} collisionDetector={closestCenter}>
+            <DragDropSensors />
+            <div ref={setContainerRef} class="flex flex-col flex-1 min-h-0 overflow-y-auto">
+              <For each={paneUris()}>
+                {(uri, idx) => {
+                  const entry = () => entryByUri(uri)
+                  return (
+                    <Show when={entry()}>
+                      {(e) => (
+                        <>
+                          <DockPane entry={e()} sessionID={props.sessionID} availablePx={availablePx()} />
+                          <Show when={idx() < dock.state().entries.length - 1}>
+                            <PaneDivider
+                              onResize={(delta) => {
+                                const entries = dock.state().entries
+                                const below = entries[idx() + 1]
+                                if (below) dock.applyDividerDrag(uri, below.uri, delta, availablePx())
+                              }}
+                            />
+                          </Show>
+                        </>
+                      )}
+                    </Show>
+                  )
+                }}
+              </For>
+            </div>
+          </DragDropProvider>
+        </Show>
+      </div>
+
+      {/* Footer — add button always visible so user can add more apps.
+          Rendered OUTSIDE the DragDropProvider to avoid click interception. */}
+      <div class="shrink-0 border-t border-border-weak-base">
+        <AddAppPopover />
+      </div>
     </div>
   )
 }
@@ -116,32 +186,40 @@ function EmptyDockState(props: EmptyDockStateProps): JSX.Element {
 }
 
 interface DockPaneProps {
-  entry: { server: string; uri: string; name: string }
+  entry: DockEntry
   sessionID?: string
-  onRemove: () => void
+  availablePx: number
 }
 
 function DockPane(props: DockPaneProps): JSX.Element {
+  const dock = useAppDockState()
+  // Register this pane as a drop target so drag-over events populate
+  // event.droppable.id with the pane's URI.
+  const droppable = createDroppable(props.entry.uri)
+
+  const height = () => paneHeight(dock.state(), props.entry.uri, props.availablePx)
+
   return (
-    <div class="flex flex-col h-full min-h-0">
-      <div class="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border-weak-base">
-        <span class="text-12-medium text-text-strong truncate">{props.entry.name}</span>
-        <button
-          data-testid="dock-remove-button"
-          type="button"
-          class="text-text-weak hover:text-text-base shrink-0 ml-2"
-          aria-label={`Remove ${props.entry.name} from dock`}
-          onClick={props.onRemove}
-        >
-          ×
-        </button>
-      </div>
-      <div class="flex-1 min-h-0 overflow-hidden">
+    <div
+      ref={droppable.ref}
+      data-testid={`dock-pane-${props.entry.uri}`}
+      style={{ height: `${height()}px`, "min-height": `${PANE_MIN_HEIGHT}px` }}
+      class="flex flex-col overflow-hidden shrink-0"
+    >
+      <PaneHeader
+        uri={props.entry.uri}
+        name={props.entry.app.name}
+        collapsed={props.entry.collapsed ?? false}
+        onToggleCollapse={() => dock.setCollapsed(props.entry.uri, !(props.entry.collapsed ?? false))}
+        onRemove={() => dock.remove(props.entry.uri)}
+      />
+      {/* display:none keeps the iframe alive (state preserved across collapse). */}
+      <div class="flex-1 min-h-0 overflow-hidden" style={{ display: props.entry.collapsed ? "none" : "flex" }}>
         <McpAppPanel
-          server={props.entry.server}
-          uri={props.entry.uri}
+          server={props.entry.app.server}
+          uri={props.entry.app.uri}
           sessionID={props.sessionID}
-          appName={props.entry.name}
+          appName={props.entry.app.name}
           class="h-full"
         />
       </div>
