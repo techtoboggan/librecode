@@ -1,7 +1,7 @@
 # ADR-009: App Dock as first-class layout for MCP apps
 
 Date: 2026-05-23
-Status: Multi-pane (Phase 43)
+Status: Legacy migration (Phase 44)
 
 ## Context
 
@@ -122,3 +122,26 @@ Shipped in v0.9.83. Extends the prototype to full multi-pane behaviour:
   and `setEntryHeight`.
 - **New tests.** +45 unit tests. BDD E2E scenarios added in
   `packages/app/e2e/app-dock.spec.ts`.
+
+## Phase 44 — Legacy pinned-apps migration
+
+Shipped in v0.9.84. Bridges users who pinned apps under the old tab-strip
+model before the dock existed.
+
+- **Migration contract.** On first `AppDockProvider` mount in each
+  workspace, the provider reads the legacy `pinned-apps` context (one-shot
+  via `untrack`). If the dock is empty and legacy pins exist, those apps
+  are seeded into the dock in pin order and the dock is set to `visible`.
+  A success toast confirms: "Restored N apps from your tab pins".
+- **Idempotent flag.** `DockState.migratedFromPinnedAt?: number` records
+  the timestamp of the migration. Once set, the provider never re-runs
+  migration for that workspace — even if the user later removes migrated
+  apps.
+- **Manual setup wins.** If the dock already has entries at migration time
+  (user added apps manually before the migration ran), the legacy pins are
+  NOT imported. The flag is still set to prevent future checks.
+- **Legacy storage untouched.** `context/pinned-apps.tsx` is read-only in
+  this phase. Both systems coexist until Phase 48 removes the legacy strip.
+- **Pure helper.** `migration.ts` contains `planLegacyMigration`,
+  `markMigrated`, and `migrationCount` — all pure functions with no
+  Solid or DOM dependencies. 23 unit tests cover all branches.
