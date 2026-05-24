@@ -65,7 +65,12 @@ export function migrateDockState(raw: unknown): DockState {
     })
   }
 
-  return { visibility, width, entries }
+  // Phase 44 — treat 0 as "not migrated": a timestamp of 0 would mean
+  // "migrated at the Unix epoch", which indicates a serialisation bug.
+  const migratedFromPinnedAt =
+    typeof obj.migratedFromPinnedAt === "number" && obj.migratedFromPinnedAt > 0 ? obj.migratedFromPinnedAt : undefined
+
+  return { visibility, width, entries, migratedFromPinnedAt }
 }
 
 /** Add an entry. No-op if URI already present. Returns new state. */

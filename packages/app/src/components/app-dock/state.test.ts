@@ -234,6 +234,36 @@ describe("setEntryHeight", () => {
   })
 })
 
+describe("migrateDockState Phase 44 fields", () => {
+  test("reads migratedFromPinnedAt: 1700000000 from raw input", () => {
+    const result = migrateDockState({
+      visibility: "hidden",
+      width: 320,
+      entries: [],
+      migratedFromPinnedAt: 1700000000,
+    })
+    expect(result.migratedFromPinnedAt).toBe(1700000000)
+  })
+
+  test("defaults migratedFromPinnedAt to undefined when field is missing", () => {
+    const result = migrateDockState({ visibility: "hidden", width: 320, entries: [] })
+    expect(result.migratedFromPinnedAt).toBeUndefined()
+  })
+
+  test("defaults migratedFromPinnedAt to undefined when value is 0 or negative (defensive)", () => {
+    const result0 = migrateDockState({ visibility: "hidden", width: 320, entries: [], migratedFromPinnedAt: 0 })
+    expect(result0.migratedFromPinnedAt).toBeUndefined()
+
+    const resultNeg = migrateDockState({
+      visibility: "hidden",
+      width: 320,
+      entries: [],
+      migratedFromPinnedAt: -1,
+    })
+    expect(resultNeg.migratedFromPinnedAt).toBeUndefined()
+  })
+})
+
 describe("migrateDockState Phase 43 fields", () => {
   test("reads collapsed: true from raw input", () => {
     const result = migrateDockState({
