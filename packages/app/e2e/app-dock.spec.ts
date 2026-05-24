@@ -1,5 +1,5 @@
 /**
- * App Dock E2E tests (Phase 42 prototype + Phase 43 multi-pane)
+ * App Dock E2E tests (Phase 42 prototype + Phase 43 multi-pane + Phase 44 migration)
  *
  * These tests require `experimental.app_dock = true` in the session config.
  * The `withProject` fixture accepts `extraConfig` which is merged into the
@@ -27,6 +27,7 @@
  */
 
 import { test, expect } from "./fixtures"
+import { Given } from "./bdd/given"
 
 const DOCK_SELECTOR = '[data-testid="app-dock"]'
 const DOCK_EMPTY_SELECTOR = '[data-testid="dock-empty-state"]'
@@ -341,6 +342,62 @@ test("Phase 43: multi-pane state persists after reload", async ({ page, withProj
       await expect(dock).toBeVisible({ timeout: 5000 })
       await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
       await expect(page.locator(`[data-testid="pane-header-${GRAPH_URI}"]`)).toBeVisible()
+    },
+    { extraConfig: appDockConfig },
+  )
+})
+
+// ── Phase 44: legacy pinned-apps migration scenarios ──────────────────────────
+
+test("Phase 44: legacy pinned apps migrate to dock on first open", { tag: "@smoke" }, async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession, directory }) => {
+      // Seed 2 legacy pinned apps and clear the migration flag so the
+      // migration runs on next page load.
+      await Given.workspaceHasLegacyPinnedApps(page, directory, [
+        { server: "__builtin__", name: "Session Stats", uri: STATS_URI },
+        { server: "__builtin__", name: "Activity Graph", uri: GRAPH_URI },
+      ])
+
+      // Navigate again — migration runs on AppDockProvider mount.
+      await gotoSession()
+
+      // Dock should auto-open with both apps in pin order.
+      const dock = page.locator(DOCK_SELECTOR)
+      await expect(dock).toBeVisible({ timeout: 5000 })
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+      await expect(page.locator(`[data-testid="pane-header-${GRAPH_URI}"]`)).toBeVisible()
+
+      // Toast confirms the restoration.
+      await expect(page.getByText("Restored 2 apps from your tab pins")).toBeVisible({ timeout: 3000 })
+    },
+    { extraConfig: appDockConfig },
+  )
+})
+
+test("Phase 44: migration runs at most once per workspace", async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession, directory }) => {
+      // Seed legacy pins so migration fires.
+      await Given.workspaceHasLegacyPinnedApps(page, directory, [
+        { server: "__builtin__", name: "Session Stats", uri: STATS_URI },
+        { server: "__builtin__", name: "Activity Graph", uri: GRAPH_URI },
+      ])
+
+      // First load — migration seeds both apps.
+      await gotoSession()
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+      await expect(page.locator(`[data-testid="pane-header-${GRAPH_URI}"]`)).toBeVisible()
+
+      // Remove Session Stats.
+      await page.locator(`[data-testid="pane-remove-${STATS_URI}"]`).click()
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).not.toBeAttached({ timeout: 3000 })
+
+      // Reload — migration must NOT re-add the removed app.
+      await gotoSession()
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).not.toBeAttached({ timeout: 3000 })
+      // Activity Graph was not removed, so it should still be present.
+      await expect(page.locator(`[data-testid="pane-header-${GRAPH_URI}"]`)).toBeVisible({ timeout: 3000 })
     },
     { extraConfig: appDockConfig },
   )
