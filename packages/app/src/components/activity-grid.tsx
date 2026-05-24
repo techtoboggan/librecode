@@ -20,11 +20,15 @@
  *   - Live updates: activity.updated SSE event via useGlobalSDK event bus
  */
 
-import { createEffect, createResource, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show, useContext, type JSX } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import type { AgentActivity, EventActivityUpdated, FileActivity } from "@librecode/sdk/v2/client"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
+import { DockContext } from "@/components/app-dock"
+import { BUILTIN_URI_ACTIVITY_GRAPH } from "@/components/mcp-app-panel"
+import type { McpAppResource } from "@/components/mcp-app-panel"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -176,6 +180,50 @@ function shortPath(path: string): string {
   return `…/${parts.slice(-2).join("/")}`
 }
 
+// ─── View-as-graph helpers ────────────────────────────────────────────────────
+
+/** Canonical shape for the Activity Graph built-in app (server = "__builtin__"). */
+const ACTIVITY_GRAPH_APP: McpAppResource = {
+  server: "__builtin__",
+  name: "Activity Graph",
+  uri: BUILTIN_URI_ACTIVITY_GRAPH,
+  description: "Live visualization of file edits and agent activity",
+}
+
+/**
+ * Open the Activity Graph in the dock.
+ *
+ * Exported for unit tests — mirrors the inline handler in ActivityTab without
+ * coupling to Solid's context APIs.
+ */
+export function openActivityGraph(
+  ctx: { add: (app: McpAppResource) => void; toggle: () => void; state: () => { visibility: string } },
+  isInDock: boolean,
+): void {
+  if (!isInDock) ctx.add(ACTIVITY_GRAPH_APP)
+  if (ctx.state().visibility === "hidden") ctx.toggle()
+}
+
+/** "View as graph →" button rendered inside the Timeline tab when dock is enabled. */
+function ViewAsGraphButton(props: { isInDock: boolean; onAdd: () => void }): JSX.Element {
+  return (
+    <div class="flex items-center justify-end px-3 py-2 shrink-0 border-b border-border-weak-base">
+      <button
+        type="button"
+        data-testid="timeline-view-as-graph"
+        class="text-11-regular text-text-weak hover:text-text-base transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={props.isInDock}
+        onClick={props.onAdd}
+        title={props.isInDock ? "Activity Graph is already in the dock" : "Add Activity Graph to the dock"}
+      >
+        <Show when={props.isInDock} fallback={<span>View as graph →</span>}>
+          <span>In dock</span>
+        </Show>
+      </button>
+    </div>
+  )
+}
+
 // ─── ActivityTab — the side-panel tab content ─────────────────────────────────
 
 export interface ActivityTabProps {
@@ -185,10 +233,21 @@ export interface ActivityTabProps {
 export function ActivityTab(props: ActivityTabProps): JSX.Element {
   const sdk = useSDK()
   const globalSDK = useGlobalSDK()
+  const sync = useSync()
+  // DockContext is always provided (AppDockProvider unconditionally mounts in session.tsx).
+  // Use useContext directly so tests can inject a mock via DockContext.Provider.
+  const dockCtx = useContext(DockContext)
+
+  const dockEnabled = () => sync.data.config?.experimental?.app_dock === true
+  const isGraphInDock = () =>
+    dockEnabled() && !!dockCtx && dockCtx.state().entries.some((e) => e.uri === BUILTIN_URI_ACTIVITY_GRAPH)
+  const onAddGraph = () => {
+    if (dockCtx) openActivityGraph(dockCtx, isGraphInDock())
+  }
 
   const [store, setStore] = createStore<ActivityState>({ files: {}, agents: {} })
 
-  // Initial fetch
+  // Initial fetch — keyed on sessionID (mount-time stable per session lifecycle).
   const [initial] = createResource(
     () => props.sessionID,
     (id) => fetchActivity(sdk.url, sdk.directory, id),
@@ -215,12 +274,14 @@ export function ActivityTab(props: ActivityTabProps): JSX.Element {
 
   return (
     <div class="w-full h-full flex flex-col overflow-hidden" data-component="activity-tab">
+      <Show when={dockEnabled()}>
+        <ViewAsGraphButton isInDock={isGraphInDock()} onAdd={onAddGraph} />
+      </Show>
       <Show when={initial.loading && Object.keys(store.files).length === 0}>
         <div class="flex-1 flex items-center justify-center">
           <span class="text-12-regular text-text-weak animate-pulse">Loading activity…</span>
         </div>
       </Show>
-
       <Show when={!initial.loading || Object.keys(store.files).length > 0}>
         <AgentStatusBar agents={store.agents} />
         <FileGrid files={store.files} />
