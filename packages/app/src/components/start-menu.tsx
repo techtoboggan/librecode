@@ -1,11 +1,13 @@
 import { Button } from "@librecode/ui/button"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { Icon } from "@librecode/ui/icon"
-import { createEffect, createResource, createSignal, For, onCleanup, Show, startTransition } from "solid-js"
+import { createEffect, createResource, createSignal, For, onCleanup, Show, startTransition, useContext } from "solid-js"
 import { Portal } from "solid-js/web"
 import { useServer } from "@/context/server"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
+import { useSync } from "@/context/sync"
+import { DockContext } from "@/components/app-dock"
 import { MarketplaceDialog } from "./marketplace-dialog"
 
 type AppEntry = {
@@ -26,6 +28,15 @@ export function StartMenu(props: StartMenuProps) {
   const globalSDK = useGlobalSDK()
   const language = useLanguage()
   const dialog = useDialog()
+  const sync = useSync()
+  // DockContext is always provided (AppDockProvider is always mounted in session.tsx).
+  // Use useContext directly rather than useAppDockState() so we get the value without
+  // the not-inside-provider throw — belt-and-suspenders guard for future mount changes.
+  const dockCtx = useContext(DockContext)
+  const dockEnabled = () => sync.data.config?.experimental?.app_dock === true
+  // An app is "in dock" when the dock flag is on AND that app's URI is present in the
+  // dock's entry list. The dock context is stable at mount; state() is reactive.
+  const inDock = (app: AppEntry) => dockEnabled() && (dockCtx?.state().entries ?? []).some((e) => e.uri === app.uri)
   const [open, setRawOpen] = createSignal(false)
   const [anchor, setAnchor] = createSignal<HTMLButtonElement>()
 
@@ -172,16 +183,25 @@ export function StartMenu(props: StartMenuProps) {
                   <For each={builtinApps()}>
                     {(app) => (
                       <button
-                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
+                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        disabled={inDock(app)}
                         onClick={() => {
+                          if (inDock(app)) return
                           setOpen(false)
                           props.onLaunch(app)
                         }}
                       >
-                        <div class="text-13-medium text-text-base">{app.name}</div>
-                        <Show when={app.description}>
-                          <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
-                        </Show>
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="text-13-medium text-text-base">{app.name}</div>
+                            <Show when={app.description}>
+                              <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
+                            </Show>
+                          </div>
+                          <Show when={inDock(app)}>
+                            <span class="text-10-regular text-text-weaker shrink-0">in dock</span>
+                          </Show>
+                        </div>
                       </button>
                     )}
                   </For>
@@ -194,19 +214,28 @@ export function StartMenu(props: StartMenuProps) {
                   <For each={mcpApps()}>
                     {(app) => (
                       <button
-                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer"
+                        class="w-full text-left px-2 py-2 rounded-sm hover:bg-surface-raised-base transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        disabled={inDock(app)}
                         onClick={() => {
+                          if (inDock(app)) return
                           setOpen(false)
                           props.onLaunch(app)
                         }}
                       >
-                        <div class="flex items-center gap-2">
-                          <span class="text-13-medium text-text-base">{app.name}</span>
-                          <span class="text-10-regular text-text-weaker">{app.server}</span>
+                        <div class="flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="flex items-center gap-2">
+                              <span class="text-13-medium text-text-base">{app.name}</span>
+                              <span class="text-10-regular text-text-weaker">{app.server}</span>
+                            </div>
+                            <Show when={app.description}>
+                              <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
+                            </Show>
+                          </div>
+                          <Show when={inDock(app)}>
+                            <span class="text-10-regular text-text-weaker shrink-0">in dock</span>
+                          </Show>
                         </div>
-                        <Show when={app.description}>
-                          <div class="text-11-regular text-text-weak mt-0.5">{app.description}</div>
-                        </Show>
                       </button>
                     )}
                   </For>
