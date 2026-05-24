@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-24 | ~405 commits | Tests: 2058 pass, 12 skip, 0 flaky | **v0.9.84** (Phase 44 shipped)
+> Last updated: 2026-05-24 | ~413 commits | Tests: 2074 pass, 12 skip, 0 flaky | **v0.9.85** (Phase 45 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,28 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 45: Discovery Consolidation ✅
+
+Detail: `docs/plans/phase-45-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 45 changelog appended in-place)
+
+Shipped v0.9.85. When `experimental.app_dock = true`, the Start menu
+becomes the single canonical entry point for adding apps: the session
+strip's "Apps" tab is hidden (Trigger + Content both under
+`<Show when={!dockEnabled()}>`), and Start-menu launches route to
+`dock.add()` instead of `pinnedApps.pin() + tabs.open()`. Added "in dock"
+badges + disabled state for apps already present in the dock. A redirect
+effect in `session-side-panel.tsx` handles the edge case where the active
+tab was "apps" when the flag first enabled. Flag-off users see zero change
+from v0.9.84.
+New files: `start-menu.test.tsx` (+16 unit tests). Modified: `start-menu.tsx`,
+`session-header.tsx`, `session-side-panel.tsx`, `app-dock/index.ts` (barrel),
+`e2e/app-dock.spec.ts` (+4 BDD E2E scenarios). Net: +20 tests.
+Deviations from spec: (1) "Browse marketplace" link was already present
+(v0.9.64's `MarketplaceDialog` button); no second link added. (2) Unit tests
+are pure-logic style (mirrors Phase 43/44 patterns) rather than mocked-context
+renders — DOM interaction covered by E2E.
 
 ### Phase 44: Legacy Pinned-Apps Migration ✅
 
