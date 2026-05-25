@@ -203,3 +203,43 @@ View-as-graph button.
 - **Tests.** +13 unit tests in `activity-grid.test.tsx`. +2 BDD E2E
   scenarios in `packages/app/e2e/app-dock.spec.ts` (Timeline label +
   View-as-graph flow).
+
+## Phase 47 — App lifecycle UX
+
+Each dock pane now shows a colored status dot and a ⋮ menu:
+
+**Status dot colors:**
+
+- Green: connected (or built-in — synthesized as always-connected)
+- Yellow + pulse: connecting (server hasn't reported yet, undefined in sync.data.mcp)
+- Amber: needs authentication
+- Red: failed (with error text in tooltip)
+- Gray: disabled
+
+**⋮ menu actions:**
+
+- **Reconnect** — visible when `status.recoverable === true` (failed or needs_auth).
+  Calls the new `POST /mcp/reconnect/:server` endpoint.
+- **View error** — visible when `status.kind === "failed"` AND error string is non-empty.
+  Replaces the iframe content with an inline error panel (display:none toggle preserves
+  the iframe bridge per ADR-006 / Phase 42 invariant). A "← Back to app" button restores.
+- **Remove from dock** — always visible.
+
+**New files:** `pane-status.ts`, `pane-status.test.ts`, `pane-status-dot.tsx`,
+`pane-menu.tsx`, `pane-menu.test.tsx`.
+
+**Modified:** `pane-header.tsx` (prop rename `name` → `appName`, new props),
+`dock.tsx` (`DockPane` adds `useSync()`, `deriveStatus()`, `viewingError` signal,
+`PaneErrorPanel`), `pane-header.test.tsx`, `dock.test.tsx`.
+
+**Backend:** `MCP.reconnect(name)` added to `packages/librecode/src/mcp/index.ts`.
+New route `POST /mcp/reconnect/:server` (`operationId: mcp.reconnect`) in
+`packages/librecode/src/server/routes/mcp.ts`. SDK regenerated.
+
+**Deferred to Phase 47b** (post-marketplace): Update available notifications,
+Open in settings deep-link, View logs.
+
+**Tests:** +16 unit tests (`pane-status.test.ts`), +17 tests (`pane-menu.test.tsx`),
++3 tests (`pane-header.test.tsx`), +4 tests (`dock.test.tsx`), +2 tests
+(`test/mcp/reconnect.test.ts`), +3 BDD E2E scenarios (`app-dock.spec.ts`).
+Total: +45 tests across 6 files.
