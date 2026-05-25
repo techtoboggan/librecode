@@ -909,6 +909,26 @@ function getAppResourceUri(tool: MCPToolDef): string | undefined {
 }
 
 /**
+ * Reconnect an MCP server — tear down any existing client and re-connect
+ * using the stored config. Throws if the server name is not found in config.
+ *
+ * This is the backend for `POST /mcp/reconnect/:server`. The frontend
+ * short-circuits for `__builtin__` servers before calling this.
+ */
+async function mcpReconnect(name: string): Promise<void> {
+  const cfg = await Config.get()
+  const config = cfg.mcp ?? {}
+  const mcp = config[name]
+  if (!mcp || !isMcpConfigured(mcp)) {
+    throw new Error(`No stored config for MCP server "${name}"`)
+  }
+  // Tear down any existing connection (status → disabled briefly, then overwritten by connect)
+  await disconnect(name).catch(() => {})
+  // Re-connect forcing enabled:true so disabled-by-config servers can also reconnect
+  await connect(name)
+}
+
+/**
  * Start OAuth authentication flow for an MCP server.
  * Returns the authorization URL that should be opened in a browser.
  */
@@ -1152,6 +1172,7 @@ export const MCP = {
   clients,
   connect,
   disconnect,
+  reconnect: mcpReconnect,
   tools,
   prompts,
   resources,

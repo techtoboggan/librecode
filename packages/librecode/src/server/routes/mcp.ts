@@ -187,6 +187,35 @@ export const McpRoutes = lazy(() =>
       },
     )
     .post(
+      "/reconnect/:server",
+      describeRoute({
+        summary: "Reconnect an MCP server",
+        description: "Tear down the existing connection (if any) and re-connect using the stored config.",
+        operationId: "mcp.reconnect",
+        responses: {
+          200: {
+            description: "Reconnect initiated",
+            content: {
+              "application/json": {
+                schema: resolver(z.object({ ok: z.literal(true) })),
+              },
+            },
+          },
+          ...errors(400, 404, 500),
+        },
+      }),
+      async (c) => {
+        const server = c.req.param("server")
+        if (!server) return c.json({ error: "missing server name" }, 400)
+        try {
+          await MCP.reconnect(server)
+          return c.json({ ok: true as const })
+        } catch (err) {
+          return c.json({ error: String(err) }, 500)
+        }
+      },
+    )
+    .post(
       "/:name/connect",
       describeRoute({
         description: "Connect an MCP server",
