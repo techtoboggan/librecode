@@ -377,6 +377,30 @@ const createPlatform = (): Platform => {
       return commands.checkAppExists(appName)
     },
 
+    // Phase 49 — detachable app windows
+    async openDetachedWindow({ server, uri, appName, dir }) {
+      await commands.openDetachedAppWindow(server, uri, appName, dir)
+    },
+
+    async closeDetachedWindow({ server, uri }) {
+      await commands.closeDetachedAppWindow(server, uri)
+    },
+
+    async focusDetachedWindow({ server, uri }) {
+      // open_detached_app_window focuses if the window already exists — reuse it.
+      await commands.openDetachedAppWindow(server, uri, server, "")
+    },
+
+    async invokeTauriEvent(name, payload) {
+      const { emit } = await import("@tauri-apps/api/event")
+      await emit(name, payload)
+    },
+
+    async listenTauriEvent(name, handler) {
+      const { listen } = await import("@tauri-apps/api/event")
+      return listen(name, (event) => handler(event.payload as Parameters<typeof handler>[0]))
+    },
+
     async readClipboardImage() {
       const image = await readImage().catch(() => null)
       if (!image) return null
