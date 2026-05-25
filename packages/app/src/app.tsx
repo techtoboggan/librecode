@@ -44,6 +44,7 @@ import { SettingsProvider } from "@/context/settings"
 import { TerminalProvider } from "@/context/terminal"
 import DirectoryLayout from "@/pages/directory-layout"
 import Layout from "@/pages/layout"
+import { DetachedAppShell } from "@/pages/detached"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 
@@ -285,6 +286,10 @@ export function AppInterface(props: {
               root={(routerProps) => <RouterRoot appChildren={props.children}>{routerProps.children}</RouterRoot>}
             >
               <Route path="/" component={HomeRoute} />
+              {/* Phase 49 — detached app window route. Rendered OUTSIDE DirectoryLayout
+                  so it is not wrapped in that layout's SDKProvider. DetachedAppShell
+                  provides its own SDKProvider via the ?dir query param. */}
+              <Route path="/detached/:server/:uri" component={DetachedAppShell} />
               <Route path="/:dir" component={DirectoryLayout}>
                 <Route path="/" component={SessionIndexRoute} />
                 <Route path="/session/:id?" component={SessionRoute} />

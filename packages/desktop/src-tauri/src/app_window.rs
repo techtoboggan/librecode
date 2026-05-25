@@ -47,11 +47,15 @@ impl Deref for DetachedAppWindow {
 impl DetachedAppWindow {
     /// Open a detached window for the given app. If one already exists
     /// with the same label, focuses it instead of creating a duplicate.
+    ///
+    /// `dir` is the workspace directory — passed as `?dir=<encoded>` query
+    /// param so the SolidJS detached shell can provide `SDKProvider`.
     pub fn open(
         app: &AppHandle,
         server: &str,
         uri: &str,
         app_name: &str,
+        dir: &str,
     ) -> Result<Self, tauri::Error> {
         let label = window_label(server, uri);
         if let Some(existing) = app.get_webview_window(&label) {
@@ -59,10 +63,11 @@ impl DetachedAppWindow {
             return Ok(Self(existing));
         }
 
-        // Compose the URL. URL-encode the URI for the path segment.
+        // Compose the URL. URL-encode the URI for the path segment; pass dir as query param.
         let encoded_server = urlencoding::encode(server);
         let encoded_uri = urlencoding::encode(uri);
-        let url = format!("/detached/{}/{}", encoded_server, encoded_uri);
+        let encoded_dir = urlencoding::encode(dir);
+        let url = format!("/detached/{}/{}?dir={}", encoded_server, encoded_uri, encoded_dir);
 
         let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App(url.into()))
             .title(format!("{} — LibreCode", app_name))

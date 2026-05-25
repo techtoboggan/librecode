@@ -19,7 +19,7 @@ export const commands = {
 	wslPath: (path: string, mode: { phase: "server_waiting" } | { phase: "done" } | null) => __TAURI_INVOKE<string>("wsl_path", { path, mode }),
 	resolveAppPath: (appName: string) => __TAURI_INVOKE<string | null>("resolve_app_path", { appName }),
 	openPath: (path: string, appName: string | null) => __TAURI_INVOKE<null>("open_path", { path, appName }),
-	openDetachedAppWindow: (server: string, uri: string, appName: string) => __TAURI_INVOKE<null>("open_detached_app_window", { server, uri, appName }),
+	openDetachedAppWindow: (server: string, uri: string, appName: string, dir: string) => __TAURI_INVOKE<null>("open_detached_app_window", { server, uri, appName, dir }),
 	closeDetachedAppWindow: (server: string, uri: string) => __TAURI_INVOKE<null>("close_detached_app_window", { server, uri }),
 	isDetachedAppWindowOpen: (server: string, uri: string) => __TAURI_INVOKE<boolean>("is_detached_app_window_open", { server, uri }),
 };

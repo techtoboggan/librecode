@@ -87,6 +87,18 @@ export type Platform = {
 
   /** Read image from clipboard (desktop only) */
   readClipboardImage?(): Promise<File | null>
+
+  /** Phase 49 — Tauri only. Opens a detached window for an MCP app. */
+  openDetachedWindow?(opts: { server: string; uri: string; appName: string; dir: string }): Promise<void>
+
+  /** Phase 49 — Tauri only. Closes a detached window if open. */
+  closeDetachedWindow?(opts: { server: string; uri: string }): Promise<void>
+
+  /** Phase 49 — Tauri only. Focuses a detached window (no-op if closed). */
+  focusDetachedWindow?(opts: { server: string; uri: string }): Promise<void>
+
+  /** Phase 49 — Tauri only. Emit a Tauri IPC event to all windows. */
+  invokeTauriEvent?(name: string, payload: unknown): Promise<void>
 }
 
 export type DisplayBackend = "auto" | "wayland"

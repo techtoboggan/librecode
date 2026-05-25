@@ -382,8 +382,9 @@ async fn open_detached_app_window(
     server: String,
     uri: String,
     app_name: String,
+    dir: String,
 ) -> Result<(), String> {
-    app_window::DetachedAppWindow::open(&app, &server, &uri, &app_name)
+    app_window::DetachedAppWindow::open(&app, &server, &uri, &app_name, &dir)
         .map_err(|e| e.to_string())?;
     Ok(())
 }
