@@ -4,6 +4,31 @@ All notable changes to LibreCode are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.89] - 2026-05-25
+
+### Added
+
+- **Detachable app windows (Desktop).** Click the ⤢ button on any
+  dock pane header to pop the app out into its own native window.
+  Windows persist position, size, and monitor across restarts via
+  `tauri-plugin-window-state`. Multi-monitor workflows now work —
+  put Multica on monitor 2 and the agent thread on monitor 1.
+
+### Changed
+
+- Detached apps re-mount when popped out. Apps that implement the
+  v0.9.62 state-relay protocol (Multica, Stats) survive without
+  losing state. Apps that don't will reset to defaults on detach.
+
+### Known limitations
+
+- Built-in apps (Session Stats, Activity Graph) cannot be detached
+  in v0.9.89 — deferred to a follow-up.
+- Web build does not support detach (browsers can't share the
+  SolidJS root across windows).
+
+---
+
 ## [0.9.88] - 2026-05-25
 
 ### Changed

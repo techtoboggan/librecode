@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-25 | ~439 commits | Tests: 2713 pass, 12 skip, 0 flaky | **v0.9.88** (Phase 48 shipped)
+> Last updated: 2026-05-25 | ~446 commits | Tests: 2765 pass, 12 skip, 0 flaky | **v0.9.89** (Phase 49 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,34 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 49: Detachable Tauri windows (v0.9.89) ✅
+
+Detail: `docs/plans/phase-49-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 49 changelog appended in-place)
+
+Each dock pane can now be popped out into its own native Tauri window. ⤢ button in
+the pane header opens a new window carrying the MCP app. Windows persist position,
+size, and monitor across restarts via `tauri-plugin-window-state`. The detached route
+provides `SDKProvider + SyncProvider` via `?dir=` query param. Re-attach works from
+the detached window header or the dock placeholder. Built-in apps deferred to Phase 50.
+
+| Item                                                                                                                 | Status |
+| -------------------------------------------------------------------------------------------------------------------- | ------ |
+| `app_window.rs`: DetachedAppWindow struct + `uri_hash` + `window_label`                                              | ✅     |
+| Three Tauri commands: `open_detached_app_window`, `close_detached_app_window`, `is_detached_app_window_open`         | ✅     |
+| Main-window close hook: closes all `detached-*` windows                                                              | ✅     |
+| `capabilities/default.json`: `core:webview:allow-create-webview-window`                                              | ✅     |
+| `DockEntry.detached?: boolean` + `detachEntry`/`reattachEntry` pure helpers                                          | ✅     |
+| `AppDockProvider`: `detach(uri)` / `reattach(uri)` actions                                                           | ✅     |
+| `/detached/:server/:uri` route + `DetachedAppShell` with SDKProvider + SyncProvider                                  | ✅     |
+| `pane-detached-placeholder.tsx` + dock branching on `entry.detached`                                                 | ✅     |
+| `PaneHeader`: ⤢ Detach button (hidden on web, hidden for `__builtin__`)                                              | ✅     |
+| Platform: `openDetachedWindow`, `closeDetachedWindow`, `focusDetachedWindow`, `invokeTauriEvent`, `listenTauriEvent` | ✅     |
+| `dock.reattach` Tauri IPC listener in dock.tsx                                                                       | ✅     |
+| `DANGER_ZONE_GLOBS`: `pages/detached/**` added to ADR-006 lint check                                                 | ✅     |
+| Unit tests: 734 → 749 (app) + 0 → 29 (cargo, 3 new app_window tests)                                                 | ✅     |
+| Manual smoke (11 steps): ⚠️ requires human verification — automated agent                                            | 🔲     |
 
 ### Phase 48: Tab strip cleanup + drop legacy MCP code (v0.9.88) ✅
 
