@@ -7,9 +7,11 @@ import { McpAppPanel } from "@/components/mcp-app-panel"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { usePlatform } from "@/context/platform"
 import { useAppDockState } from "./use-dock-state"
 import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, type DockEntry } from "./types"
 import { PaneHeader } from "./pane-header"
+import { PaneDetachedPlaceholder } from "./pane-detached-placeholder"
 import { PaneDivider } from "./divider"
 import { AddAppPopover } from "./add-app-popover"
 import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
@@ -43,6 +45,7 @@ export interface AppDockProps {
  */
 export function AppDock(props: AppDockProps): JSX.Element {
   const dock = useAppDockState()
+  const platform = usePlatform()
   const [dragging, setDragging] = createSignal(false)
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement>()
   const [availablePx, setAvailablePx] = createSignal(400)
@@ -56,6 +59,26 @@ export function AppDock(props: AppDockProps): JSX.Element {
     const obs = new ResizeObserver(() => setAvailablePx(el.clientHeight))
     obs.observe(el)
     onCleanup(() => obs.disconnect())
+  })
+
+  // Phase 49 — listen for dock.reattach IPC events emitted by detached windows.
+  // Only register on desktop (listenTauriEvent is undefined on web).
+  createEffect(() => {
+    if (!platform.listenTauriEvent) return
+    let unlisten: (() => void) | undefined
+
+    platform
+      .listenTauriEvent<{ uri: string }>("dock.reattach", (payload) => {
+        dock.reattach(payload.uri)
+      })
+      .then((fn) => {
+        unlisten = fn
+      })
+      .catch(() => undefined)
+
+    onCleanup(() => {
+      unlisten?.()
+    })
   })
 
   // ── Dock-width resize handle ──────────────────────────────────────────────
@@ -215,6 +238,7 @@ function DockPane(props: DockPaneProps): JSX.Element {
   const dock = useAppDockState()
   const sync = useSync()
   const sdk = useSDK()
+  const platform = usePlatform()
   const [viewingError, setViewingError] = createSignal(false)
 
   // Register this pane as a drop target so drag-over events populate
@@ -234,6 +258,26 @@ function DockPane(props: DockPaneProps): JSX.Element {
   const onViewError = () => setViewingError(true)
   const closeError = () => setViewingError(false)
 
+  // Phase 49 — detach this pane into its own Tauri window.
+  const onDetach = async (): Promise<void> => {
+    if (!platform.openDetachedWindow) return
+    try {
+      await platform.openDetachedWindow({
+        server: props.entry.app.server,
+        uri: props.entry.uri,
+        appName: props.entry.app.name,
+        dir: sdk.directory,
+      })
+      dock.detach(props.entry.uri)
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: `Failed to detach ${props.entry.app.name}`,
+        description: String(err),
+      })
+    }
+  }
+
   return (
     <div
       ref={droppable.ref}
@@ -244,30 +288,53 @@ function DockPane(props: DockPaneProps): JSX.Element {
       <PaneHeader
         uri={props.entry.uri}
         appName={props.entry.app.name}
+        server={props.entry.app.server}
         collapsed={props.entry.collapsed ?? false}
+        detached={props.entry.detached ?? false}
         status={status()}
         onToggleCollapse={() => dock.setCollapsed(props.entry.uri, !(props.entry.collapsed ?? false))}
         onRemove={() => dock.remove(props.entry.uri)}
         onReconnect={onReconnect}
         onViewError={onViewError}
+        onDetach={() => void onDetach()}
       />
       {/* Pane body — display:none keeps the iframe alive (state preserved across collapse). */}
       <div class="flex-1 min-h-0 overflow-hidden" style={{ display: props.entry.collapsed ? "none" : "flex" }}>
-        {/*
-          Phase 47: error panel toggled via display:none, NOT <Show>, so the iframe
-          is never unmounted (preserves bridge state per ADR-006 / Phase 42 design).
-        */}
-        <div class="h-full w-full" style={{ display: viewingError() && status().kind === "failed" ? "none" : "flex" }}>
-          <McpAppPanel
-            server={props.entry.app.server}
-            uri={props.entry.app.uri}
-            sessionID={props.sessionID}
-            appName={props.entry.app.name}
-            class="h-full"
-          />
-        </div>
-        <Show when={viewingError() && status().kind === "failed"}>
-          <PaneErrorPanel error={status().error ?? "Unknown error"} onClose={closeError} />
+        {/* Phase 49 — if detached, show placeholder instead of the iframe. */}
+        <Show
+          when={!props.entry.detached}
+          fallback={
+            <PaneDetachedPlaceholder
+              app={props.entry.app}
+              onReattach={() => dock.reattach(props.entry.uri)}
+              onFocus={() =>
+                void platform.focusDetachedWindow?.({
+                  server: props.entry.app.server,
+                  uri: props.entry.uri,
+                })
+              }
+            />
+          }
+        >
+          {/*
+            Phase 47: error panel toggled via display:none, NOT <Show>, so the iframe
+            is never unmounted (preserves bridge state per ADR-006 / Phase 42 design).
+          */}
+          <div
+            class="h-full w-full"
+            style={{ display: viewingError() && status().kind === "failed" ? "none" : "flex" }}
+          >
+            <McpAppPanel
+              server={props.entry.app.server}
+              uri={props.entry.app.uri}
+              sessionID={props.sessionID}
+              appName={props.entry.app.name}
+              class="h-full"
+            />
+          </div>
+          <Show when={viewingError() && status().kind === "failed"}>
+            <PaneErrorPanel error={status().error ?? "Unknown error"} onClose={closeError} />
+          </Show>
         </Show>
       </div>
     </div>

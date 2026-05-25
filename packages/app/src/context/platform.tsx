@@ -99,6 +99,9 @@ export type Platform = {
 
   /** Phase 49 — Tauri only. Emit a Tauri IPC event to all windows. */
   invokeTauriEvent?(name: string, payload: unknown): Promise<void>
+
+  /** Phase 49 — Tauri only. Listen to a Tauri IPC event. Returns an unlisten function. */
+  listenTauriEvent?<T>(name: string, handler: (payload: T) => void): Promise<() => void>
 }
 
 export type DisplayBackend = "auto" | "wayland"

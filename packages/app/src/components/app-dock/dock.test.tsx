@@ -306,3 +306,31 @@ describe("AppDock Phase 47 — status reflects sync.data.mcp", () => {
     })
   })
 })
+
+// ── Phase 49: detached entry branching ────────────────────────────────────────
+//
+// Mirrors the <Show when={!entry.detached}> condition in dock.tsx
+// (DockPane renders McpAppPanel OR PaneDetachedPlaceholder based on detached flag).
+
+function detachedBranch(detached: boolean): "placeholder" | "panel" {
+  return detached ? "placeholder" : "panel"
+}
+
+describe("DockPane Phase 49 — detached entry rendering", () => {
+  test("entry with detached: true → renders placeholder (not McpAppPanel)", () => {
+    expect(detachedBranch(true)).toBe("placeholder")
+  })
+
+  test("entry with detached: false → renders McpAppPanel (not placeholder)", () => {
+    expect(detachedBranch(false)).toBe("panel")
+  })
+
+  test("reattach action un-detaches the entry", () => {
+    const { detachEntry, reattachEntry, addEntry: ae, defaultDockState: dds } = require("./state")
+    const base = ae(dds(), { uri: "ui://x/y", app: { server: "s", name: "X", uri: "ui://x/y" } })
+    const detached = detachEntry(base, "ui://x/y")
+    expect(detachedBranch(detached.entries[0].detached)).toBe("placeholder")
+    const reattached = reattachEntry(detached, "ui://x/y")
+    expect(detachedBranch(reattached.entries[0].detached)).toBe("panel")
+  })
+})

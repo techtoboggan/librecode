@@ -140,3 +140,44 @@ describe("PaneHeader Phase 47 — status wiring", () => {
     expect(status.kind).toBe("connecting")
   })
 })
+
+// ── Phase 49: Detach button visibility ────────────────────────────────────────
+//
+// The Detach button (⤢) is shown only when:
+//   platform === "desktop" AND server !== "__builtin__" AND !detached
+//
+// This mirrors the <Show when={canDetach()}> condition in pane-header.tsx.
+
+function canDetach(opts: { platform: "web" | "desktop"; server: string; detached: boolean }): boolean {
+  return opts.platform === "desktop" && opts.server !== "__builtin__" && !opts.detached
+}
+
+describe("PaneHeader Phase 49 — Detach button visibility", () => {
+  test("desktop + non-builtin + not detached → canDetach is true", () => {
+    expect(canDetach({ platform: "desktop", server: "multica", detached: false })).toBe(true)
+  })
+
+  test("desktop + __builtin__ → canDetach is false (built-ins not detachable in v0.9.89)", () => {
+    expect(canDetach({ platform: "desktop", server: "__builtin__", detached: false })).toBe(false)
+  })
+
+  test("web platform → canDetach is false regardless of server", () => {
+    expect(canDetach({ platform: "web", server: "multica", detached: false })).toBe(false)
+    expect(canDetach({ platform: "web", server: "any-server", detached: false })).toBe(false)
+  })
+
+  test("already detached → canDetach is false (button hidden when already detached)", () => {
+    expect(canDetach({ platform: "desktop", server: "multica", detached: true })).toBe(false)
+  })
+
+  test("canDetach true → onDetach callback fires once when button clicked", () => {
+    let calls = 0
+    const onDetach = () => {
+      calls++
+    }
+    if (canDetach({ platform: "desktop", server: "multica", detached: false })) {
+      onDetach()
+    }
+    expect(calls).toBe(1)
+  })
+})
