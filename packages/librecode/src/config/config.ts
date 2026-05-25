@@ -144,7 +144,7 @@ const ConfigDirectoryTypoError = NamedError.create(
 async function loadFile(filepath: string): Promise<InfoType> {
   log.info("loading", { path: filepath })
   const text = await configReadFile(filepath)
-  if (!text) return {}
+  if (!text) return {} as InfoType
   return loadFromText(text, { path: filepath })
 }
 
@@ -266,7 +266,7 @@ const configState = Instance.state(async () => {
   // 6) Inline config (LIBRECODE_CONFIG_CONTENT)
   // Managed config directory is enterprise-only and always overrides everything above.
   const auth = await Auth.all()
-  let result: InfoType = {}
+  let result: InfoType = {} as InfoType
 
   result = await loadWellKnownConfigs(auth, result, loadFromText)
   result = mergeConfigConcatArrays(result, await configGlobal())

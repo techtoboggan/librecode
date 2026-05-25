@@ -8,7 +8,7 @@ import { Spinner } from "@librecode/ui/spinner"
 import { showToast } from "@librecode/ui/toast"
 import { Tooltip, TooltipKeybind } from "@librecode/ui/tooltip"
 import { getFilename } from "@librecode/util/path"
-import { batch, createEffect, createMemo, For, onCleanup, Show, useContext } from "solid-js"
+import { createEffect, createMemo, For, onCleanup, Show, useContext } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Portal } from "solid-js/web"
 import { useCommand } from "@/context/command"
@@ -149,7 +149,7 @@ export function SessionHeader() {
   // is always mounted in session.tsx (not feature-flagged), so useContext is
   // safe here and will never return undefined inside the session route.
   const dockCtx = useContext(DockContext)
-  const { params, view, tabs } = useSessionLayout()
+  const { params, view } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
   const project = createMemo(() => {
@@ -358,22 +358,16 @@ export function SessionHeader() {
                     }
                     return
                   }
-                  // Legacy path (dock flag off): batch the pin + tabs.open so
-                  // the tab list and active tab update in a single reactive tick
-                  // — otherwise Solid flushes two intermediate renders (trigger
-                  // appears, then active swaps), causing a McpAppPanel flicker.
-                  batch(() => {
-                    pinnedApps.pin({
-                      server: app.server,
-                      name: app.name,
-                      uri: app.uri,
-                      description: app.description,
-                    })
-                    // Set the pinned app as the active tab so it'll be visible
-                    // whenever the user opens the review panel. Intentionally
-                    // do NOT force the review panel open here — respect
-                    // whatever state the user left it in.
-                    void tabs().open(`mcp-app:${app.server}:${encodeURIComponent(app.uri)}`)
+                  // Pin the app into the dock state. The dock listens to
+                  // `pinnedApps` and renders the new pane automatically (see
+                  // `app-dock/use-dock-state.tsx`). Phase 48 removed the legacy
+                  // tab-open call that preceded this — the dock manages its own
+                  // pane lifecycle now.
+                  pinnedApps.pin({
+                    server: app.server,
+                    name: app.name,
+                    uri: app.uri,
+                    description: app.description,
                   })
                 }}
               />
