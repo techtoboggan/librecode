@@ -30,6 +30,7 @@ import { reorderEntriesByUri } from "./reorder"
 import { paneHeight, applyDividerDrag, PANE_MIN_HEIGHT, PANE_HEADER_HEIGHT } from "./sizing"
 import { DOCK_MIN_WIDTH, DOCK_MAX_WIDTH, DOCK_DEFAULT_WIDTH, type DockState } from "./types"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
+import { deriveStatus } from "./pane-status"
 
 const SAMPLE_APP: McpAppResource = {
   server: "__builtin__",
@@ -253,5 +254,55 @@ describe("AppDock multi-pane state", () => {
     // Single pane → no dividers needed
     const dividerCount = s.entries.filter((_, idx) => idx < s.entries.length - 1).length
     expect(dividerCount).toBe(0)
+  })
+})
+
+// ── Phase 47: status dot reactive logic ────────────────────────────────────────
+
+describe("AppDock Phase 47 — status reflects sync.data.mcp", () => {
+  test("status for a connected server returns kind=connected", () => {
+    const app: McpAppResource = { server: "my-mcp", name: "My App", uri: "ui://my-app" }
+    const mcpMap = { "my-mcp": { status: "connected" } }
+    const status = deriveStatus(app, mcpMap)
+    expect(status.kind).toBe("connected")
+    expect(status.recoverable).toBe(false)
+  })
+
+  test("built-in app shows connected regardless of mcp map state", () => {
+    const builtinApp: McpAppResource = {
+      server: "__builtin__",
+      name: "Session Stats",
+      uri: "ui://builtin/session-stats",
+    }
+    // Even with an empty map (server missing) or a map with unrelated entries
+    expect(deriveStatus(builtinApp, {}).kind).toBe("connected")
+    expect(deriveStatus(builtinApp, { "some-server": { status: "failed", error: "x" } }).kind).toBe("connected")
+  })
+
+  test("failed server exposes error text for error panel", () => {
+    const app: McpAppResource = { server: "broken-server", name: "Broken", uri: "ui://broken" }
+    const mcpMap = { "broken-server": { status: "failed", error: "ECONNREFUSED 127.0.0.1:8080" } }
+    const status = deriveStatus(app, mcpMap)
+    expect(status.kind).toBe("failed")
+    expect(status.error).toBe("ECONNREFUSED 127.0.0.1:8080")
+    expect(status.recoverable).toBe(true)
+  })
+
+  test("viewingError toggle model: starts false, set true shows panel, closeError sets false", () => {
+    createRoot((dispose) => {
+      // Mirror the viewingError signal logic from DockPane
+      const { createSignal } = require("solid-js")
+      const [viewingError, setViewingError] = createSignal(false)
+      const onViewError = () => setViewingError(true)
+      const closeError = () => setViewingError(false)
+
+      expect(viewingError()).toBe(false)
+      onViewError()
+      expect(viewingError()).toBe(true)
+      closeError()
+      expect(viewingError()).toBe(false)
+
+      dispose()
+    })
   })
 })

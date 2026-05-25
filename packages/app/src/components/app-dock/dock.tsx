@@ -2,14 +2,18 @@ import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "soli
 import { DragDropProvider, DragDropSensors, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { createDroppable } from "@thisbeyond/solid-dnd"
+import { showToast } from "@librecode/ui/toast"
 import { McpAppPanel } from "@/components/mcp-app-panel"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
+import { useSDK } from "@/context/sdk"
+import { useSync } from "@/context/sync"
 import { useAppDockState } from "./use-dock-state"
 import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, type DockEntry } from "./types"
 import { PaneHeader } from "./pane-header"
 import { PaneDivider } from "./divider"
 import { AddAppPopover } from "./add-app-popover"
 import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
+import { deriveStatus } from "./pane-status"
 
 export interface AppDockProps {
   sessionID?: string
@@ -191,13 +195,44 @@ interface DockPaneProps {
   availablePx: number
 }
 
+/**
+ * Reconnect an MCP server via the SDK. No-ops for built-in apps.
+ * On error, shows a toast so the user knows what went wrong.
+ */
+async function reconnectMcpServer(sdk: ReturnType<typeof useSDK>, server: string): Promise<void> {
+  if (server === "__builtin__") return
+  const result = await sdk.client.mcp.reconnect({ server })
+  if (result.error) {
+    showToast({
+      variant: "error",
+      title: "Reconnect failed",
+      description: String(result.error),
+    })
+  }
+}
+
 function DockPane(props: DockPaneProps): JSX.Element {
   const dock = useAppDockState()
+  const sync = useSync()
+  const sdk = useSDK()
+  const [viewingError, setViewingError] = createSignal(false)
+
   // Register this pane as a drop target so drag-over events populate
   // event.droppable.id with the pane's URI.
   const droppable = createDroppable(props.entry.uri)
 
+  // Derived status from live sync.data.mcp — reactive getter, no createResource.
+  // adr-006 N/A: reads sync store (stable SSE-fed source), not a user-event signal.
+  const status = () => deriveStatus(props.entry.app, sync.data.mcp ?? {})
+
   const height = () => paneHeight(dock.state(), props.entry.uri, props.availablePx)
+
+  const onReconnect = () => {
+    setViewingError(false)
+    void reconnectMcpServer(sdk, props.entry.app.server)
+  }
+  const onViewError = () => setViewingError(true)
+  const closeError = () => setViewingError(false)
 
   return (
     <div
@@ -208,21 +243,49 @@ function DockPane(props: DockPaneProps): JSX.Element {
     >
       <PaneHeader
         uri={props.entry.uri}
-        name={props.entry.app.name}
+        appName={props.entry.app.name}
         collapsed={props.entry.collapsed ?? false}
+        status={status()}
         onToggleCollapse={() => dock.setCollapsed(props.entry.uri, !(props.entry.collapsed ?? false))}
         onRemove={() => dock.remove(props.entry.uri)}
+        onReconnect={onReconnect}
+        onViewError={onViewError}
       />
-      {/* display:none keeps the iframe alive (state preserved across collapse). */}
+      {/* Pane body — display:none keeps the iframe alive (state preserved across collapse). */}
       <div class="flex-1 min-h-0 overflow-hidden" style={{ display: props.entry.collapsed ? "none" : "flex" }}>
-        <McpAppPanel
-          server={props.entry.app.server}
-          uri={props.entry.app.uri}
-          sessionID={props.sessionID}
-          appName={props.entry.app.name}
-          class="h-full"
-        />
+        {/*
+          Phase 47: error panel toggled via display:none, NOT <Show>, so the iframe
+          is never unmounted (preserves bridge state per ADR-006 / Phase 42 design).
+        */}
+        <div class="h-full w-full" style={{ display: viewingError() && status().kind === "failed" ? "none" : "flex" }}>
+          <McpAppPanel
+            server={props.entry.app.server}
+            uri={props.entry.app.uri}
+            sessionID={props.sessionID}
+            appName={props.entry.app.name}
+            class="h-full"
+          />
+        </div>
+        <Show when={viewingError() && status().kind === "failed"}>
+          <PaneErrorPanel error={status().error ?? "Unknown error"} onClose={closeError} />
+        </Show>
       </div>
+    </div>
+  )
+}
+
+interface PaneErrorPanelProps {
+  error: string
+  onClose: () => void
+}
+
+function PaneErrorPanel(props: PaneErrorPanelProps): JSX.Element {
+  return (
+    <div data-testid="pane-error-panel" class="flex flex-col p-4 gap-3 text-12-regular w-full">
+      <p class="text-text-danger-base font-mono break-words">{props.error}</p>
+      <button type="button" class="text-text-weak hover:text-text-base self-start" onClick={props.onClose}>
+        ← Back to app
+      </button>
     </div>
   )
 }

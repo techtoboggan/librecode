@@ -1,20 +1,27 @@
 import { createDraggable } from "@thisbeyond/solid-dnd"
 import { Show, type JSX } from "solid-js"
+import { PaneMenu } from "./pane-menu"
+import { PaneStatusDot } from "./pane-status-dot"
+import type { PaneStatus } from "./pane-status"
 
 export interface PaneHeaderProps {
   uri: string
-  name: string
+  appName: string
   collapsed: boolean
+  status: PaneStatus
   onToggleCollapse: () => void
   onRemove: () => void
+  onReconnect: () => void
+  onViewError: () => void
 }
 
 /**
- * Per-pane header: drag handle + app name + collapse chevron + remove button.
+ * Per-pane header: drag handle + status dot + app name + collapse chevron + ⋮ menu.
  *
+ * Phase 47: added PaneStatusDot and PaneMenu (replaces the inline remove button).
  * The entire header is the drag target using @thisbeyond/solid-dnd's
- * createDraggable (declared in env.d.ts Directives). Collapse and
- * remove buttons stopPropagation to prevent triggering a drag.
+ * createDraggable (declared in env.d.ts Directives). Collapse and menu
+ * buttons stopPropagation to prevent triggering a drag.
  *
  * adr-006 N/A: no createResource in this component.
  */
@@ -33,7 +40,7 @@ export function PaneHeader(props: PaneHeaderProps): JSX.Element {
           data-testid={`pane-collapse-${props.uri}`}
           type="button"
           class="text-text-weak hover:text-text-base shrink-0"
-          aria-label={props.collapsed ? `Expand ${props.name}` : `Collapse ${props.name}`}
+          aria-label={props.collapsed ? `Expand ${props.appName}` : `Collapse ${props.appName}`}
           onClick={(e) => {
             e.stopPropagation()
             props.onToggleCollapse()
@@ -43,20 +50,17 @@ export function PaneHeader(props: PaneHeaderProps): JSX.Element {
             <span aria-hidden="true">▾</span>
           </Show>
         </button>
-        <span class="text-12-medium text-text-strong truncate">{props.name}</span>
+        <PaneStatusDot status={props.status} />
+        <span class="text-12-medium text-text-strong truncate">{props.appName}</span>
       </div>
-      <button
-        data-testid={`pane-remove-${props.uri}`}
-        type="button"
-        class="text-text-weak hover:text-text-base shrink-0 ml-2"
-        aria-label={`Remove ${props.name} from dock`}
-        onClick={(e) => {
-          e.stopPropagation()
-          props.onRemove()
-        }}
-      >
-        ×
-      </button>
+      <PaneMenu
+        uri={props.uri}
+        appName={props.appName}
+        status={props.status}
+        onReconnect={props.onReconnect}
+        onViewError={props.onViewError}
+        onRemove={props.onRemove}
+      />
     </div>
   )
 }
