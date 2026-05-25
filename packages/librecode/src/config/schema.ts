@@ -697,9 +697,18 @@ export const Info = z
           .positive()
           .optional()
           .describe("Timeout in milliseconds for model context protocol (MCP) requests"),
-        app_dock: z.boolean().optional().describe("Enable the experimental App Dock for MCP apps. Phase 42 prototype."),
+        app_dock: z
+          .boolean()
+          .optional()
+          .default(true)
+          .describe(
+            "App Dock for MCP apps. Default-on as of v0.9.88 (Phase 48). " +
+              "Setting this to false hides the dock and removes MCP apps from the session entirely — " +
+              "use only if you specifically don't want MCP apps in this workspace.",
+          ),
       })
-      .optional(),
+      .optional()
+      .default({ app_dock: true }),
   })
   .strict()
   .meta({
