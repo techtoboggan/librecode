@@ -1,21 +1,9 @@
-import {
-  For,
-  Match,
-  Show,
-  Switch,
-  createEffect,
-  createMemo,
-  createSignal,
-  onCleanup,
-  startTransition,
-  type JSX,
-} from "solid-js"
+import { For, Show, createEffect, createMemo, createSignal, onCleanup, startTransition, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Tabs } from "@librecode/ui/tabs"
 import { IconButton } from "@librecode/ui/icon-button"
 import { TooltipKeybind } from "@librecode/ui/tooltip"
-import { ResizeHandle } from "@librecode/ui/resize-handle"
 import { Mark } from "@librecode/ui/logo"
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
@@ -23,8 +11,6 @@ import { ConstrainDragYAxis, getDraggableId } from "@/utils/solid-dnd"
 import { useDialog } from "@librecode/ui/context/dialog"
 import type { EventPortDiscovered } from "@librecode/sdk/v2/client"
 
-import FileTree from "@/components/file-tree"
-import { McpAppPanel, McpAppsTab, type McpAppResource } from "@/components/mcp-app-panel"
 import { ActivityTab } from "@/components/activity-grid"
 import { PortPreviewTab } from "@/components/port-preview"
 import { SessionContextUsage } from "@/components/session-context-usage"
@@ -35,11 +21,11 @@ import { useFile, type SelectedLineRange } from "@/context/file"
 import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
-import { usePinnedApps } from "@/context/pinned-apps"
 import { useSync } from "@/context/sync"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
+import { SessionFileTreePanel } from "@/pages/session/session-file-tree-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
 
@@ -58,18 +44,6 @@ export function SessionSidePanel(props: {
   const dialog = useDialog()
   const globalSDK = useGlobalSDK()
   const { params, sessionKey, tabs, view } = useSessionLayout()
-
-  // ── Dock-enabled flag ─────────────────────────────────────────────────────────
-  // When the dock is on, the Apps tab is hidden (Phase 45). Users who haven't
-  // flipped `experimental.app_dock` see zero change from v0.9.84.
-  const dockEnabled = () => sync.data.config?.experimental?.app_dock === true
-
-  // ── Pinned MCP app tabs (state shared via PinnedAppsContext) ─────────────────
-  const pinnedAppsCtx = usePinnedApps()
-  const pinnedApps = pinnedAppsCtx.pinned
-  const pinApp = pinnedAppsCtx.pin
-  const unpinApp = pinnedAppsCtx.unpin
-  const mcpTabValue = (app: McpAppResource) => `mcp-app:${app.server}:${encodeURIComponent(app.uri)}`
 
   // ── Discovered port preview tabs ─────────────────────────────────────────────
   const [discoveredPorts, setDiscoveredPorts] = createSignal<number[]>([])
@@ -149,15 +123,6 @@ export function SessionSidePanel(props: {
     return out
   })
 
-  const empty = (msg: string) => (
-    <div class="h-full flex flex-col">
-      <div class="h-6 shrink-0" aria-hidden />
-      <div class="flex-1 pb-64 flex items-center justify-center text-center">
-        <div class="text-12-regular text-text-weak">{msg}</div>
-      </div>
-    </div>
-  )
-
   const nofiles = createMemo(() => {
     const state = file.tree.state("")
     if (!state?.loaded) return false
@@ -188,48 +153,25 @@ export function SessionSidePanel(props: {
     normalizeTab,
     review: reviewTab,
     hasReview,
-    // When a session starts empty (e.g. user just submitted their first
-    // prompt and the router navigated to a fresh session id), fall back to
-    // the first pinned MCP app before defaulting to "review". Without this,
-    // any pinned tab the user carefully set up gets yanked over to Review
-    // every single time a new session is created.
-    fallbackActive: () => {
-      const first = pinnedApps()[0]
-      return first ? mcpTabValue(first) : undefined
-    },
   })
   const contextOpen = tabState.contextOpen
   const openedTabs = tabState.openedTabs
   const activeTab = tabState.activeTab
   const activeFileTab = tabState.activeFileTab
-  // SortableTab is for drag-and-drop FILE tabs only. Pinned MCP apps and
-  // detected port previews already have their own dedicated <Tabs.Trigger>
-  // For loops above — rendering them through SortableTab as well produces
-  // duplicate (zero-width) triggers each with their own close button.
-  const sortableFileTabs = createMemo(() =>
-    openedTabs().filter((tab) => !tab.startsWith("mcp-app:") && !tab.startsWith("port:")),
-  )
+  // SortableTab is for drag-and-drop FILE tabs only. Port previews have their
+  // own dedicated <Tabs.Trigger> For loops — rendering them through SortableTab
+  // produces duplicate (zero-width) triggers with close buttons.
+  // Phase 48: removed the legacy MCP-app tab prefix filter — the dock is now the
+  // only MCP-app surface, so no legacy tab values enter openedTabs anymore.
+  const sortableFileTabs = createMemo(() => openedTabs().filter((tab) => !tab.startsWith("port:")))
 
-  // Phase 45 — if the user had `activeTab = "apps"` persisted and then enables
-  // the dock flag, the Apps tab disappears but the stored active value stays as
-  // "apps" (no Tabs.Trigger renders for it). Redirect to "activity" so something
-  // is visible. Runs at most once per mount cycle; subsequent tab changes are
-  // driven by the user.
-  createEffect(() => {
-    if (!dockEnabled()) return
-    if (tabState.activeTab() !== "apps") return
-    void startTransition(() => tabs().setActive("activity"))
-  })
-
-  const fileTreeTab = () => layout.fileTree.tab()
-
-  const setFileTreeTabValue = (value: string) => {
-    if (value !== "changes" && value !== "all") return
-    layout.fileTree.setTab(value)
-  }
+  // Phase 48: deleted the Phase 45 stale `activeTab === "apps"` redirect effect.
+  // With the dock default-on, no user creates that state. Any legacy persisted
+  // "apps" value in workspace storage silently no-ops (Kobalte Tabs falls back
+  // to the first available trigger when the requested value has no match).
 
   const showAllFiles = () => {
-    if (fileTreeTab() !== "changes") return
+    if (layout.fileTree.tab() !== "changes") return
     layout.fileTree.setTab("all")
   }
 
@@ -341,34 +283,9 @@ export function SessionSidePanel(props: {
                           </div>
                         </Tabs.Trigger>
                       </Show>
-                      <Show when={!dockEnabled()}>
-                        <Tabs.Trigger value="apps">
-                          <div>{language.t("session.tab.apps")}</div>
-                        </Tabs.Trigger>
-                      </Show>
                       <Tabs.Trigger value="activity">
                         <div>{language.t("session.tab.activity")}</div>
                       </Tabs.Trigger>
-                      <For each={pinnedApps()}>
-                        {(app) => (
-                          <Tabs.Trigger
-                            value={mcpTabValue(app)}
-                            closeButton={
-                              <IconButton
-                                icon="close-small"
-                                variant="ghost"
-                                class="h-5 w-5"
-                                onClick={() => unpinApp(app.uri)}
-                                aria-label={`Unpin ${app.name}`}
-                              />
-                            }
-                            hideCloseButton
-                            onMiddleClick={() => unpinApp(app.uri)}
-                          >
-                            <div>{app.name}</div>
-                          </Tabs.Trigger>
-                        )}
-                      </For>
                       <For each={discoveredPorts()}>
                         {(port) => (
                           <Tabs.Trigger
@@ -449,64 +366,6 @@ export function SessionSidePanel(props: {
                     </Tabs.Content>
                   </Show>
 
-                  <Show when={!dockEnabled()}>
-                    <Tabs.Content value="apps" class="flex flex-col h-full overflow-hidden contain-strict">
-                      <Show when={activeTab() === "apps"}>
-                        <McpAppsTab
-                          pinnedUris={pinnedApps().map((a) => a.uri)}
-                          onPin={pinApp}
-                          onUnpin={unpinApp}
-                          sessionID={params.id}
-                        />
-                      </Show>
-                    </Tabs.Content>
-                  </Show>
-
-                  {/*
-                    Pinned MCP-app panes: Kobalte Tabs.Content with
-                    forceMount keeps every iframe alive across tab
-                    switches (otherwise the bridge tears down + the
-                    iframe reloads every click — very jarring). With
-                    forceMount all panes are always in the DOM, so we
-                    overlap them via absolute positioning and flip
-                    opacity/pointer-events to show just the active one.
-                    The shared wrapper provides the position:relative
-                    anchor the absolute children need, and the wrapper's
-                    absolute:inset-0 inside the Tabs root keeps the
-                    stack constrained to the tab body area (without
-                    this wrapper the panes would stack vertically and
-                    push the 2nd pinned pane below the visible region).
-                  */}
-                  <div class="relative flex-1 min-h-0">
-                    <For each={pinnedApps()}>
-                      {(app) => {
-                        const tabValue = mcpTabValue(app)
-                        const isActive = () => activeTab() === tabValue
-                        return (
-                          <Tabs.Content
-                            value={tabValue}
-                            forceMount
-                            class="absolute inset-0 flex flex-col overflow-hidden contain-strict"
-                            style={{
-                              opacity: isActive() ? 1 : 0,
-                              "pointer-events": isActive() ? "auto" : "none",
-                              "z-index": isActive() ? 1 : 0,
-                            }}
-                            aria-hidden={!isActive()}
-                          >
-                            <McpAppPanel
-                              server={app.server}
-                              uri={app.uri}
-                              sessionID={params.id}
-                              appName={app.name}
-                              class="flex-1 min-h-0"
-                            />
-                          </Tabs.Content>
-                        )
-                      }}
-                    </For>
-                  </div>
-
                   <For each={discoveredPorts()}>
                     {(port) => (
                       <Tabs.Content value={`port:${port}`} class="flex flex-col h-full overflow-hidden contain-strict">
@@ -566,102 +425,22 @@ export function SessionSidePanel(props: {
             </div>
           </div>
 
-          <div
-            id="file-tree-panel"
-            aria-hidden={!fileOpen()}
-            inert={!fileOpen()}
-            class="relative min-w-0 h-full shrink-0 overflow-hidden"
-            classList={{
-              "pointer-events-none": !fileOpen(),
-              "transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
-                !props.size.active(),
-            }}
-            style={{ width: treeWidth() }}
-          >
-            <div
-              class="h-full flex flex-col overflow-hidden group/filetree"
-              classList={{ "border-l border-border-weaker-base": reviewOpen() }}
-            >
-              <Tabs
-                variant="pill"
-                value={fileTreeTab()}
-                onChange={setFileTreeTabValue}
-                class="h-full"
-                data-scope="filetree"
-              >
-                <Tabs.List>
-                  <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
-                    {reviewCount()}{" "}
-                    {language.t(reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other")}
-                  </Tabs.Trigger>
-                  <Tabs.Trigger value="all" class="flex-1" classes={{ button: "w-full" }}>
-                    {language.t("session.files.all")}
-                  </Tabs.Trigger>
-                </Tabs.List>
-                <Tabs.Content value="changes" class="bg-background-stronger px-3 py-0">
-                  <Switch>
-                    <Match when={hasReview()}>
-                      <Show
-                        when={diffsReady()}
-                        fallback={
-                          <div class="px-2 py-2 text-12-regular text-text-weak">
-                            {language.t("common.loading")}
-                            {language.t("common.loading.ellipsis")}
-                          </div>
-                        }
-                      >
-                        <FileTree
-                          path=""
-                          class="pt-3"
-                          allowed={diffFiles()}
-                          kinds={kinds()}
-                          draggable={false}
-                          active={props.activeDiff}
-                          onFileClick={(node) => props.focusReviewDiff(node.path)}
-                        />
-                      </Show>
-                    </Match>
-                    <Match when={true}>
-                      {empty(
-                        language.t(sync.project && !sync.project.vcs ? "session.review.noChanges" : reviewEmptyKey()),
-                      )}
-                    </Match>
-                  </Switch>
-                </Tabs.Content>
-                <Tabs.Content value="all" class="bg-background-stronger px-3 py-0">
-                  <Switch>
-                    <Match when={nofiles()}>{empty(language.t("session.files.empty"))}</Match>
-                    <Match when={true}>
-                      <FileTree
-                        path=""
-                        class="pt-3"
-                        modified={diffFiles()}
-                        kinds={kinds()}
-                        onFileClick={(node) => openTab(file.tab(node.path))}
-                      />
-                    </Match>
-                  </Switch>
-                </Tabs.Content>
-              </Tabs>
-            </div>
-            <Show when={fileOpen()}>
-              <div onPointerDown={() => props.size.start()}>
-                <ResizeHandle
-                  direction="horizontal"
-                  edge="start"
-                  size={layout.fileTree.width()}
-                  min={200}
-                  max={480}
-                  collapseThreshold={160}
-                  onResize={(width) => {
-                    props.size.touch()
-                    layout.fileTree.resize(width)
-                  }}
-                  onCollapse={layout.fileTree.close}
-                />
-              </div>
-            </Show>
-          </div>
+          <SessionFileTreePanel
+            fileOpen={fileOpen}
+            reviewOpen={reviewOpen}
+            treeWidth={treeWidth}
+            reviewCount={reviewCount}
+            hasReview={hasReview}
+            diffsReady={diffsReady}
+            diffFiles={diffFiles}
+            kinds={kinds}
+            nofiles={nofiles}
+            reviewEmptyKey={reviewEmptyKey}
+            activeDiff={props.activeDiff}
+            focusReviewDiff={props.focusReviewDiff}
+            onFileClick={(path) => openTab(file.tab(path))}
+            size={props.size}
+          />
         </div>
       </aside>
     </Show>
