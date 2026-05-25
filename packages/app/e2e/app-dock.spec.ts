@@ -557,3 +557,89 @@ test(
     )
   },
 )
+
+// ─── Phase 47: App lifecycle UX (status dot + ⋮ menu) ─────────────────────────
+
+test(
+  "Phase 47: built-in app pane header shows a green status dot",
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(
+      async ({ gotoSession }) => {
+        await gotoSession()
+
+        // Open the dock and add Session Stats (built-in).
+        const toggleBtn = page.getByRole("button", { name: TOGGLE_BUTTON_LABEL_SHOW })
+        await toggleBtn.click()
+        const dock = page.locator(DOCK_SELECTOR)
+        await expect(dock).toBeVisible({ timeout: 3000 })
+
+        await page.locator(ADD_TRIGGER_SELECTOR).click()
+        await page.locator(`[data-testid="dock-add-${STATS_URI}"]`).click()
+
+        // The pane header must be visible.
+        const paneHeader = page.locator(`[data-testid="pane-header-${STATS_URI}"]`)
+        await expect(paneHeader).toBeVisible({ timeout: 3000 })
+
+        // Status dot for a built-in app is always "connected" (green).
+        const statusDot = page.locator('[data-testid="pane-status-connected"]')
+        await expect(statusDot).toBeVisible({ timeout: 3000 })
+      },
+      { extraConfig: appDockConfig },
+    )
+  },
+)
+
+test("Phase 47: pane ⋮ menu trigger is visible and accessible", { tag: "@smoke" }, async ({ page, withProject }) => {
+  await withProject(
+    async ({ gotoSession }) => {
+      await gotoSession()
+
+      // Open dock and add Session Stats.
+      await page.getByRole("button", { name: TOGGLE_BUTTON_LABEL_SHOW }).click()
+      await expect(page.locator(DOCK_SELECTOR)).toBeVisible({ timeout: 3000 })
+
+      await page.locator(ADD_TRIGGER_SELECTOR).click()
+      await page.locator(`[data-testid="dock-add-${STATS_URI}"]`).click()
+
+      await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+      // The ⋮ menu trigger should be visible and have an accessible label.
+      const menuTrigger = page.locator(`[data-testid="pane-menu-${STATS_URI}"]`)
+      await expect(menuTrigger).toBeVisible({ timeout: 3000 })
+      await expect(menuTrigger).toHaveAttribute("aria-label", /menu/i)
+    },
+    { extraConfig: appDockConfig },
+  )
+})
+
+test(
+  "Phase 47: ⋮ menu shows Remove from dock; connected pane has no Reconnect item",
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(
+      async ({ gotoSession }) => {
+        await gotoSession()
+
+        // Open dock and add Session Stats (always connected — built-in).
+        await page.getByRole("button", { name: TOGGLE_BUTTON_LABEL_SHOW }).click()
+        await expect(page.locator(DOCK_SELECTOR)).toBeVisible({ timeout: 3000 })
+
+        await page.locator(ADD_TRIGGER_SELECTOR).click()
+        await page.locator(`[data-testid="dock-add-${STATS_URI}"]`).click()
+
+        await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+        // Open the menu.
+        await page.locator(`[data-testid="pane-menu-${STATS_URI}"]`).click()
+
+        // "Remove from dock" must be visible.
+        await expect(page.locator(`[data-testid="pane-menu-remove-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+        // Built-in is connected → "Reconnect" must NOT be present.
+        await expect(page.locator(`[data-testid="pane-menu-reconnect-${STATS_URI}"]`)).not.toBeAttached()
+      },
+      { extraConfig: appDockConfig },
+    )
+  },
+)
