@@ -9,7 +9,9 @@ import { DOCK_STATE_KEY, type DockState } from "./types"
 import {
   addEntry,
   defaultDockState,
+  detachEntry,
   migrateDockState,
+  reattachEntry,
   removeEntry,
   setEntryCollapsed,
   setEntryHeight,
@@ -34,6 +36,10 @@ export interface DockContextValue {
   setHeight: (uri: string, heightPx: number) => void
   /** Phase 43 — apply a divider drag between two adjacent panes. */
   applyDividerDrag: (aboveUri: string, belowUri: string, deltaPx: number, availablePx: number) => void
+  /** Phase 49 — mark an entry as detached (popped out to its own Tauri window). */
+  detach: (uri: string) => void
+  /** Phase 49 — un-detach an entry (re-attach it to the dock inline). */
+  reattach: (uri: string) => void
 }
 
 /** Exported for testing — wrap with DockContext.Provider to inject a mock. */
@@ -98,6 +104,8 @@ export function AppDockProvider(props: ProviderProps): JSX.Element {
     void startTransition(() => setStore(setEntryHeight(store as DockState, uri, heightPx)))
   const applyDividerDrag = (aboveUri: string, belowUri: string, deltaPx: number, availablePx: number) =>
     setStore(applyDividerDragFn(store as DockState, aboveUri, belowUri, deltaPx, availablePx))
+  const detach = (uri: string) => void startTransition(() => setStore(detachEntry(store as DockState, uri)))
+  const reattach = (uri: string) => void startTransition(() => setStore(reattachEntry(store as DockState, uri)))
 
   const value: DockContextValue = {
     state,
@@ -109,6 +117,8 @@ export function AppDockProvider(props: ProviderProps): JSX.Element {
     setCollapsed,
     setHeight,
     applyDividerDrag,
+    detach,
+    reattach,
   }
 
   return <DockContext.Provider value={value}>{props.children}</DockContext.Provider>

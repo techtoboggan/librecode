@@ -3,7 +3,9 @@ import {
   addEntry,
   clampWidth,
   defaultDockState,
+  detachEntry,
   migrateDockState,
+  reattachEntry,
   removeEntry,
   setEntryCollapsed,
   setEntryHeight,
@@ -261,6 +263,73 @@ describe("migrateDockState Phase 44 fields", () => {
       migratedFromPinnedAt: -1,
     })
     expect(resultNeg.migratedFromPinnedAt).toBeUndefined()
+  })
+})
+
+describe("detachEntry", () => {
+  test("sets detached: true on matching uri", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = detachEntry(s, SAMPLE_APP.uri)
+    expect(next.entries[0].detached).toBe(true)
+  })
+
+  test("is a no-op when uri not found (returns same reference)", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = detachEntry(s, "ui://does/not/exist")
+    expect(next.entries[0].detached).not.toBe(true)
+  })
+
+  test("does not mutate other entries", () => {
+    const app2 = { server: "ext", name: "Other", uri: "ui://ext/other" }
+    let s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    s = addEntry(s, { uri: app2.uri, app: app2 })
+    const next = detachEntry(s, SAMPLE_APP.uri)
+    expect(next.entries[0].detached).toBe(true)
+    expect(next.entries[1].detached).not.toBe(true)
+  })
+})
+
+describe("reattachEntry", () => {
+  test("sets detached: false on previously detached entry", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const detached = detachEntry(s, SAMPLE_APP.uri)
+    const next = reattachEntry(detached, SAMPLE_APP.uri)
+    expect(next.entries[0].detached).toBe(false)
+  })
+
+  test("is a no-op when uri not found", () => {
+    const s = addEntry(defaultDockState(), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    const next = reattachEntry(s, "ui://does/not/exist")
+    expect(next.entries[0].detached).not.toBe(true)
+  })
+})
+
+describe("migrateDockState Phase 49 fields", () => {
+  test("reads detached: true from raw input", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP, detached: true }],
+    })
+    expect(result.entries[0].detached).toBe(true)
+  })
+
+  test("defaults detached to false when missing", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP }],
+    })
+    expect(result.entries[0].detached).toBe(false)
+  })
+
+  test("defaults detached to false for invalid value (string 'true')", () => {
+    const result = migrateDockState({
+      visibility: "visible",
+      width: 340,
+      entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP, detached: "true" }],
+    })
+    expect(result.entries[0].detached).toBe(false)
   })
 })
 

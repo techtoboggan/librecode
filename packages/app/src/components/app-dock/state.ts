@@ -62,6 +62,7 @@ export function migrateDockState(raw: unknown): DockState {
       },
       collapsed: typeof rec.collapsed === "boolean" ? rec.collapsed : false,
       heightPx: typeof rec.heightPx === "number" ? rec.heightPx : undefined,
+      detached: typeof rec.detached === "boolean" ? rec.detached : false,
     })
   }
 
@@ -106,4 +107,20 @@ export function setEntryCollapsed(state: DockState, uri: string, collapsed: bool
 export function setEntryHeight(state: DockState, uri: string, heightPx: number): DockState {
   if (!state.entries.some((e) => e.uri === uri)) return state
   return { ...state, entries: state.entries.map((e) => (e.uri === uri ? { ...e, heightPx } : e)) }
+}
+
+/** Mark an entry as detached (popped out to its own window). No-op if entry doesn't exist. */
+export function detachEntry(state: DockState, uri: string): DockState {
+  return {
+    ...state,
+    entries: state.entries.map((e) => (e.uri === uri ? { ...e, detached: true } : e)),
+  }
+}
+
+/** Mark an entry as attached (un-detach). No-op if entry doesn't exist. */
+export function reattachEntry(state: DockState, uri: string): DockState {
+  return {
+    ...state,
+    entries: state.entries.map((e) => (e.uri === uri ? { ...e, detached: false } : e)),
+  }
 }

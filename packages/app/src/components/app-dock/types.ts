@@ -14,6 +14,8 @@ export interface DockEntry {
   /** Phase 43 — explicit height in px. Undefined = equal share of
    *  un-overridden panes. */
   heightPx?: number
+  /** Phase 49 — true when this app is currently popped out into its own Tauri window. */
+  detached?: boolean
 }
 
 /** Dock visibility states. */
