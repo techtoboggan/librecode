@@ -85,6 +85,8 @@ import type {
   McpConnectResponses,
   McpDisconnectResponses,
   McpLocalConfig,
+  McpReconnectErrors,
+  McpReconnectResponses,
   McpRemoteConfig,
   McpStatusResponses,
   OutputFormat,
@@ -3993,6 +3995,38 @@ export class Mcp extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    })
+  }
+
+  /**
+   * Reconnect an MCP server
+   *
+   * Tear down the existing connection (if any) and re-connect using the stored config.
+   */
+  public reconnect<ThrowOnError extends boolean = false>(
+    parameters: {
+      server: string
+      directory?: string
+      workspace?: string
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "server" },
+            { in: "query", key: "directory" },
+            { in: "query", key: "workspace" },
+          ],
+        },
+      ],
+    )
+    return (options?.client ?? this.client).post<McpReconnectResponses, McpReconnectErrors, ThrowOnError>({
+      url: "/mcp/reconnect/{server}",
+      ...options,
+      ...params,
     })
   }
 

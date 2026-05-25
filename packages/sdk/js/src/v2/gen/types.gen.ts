@@ -5128,6 +5128,42 @@ export type McpAuthAuthenticateResponses = {
 
 export type McpAuthAuthenticateResponse = McpAuthAuthenticateResponses[keyof McpAuthAuthenticateResponses]
 
+export type McpReconnectData = {
+  body?: never
+  path: {
+    server: string
+  }
+  query?: {
+    directory?: string
+    workspace?: string
+  }
+  url: "/mcp/reconnect/{server}"
+}
+
+export type McpReconnectErrors = {
+  /**
+   * Bad request
+   */
+  400: BadRequestError
+  /**
+   * Not found
+   */
+  404: NotFoundError
+}
+
+export type McpReconnectError = McpReconnectErrors[keyof McpReconnectErrors]
+
+export type McpReconnectResponses = {
+  /**
+   * Reconnect initiated
+   */
+  200: {
+    ok: true
+  }
+}
+
+export type McpReconnectResponse = McpReconnectResponses[keyof McpReconnectResponses]
+
 export type McpConnectData = {
   body?: never
   path: {
