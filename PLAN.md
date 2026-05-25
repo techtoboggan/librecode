@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-25 | ~420 commits | Tests: 2087 pass, 12 skip, 0 flaky | **v0.9.86** (Phase 46 shipped)
+> Last updated: 2026-05-25 | ~430 commits | Tests: 2132 pass, 12 skip, 0 flaky | **v0.9.87** (Phase 47 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,27 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 47: App Lifecycle UX ✅
+
+Detail: `docs/plans/phase-47-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 47 changelog appended in-place)
+
+Shipped v0.9.87. Each dock pane now shows a colored status dot (green/yellow-pulse/
+amber/red/gray) and a ⋮ menu button. The menu exposes: **Reconnect** (when status is
+failed/needs_auth), **View error** (when failed with error text — replaces iframe
+content via display:none toggle preserving the bridge), **Remove from dock** (always).
+Built-in apps (`server === "__builtin__"`) always show green; missing `sync.data.mcp`
+entry shows yellow/connecting. Backend: `MCP.reconnect(name)` added to `mcp/index.ts`,
+new `POST /mcp/reconnect/:server` route (operationId `mcp.reconnect`), SDK regenerated
+so `sdk.client.mcp.reconnect({ server })` is available.
+New files: `pane-status.ts`, `pane-status.test.ts`, `pane-status-dot.tsx`,
+`pane-menu.tsx`, `pane-menu.test.tsx`, `test/mcp/reconnect.test.ts`.
+Modified: `pane-header.tsx` (prop rename `name`→`appName`, new props),
+`pane-header.test.tsx`, `dock.tsx`, `dock.test.tsx`, `mcp/index.ts`, `routes/mcp.ts`,
+SDK (`sdk.gen.ts`, `types.gen.ts`), `e2e/app-dock.spec.ts` (+3 BDD scenarios).
+Tests: +45 total (705 app unit, 1984 librecode unit).
+Deferred to Phase 47b: Update available notifications, Open in settings deep-link, View logs.
 
 ### Phase 46: Activity Duplication Resolution ✅
 
