@@ -4,6 +4,46 @@ All notable changes to LibreCode are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.88] - 2026-05-25
+
+### Changed
+
+- **App Dock is now on by default.** The `experimental.app_dock`
+  config flag defaults to `true` as of this release. Users who
+  previously had no preference set now see the App Dock on the right
+  side of the session view automatically.
+- Migrated pinned MCP apps out of the session tab strip. The Apps
+  tab and the inline pinned-app tabs are gone — MCP apps live
+  exclusively in the dock now.
+
+### Removed
+
+- Legacy `forceMount + opacity:0 + position:absolute` overlay hack
+  that kept pinned-app iframes alive across tab switches. The dock
+  manages its own iframe lifecycle.
+- `mcpTabValue` helper, legacy MCP tab prefix handling, and the Phase
+  45 stale-`activeTab` redirect effect.
+
+### Migration
+
+Setting `"experimental": { "app_dock": false }` in your
+`librecode.jsonc` now hides the App Dock AND removes all MCP apps
+from the session — there's no longer any in-tab-strip fallback. Only
+disable the dock if you specifically don't want MCP apps in this
+workspace. The flag itself will be removed entirely in a future
+release (Phase 51).
+
+```json
+// librecode.jsonc — opt out (rare)
+{
+  "experimental": {
+    "app_dock": false
+  }
+}
+```
+
+---
+
 ## [1.0.0-preview.1] — 2026-04-15
 
 First public preview of LibreCode — a local-first AI coding agent forked from

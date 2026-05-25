@@ -243,3 +243,38 @@ Open in settings deep-link, View logs.
 +3 tests (`pane-header.test.tsx`), +4 tests (`dock.test.tsx`), +2 tests
 (`test/mcp/reconnect.test.ts`), +3 BDD E2E scenarios (`app-dock.spec.ts`).
 Total: +45 tests across 6 files.
+
+## Phase 48 — Tab strip cleanup + drop legacy MCP code (v0.9.88)
+
+Flipped `experimental.app_dock` default → on. The Zod schema now uses
+`.default(true)` on `app_dock` and `.default({ app_dock: true })` on the
+parent `experimental` object (Zod v4 requires the outer default to carry
+the inner default value to handle the case where `experimental` is
+completely absent from the config file).
+
+Deleted all legacy MCP-pinned-app rendering from `session-side-panel.tsx`:
+
+- `mcpTabValue` helper
+- `fallbackActive` in `createSessionTabs` (first-pinned-app fallback)
+- `<Show when={!dockEnabled()}>` wrapping Apps tab `Tabs.Trigger`
+- `<For each={pinnedApps()}>` block of pinned-app `Tabs.Trigger` elements
+- `<Show when={!dockEnabled()}>` wrapping Apps `Tabs.Content`
+- The `forceMount + opacity:0 + position:absolute` overlay wrapper that kept
+  pinned-app iframes alive across tab switches (the dock manages its own
+  iframe lifecycle — this trick is retired)
+- Phase 45 stale `activeTab === "apps"` redirect `createEffect` (dead with
+  the dock default-on; any legacy persisted value silently no-ops)
+
+Dead `tabs().open("mcp-app:...")` call removed from `session-header.tsx`
+pin handler; `batch()` wrapper removed (only existed for the pin+open pair).
+
+Right-side file-tree panel (file list + resize handle) extracted to
+`session-file-tree-panel.tsx`. `session-side-panel.tsx`: 669 → 448 lines.
+
+**Tests:** +3 schema tests (`schema.test.ts`), +12 mirror-function tests
+(`session-file-tree-panel.test.ts`), +8 regression tests
+(`session-side-panel.legacy.test.ts`), +1 regression test
+(`session-header.test.ts`). Total: +24 tests across 4 files.
+
+| Phase 48 (v0.9.88) | Flipped `experimental.app_dock` default → on. Deleted legacy MCP-pinned-app rendering from session tab strip. Dropped the `forceMount + opacity:0` overlay hack. Extracted `<SessionFileTreePanel>` to bring `session-side-panel.tsx` from 669 → 448 lines. |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
