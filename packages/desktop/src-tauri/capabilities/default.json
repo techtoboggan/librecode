@@ -22,6 +22,7 @@
     },
     "deep-link:default",
     "core:window:allow-start-dragging",
+    "core:webview:allow-create-webview-window",
     "core:window:allow-set-theme",
     "core:webview:allow-set-webview-zoom",
     "core:window:allow-is-focused",

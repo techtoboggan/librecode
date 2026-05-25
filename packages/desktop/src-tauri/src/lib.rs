@@ -1,3 +1,4 @@
+mod app_window;
 mod cli;
 mod constants;
 #[cfg(target_os = "linux")]
@@ -372,6 +373,39 @@ pub fn run() {
         });
 }
 
+// --- Phase 49: detachable MCP-app windows ---
+
+#[tauri::command]
+#[specta::specta]
+async fn open_detached_app_window(
+    app: tauri::AppHandle,
+    server: String,
+    uri: String,
+    app_name: String,
+) -> Result<(), String> {
+    app_window::DetachedAppWindow::open(&app, &server, &uri, &app_name)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+async fn close_detached_app_window(
+    app: tauri::AppHandle,
+    server: String,
+    uri: String,
+) -> Result<(), String> {
+    app_window::DetachedAppWindow::close(&app, &server, &uri)
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+fn is_detached_app_window_open(app: tauri::AppHandle, server: String, uri: String) -> bool {
+    app_window::DetachedAppWindow::is_open(&app, &server, &uri)
+}
+
 fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
     tauri_specta::Builder::<tauri::Wry>::new()
         // Then register them (separated by a comma)
@@ -389,7 +423,10 @@ fn make_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             check_app_exists,
             wsl_path,
             resolve_app_path,
-            open_path
+            open_path,
+            open_detached_app_window,
+            close_detached_app_window,
+            is_detached_app_window_open
         ])
         .events(tauri_specta::collect_events![
             LoadingWindowComplete

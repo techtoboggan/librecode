@@ -77,6 +77,7 @@ impl MainWindow {
         let _ = window.set_focus();
 
         setup_window_state_listener(app, &window);
+        setup_detached_window_close_hook(&window);
 
         // LIBRECODE_DEVTOOLS=1 opens the webview inspector as soon as the
         // window exists. Debug builds have devtools on by default; this
@@ -100,6 +101,28 @@ impl MainWindow {
 
         Ok(Self(window))
     }
+}
+
+/// When the main window is closed, close all detached app windows too.
+/// Snapshot the labels first (Pitfall 8 from Phase 49 spec) so the
+/// iterator cannot invalidate mid-close.
+fn setup_detached_window_close_hook(window: &WebviewWindow) {
+    let app = window.app_handle().clone();
+    window.on_window_event(move |event| {
+        if let tauri::WindowEvent::CloseRequested { .. } = event {
+            let labels: Vec<String> = app
+                .webview_windows()
+                .keys()
+                .filter(|label| label.starts_with("detached-"))
+                .cloned()
+                .collect();
+            for label in labels {
+                if let Some(win) = app.get_webview_window(&label) {
+                    let _ = win.close();
+                }
+            }
+        }
+    });
 }
 
 fn setup_window_state_listener(app: &AppHandle, window: &WebviewWindow) {
