@@ -300,8 +300,14 @@ fn wsl_path(path: String, mode: Option<WslPathMode>) -> Result<String, String> {
 pub fn run() {
     let builder = make_specta_builder();
 
-    #[cfg(debug_assertions)] // <- Only export on non-release builds
-    export_types(&builder);
+    // Bindings regeneration is gated behind LIBRECODE_REGEN_BINDINGS=1 because
+    // the pinned specta/tauri-specta revs produce conflated types (Phase 49
+    // forensic — see packages/desktop/src/bindings.ts header comment). The
+    // checked-in file is hand-maintained.
+    #[cfg(debug_assertions)]
+    if std::env::var("LIBRECODE_REGEN_BINDINGS").is_ok() {
+        export_types(&builder);
+    }
 
     #[cfg(all(target_os = "macos", not(debug_assertions)))]
     let _ = std::process::Command::new("killall")
@@ -448,6 +454,11 @@ fn export_types(builder: &tauri_specta::Builder<tauri::Wry>) {
 #[cfg(test)]
 #[test]
 fn test_export_types() {
+    // Gated behind LIBRECODE_REGEN_BINDINGS=1 because the pinned specta/
+    // tauri-specta revs produce conflated types — see bindings.ts header.
+    if std::env::var("LIBRECODE_REGEN_BINDINGS").is_err() {
+        return;
+    }
     let builder = make_specta_builder();
     export_types(&builder);
 }
