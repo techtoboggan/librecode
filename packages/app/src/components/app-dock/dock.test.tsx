@@ -404,3 +404,89 @@ describe("DockPane Phase 49 — detached entry rendering", () => {
     expect(detachedBranch(reattached.entries[0].detached)).toBe("panel")
   })
 })
+
+// ── Phase 50b — lazy-mount decision logic ─────────────────────────────────────
+//
+// shouldKeepIframeAlive drives the <Show when={keepAlive() || !collapsed}>
+// gate in dock.tsx. These tests verify the three-signal keep-alive contract
+// and the resulting keep-alive vs. lazy-unmount decisions.
+//
+// The full DOM rendering is covered by the Playwright E2E suite.
+// These tests exercise the pure decision tree.
+
+import { shouldKeepIframeAlive, buildAlwaysLoadedMap } from "./keep-alive"
+import type { DockEntry } from "./types"
+import type { McpAppResource } from "@/components/mcp-app-panel/types"
+
+function makeApp(server: string, uri: string): McpAppResource {
+  return { server, name: "Test App", uri }
+}
+
+function makeEntrySnippet(server: string, uri: string): Pick<DockEntry, "uri" | "app"> {
+  return { uri, app: makeApp(server, uri) }
+}
+
+describe("Phase 50b — lazy-mount: keepAlive decision vs collapsed state", () => {
+  const BUILTIN = makeEntrySnippet("__builtin__", "ui://builtin/session-stats")
+  const THIRD_PARTY = makeEntrySnippet("acme", "ui://acme/notes")
+  const EMPTY_RELAY = new Set<string>()
+  const EMPTY_CONFIG = {}
+
+  // The pane body logic: `keepAlive() && collapsed → display:none`
+  //                       `keepAlive() || !collapsed → Show renders`
+  function paneBodyDecision(
+    entry: Pick<DockEntry, "uri" | "app">,
+    relay: ReadonlySet<string>,
+    cfg: { alwaysLoadedByUri?: ReadonlyMap<string, boolean> },
+    collapsed: boolean,
+  ): { iframeInDOM: boolean; displayStyle: "none" | "flex" } {
+    const alive = shouldKeepIframeAlive(entry, relay, cfg)
+    const iframeInDOM = alive || !collapsed
+    const displayStyle: "none" | "flex" = alive && collapsed ? "none" : "flex"
+    return { iframeInDOM, displayStyle }
+  }
+
+  test("built-in + collapsed → iframe in DOM, display:none (keep-alive path)", () => {
+    const result = paneBodyDecision(BUILTIN, EMPTY_RELAY, EMPTY_CONFIG, true)
+    expect(result.iframeInDOM).toBe(true)
+    expect(result.displayStyle).toBe("none")
+  })
+
+  test("built-in + expanded → iframe in DOM, display:flex", () => {
+    const result = paneBodyDecision(BUILTIN, EMPTY_RELAY, EMPTY_CONFIG, false)
+    expect(result.iframeInDOM).toBe(true)
+    expect(result.displayStyle).toBe("flex")
+  })
+
+  test("unknown app + collapsed → iframe NOT in DOM (lazy unmount)", () => {
+    const result = paneBodyDecision(THIRD_PARTY, EMPTY_RELAY, EMPTY_CONFIG, true)
+    expect(result.iframeInDOM).toBe(false)
+    expect(result.displayStyle).toBe("flex") // parent flex but Show=false means no child
+  })
+
+  test("unknown app + expanded → iframe in DOM, display:flex", () => {
+    const result = paneBodyDecision(THIRD_PARTY, EMPTY_RELAY, EMPTY_CONFIG, false)
+    expect(result.iframeInDOM).toBe(true)
+    expect(result.displayStyle).toBe("flex")
+  })
+
+  test("alwaysLoaded:true via config → keep-alive even when collapsed", () => {
+    const cfg = { alwaysLoadedByUri: new Map([[THIRD_PARTY.uri, true]]) }
+    const result = paneBodyDecision(THIRD_PARTY, EMPTY_RELAY, cfg, true)
+    expect(result.iframeInDOM).toBe(true)
+    expect(result.displayStyle).toBe("none")
+  })
+
+  test("relay observed → keep-alive on next collapse", () => {
+    const relay = new Set([THIRD_PARTY.uri])
+    const result = paneBodyDecision(THIRD_PARTY, relay, EMPTY_CONFIG, true)
+    expect(result.iframeInDOM).toBe(true)
+    expect(result.displayStyle).toBe("none")
+  })
+
+  test("buildAlwaysLoadedMap wires config → alwaysLoadedByUri for keepAlive check", () => {
+    const cfgRaw = { "ui://acme/notes": { alwaysLoaded: true } }
+    const map = buildAlwaysLoadedMap(cfgRaw)
+    expect(shouldKeepIframeAlive(THIRD_PARTY, EMPTY_RELAY, { alwaysLoadedByUri: map })).toBe(true)
+  })
+})

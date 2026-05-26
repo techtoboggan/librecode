@@ -10734,6 +10734,19 @@
                 "maximum": 9007199254740991
               }
             }
+          },
+          "mcp_apps": {
+            "description": "Per-app overrides keyed by ui:// URI.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "alwaysLoaded": {
+                  "description": "Phase 50b \u2014 keep this app's iframe mounted even when its dock pane is collapsed. Default false (iframe unmounts on collapse for memory wins). Set true for apps where you want to preserve ephemeral state (scroll position, modals, filters) across collapse cycles.",
+                  "type": "boolean"
+                }
+              }
+            }
           }
         },
         "additionalProperties": false
@@ -11528,22 +11541,42 @@
         "properties": {
           "type": {
             "anyOf": [
-              { "type": "string", "const": "text" },
-              { "type": "string", "const": "select" }
+              {
+                "type": "string",
+                "const": "text"
+              },
+              {
+                "type": "string",
+                "const": "select"
+              }
             ]
           },
-          "key": { "type": "string" },
-          "message": { "type": "string" },
-          "placeholder": { "type": "string" },
-          "required": { "type": "boolean" },
+          "key": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "placeholder": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
           "options": {
             "type": "array",
             "items": {
               "type": "object",
               "properties": {
-                "label": { "type": "string" },
-                "value": { "type": "string" },
-                "hint": { "type": "string" }
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "hint": {
+                  "type": "string"
+                }
               },
               "required": ["label", "value"]
             }

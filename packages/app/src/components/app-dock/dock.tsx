@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
+import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { DragDropProvider, DragDropSensors, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { createDroppable } from "@thisbeyond/solid-dnd"
@@ -10,6 +10,7 @@ import { useSync } from "@/context/sync"
 import { usePlatform } from "@/context/platform"
 import { useAppDockState } from "./use-dock-state"
 import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, type DockEntry } from "./types"
+import { shouldKeepIframeAlive, buildAlwaysLoadedMap } from "./keep-alive"
 import { PaneHeader } from "./pane-header"
 import { PaneDetachedPlaceholder } from "./pane-detached-placeholder"
 import { PaneDivider } from "./divider"
@@ -63,6 +64,9 @@ export function AppDock(props: AppDockProps): JSX.Element {
 
   // Phase 50 — telemetry gate (reads once per dock mount; re-reads if sync changes).
   const telemetryEnabled = (): boolean => sync.data.config?.telemetry?.phoenix?.enabled === true
+
+  // Phase 50b — alwaysLoaded map computed once per config snapshot for shouldKeepIframeAlive.
+  const alwaysLoadedMap = createMemo(() => buildAlwaysLoadedMap(sync.data.config?.mcp_apps))
 
   // Measure the pane-list container height so paneHeight() can compute
   // equal distributions. Updated whenever the container resizes.
@@ -204,6 +208,7 @@ export function AppDock(props: AppDockProps): JSX.Element {
                             paneIndex={idx()}
                             announcer={announcer}
                             telemetryEnabled={telemetryEnabled()}
+                            alwaysLoadedMap={alwaysLoadedMap()}
                           />
                           <Show when={idx() < dock.state().entries.length - 1}>
                             <PaneDivider
@@ -271,6 +276,11 @@ interface DockPaneProps {
   announcer: ReturnType<typeof createLiveAnnouncer>
   /** Phase 50: whether Phoenix telemetry is enabled. */
   telemetryEnabled: boolean
+  /**
+   * Phase 50b — map of URI → alwaysLoaded config flag. Computed once
+   * per config snapshot in AppDock to avoid per-pane recomputation.
+   */
+  alwaysLoadedMap: ReadonlyMap<string, boolean>
 }
 
 /**
@@ -289,12 +299,28 @@ async function reconnectMcpServer(sdk: ReturnType<typeof useSDK>, server: string
   }
 }
 
+/**
+ * Phase 50b — per-session set tracking which app URIs have already
+ * shown the "may reset on collapse" toast. Module-level so it survives
+ * pane remounts within the same session; resets on full page reload.
+ */
+const sessionToastShown = new Set<string>()
+
 function DockPane(props: DockPaneProps): JSX.Element {
   const dock = useAppDockState()
   const sync = useSync()
   const sdk = useSDK()
   const platform = usePlatform()
   const [viewingError, setViewingError] = createSignal(false)
+
+  // Phase 50b — true when this pane's iframe should stay mounted on collapse.
+  // Wrapped in createMemo so shouldKeepIframeAlive only recomputes when the
+  // underlying signals change, not on every render (Pitfall 1).
+  const keepAlive = createMemo(() =>
+    shouldKeepIframeAlive({ uri: props.entry.uri, app: props.entry.app }, dock.observedRelay(), {
+      alwaysLoadedByUri: props.alwaysLoadedMap,
+    }),
+  )
 
   // Register this pane as a drop target so drag-over events populate
   // event.droppable.id with the pane's URI.
@@ -363,8 +389,19 @@ function DockPane(props: DockPaneProps): JSX.Element {
   }
 
   // Phase 50 — toggle collapse with a11y announcement + telemetry.
+  // Phase 50b — also shows a one-shot toast when an unknown app is first
+  // collapsed (it will lose state since its iframe unmounts).
   const onToggleCollapse = (): void => {
     const nowCollapsed = !(props.entry.collapsed ?? false)
+    // Phase 50b: check keepAlive BEFORE the collapse so we're reading the
+    // current state (Pitfall 7 — toast must not fire for built-ins).
+    if (nowCollapsed && !keepAlive() && !sessionToastShown.has(props.entry.uri)) {
+      sessionToastShown.add(props.entry.uri)
+      showToast({
+        title: `${props.entry.app.name} may reset when collapsed`,
+        description: "Use the ⋮ menu to always keep it loaded.",
+      })
+    }
     dock.setCollapsed(props.entry.uri, nowCollapsed)
     const verb = nowCollapsed ? "collapsed" : "expanded"
     props.announcer.announce(`${props.entry.app.name} ${verb}`)
@@ -401,55 +438,123 @@ function DockPane(props: DockPaneProps): JSX.Element {
         onViewError={onViewError}
         onDetach={() => void onDetach()}
       />
-      {/* Pane body — display:none keeps the iframe alive (state preserved across collapse). */}
-      <div class="flex-1 min-h-0 overflow-hidden" style={{ display: props.entry.collapsed ? "none" : "flex" }}>
-        {/* Phase 49 — if detached, show placeholder instead of the iframe. */}
-        <Show
-          when={!props.entry.detached}
-          fallback={
-            <PaneDetachedPlaceholder
-              app={props.entry.app}
-              onReattach={() => {
-                dock.reattach(props.entry.uri)
-                props.announcer.announce(`${props.entry.app.name} reattached`)
-                emitDockEvent(props.telemetryEnabled, "reattached", {
-                  paneURI: props.entry.uri,
-                  appName: props.entry.app.name,
-                  msSinceDockOpen: Date.now() - mountedAt,
-                  sessionID: props.sessionID,
-                })
-              }}
-              onFocus={() =>
-                void platform.focusDetachedWindow?.({
-                  server: props.entry.app.server,
-                  uri: props.entry.uri,
-                })
-              }
-            />
-          }
-        >
-          {/*
-            Phase 47: error panel toggled via display:none, NOT <Show>, so the iframe
-            is never unmounted (preserves bridge state per ADR-006 / Phase 42 design).
-          */}
-          <div
-            class="h-full w-full"
-            style={{ display: viewingError() && status().kind === "failed" ? "none" : "flex" }}
-          >
-            <McpAppPanel
-              server={props.entry.app.server}
-              uri={props.entry.app.uri}
-              sessionID={props.sessionID}
-              appName={props.entry.app.name}
-              class="h-full"
-            />
-          </div>
-          <Show when={viewingError() && status().kind === "failed"}>
-            <PaneErrorPanel error={status().error ?? "Unknown error"} onClose={closeError} />
-          </Show>
+      {/*
+        Phase 50b — lazy iframe mount for unknown collapsed apps.
+        keep-alive path (built-in / observed-relay / alwaysLoaded):
+          outer div is display:none so iframe stays alive (no re-mount).
+        lazy-mount path (unknown app, collapsed):
+          <Show> evaluates false → PaneIframeBody unmounts entirely.
+          Pitfall 12: we only apply display:none when keepAlive AND
+          collapsed to avoid double-hiding on the lazy path.
+      */}
+      <div
+        class="flex-1 min-h-0 overflow-hidden"
+        style={{ display: keepAlive() && props.entry.collapsed ? "none" : "flex" }}
+      >
+        <Show when={keepAlive() || !props.entry.collapsed}>
+          <PaneIframeBody
+            entry={props.entry}
+            sessionID={props.sessionID}
+            telemetryEnabled={props.telemetryEnabled}
+            mountedAt={mountedAt}
+            viewingError={viewingError()}
+            status={status()}
+            onReattach={() => {
+              dock.reattach(props.entry.uri)
+              props.announcer.announce(`${props.entry.app.name} reattached`)
+              emitDockEvent(props.telemetryEnabled, "reattached", {
+                paneURI: props.entry.uri,
+                appName: props.entry.app.name,
+                msSinceDockOpen: Date.now() - mountedAt,
+                sessionID: props.sessionID,
+              })
+            }}
+            onFocusDetached={() =>
+              void platform.focusDetachedWindow?.({
+                server: props.entry.app.server,
+                uri: props.entry.uri,
+              })
+            }
+            onCloseError={closeError}
+          />
         </Show>
       </div>
     </section>
+  )
+}
+
+// ── PaneIframeBody ─────────────────────────────────────────────────────────────
+//
+// Phase 50b: extracted subcomponent for the lazy-mount iframe subtree.
+// Lives inside <Show when={keepAlive() || !collapsed}>, so it only mounts
+// when the pane should be visible. onMount/onCleanup here fire the
+// iframe_lazy_mount / iframe_lazy_unmount telemetry events.
+
+interface PaneIframeBodyProps {
+  entry: DockEntry
+  sessionID?: string
+  telemetryEnabled: boolean
+  mountedAt: number
+  viewingError: boolean
+  status: ReturnType<typeof import("./pane-status").deriveStatus>
+  onReattach: () => void
+  onFocusDetached: () => void
+  onCloseError: () => void
+}
+
+function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
+  // Phase 50b — fire lazy-mount telemetry on mount/unmount of the iframe body.
+  onMount(() => {
+    emitDockEvent(props.telemetryEnabled, "iframe_lazy_mount", {
+      paneURI: props.entry.uri,
+      appName: props.entry.app.name,
+      msSinceDockOpen: Date.now() - props.mountedAt,
+      sessionID: props.sessionID,
+    })
+  })
+  onCleanup(() => {
+    emitDockEvent(props.telemetryEnabled, "iframe_lazy_unmount", {
+      paneURI: props.entry.uri,
+      appName: props.entry.app.name,
+      msSinceDockOpen: Date.now() - props.mountedAt,
+      sessionID: props.sessionID,
+    })
+  })
+
+  return (
+    <>
+      {/* Phase 49 — if detached, show placeholder instead of the iframe. */}
+      <Show
+        when={!props.entry.detached}
+        fallback={
+          <PaneDetachedPlaceholder
+            app={props.entry.app}
+            onReattach={props.onReattach}
+            onFocus={props.onFocusDetached}
+          />
+        }
+      >
+        {/*
+          Phase 47: error panel toggled via display:none, NOT <Show>, so the iframe
+          is never unmounted (preserves bridge state per ADR-006 / Phase 42 design).
+        */}
+        <div
+          class="h-full w-full"
+          style={{ display: props.viewingError && props.status.kind === "failed" ? "none" : "flex" }}
+        >
+          <McpAppPanel
+            server={props.entry.app.server}
+            uri={props.entry.app.uri}
+            sessionID={props.sessionID}
+            appName={props.entry.app.name}
+            class="h-full"
+          />
+        </div>
+        <Show when={props.viewingError && props.status.kind === "failed"}>
+          <PaneErrorPanel error={props.status.error ?? "Unknown error"} onClose={props.onCloseError} />
+        </Show>
+      </Show>
+    </>
   )
 }
 

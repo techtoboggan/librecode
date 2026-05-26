@@ -19,6 +19,10 @@ export type DockTelemetryEvent =
   | "expanded"
   | "detached"
   | "reattached"
+  /** Phase 50b — inner iframe mounts (lazy-mount path: was collapsed, now expanded). */
+  | "iframe_lazy_mount"
+  /** Phase 50b — inner iframe unmounts (lazy-mount path: pane collapsed, not keep-alive). */
+  | "iframe_lazy_unmount"
 
 export interface DockTelemetryPayload {
   paneURI: string

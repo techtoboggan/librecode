@@ -1640,6 +1640,20 @@ export type Config = {
      */
     app_dock?: boolean
   }
+  /**
+   * Per-app overrides keyed by ui:// URI.
+   */
+  mcp_apps?: {
+    [key: string]: {
+      /**
+       * Phase 50b — keep this app's iframe mounted even when its dock pane is collapsed.
+       * Default false (iframe unmounts on collapse for memory wins). Set true for apps
+       * where you want to preserve ephemeral state (scroll position, modals, filters)
+       * across collapse cycles.
+       */
+      alwaysLoaded?: boolean
+    }
+  }
 }
 
 export type BadRequestError = {
