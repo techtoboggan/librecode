@@ -122,19 +122,15 @@ export function LocalServerWizard() {
 
   /** Call the backend scan endpoint */
   async function callScanEndpoint(remoteHost?: string): Promise<Array<DiscoveredServer>> {
-    const httpBase = server.current?.http
-    const baseUrl = httpBase?.url ?? globalSDK.url
-    const authHeaders: Record<string, string> = { "Content-Type": "application/json" }
-    if (httpBase?.password) {
-      authHeaders["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
-    }
+    const baseUrl = server.current?.http?.url ?? globalSDK.url
 
     const body: Record<string, unknown> = {}
     if (remoteHost) body.host = remoteHost
 
-    const res = await fetch(`${baseUrl}/provider/scan`, {
+    // v0.9.94 audit: globalSDK.fetch handles Basic Auth centrally.
+    const res = await globalSDK.fetch(`${baseUrl}/provider/scan`, {
       method: "POST",
-      headers: authHeaders,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     })
     if (!res.ok) {
@@ -240,16 +236,12 @@ export function LocalServerWizard() {
    */
   async function deleteModelsFromConfig(providerID: string, modelIDs: ReadonlyArray<string>): Promise<number> {
     if (modelIDs.length === 0) return 0
-    const httpBase = server.current?.http
-    const baseUrl = httpBase?.url ?? globalSDK.url
-    const headers: Record<string, string> = { "Content-Type": "application/json" }
-    if (httpBase?.password) {
-      headers["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
-    }
+    const baseUrl = server.current?.http?.url ?? globalSDK.url
     const paths = modelIDs.map((id) => ["provider", providerID, "models", id])
-    const res = await fetch(`${baseUrl}/config/delete-paths`, {
+    // v0.9.94 audit: globalSDK.fetch handles Basic Auth centrally.
+    const res = await globalSDK.fetch(`${baseUrl}/config/delete-paths`, {
       method: "POST",
-      headers,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths }),
     })
     if (!res.ok) {

@@ -273,15 +273,13 @@ export function DialogConnectProvider(props: { provider: string }) {
 
         setFormStore("submitting", true)
         try {
-          const httpBase = server.current?.http
-          const baseUrl = httpBase?.url ?? globalSDK.url
-          const authHeaders: Record<string, string> = {}
-          if (httpBase?.password) {
-            authHeaders["Authorization"] = `Basic ${btoa(`${httpBase.username ?? "librecode"}:${httpBase.password}`)}`
-          }
-          const res = await fetch(`${baseUrl}/provider/${encodeURIComponent(props.provider)}/api/authorize`, {
+          const baseUrl = server.current?.http?.url ?? globalSDK.url
+          // v0.9.94 audit: globalSDK.fetch handles Basic Auth injection
+          // centrally (Phase 29c.1 fail-closed pattern) — no need to
+          // hand-roll the auth header here.
+          const res = await globalSDK.fetch(`${baseUrl}/provider/${encodeURIComponent(props.provider)}/api/authorize`, {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ key: inputs["apiKey"] ?? "", inputs }),
           })
           if (!res.ok) {

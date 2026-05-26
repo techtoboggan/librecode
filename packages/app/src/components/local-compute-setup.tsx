@@ -95,7 +95,10 @@ export function LocalComputeSetup(props: LocalComputeSetupProps) {
     setStep("detecting")
     setError("")
     try {
-      const res = await fetch(`${baseUrl()}/system/info`)
+      // v0.9.94 audit: use globalSDK.fetch to inject Basic Auth on Tauri
+      // builds where LIBRECODE_SERVER_PASSWORD is set. Raw fetch() here
+      // would get a 401 → "TypeError: Load failed" in production.
+      const res = await globalSDK.fetch(`${baseUrl()}/system/info`)
       if (!res.ok) throw new Error(`Detection failed (${res.status})`)
       const data = (await res.json()) as SystemInfo
       setInfo(data)
@@ -114,7 +117,8 @@ export function LocalComputeSetup(props: LocalComputeSetupProps) {
     // Poll the port for up to 30 seconds
     for (let i = 0; i < 6; i++) {
       try {
-        const res = await fetch(`${baseUrl()}/provider/scan`, {
+        // v0.9.94 audit: globalSDK.fetch for Basic Auth on Tauri.
+        const res = await globalSDK.fetch(`${baseUrl()}/provider/scan`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ host: "localhost", ports: [port] }),
