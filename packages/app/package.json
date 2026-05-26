@@ -38,6 +38,7 @@
     "vite-plugin-solid": "catalog:"
   },
   "dependencies": {
+    "@opentelemetry/api": "1.9.0",
     "@kobalte/core": "catalog:",
     "@librecode/i18n": "^0.9.33",
     "@librecode/sdk": "workspace:*",
