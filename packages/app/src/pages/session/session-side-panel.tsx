@@ -22,6 +22,7 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
+import { useAppDockState } from "@/components/app-dock"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
@@ -43,6 +44,9 @@ export function SessionSidePanel(props: {
   const command = useCommand()
   const dialog = useDialog()
   const globalSDK = useGlobalSDK()
+  // v0.9.96 — read dock state so panelWidth can subtract its width when
+  // the dock is visible (was overflowing the viewport — see commit body).
+  const dock = useAppDockState()
   const { params, sessionKey, tabs, view } = useSessionLayout()
 
   // ── Discovered port preview tabs ─────────────────────────────────────────────
@@ -72,9 +76,18 @@ export function SessionSidePanel(props: {
   const fileOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   const open = createMemo(() => reviewOpen() || fileOpen())
   const reviewTab = createMemo(() => isDesktop())
+  // v0.9.96 — subtract dock width when visible so the dock doesn't get
+  // pushed off the right edge of the viewport (reported by Tristan on
+  // v0.9.95: clicking the edge handle re-opened the dock but it rendered
+  // past the viewport's right edge because this panel greedily consumed
+  // `100% - session.width` without accounting for the dock's footprint).
+  const dockOffsetPx = createMemo(() => {
+    const s = dock.state()
+    return s.visibility === "visible" ? s.width : 0
+  })
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
-    if (reviewOpen()) return `calc(100% - ${layout.session.width()}px)`
+    if (reviewOpen()) return `calc(100% - ${layout.session.width()}px - ${dockOffsetPx()}px)`
     return `${layout.fileTree.width()}px`
   })
   const treeWidth = createMemo(() => (fileOpen() ? `${layout.fileTree.width()}px` : "0px"))
