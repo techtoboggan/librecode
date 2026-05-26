@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { makeDockKeyHandler } from "./keyboard"
+import { makeDockKeyHandler, makeDetachKeyHandler, makePaneFocusKeyHandler } from "./keyboard"
 
 /**
  * Tests for the dock keyboard handler logic.
@@ -74,5 +74,172 @@ describe("makeDockKeyHandler", () => {
     const handler = makeDockKeyHandler(() => {})
     const prevented = fire(handler, "k", { ctrlKey: true })
     expect(prevented).toBe(false)
+  })
+})
+
+// ── Phase 50: makePaneFocusKeyHandler ─────────────────────────────────────────
+
+describe("makePaneFocusKeyHandler", () => {
+  test("Ctrl+Shift+1 fires focusPane(0)", () => {
+    let focused = -1
+    const handler = makePaneFocusKeyHandler(
+      (idx) => {
+        focused = idx
+      },
+      () => {},
+    )
+    fire(handler, "1", { ctrlKey: true, shiftKey: true })
+    expect(focused).toBe(0)
+  })
+
+  test("Ctrl+Shift+9 fires focusPane(8)", () => {
+    let focused = -1
+    const handler = makePaneFocusKeyHandler(
+      (idx) => {
+        focused = idx
+      },
+      () => {},
+    )
+    fire(handler, "9", { ctrlKey: true, shiftKey: true })
+    expect(focused).toBe(8)
+  })
+
+  test("Ctrl+Shift+0 fires focusMain()", () => {
+    let mainFocused = false
+    const handler = makePaneFocusKeyHandler(
+      () => {},
+      () => {
+        mainFocused = true
+      },
+    )
+    fire(handler, "0", { ctrlKey: true, shiftKey: true })
+    expect(mainFocused).toBe(true)
+  })
+
+  test("Ctrl+1 (no Shift) is a no-op", () => {
+    let called = false
+    const handler = makePaneFocusKeyHandler(
+      () => {
+        called = true
+      },
+      () => {
+        called = true
+      },
+    )
+    fire(handler, "1", { ctrlKey: true })
+    expect(called).toBe(false)
+  })
+
+  test("Shift+1 (no Ctrl) is a no-op", () => {
+    let called = false
+    const handler = makePaneFocusKeyHandler(
+      () => {
+        called = true
+      },
+      () => {
+        called = true
+      },
+    )
+    fire(handler, "1", { shiftKey: true })
+    expect(called).toBe(false)
+  })
+
+  test("Ctrl+Shift+1 prevents default", () => {
+    const handler = makePaneFocusKeyHandler(
+      () => {},
+      () => {},
+    )
+    const prevented = fire(handler, "1", { ctrlKey: true, shiftKey: true })
+    expect(prevented).toBe(true)
+  })
+
+  test("Mac: Cmd+Shift+1 fires focusPane(0)", () => {
+    // Temporarily spoof navigator.platform to "MacIntel"
+    const savedPlatform = navigator.platform
+    Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true })
+
+    let focused = -1
+    const handler = makePaneFocusKeyHandler(
+      (idx) => {
+        focused = idx
+      },
+      () => {},
+    )
+    fire(handler, "1", { metaKey: true, shiftKey: true })
+    expect(focused).toBe(0)
+
+    // Restore — always restore by value (getOwnPropertyDescriptor is undefined when on prototype)
+    Object.defineProperty(navigator, "platform", { value: savedPlatform, configurable: true })
+  })
+
+  test("Mac: Ctrl+Shift+1 is a no-op (must use Cmd on Mac)", () => {
+    const savedPlatform = navigator.platform
+    Object.defineProperty(navigator, "platform", { value: "MacIntel", configurable: true })
+
+    let called = false
+    const handler = makePaneFocusKeyHandler(
+      () => {
+        called = true
+      },
+      () => {
+        called = true
+      },
+    )
+    fire(handler, "1", { ctrlKey: true, shiftKey: true })
+    expect(called).toBe(false)
+
+    Object.defineProperty(navigator, "platform", { value: savedPlatform, configurable: true })
+  })
+})
+
+// ── Phase 50: makeDetachKeyHandler ────────────────────────────────────────────
+
+describe("makeDetachKeyHandler", () => {
+  test("Ctrl+Shift+D is a no-op when getActiveURI returns undefined", () => {
+    let detached: string | undefined
+    const handler = makeDetachKeyHandler(
+      () => undefined,
+      (uri) => {
+        detached = uri
+      },
+    )
+    fire(handler, "d", { ctrlKey: true, shiftKey: true })
+    expect(detached).toBeUndefined()
+  })
+
+  test("Ctrl+Shift+D calls detach(uri) when a pane is focused", () => {
+    let detached: string | undefined
+    const handler = makeDetachKeyHandler(
+      () => "ui://test/pane",
+      (uri) => {
+        detached = uri
+      },
+    )
+    fire(handler, "d", { ctrlKey: true, shiftKey: true })
+    expect(detached).toBe("ui://test/pane")
+  })
+
+  test("Ctrl+Shift+D works with uppercase D key", () => {
+    let detached: string | undefined
+    const handler = makeDetachKeyHandler(
+      () => "ui://test/pane",
+      (uri) => {
+        detached = uri
+      },
+    )
+    fire(handler, "D", { ctrlKey: true, shiftKey: true })
+    expect(detached).toBe("ui://test/pane")
+  })
+
+  test("Ctrl+D (no Shift) is a no-op", () => {
+    let called = false
+    const handler = makeDetachKeyHandler(
+      () => "ui://x",
+      () => {
+        called = true
+      },
+    )
+    fire(handler, "d", { ctrlKey: true })
+    expect(called).toBe(false)
   })
 })

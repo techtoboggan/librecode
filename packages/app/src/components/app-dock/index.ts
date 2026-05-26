@@ -1,7 +1,7 @@
 export { AppDock } from "./dock"
 export { AppDockProvider, useAppDockState, DockContext } from "./use-dock-state"
 export { DockToggleButton } from "./toggle-button"
-export { useDockToggleShortcut } from "./keyboard"
+export { useDockToggleShortcut, useDockPaneKeyboardShortcuts } from "./keyboard"
 export type { DockEntry, DockState, DockVisibility } from "./types"
 export { reorderEntries, reorderEntriesByUri } from "./reorder"
 export { setEntryCollapsed, setEntryHeight } from "./state"

@@ -13,7 +13,7 @@
 // boundaries. Warrants its own PR.
 
 import type { Project, UserMessage } from "@librecode/sdk/v2"
-import { AppDock, AppDockProvider, useDockToggleShortcut } from "@/components/app-dock"
+import { AppDock, AppDockProvider, useDockPaneKeyboardShortcuts, useDockToggleShortcut } from "@/components/app-dock"
 import { BUILTIN_URI_SESSION_STATS } from "@/components/mcp-app-panel/seed"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 import { useDialog } from "@librecode/ui/context/dialog"
@@ -82,9 +82,12 @@ const BUILTIN_SESSION_STATS: McpAppResource = {
   description: "Token usage, tool call distribution, and cost tracking dashboard.",
 }
 
-/** Thin component that wires the Ctrl+\\ shortcut inside <AppDockProvider>. */
+/** Thin component that wires dock keyboard shortcuts inside <AppDockProvider>.
+ *  Phase 50: adds Ctrl+Shift+1..9 / Ctrl+Shift+0 / Ctrl+Shift+D alongside
+ *  the existing Ctrl+\ toggle. */
 function DockKeyboard(): undefined {
   useDockToggleShortcut()
+  useDockPaneKeyboardShortcuts()
 }
 
 export default function Page() {
