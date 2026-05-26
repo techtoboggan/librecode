@@ -12,9 +12,7 @@
  * localStorage. Skip tauri mode until the fixture supports state setup.
  */
 
-import { test, expect } from "../fixtures/tauri"
-
-const SESSION_PATH = "/L2hvbWUvdHJpc3Rhbi9Qcm9qZWN0cy9saWJyZWNvZGU/session"
+import { test, expect, SESSION_PATH } from "../fixtures/tauri"
 
 test("dock toggle cycle: visible → hide → edge-handle → visible (v0.9.95)", async ({ tauriPage }) => {
   await tauriPage.goto(SESSION_PATH)

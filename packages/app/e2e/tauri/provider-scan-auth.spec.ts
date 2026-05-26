@@ -11,9 +11,7 @@
  * fetch path is used end-to-end.
  */
 
-import { test, expect } from "../fixtures/tauri"
-
-const ONBOARDING_PATH = "/L2hvbWUvdHJpc3Rhbi9Qcm9qZWN0cy9saWJyZWNvZGU/onboarding"
+import { test, expect, ONBOARDING_PATH } from "../fixtures/tauri"
 
 test("local compute detection renders without 401/auth errors (v0.9.95 audit)", async ({ tauriPage }) => {
   await tauriPage.goto(ONBOARDING_PATH)

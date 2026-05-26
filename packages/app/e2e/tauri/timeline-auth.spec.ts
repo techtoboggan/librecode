@@ -12,9 +12,7 @@
  * environment to exercise the auth path.
  */
 
-import { test, expect } from "../fixtures/tauri"
-
-const SESSION_PATH = "/L2hvbWUvdHJpc3Rhbi9Qcm9qZWN0cy9saWJyZWNvZGU/session"
+import { test, expect, SESSION_PATH } from "../fixtures/tauri"
 
 test("Timeline tab loads without TypeError: Load failed (v0.9.94)", async ({ tauriPage }) => {
   await tauriPage.goto(SESSION_PATH)

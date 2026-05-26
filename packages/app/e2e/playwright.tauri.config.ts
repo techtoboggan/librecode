@@ -29,6 +29,10 @@ const webBaseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${webPor
 
 // Root of packages/app/ (parent of this config file's directory)
 const appRoot = fileURLToPath(new URL("..", import.meta.url))
+// packages/librecode — where the CLI backend lives.
+const librecodeRoot = join(appRoot, "..", "librecode")
+// Backend readiness endpoint (returns 200 without auth on loopback).
+const backendReadyURL = "http://127.0.0.1:4096/config"
 
 export default defineConfig({
   testDir: "./tauri",
@@ -41,21 +45,41 @@ export default defineConfig({
     ? [["github"], ["html", { outputFolder: join(appRoot, "e2e/playwright-report-tauri"), open: "never" }]]
     : "list",
 
-  // Auto-start the Vite dev server in CI; reuse existing server locally.
-  // In CI there is no running backend at :4096 — browser-mode tests
-  // do not require it because they navigate to UI-only routes and check
-  // DOM structure / console errors, not live data.
-  webServer: {
-    command: "bun run dev",
-    cwd: appRoot,
-    url: webBaseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-    env: {
-      // Suppress Vite from auto-opening a browser tab in CI
-      BROWSER: "none",
+  // Phase 52F — TWO servers. The browser-mode specs navigate to a real
+  // session route, which the SolidJS app can only render if it can reach
+  // the librecode-cli backend (the web entry talks HTTP/SSE to :4096
+  // directly — Tauri IPC mocks don't apply in web mode). The earlier
+  // assumption that browser-mode tests hit "UI-only routes" was wrong and
+  // is exactly why v0.10.0-.2 failed in CI: no backend → session view never
+  // loads → [data-testid="app-dock"] never found.
+  //
+  // Playwright starts both, waits for each `url` to respond, then runs the
+  // suite. reuseExistingServer is true locally (reuse a running dev setup)
+  // and false in CI (Playwright owns the lifecycle).
+  webServer: [
+    {
+      // librecode CLI backend — serves /session, /mcp, /event SSE, /config.
+      command: "bun run --conditions=browser src/index.ts serve",
+      cwd: librecodeRoot,
+      url: backendReadyURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000, // cold bun start + model snapshot load can be slow
+      stdout: "pipe",
+      stderr: "pipe",
     },
-  },
+    {
+      // Vite dev server (the UI).
+      command: "bun run dev",
+      cwd: appRoot,
+      url: webBaseURL,
+      reuseExistingServer: !process.env.CI,
+      timeout: 60_000,
+      env: {
+        // Suppress Vite from auto-opening a browser tab in CI
+        BROWSER: "none",
+      },
+    },
+  ],
 
   use: {
     baseURL: webBaseURL,

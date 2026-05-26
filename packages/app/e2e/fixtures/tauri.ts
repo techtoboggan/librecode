@@ -26,9 +26,34 @@
  */
 
 import { test as base, expect, type Page } from "@playwright/test"
+import { fileURLToPath } from "node:url"
 // generateIpcMockScript is a public export of @srsholmes/tauri-playwright
 // (see node_modules/.../dist/index.d.ts line 881).
 import { generateIpcMockScript } from "@srsholmes/tauri-playwright"
+
+/**
+ * Phase 52F — base64url-encode a directory path exactly as the app's
+ * `base64Encode` (@librecode/util/encode) does, so we can build the
+ * `/{encoded}/session` route for ANY machine/CI runner rather than
+ * hardcoding a developer's home-dir path (the v0.10.0-.2 failure).
+ */
+function base64UrlEncode(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+// Repo root resolved from this file: fixtures/ → e2e/ → app/ → packages/ → root
+const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url)).replace(/\/$/, "")
+
+/**
+ * Session route for the repo checkout, computed at runtime. The librecode
+ * backend serves `/session?directory=<REPO_ROOT>` for any readable dir, so
+ * this works on a fresh CI runner where there are no "recent projects" to
+ * click on the splash.
+ */
+export const SESSION_PATH = `/${base64UrlEncode(REPO_ROOT)}/session`
+
+/** Onboarding route for the repo checkout (provider-scan-auth spec). */
+export const ONBOARDING_PATH = `/${base64UrlEncode(REPO_ROOT)}/onboarding`
 
 /**
  * Tauri IPC mocks injected into every page before navigation.

@@ -11,9 +11,7 @@
  * tauri project (real native webview).
  */
 
-import { test, expect } from "../fixtures/tauri"
-
-const SESSION_PATH = "/L2hvbWUvdHJpc3Rhbi9Qcm9qZWN0cy9saWJyZWNvZGU/session"
+import { test, expect, SESSION_PATH } from "../fixtures/tauri"
 
 test("detach button is present for non-builtin pinned apps (Phase 49)", async ({ tauriPage }, testInfo) => {
   // canDetach() in pane-header.tsx requires platform.platform === "desktop".

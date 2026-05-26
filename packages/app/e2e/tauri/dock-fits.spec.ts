@@ -12,9 +12,7 @@
  *   Layer 3 (this test) — confirms in real native webview
  */
 
-import { test, expect } from "../fixtures/tauri"
-
-const SESSION_PATH = "/L2hvbWUvdHJpc3Rhbi9Qcm9qZWN0cy9saWJyZWNvZGU/session"
+import { test, expect, SESSION_PATH } from "../fixtures/tauri"
 
 test("dock fits inside 1280×800 viewport — no horizontal overflow (v0.9.95)", async ({ tauriPage }) => {
   await tauriPage.goto(SESSION_PATH)

@@ -100,20 +100,16 @@ jobs:
       # Playwright's webServer config starts the Vite dev server automatically
       # when CI=true (reuseExistingServer: false in playwright.tauri.config.ts).
       # 4 pass + 1 skipped (detach-flow: requires platform === "desktop").
-      # continue-on-error: SOFT GATE until the E2E tests are CI-portable.
-      # The 5 initial specs (Phase 52C) were written against a populated
-      # local env — a running librecode-cli backend on :4096, a machine-
-      # specific base64 project route, and pre-existing localStorage dock
-      # entries. None of that exists on a fresh CI runner, so the dock never
-      # renders and [data-testid="app-dock"] is not found. Making this block
-      # releases would wedge the entire pipeline on tests that aren't yet
-      # environment-independent. Phase 52F makes them CI-portable (webServer
-      # array starting the backend, dynamic project path, state seeding via
-      # init script) and THEN removes continue-on-error to arm the hard gate.
-      # Tracked: the job still runs + reports red on the E2E tile so we see
-      # the results; it just doesn't block binary builds yet.
-      - name: Run E2E — browser mode (SOFT GATE — see comment, Phase 52F arms it)
-        continue-on-error: true
+      # HARD GATE (Phase 52F). The browser-mode E2E suite is now CI-portable:
+      # playwright.tauri.config.ts's webServer array starts BOTH the
+      # librecode-cli backend (:4096, readiness on /config) and the Vite dev
+      # server, the specs compute their session route from the repo checkout
+      # path at runtime (no hardcoded home dir), and dock-toggle-cycle seeds
+      # its own dock entry via a dynamic localStorage key lookup. Verified
+      # against the clean reproduction locally (backend down + ports free):
+      # 4 passed, 1 skipped (detach-flow, desktop-only). A failure here now
+      # blocks binary builds — that's the point.
+      - name: Run E2E — browser mode (HARD GATE)
         working-directory: packages/app
         run: bun run test:e2e:tauri:browser
         env:
