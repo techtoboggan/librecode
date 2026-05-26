@@ -709,6 +709,23 @@ export const Info = z
       })
       .optional()
       .default({ app_dock: true }),
+    mcp_apps: z
+      .record(
+        z.string(),
+        z.object({
+          alwaysLoaded: z
+            .boolean()
+            .optional()
+            .describe(
+              "Phase 50b — keep this app's iframe mounted even when its dock pane is collapsed. " +
+                "Default false (iframe unmounts on collapse for memory wins). Set true for apps " +
+                "where you want to preserve ephemeral state (scroll position, modals, filters) " +
+                "across collapse cycles.",
+            ),
+        }),
+      )
+      .optional()
+      .describe("Per-app overrides keyed by ui:// URI."),
   })
   .strict()
   .meta({

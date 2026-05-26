@@ -912,6 +912,23 @@
         "app_dock"
       ],
       "additionalProperties": false
+    },
+    "mcp_apps": {
+      "description": "Per-app overrides keyed by ui:// URI.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "alwaysLoaded": {
+            "description": "Phase 50b — keep this app's iframe mounted even when its dock pane is collapsed. Default false (iframe unmounts on collapse for memory wins). Set true for apps where you want to preserve ephemeral state (scroll position, modals, filters) across collapse cycles.",
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "required": [
