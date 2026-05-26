@@ -328,6 +328,56 @@ additions."
 
 ---
 
+## 10. Regression coverage
+
+> Added Phase 52 Sub-A. Every production bug that shipped on or before
+> v0.9.97 has a regression test in one of the three layers. Layer 2 smoke
+> is documented here for the bugs it specifically catches.
+
+The bugs from v0.9.88–v0.9.97 and which layer now prevents them:
+
+| Bug                                                         | Version     | Layer that catches it                  | Test file                                              |
+| ----------------------------------------------------------- | ----------- | -------------------------------------- | ------------------------------------------------------ |
+| Dock invisible after Phase 48 (`hidden` default shipped)    | v0.9.88     | Layer 1 (unit)                         | `app-dock/dock-visibility-upgrade.test.ts`             |
+| Stale `hidden` persisted after v0.9.91 upgrade              | v0.9.91→.94 | Layer 1 (unit)                         | `app-dock/dock-visibility-upgrade.test.ts`             |
+| Timeline "TypeError: Load failed" (raw fetch bypasses auth) | v0.9.94     | Layer 1 (static audit)                 | `fetch-auth-audit.test.ts`                             |
+| Dock off-screen at desktop viewport (smoke ran at 710px)    | v0.9.95     | Layer 2 (smoke §3 resize + screenshot) | (visual — use `preview_resize` + `preview_screenshot`) |
+| 4 other raw-fetch auth bypass sites                         | v0.9.95     | Layer 1 (static audit)                 | `fetch-auth-audit.test.ts`                             |
+| Phase 49 Tauri detach unverifiable                          | v0.9.96     | Layer 3 (tauri-playwright, Phase 52C)  | `e2e/tauri/detach-flow.spec.ts`                        |
+
+### Layer 2 smoke-specific regressions
+
+The smoke's desktop viewport requirement (§3 step 4) and mandatory
+screenshot rule (§5 rule 3) together catch the "dock off-screen at
+1280×800" class. Every smoke run that resizes to desktop and screenshots
+the session view is validating this regression.
+
+Explicit Layer 2 smoke checks to run after any dock/side-panel layout
+change:
+
+```ts
+// Verify no horizontal overflow of dock or side panel
+mcp__Claude_Preview__preview_eval({
+  serverId: WEB_ID,
+  expression: `
+    (() => {
+      const dock = document.querySelector('[data-testid="app-dock"]')
+      const dockRect = dock?.getBoundingClientRect()
+      return {
+        viewport: window.innerWidth,
+        dock: dockRect && { x: dockRect.left, w: dockRect.width, right: dockRect.right },
+        overflow: dockRect ? Math.max(0, dockRect.right - window.innerWidth) : 0,
+      }
+    })()
+  `,
+})
+// Expected: overflow === 0
+mcp__Claude_Preview__preview_screenshot({ serverId: WEB_ID })
+// Look at it: dock must be fully inside the viewport at 1280px width.
+```
+
+---
+
 ## 9. Known limitations
 
 - **EventSource reconnects fail loudly in dev**: the
