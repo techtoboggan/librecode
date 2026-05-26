@@ -1036,7 +1036,12 @@ export default function Page() {
               reviewSnap={ui.reviewSnap}
               size={size}
             />
-            <Show when={sync.data.config.experimental?.app_dock}>
+            {/* v0.9.96 — gate dock on isDesktop() too. On narrow viewports
+                the parent flex switches to column-direction and the dock's
+                width:320px + h-full layout dominates the vertical stack,
+                collapsing the session main view. Mobile MCP-app UX is a
+                future phase; for now we hide rather than break. */}
+            <Show when={isDesktop() && sync.data.config.experimental?.app_dock}>
               <AppDock sessionID={params.id} exampleApp={BUILTIN_SESSION_STATS} />
             </Show>
           </div>
