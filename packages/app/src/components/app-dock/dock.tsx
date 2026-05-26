@@ -16,6 +16,7 @@ import { PaneHeader } from "./pane-header"
 import { PaneDetachedPlaceholder } from "./pane-detached-placeholder"
 import { PaneDivider } from "./divider"
 import { AddAppPopover } from "./add-app-popover"
+import { DockEdgeHandle } from "./edge-handle"
 import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
 import { deriveStatus } from "./pane-status"
 import { createLiveAnnouncer } from "./a11y-live"
@@ -151,93 +152,98 @@ export function AppDock(props: AppDockProps): JSX.Element {
   const entryByUri = (uri: string): DockEntry | undefined => dock.state().entries.find((e) => e.uri === uri)
 
   return (
-    // Phase 50: <aside> landmark with role=complementary + aria-label.
-    <aside
-      role="complementary"
-      aria-label="App dock"
-      data-testid="app-dock"
-      style={{
-        display: dock.state().visibility === "hidden" ? "none" : "flex",
-        width: `${dock.state().width}px`,
-        "min-width": `${DOCK_MIN_WIDTH}px`,
-        "max-width": `${DOCK_MAX_WIDTH}px`,
-      }}
-      class="relative flex-col h-full bg-background-stronger border-l border-border-weak-base overflow-hidden shrink-0"
-    >
-      {/* Phase 50: hidden live region for a11y announcements (polite + atomic). */}
-      <div aria-live="polite" aria-atomic="true" class="sr-only">
-        {announcer.message()}
-      </div>
+    <>
+      {/* Phase 50: <aside> landmark with role=complementary + aria-label. */}
+      <aside
+        role="complementary"
+        aria-label="App dock"
+        data-testid="app-dock"
+        style={{
+          display: dock.state().visibility === "hidden" ? "none" : "flex",
+          width: `${dock.state().width}px`,
+          "min-width": `${DOCK_MIN_WIDTH}px`,
+          "max-width": `${DOCK_MAX_WIDTH}px`,
+        }}
+        class="relative flex-col h-full bg-background-stronger border-l border-border-weak-base overflow-hidden shrink-0"
+      >
+        {/* Phase 50: hidden live region for a11y announcements (polite + atomic). */}
+        <div aria-live="polite" aria-atomic="true" class="sr-only">
+          {announcer.message()}
+        </div>
 
-      {/* Left-edge resize handle — Phase 50: role=separator + keyboard support. */}
-      <div
-        role="separator"
-        aria-orientation="vertical"
-        aria-valuemin={DOCK_MIN_WIDTH}
-        aria-valuemax={DOCK_MAX_WIDTH}
-        aria-valuenow={dock.state().width}
-        tabindex="0"
-        data-testid="dock-resize-handle"
-        class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-border-base focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:outline-none"
-        style={{ "min-width": "4px" }}
-        onPointerDown={onResizePointerDown}
-        onPointerMove={onResizePointerMove}
-        onPointerUp={onResizePointerUp}
-        onKeyDown={onResizeKeyDown}
-      />
+        {/* Left-edge resize handle — Phase 50: role=separator + keyboard support. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuemin={DOCK_MIN_WIDTH}
+          aria-valuemax={DOCK_MAX_WIDTH}
+          aria-valuenow={dock.state().width}
+          tabindex="0"
+          data-testid="dock-resize-handle"
+          class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-border-base focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:outline-none"
+          style={{ "min-width": "4px" }}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onKeyDown={onResizeKeyDown}
+        />
 
-      {/* Content area — pane list or empty state */}
-      <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <Show
-          when={dock.state().entries.length > 0}
-          fallback={<EmptyDockState exampleApp={props.exampleApp} onAdd={(app) => dock.add(app)} />}
-        >
-          {/* DragDropProvider must NOT wrap the AddAppPopover — see Pitfall #3. */}
-          <DragDropProvider onDragOver={handleDragOver} collisionDetector={closestCenter}>
-            <DragDropSensors />
-            <div ref={setContainerRef} class="flex flex-col flex-1 min-h-0 overflow-y-auto">
-              <For each={paneUris()}>
-                {(uri, idx) => {
-                  const entry = () => entryByUri(uri)
-                  return (
-                    <Show when={entry()}>
-                      {(e) => (
-                        <>
-                          <DockPane
-                            entry={e()}
-                            sessionID={props.sessionID}
-                            availablePx={availablePx()}
-                            paneIndex={idx()}
-                            announcer={announcer}
-                            telemetryEnabled={telemetryEnabled()}
-                            alwaysLoadedMap={alwaysLoadedMap()}
-                          />
-                          <Show when={idx() < dock.state().entries.length - 1}>
-                            <PaneDivider
-                              onResize={(delta) => {
-                                const entries = dock.state().entries
-                                const below = entries[idx() + 1]
-                                if (below) dock.applyDividerDrag(uri, below.uri, delta, availablePx())
-                              }}
+        {/* Content area — pane list or empty state */}
+        <div class="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <Show
+            when={dock.state().entries.length > 0}
+            fallback={<EmptyDockState exampleApp={props.exampleApp} onAdd={(app) => dock.add(app)} />}
+          >
+            {/* DragDropProvider must NOT wrap the AddAppPopover — see Pitfall #3. */}
+            <DragDropProvider onDragOver={handleDragOver} collisionDetector={closestCenter}>
+              <DragDropSensors />
+              <div ref={setContainerRef} class="flex flex-col flex-1 min-h-0 overflow-y-auto">
+                <For each={paneUris()}>
+                  {(uri, idx) => {
+                    const entry = () => entryByUri(uri)
+                    return (
+                      <Show when={entry()}>
+                        {(e) => (
+                          <>
+                            <DockPane
+                              entry={e()}
+                              sessionID={props.sessionID}
+                              availablePx={availablePx()}
+                              paneIndex={idx()}
+                              announcer={announcer}
+                              telemetryEnabled={telemetryEnabled()}
+                              alwaysLoadedMap={alwaysLoadedMap()}
                             />
-                          </Show>
-                        </>
-                      )}
-                    </Show>
-                  )
-                }}
-              </For>
-            </div>
-          </DragDropProvider>
-        </Show>
-      </div>
+                            <Show when={idx() < dock.state().entries.length - 1}>
+                              <PaneDivider
+                                onResize={(delta) => {
+                                  const entries = dock.state().entries
+                                  const below = entries[idx() + 1]
+                                  if (below) dock.applyDividerDrag(uri, below.uri, delta, availablePx())
+                                }}
+                              />
+                            </Show>
+                          </>
+                        )}
+                      </Show>
+                    )
+                  }}
+                </For>
+              </div>
+            </DragDropProvider>
+          </Show>
+        </div>
 
-      {/* Footer — add button always visible so user can add more apps.
+        {/* Footer — add button always visible so user can add more apps.
           Rendered OUTSIDE the DragDropProvider to avoid click interception. */}
-      <div class="shrink-0 border-t border-border-weak-base">
-        <AddAppPopover />
-      </div>
-    </aside>
+        <div class="shrink-0 border-t border-border-weak-base">
+          <AddAppPopover />
+        </div>
+      </aside>
+      {/* v0.9.95 — slim edge handle on viewport right side when dock is
+        hidden but has entries. Discoverable affordance to re-open. */}
+      <DockEdgeHandle />
+    </>
   )
 }
 
