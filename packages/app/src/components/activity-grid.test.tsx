@@ -148,13 +148,14 @@ describe("openActivityGraph handler", () => {
     expect(toggle).not.toHaveBeenCalled()
   })
 
-  test("toggleVisibility state contract: default is hidden, toggle flips to visible", () => {
-    // defaultDockState().visibility === "hidden", so toggling once gives "visible".
-    // Confirms the state helper that dockCtx.toggle() calls works as expected.
-    expect(defaultDockState().visibility).toBe("hidden")
-    const visible = toggleVisibility(defaultDockState())
-    expect(visible.visibility).toBe("visible")
-    const backToHidden = toggleVisibility(visible)
-    expect(backToHidden.visibility).toBe("hidden")
+  test("toggleVisibility state contract: default is visible (v0.9.91), toggle flips to hidden", () => {
+    // defaultDockState().visibility === "visible" as of v0.9.91, so toggling
+    // once gives "hidden". Confirms the state helper that dockCtx.toggle()
+    // calls works as expected in both directions.
+    expect(defaultDockState().visibility).toBe("visible")
+    const hidden = toggleVisibility(defaultDockState())
+    expect(hidden.visibility).toBe("hidden")
+    const backToVisible = toggleVisibility(hidden)
+    expect(backToVisible.visibility).toBe("visible")
   })
 })

@@ -13,9 +13,20 @@ export function clampWidth(value: number): number {
   return Math.min(DOCK_MAX_WIDTH, Math.max(DOCK_MIN_WIDTH, value))
 }
 
-/** Default state for a workspace that's never used the dock. */
+/**
+ * Default state for a workspace that's never used the dock.
+ *
+ * Phase 48 (v0.9.88) flipped `experimental.app_dock` to default-on but
+ * shipped this default as `visibility: "hidden"`. Result: users who got
+ * their pinned apps auto-migrated to the dock saw "in dock" indicators
+ * in the Start menu but the dock itself stayed invisible unless they
+ * discovered the Ctrl+\ shortcut or the dot-grid button in the session
+ * header. v0.9.91 ships `visibility: "visible"` as the default — users
+ * who explicitly hid the dock keep their preference because
+ * `migrateDockState` reads the persisted `visibility` field when present.
+ */
 export function defaultDockState(): DockState {
-  return { visibility: "hidden", width: DOCK_DEFAULT_WIDTH, entries: [] }
+  return { visibility: "visible", width: DOCK_DEFAULT_WIDTH, entries: [] }
 }
 
 /** Guard a raw value to see if it is a valid DockVisibility. */

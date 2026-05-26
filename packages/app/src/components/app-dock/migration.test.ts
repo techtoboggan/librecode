@@ -139,7 +139,8 @@ describe("markMigrated", () => {
     const withEntry = addEntry(defaultDockState(), { uri: APP_A.uri, app: APP_A })
     const result = markMigrated(withEntry, NOW)
     expect(result.entries).toHaveLength(1)
-    expect(result.visibility).toBe("hidden")
+    // v0.9.91: defaultDockState() now starts visible, so visibility must be preserved as such.
+    expect(result.visibility).toBe("visible")
   })
 })
 

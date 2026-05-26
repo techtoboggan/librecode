@@ -44,8 +44,8 @@ describe("clampWidth", () => {
 })
 
 describe("defaultDockState", () => {
-  test("visibility is hidden", () => {
-    expect(defaultDockState().visibility).toBe("hidden")
+  test("visibility is visible (v0.9.91 default flip)", () => {
+    expect(defaultDockState().visibility).toBe("visible")
   })
 
   test("width is the default width", () => {
@@ -78,9 +78,9 @@ describe("migrateDockState", () => {
     expect(result.entries).toHaveLength(0)
   })
 
-  test("invalid visibility falls back to hidden", () => {
+  test("invalid visibility falls back to default (visible as of v0.9.91)", () => {
     const result = migrateDockState({ visibility: "open", width: 320, entries: [] })
-    expect(result.visibility).toBe("hidden")
+    expect(result.visibility).toBe("visible")
   })
 
   test("invalid width falls back to default clamped", () => {

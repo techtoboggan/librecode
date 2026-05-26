@@ -157,14 +157,15 @@ describe("onLaunch branching — dock vs. legacy path", () => {
   })
 
   test("dock auto-opens when launched into a hidden dock (pitfall #5)", () => {
-    // defaultDockState() starts with visibility: "hidden"
-    const { dockAutoOpened } = simulateLaunch(true, defaultDockState(), STATS_APP)
+    // v0.9.91 default is visible — explicitly hide first to drive the auto-open path.
+    const hidden = toggleVisibility(defaultDockState()) // "visible" → "hidden"
+    const { dockAutoOpened } = simulateLaunch(true, hidden, STATS_APP)
     expect(dockAutoOpened).toBe(true)
   })
 
-  test("dock does NOT auto-toggle when it is already visible", () => {
-    const visible = toggleVisibility(defaultDockState()) // "hidden" → "visible"
-    const { dockAutoOpened } = simulateLaunch(true, visible, STATS_APP)
+  test("dock does NOT auto-toggle when it is already visible (v0.9.91 default)", () => {
+    // defaultDockState() now starts visible, so launch should not flip it.
+    const { dockAutoOpened } = simulateLaunch(true, defaultDockState(), STATS_APP)
     expect(dockAutoOpened).toBe(false)
   })
 
