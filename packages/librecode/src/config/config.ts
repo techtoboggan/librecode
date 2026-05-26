@@ -281,6 +281,15 @@ const configState = Instance.state(async () => {
   result.agent = result.agent || {}
   result.mode = result.mode || {}
   result.plugin = result.plugin || []
+  // v0.10.5 — the merged config is NOT run through _Info.parse() here, so
+  // schema-level defaults (experimental.app_dock = true) don't auto-apply.
+  // Hand-default it the same way agent/mode/plugin are above. Without this a
+  // user (or fresh CI runner) with no librecode.jsonc gets
+  // `experimental: undefined` → `experimental?.app_dock` undefined → the dock
+  // stays hidden on a fresh install. Use ??= so an explicit user value
+  // (e.g. app_dock: false) still wins. Surfaced by the Phase 52 E2E layer.
+  result.experimental = result.experimental ?? {}
+  result.experimental.app_dock = result.experimental.app_dock ?? true
 
   const directories = await ConfigPaths.directories(Instance.directory, Instance.worktree)
   const { result: resultAfterDirs, deps } = await loadLibrecodeDirConfigs(

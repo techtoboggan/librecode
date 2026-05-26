@@ -707,7 +707,16 @@ export const Info = z
               "use only if you specifically don't want MCP apps in this workspace.",
           ),
       })
+      // v0.10.5 — default the WHOLE experimental object to { app_dock: true }.
+      // Without this, a user (or fresh CI runner) with no librecode.jsonc gets
+      // `experimental: undefined`, so `experimental?.app_dock` is undefined and
+      // the dock stays hidden — even though the field-level default is true.
+      // Zod v4 `.default({...})` provides the literal object without re-parsing
+      // inner defaults (Phase 48 pitfall), so we spell out app_dock here.
+      // This is the fresh-install dock-visibility bug the Phase 52 E2E layer
+      // surfaced: empty config dir → /config returns experimental: null → no dock.
       .optional()
+      .default({ app_dock: true })
       .default({ app_dock: true }),
     mcp_apps: z
       .record(
