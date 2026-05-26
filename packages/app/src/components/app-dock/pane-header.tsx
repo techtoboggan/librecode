@@ -20,6 +20,9 @@ export interface PaneHeaderProps {
   onViewError: () => void
   /** Phase 49 — called when user clicks the ⤢ Detach button. */
   onDetach: () => void
+  /** Phase 50 — 0-based index of this pane; stored as data-pane-index so the
+   *  keyboard handler can querySelector the right header. */
+  paneIndex?: number
 }
 
 /**
@@ -45,7 +48,9 @@ export function PaneHeader(props: PaneHeaderProps): JSX.Element {
       use:draggable
       data-testid={`pane-header-${props.uri}`}
       data-uri={props.uri}
-      class="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border-weak-base cursor-grab active:cursor-grabbing select-none"
+      data-pane-index={props.paneIndex}
+      tabindex="0"
+      class="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border-weak-base cursor-grab active:cursor-grabbing select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-strong focus-visible:outline-none"
     >
       <div class="flex items-center gap-2 min-w-0">
         <button

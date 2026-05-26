@@ -1,4 +1,4 @@
-import { createEffect, createSignal, For, onCleanup, Show, type JSX } from "solid-js"
+import { createEffect, createSignal, For, onCleanup, onMount, Show, type JSX } from "solid-js"
 import { DragDropProvider, DragDropSensors, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
 import { createDroppable } from "@thisbeyond/solid-dnd"
@@ -16,6 +16,8 @@ import { PaneDivider } from "./divider"
 import { AddAppPopover } from "./add-app-popover"
 import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
 import { deriveStatus } from "./pane-status"
+import { createLiveAnnouncer } from "./a11y-live"
+import { emitDockEvent } from "./telemetry"
 
 export interface AppDockProps {
   sessionID?: string
@@ -42,13 +44,25 @@ export interface AppDockProps {
  *   visibility. Collapse also uses display:none on the pane body.
  *   Reorder uses <For> keyed on stable URI strings so iframes
  *   survive reordering without re-mount.
+ *
+ * Phase 50 a11y additions:
+ *   - <aside role="complementary" aria-label="App dock"> landmark on root.
+ *   - Live region for collapse/expand/detach/reattach announcements.
+ *   - Resize handle gets role=separator + arrow-key support (16px steps).
  */
 export function AppDock(props: AppDockProps): JSX.Element {
   const dock = useAppDockState()
+  const sync = useSync()
   const platform = usePlatform()
   const [dragging, setDragging] = createSignal(false)
   const [containerRef, setContainerRef] = createSignal<HTMLDivElement>()
   const [availablePx, setAvailablePx] = createSignal(400)
+
+  // Phase 50 — live-region announcer for a11y screen-reader notifications.
+  const announcer = createLiveAnnouncer()
+
+  // Phase 50 — telemetry gate (reads once per dock mount; re-reads if sync changes).
+  const telemetryEnabled = (): boolean => sync.data.config?.telemetry?.phoenix?.enabled === true
 
   // Measure the pane-list container height so paneHeight() can compute
   // equal distributions. Updated whenever the container resizes.
@@ -101,6 +115,19 @@ export function AppDock(props: AppDockProps): JSX.Element {
     setDragging(false)
   }
 
+  // Phase 50 — arrow-key resize handler for the dock-width handle.
+  // ArrowLeft increases width (handle moves left, dock expands).
+  // ArrowRight decreases width (handle moves right, dock shrinks).
+  const onResizeKeyDown = (e: KeyboardEvent) => {
+    if (e.key === "ArrowLeft") {
+      e.preventDefault()
+      dock.resize(dock.state().width + 16)
+    } else if (e.key === "ArrowRight") {
+      e.preventDefault()
+      dock.resize(dock.state().width - 16)
+    }
+  }
+
   onCleanup(() => setDragging(false))
 
   // ── Drag-to-reorder ───────────────────────────────────────────────────────
@@ -118,7 +145,10 @@ export function AppDock(props: AppDockProps): JSX.Element {
   const entryByUri = (uri: string): DockEntry | undefined => dock.state().entries.find((e) => e.uri === uri)
 
   return (
-    <div
+    // Phase 50: <aside> landmark with role=complementary + aria-label.
+    <aside
+      role="complementary"
+      aria-label="App dock"
       data-testid="app-dock"
       style={{
         display: dock.state().visibility === "hidden" ? "none" : "flex",
@@ -128,14 +158,26 @@ export function AppDock(props: AppDockProps): JSX.Element {
       }}
       class="relative flex-col h-full bg-background-stronger border-l border-border-weak-base overflow-hidden shrink-0"
     >
-      {/* Left-edge resize handle */}
+      {/* Phase 50: hidden live region for a11y announcements (polite + atomic). */}
+      <div aria-live="polite" aria-atomic="true" class="sr-only">
+        {announcer.message()}
+      </div>
+
+      {/* Left-edge resize handle — Phase 50: role=separator + keyboard support. */}
       <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-valuemin={DOCK_MIN_WIDTH}
+        aria-valuemax={DOCK_MAX_WIDTH}
+        aria-valuenow={dock.state().width}
+        tabindex="0"
         data-testid="dock-resize-handle"
-        class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-border-base"
+        class="absolute left-0 top-0 bottom-0 w-1 cursor-col-resize z-10 hover:bg-border-base focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:outline-none"
         style={{ "min-width": "4px" }}
         onPointerDown={onResizePointerDown}
         onPointerMove={onResizePointerMove}
         onPointerUp={onResizePointerUp}
+        onKeyDown={onResizeKeyDown}
       />
 
       {/* Content area — pane list or empty state */}
@@ -155,7 +197,14 @@ export function AppDock(props: AppDockProps): JSX.Element {
                     <Show when={entry()}>
                       {(e) => (
                         <>
-                          <DockPane entry={e()} sessionID={props.sessionID} availablePx={availablePx()} />
+                          <DockPane
+                            entry={e()}
+                            sessionID={props.sessionID}
+                            availablePx={availablePx()}
+                            paneIndex={idx()}
+                            announcer={announcer}
+                            telemetryEnabled={telemetryEnabled()}
+                          />
                           <Show when={idx() < dock.state().entries.length - 1}>
                             <PaneDivider
                               onResize={(delta) => {
@@ -181,7 +230,7 @@ export function AppDock(props: AppDockProps): JSX.Element {
       <div class="shrink-0 border-t border-border-weak-base">
         <AddAppPopover />
       </div>
-    </div>
+    </aside>
   )
 }
 
@@ -216,6 +265,12 @@ interface DockPaneProps {
   entry: DockEntry
   sessionID?: string
   availablePx: number
+  /** Phase 50: 0-based index of this pane (passed to PaneHeader as data-pane-index). */
+  paneIndex: number
+  /** Phase 50: live-region announcer for a11y screen-reader notifications. */
+  announcer: ReturnType<typeof createLiveAnnouncer>
+  /** Phase 50: whether Phoenix telemetry is enabled. */
+  telemetryEnabled: boolean
 }
 
 /**
@@ -251,6 +306,27 @@ function DockPane(props: DockPaneProps): JSX.Element {
 
   const height = () => paneHeight(dock.state(), props.entry.uri, props.availablePx)
 
+  // Phase 50 — telemetry: record mount time so we can compute ms_since_dock_open.
+  const mountedAt = Date.now()
+
+  onMount(() => {
+    emitDockEvent(props.telemetryEnabled, "mounted", {
+      paneURI: props.entry.uri,
+      appName: props.entry.app.name,
+      msSinceDockOpen: 0,
+      sessionID: props.sessionID,
+    })
+  })
+
+  onCleanup(() => {
+    emitDockEvent(props.telemetryEnabled, "unmounted", {
+      paneURI: props.entry.uri,
+      appName: props.entry.app.name,
+      msSinceDockOpen: Date.now() - mountedAt,
+      sessionID: props.sessionID,
+    })
+  })
+
   const onReconnect = () => {
     setViewingError(false)
     void reconnectMcpServer(sdk, props.entry.app.server)
@@ -259,6 +335,7 @@ function DockPane(props: DockPaneProps): JSX.Element {
   const closeError = () => setViewingError(false)
 
   // Phase 49 — detach this pane into its own Tauri window.
+  // Phase 50 — also fires a11y announcement + telemetry event.
   const onDetach = async (): Promise<void> => {
     if (!platform.openDetachedWindow) return
     try {
@@ -269,6 +346,13 @@ function DockPane(props: DockPaneProps): JSX.Element {
         dir: sdk.directory,
       })
       dock.detach(props.entry.uri)
+      props.announcer.announce(`${props.entry.app.name} detached`)
+      emitDockEvent(props.telemetryEnabled, "detached", {
+        paneURI: props.entry.uri,
+        appName: props.entry.app.name,
+        msSinceDockOpen: Date.now() - mountedAt,
+        sessionID: props.sessionID,
+      })
     } catch (err) {
       showToast({
         variant: "error",
@@ -278,8 +362,26 @@ function DockPane(props: DockPaneProps): JSX.Element {
     }
   }
 
+  // Phase 50 — toggle collapse with a11y announcement + telemetry.
+  const onToggleCollapse = (): void => {
+    const nowCollapsed = !(props.entry.collapsed ?? false)
+    dock.setCollapsed(props.entry.uri, nowCollapsed)
+    const verb = nowCollapsed ? "collapsed" : "expanded"
+    props.announcer.announce(`${props.entry.app.name} ${verb}`)
+    const event = nowCollapsed ? "collapsed" : "expanded"
+    emitDockEvent(props.telemetryEnabled, event, {
+      paneURI: props.entry.uri,
+      appName: props.entry.app.name,
+      msSinceDockOpen: Date.now() - mountedAt,
+      sessionID: props.sessionID,
+    })
+  }
+
   return (
-    <div
+    // Phase 50: role=region with app name as accessible label for screen readers.
+    <section
+      role="region"
+      aria-label={props.entry.app.name}
       ref={droppable.ref}
       data-testid={`dock-pane-${props.entry.uri}`}
       style={{ height: `${height()}px`, "min-height": `${PANE_MIN_HEIGHT}px` }}
@@ -292,7 +394,8 @@ function DockPane(props: DockPaneProps): JSX.Element {
         collapsed={props.entry.collapsed ?? false}
         detached={props.entry.detached ?? false}
         status={status()}
-        onToggleCollapse={() => dock.setCollapsed(props.entry.uri, !(props.entry.collapsed ?? false))}
+        paneIndex={props.paneIndex}
+        onToggleCollapse={onToggleCollapse}
         onRemove={() => dock.remove(props.entry.uri)}
         onReconnect={onReconnect}
         onViewError={onViewError}
@@ -306,7 +409,16 @@ function DockPane(props: DockPaneProps): JSX.Element {
           fallback={
             <PaneDetachedPlaceholder
               app={props.entry.app}
-              onReattach={() => dock.reattach(props.entry.uri)}
+              onReattach={() => {
+                dock.reattach(props.entry.uri)
+                props.announcer.announce(`${props.entry.app.name} reattached`)
+                emitDockEvent(props.telemetryEnabled, "reattached", {
+                  paneURI: props.entry.uri,
+                  appName: props.entry.app.name,
+                  msSinceDockOpen: Date.now() - mountedAt,
+                  sessionID: props.sessionID,
+                })
+              }}
               onFocus={() =>
                 void platform.focusDetachedWindow?.({
                   server: props.entry.app.server,
@@ -337,7 +449,7 @@ function DockPane(props: DockPaneProps): JSX.Element {
           </Show>
         </Show>
       </div>
-    </div>
+    </section>
   )
 }
 

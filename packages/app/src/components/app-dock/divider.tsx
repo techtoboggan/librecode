@@ -5,6 +5,10 @@ export interface PaneDividerProps {
   onResize: (deltaPx: number) => void
   /** Called once when drag ends. Used to persist the final values. */
   onResizeEnd?: () => void
+  /** Phase 50: aria-valuemin/max/now for the separator role. */
+  ariaValueMin?: number
+  ariaValueMax?: number
+  ariaValueNow?: number
 }
 
 /**
@@ -43,13 +47,32 @@ export function PaneDivider(props: PaneDividerProps): JSX.Element {
 
   onCleanup(() => setDragging(false))
 
+  // Phase 50 — arrow-key support for keyboard-accessible resizing.
+  // ArrowUp shrinks the upper pane (delta negative), ArrowDown grows it.
+  const onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === "ArrowUp") {
+      e.preventDefault()
+      props.onResize(-16)
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault()
+      props.onResize(16)
+    }
+  }
+
   return (
     <div
+      role="separator"
+      aria-orientation="horizontal"
+      aria-valuemin={props.ariaValueMin}
+      aria-valuemax={props.ariaValueMax}
+      aria-valuenow={props.ariaValueNow}
+      tabindex="0"
       data-testid="pane-divider"
-      class="h-1 cursor-row-resize hover:bg-border-base shrink-0"
+      class="h-1 cursor-row-resize hover:bg-border-base shrink-0 focus-visible:ring-2 focus-visible:ring-accent-strong focus-visible:outline-none"
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onKeyDown={onKeyDown}
     />
   )
 }

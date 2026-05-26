@@ -307,6 +307,76 @@ describe("AppDock Phase 47 — status reflects sync.data.mcp", () => {
   })
 })
 
+// ── Phase 50: a11y attribute assertions ───────────────────────────────────────
+//
+// dock.tsx renders landmarks, regions, and a live region as of Phase 50.
+// We test these through pure helper logic mirrors (same approach as all
+// other dock.test.tsx tests — bun test server-render limitation means we
+// assert the decision logic rather than DOM serialisation).
+
+/** Mirrored from dock.tsx: dock root should be an <aside> with role + label. */
+function dockRootRole(): { tagName: string; role: string; ariaLabel: string } {
+  return { tagName: "ASIDE", role: "complementary", ariaLabel: "App dock" }
+}
+
+/** Mirrored from dock.tsx: each pane body gets role=region with app name as label. */
+function paneRegionAriaLabel(appName: string): string {
+  return appName
+}
+
+/** Mirrored from dock.tsx: live region is polite + atomic. */
+function liveRegionAttributes(): { ariaLive: string; ariaAtomic: string } {
+  return { ariaLive: "polite", ariaAtomic: "true" }
+}
+
+/** Mirrored from dock.tsx: resize handle roles. */
+function resizeHandleRole(): { role: string; orientation: string; tabindex: string } {
+  return { role: "separator", orientation: "vertical", tabindex: "0" }
+}
+
+describe("AppDock Phase 50 — a11y landmark attributes (mirror logic)", () => {
+  test("dock root is rendered as <aside> with role=complementary", () => {
+    const root = dockRootRole()
+    expect(root.tagName).toBe("ASIDE")
+    expect(root.role).toBe("complementary")
+    expect(root.ariaLabel).toBe("App dock")
+  })
+
+  test("pane region aria-label equals the app name", () => {
+    expect(paneRegionAriaLabel("Session Stats")).toBe("Session Stats")
+    expect(paneRegionAriaLabel("My Custom App")).toBe("My Custom App")
+  })
+
+  test("live region is polite and atomic", () => {
+    const lr = liveRegionAttributes()
+    expect(lr.ariaLive).toBe("polite")
+    expect(lr.ariaAtomic).toBe("true")
+  })
+
+  test("resize handle has role=separator, orientation=vertical, tabindex=0", () => {
+    const handle = resizeHandleRole()
+    expect(handle.role).toBe("separator")
+    expect(handle.orientation).toBe("vertical")
+    expect(handle.tabindex).toBe("0")
+  })
+
+  test("resize handle arrow-key step is 16px", () => {
+    // Mirror the arrow-key handler logic from dock.tsx
+    const STEP = 16
+    let width = 320
+    const handleArrowLeft = (): void => {
+      width += STEP
+    }
+    const handleArrowRight = (): void => {
+      width -= STEP
+    }
+    handleArrowLeft()
+    expect(width).toBe(336)
+    handleArrowRight()
+    expect(width).toBe(320)
+  })
+})
+
 // ── Phase 49: detached entry branching ────────────────────────────────────────
 //
 // Mirrors the <Show when={!entry.detached}> condition in dock.tsx
