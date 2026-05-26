@@ -63,10 +63,24 @@ function kindClass(kind: string): string {
 
 // ─── Fetch helpers ────────────────────────────────────────────────────────────
 
-async function fetchActivity(baseUrl: string, directory: string, sessionID: string): Promise<ActivityState> {
+/**
+ * Per-platform fetch shape. Must accept Authorization injection — on Tauri
+ * production builds the CLI sidecar runs with LIBRECODE_SERVER_PASSWORD set
+ * and unauthenticated calls return 401 ("TypeError: Load failed" once the
+ * browser folds in the CORS error wrap). Always pass `globalSDK.fetch`,
+ * never raw `fetch`.
+ */
+type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>
+
+async function fetchActivity(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  directory: string,
+  sessionID: string,
+): Promise<ActivityState> {
   const url = new URL(`${baseUrl}/session/${sessionID}/activity`)
   url.searchParams.set("directory", directory)
-  const res = await fetch(url.toString())
+  const res = await fetchFn(url.toString())
   if (!res.ok) throw new Error(`activity fetch failed: ${res.status}`)
   return res.json() as Promise<ActivityState>
 }
@@ -250,7 +264,7 @@ export function ActivityTab(props: ActivityTabProps): JSX.Element {
   // Initial fetch — keyed on sessionID (mount-time stable per session lifecycle).
   const [initial] = createResource(
     () => props.sessionID,
-    (id) => fetchActivity(sdk.url, sdk.directory, id),
+    (id) => fetchActivity(globalSDK.fetch, sdk.url, sdk.directory, id),
   )
 
   // Seed store from initial fetch

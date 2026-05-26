@@ -159,3 +159,55 @@ describe("openActivityGraph handler", () => {
     expect(backToVisible.visibility).toBe("visible")
   })
 })
+
+// ─── fetchActivity auth — v0.9.94 hotfix regression coverage ──────────────────
+//
+// Mirrors the `fetchActivity` helper in activity-grid.tsx. The pre-hotfix
+// version called the global `fetch` directly, which on Tauri production
+// builds returned 401 (LIBRECODE_SERVER_PASSWORD gate) — surfaced to users
+// as "TypeError: Load failed" via the CORS error wrapper. The fix accepts
+// a FetchLike (typically `globalSDK.fetch` which injects Basic Auth).
+
+type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>
+
+async function fetchActivityMirror(
+  fetchFn: FetchLike,
+  baseUrl: string,
+  directory: string,
+  sessionID: string,
+): Promise<{ files: Record<string, unknown>; agents: Record<string, unknown> }> {
+  const url = new URL(`${baseUrl}/session/${sessionID}/activity`)
+  url.searchParams.set("directory", directory)
+  const res = await fetchFn(url.toString())
+  if (!res.ok) throw new Error(`activity fetch failed: ${res.status}`)
+  return res.json() as Promise<{ files: Record<string, unknown>; agents: Record<string, unknown> }>
+}
+
+describe("fetchActivity auth wiring (v0.9.94 hotfix)", () => {
+  test("passes the provided fetchFn (not raw global fetch) — Bug 2", async () => {
+    const calls: Array<string> = []
+    const fakeFetch: FetchLike = async (input) => {
+      calls.push(String(input))
+      return new Response(JSON.stringify({ files: {}, agents: {} }), { status: 200 })
+    }
+    await fetchActivityMirror(fakeFetch, "http://127.0.0.1:43749", "/home/u/proj", "ses_abc")
+    expect(calls).toHaveLength(1)
+    expect(calls[0]).toContain("/session/ses_abc/activity")
+    expect(calls[0]).toContain("directory=%2Fhome%2Fu%2Fproj")
+  })
+
+  test("throws when the auth-aware fetch returns 401 (no silent swallow)", async () => {
+    const fakeFetch: FetchLike = async () => new Response("Unauthorized", { status: 401 })
+    await expect(fetchActivityMirror(fakeFetch, "http://127.0.0.1:43749", "/home/u/proj", "ses_abc")).rejects.toThrow(
+      "activity fetch failed: 401",
+    )
+  })
+
+  test("returns parsed JSON shape on success", async () => {
+    const fakeFetch: FetchLike = async () =>
+      new Response(JSON.stringify({ files: { a: 1 }, agents: { b: 2 } }), { status: 200 })
+    const result = await fetchActivityMirror(fakeFetch, "http://127.0.0.1:43749", "/p", "ses_x")
+    expect(result.files).toEqual({ a: 1 })
+    expect(result.agents).toEqual({ b: 2 })
+  })
+})
