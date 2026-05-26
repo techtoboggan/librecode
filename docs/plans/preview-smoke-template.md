@@ -81,7 +81,15 @@ mcp__Claude_Preview__preview_start({ name: "librecode-web" })
 mcp__Claude_Preview__preview_logs({ serverId: CLI_ID, lines: 5 })
 // Expect: "librecode server listening on http://127.0.0.1:4096"
 
-// Step 4: Click into the dev project from the splash
+// Step 4: MANDATORY — resize to a realistic desktop viewport. The preview
+// default is 710x710, which is BELOW the md:768px breakpoint and triggers
+// the mobile layout. Tristan's v0.9.95 dock-off-screen bug shipped because
+// smoke ran at 710px (where the layout collapses differently than desktop).
+// Always test the actual layout users will hit.
+mcp__Claude_Preview__preview_resize({ serverId: WEB_ID, preset: "desktop" })
+// or: { width: 1280, height: 800 } for explicit control
+
+// Step 5: Click into the dev project from the splash
 mcp__Claude_Preview__preview_eval({
   serverId: WEB_ID,
   expression: `
@@ -92,6 +100,16 @@ mcp__Claude_Preview__preview_eval({
     })()
   `,
 })
+
+// Step 6: MANDATORY — screenshot the baseline state.
+mcp__Claude_Preview__preview_screenshot({ serverId: WEB_ID })
+// Look at it. Does the layout look right? Is the dock visible? Is content
+// where you expect? `preview_eval` checks DOM properties but won't catch
+// layout overflow, z-index stacking, or content clipped past viewport.
+// Tristan's v0.9.95 bug had dockDisplay:"flex" + dockRect:{x:1279,w:320}
+// — passes a DOM assertion ("dock is visible") but the actual content
+// lives 1px from the right edge then extends 319px off-screen. Only a
+// screenshot reveals this.
 // Expect URL to change to /[base64-encoded-path]/session
 ```
 
@@ -172,6 +190,36 @@ mcp__Claude_Preview__preview_eval({
 // Then assert
 ```
 
+### Pattern: "this layout fits in the viewport"
+
+Always check this after any change that adds/removes/resizes a
+right-anchored sibling (dock, side panel, terminal). The bug in
+v0.9.95 (dock 319px off-screen) ONLY shows up via screenshot or
+bounding-rect math against viewport width.
+
+```ts
+mcp__Claude_Preview__preview_eval({
+  serverId: WEB_ID,
+  expression: `
+    (() => {
+      const dock = document.querySelector('[data-testid="app-dock"]')
+      const sidePanel = document.querySelector('aside[aria-label="Review and files"]')
+      const dockRect = dock?.getBoundingClientRect()
+      const panelRect = sidePanel?.getBoundingClientRect()
+      const overflow = dockRect ? Math.max(0, dockRect.right - window.innerWidth) : 0
+      return {
+        viewport: window.innerWidth,
+        dock: dockRect && { x: dockRect.left, w: dockRect.width, right: dockRect.right },
+        sidePanel: panelRect && { x: panelRect.left, w: panelRect.width, right: panelRect.right },
+        overflow,
+      }
+    })()
+  `,
+})
+// Expected: overflow === 0. Anything > 0 is a layout bug.
+// ALWAYS pair this with a preview_screenshot to confirm visually.
+```
+
 ### Pattern: "console is clean of NEW errors"
 
 ```ts
@@ -191,17 +239,35 @@ mcp__Claude_Preview__preview_console_logs({
 
 For the smoke to pass:
 
-1. **Every phase-specific check returns its expected result.** If a
+1. **Resize to desktop viewport BEFORE running any check.** The
+   preview default (710×710) is below md:768px and triggers the
+   mobile layout codepath. Tristan's v0.9.95 bug was invisible
+   under-768 because the dock got hidden by `<Show
+when={isDesktop()}>` gating. Use `preview_resize({ preset:
+"desktop" })` or explicit `{ width: 1280, height: 800 }`.
+2. **Every phase-specific check returns its expected result.** If a
    check returns differently, STOP the phase — investigate before
    shipping. Don't dismiss as "probably a dev-mode quirk."
-2. **No new console.error categories.** Pre-existing noise
+3. **MANDATORY screenshot at baseline + after every state change.**
+   `preview_eval` checks DOM attributes; only `preview_screenshot`
+   reveals layout overflow, off-viewport content, z-index issues,
+   and "I clicked it but nothing changed" UX bugs. The v0.9.95
+   dock-off-screen bug had `dockDisplay: "flex"` (eval would
+   pass) but the dock rendered 319px past the viewport edge
+   (screenshot would catch immediately). **No screenshot at a
+   key visual state = the smoke didn't actually verify anything
+   visual.**
+4. **For any layout change**: run the "this layout fits in the
+   viewport" check from §4 — assert `overflow === 0` AND
+   screenshot to confirm no clipped content.
+5. **No new console.error categories.** Pre-existing noise
    (global-sdk SSE) is acceptable. Anything new is a blocker.
-3. **No screenshot timeout** in itself is not a blocker — Solid's
-   reactive root sometimes pauses the rendering loop in ways that
-   confuse the screenshot tool. Use `preview_snapshot` (a11y tree)
-   or `preview_eval` for state checks. Screenshots are
-   nice-to-have, not required.
-4. **Cleanup**: at the end of the smoke, restore any localStorage
+6. **No screenshot timeout** is not a blocker — Solid's reactive
+   root sometimes pauses the rendering loop. Use
+   `preview_snapshot` (a11y tree) as a fallback for state, but
+   you STILL need at least one successful screenshot at a key
+   visual checkpoint to call the smoke done.
+7. **Cleanup**: at the end of the smoke, restore any localStorage
    you mutated and stop both preview servers via `preview_stop`.
 
 ---
