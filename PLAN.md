@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-25 | ~452 commits | Tests: 2787 pass, 12 skip, 0 flaky | **v0.9.92** (Phase 50 shipped)
+> Last updated: 2026-05-25 | ~459 commits | Tests: 2831 pass, 12 skip, 0 flaky | **v0.9.93** (Phase 50b shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,54 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 50b: Lazy iframe mount + iframe pool (v0.9.93) ✅
+
+Detail: `docs/plans/phase-50b-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 50b row appended in-place)
+
+Sub-A (keep-alive decision + lazy mount) and Sub-B (iframe pool foundation) both shipped.
+
+**Sub-A — three-signal keep-alive and lazy mount:**
+
+Non-keep-alive apps now unmount their iframe when collapsed instead of hiding it with
+`display:none`. Keep-alive is determined by: (1) built-in server, (2) observed
+`mcp-app-state:save` traffic, or (3) user-set `alwaysLoaded` config flag. This removes
+idle iframe memory/CPU for apps that don't need live state. A one-shot toast on first
+collapse of an unknown app guides users to the "Always keep loaded" toggle in the ⋮ menu.
+
+**Sub-B — iframe pool (park side):**
+
+`IframePool` (max-3 LRU, 5-min TTL) parks iframes when `dock.remove()` fires.
+Off-screen host div keeps the iframe alive across SolidJS cleanup. Pool claim path
+(fast re-pin without cold-start handshake) deferred to Phase 50c.
+
+| Item                                                                                                                           | Status |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------ |
+| `keep-alive.ts`: `shouldKeepIframeAlive` (3-signal) + `buildAlwaysLoadedMap` helpers                                           | ✅     |
+| `keep-alive.test.ts`: 20 tests covering all three signals and edge cases                                                       | ✅     |
+| `schema.ts`: `mcp_apps: Record<uri, { alwaysLoaded?: boolean }>` Zod field (no `.default()` — Phase 48 lesson)                 | ✅     |
+| `mcp-apps-schema.test.ts`: 8 Zod validation tests for mcp_apps field                                                           | ✅     |
+| `schema/config.json` + `packages/sdk/openapi.json` + `types.gen.ts`: mcp_apps propagated through SDK chain                     | ✅     |
+| `state-relay.ts`: `onSaveObserved?: () => void` callback fires via `queueMicrotask` on `mcp-app-state:save`                    | ✅     |
+| `state-relay.test.ts`: 5 new tests for onSaveObserved (added to existing 6)                                                    | ✅     |
+| `use-dock-state.tsx`: `observedRelaySet` signal + `markRelayObserved(uri)` + `observedRelay()` in context                      | ✅     |
+| `use-dock-state.test.tsx`: 5 new tests for relay observation tracking                                                          | ✅     |
+| `mcp-app-panel.tsx`: DockContext import + `onSaveObserved` wiring + `onIframeReady` prop                                       | ✅     |
+| `dock.tsx`: `keepAlive` createMemo + `alwaysLoadedMap` + lazy-mount `<Show>` pattern + `PaneIframeBody` subcomponent           | ✅     |
+| `dock.tsx`: `onToggleAlwaysLoaded` — optimistic config update via `globalSync.set` + `updateConfig` with rollback              | ✅     |
+| `dock.tsx`: one-shot toast on first unknown-app collapse (gates on `sessionToastShown` set)                                    | ✅     |
+| `pane-menu.tsx`: "Always keep loaded" `role=menuitemcheckbox` item (non-builtin only)                                          | ✅     |
+| `pane-menu.test.tsx`: 8 new tests for Phase 50b toggle visibility + handler wiring                                             | ✅     |
+| `pane-header.tsx`: `canAlwaysKeepLoaded` / `alwaysLoaded` / `onToggleAlwaysLoaded` prop chain                                  | ✅     |
+| `dock.test.tsx`: 7 new tests — lazy-mount decision logic mirror (Phase 50b block)                                              | ✅     |
+| **Sub-B** `iframe-pool.ts`: `IframePool` factory + `getIframePool()` singleton, LRU-3, 5-min TTL, off-screen host, cleanup cbs | ✅     |
+| **Sub-B** `iframe-pool.test.ts`: 14 tests (park/claim/has, LRU, cleanup cbs, TTL with fake now, dispose, singleton)            | ✅     |
+| **Sub-B** `telemetry.ts`: `iframe_pool_park` / `iframe_pool_hit` / `iframe_pool_miss` event types                              | ✅     |
+| **Sub-B** `dock.tsx`: `onIframeReady` callback chain (DockPane → PaneIframeBody → McpAppPanel) + pool park on `onCleanup`      | ✅     |
+| Tests: 777 → 836 (app) — 59 new; 1995 librecode, 0 failures                                                                    | ✅     |
+| Preview smoke: all 7 checks (including Sub-B pool park) passed via mcp\_\_Claude_Preview tools                                 | ✅     |
+| **Pool claim path (fast re-pin)** — deferred to Phase 50c                                                                      | 🔲     |
 
 ### Phase 50: Keyboard + a11y + Phoenix telemetry polish (v0.9.92) ✅
 

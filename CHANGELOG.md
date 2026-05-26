@@ -4,6 +4,43 @@ All notable changes to LibreCode are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.93] - 2026-05-25
+
+### Added
+
+- **Lazy iframe mount for unknown apps.** Dock panes whose app hasn't
+  been observed using the state-relay protocol and hasn't been flagged
+  "always keep loaded" now unmount their iframe when collapsed (instead
+  of hiding it with `display:none`). This removes the memory and CPU
+  overhead of idle iframes for apps that don't need live state during
+  collapse cycles.
+- **Keep-alive for state-relay apps.** Apps that send at least one
+  `mcp-app-state:save` postMessage are automatically detected and kept
+  alive across collapse (iframe stays mounted, `display:none` path). This
+  is transparent — apps that implement the v0.9.62 state-relay protocol
+  automatically get the performance benefit.
+- **"Always keep loaded" toggle in the pane ⋮ menu.** Non-builtin apps
+  now have an "Always keep loaded" checkbox in the ⋮ menu. Enabling it
+  forces the keep-alive path even if the app hasn't used state-relay.
+  The setting persists in `librecode.jsonc` under
+  `mcp_apps.<uri>.alwaysLoaded`.
+- **App Dock iframe pool (Sub-B foundation).** When an app is removed from
+  the dock (`dock.remove()`), its iframe is parked in an off-screen pool
+  for up to 5 minutes (LRU-3 eviction). Re-pinning the same app within
+  that window will eventually claim the cached iframe, skipping the
+  cold-start AppBridge handshake entirely. The claim path ships in
+  Phase 50c; this release adds the park plumbing and the pool module.
+
+### Changed
+
+- Built-in apps (Session Stats, Activity Graph) always use `display:none`
+  on collapse — they are unconditionally keep-alive and are never pooled.
+- One-time toast notification on first collapse of an unknown app: _"may
+  reset when collapsed — use ⋮ menu to always keep it loaded."_ Fires at
+  most once per session per app.
+
+---
+
 ## [0.9.92] - 2026-05-25
 
 ### Added
