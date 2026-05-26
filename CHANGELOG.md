@@ -4,6 +4,37 @@ All notable changes to LibreCode are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.92] - 2026-05-25
+
+### Added
+
+- **Keyboard navigation for the App Dock.** `Ctrl+Shift+1` through
+  `Ctrl+Shift+9` jump keyboard focus directly to the 1st through 9th
+  dock pane. `Ctrl+Shift+0` returns focus to the main session area.
+  `Ctrl+Shift+D` triggers the Detach action on the currently focused
+  pane (Desktop only; no-op on web). Mac users use `Cmd` instead of
+  `Ctrl`. The existing `Ctrl+\` toggle is unchanged.
+- **Screen-reader accessibility for the App Dock.** The dock is now
+  announced as an _App dock, complementary_ landmark (`<aside
+role="complementary">`). Each pane is a named region
+  (`role="region" aria-label={appName}`). Collapsing, expanding,
+  detaching, or reattaching a pane fires a polite live-region
+  announcement so screen readers narrate the change without
+  interrupting the user.
+- **Keyboard-operable resize handles.** The dock-width handle
+  (`role="separator"`) responds to `ArrowLeft` / `ArrowRight` to
+  increase / decrease dock width in 16px steps. Pane dividers respond
+  to `ArrowUp` / `ArrowDown`. Both handles are focusable (`tabindex=0`)
+  and display a visible focus ring on `:focus-visible`.
+- **Phoenix telemetry hooks for dock-pane lifecycle** (opt-in).
+  When `telemetry.phoenix.enabled = true`, dock-pane events
+  (`mounted`, `unmounted`, `collapsed`, `expanded`, `detached`,
+  `reattached`) are emitted as OpenTelemetry spans to the configured
+  Phoenix Arize endpoint. Default config has telemetry disabled —
+  no change in behavior for users who have not opted in.
+
+---
+
 ## [0.9.89] - 2026-05-25
 
 ### Added

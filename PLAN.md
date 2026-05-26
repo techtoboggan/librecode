@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-25 | ~446 commits | Tests: 2765 pass, 12 skip, 0 flaky | **v0.9.89** (Phase 49 shipped)
+> Last updated: 2026-05-25 | ~452 commits | Tests: 2787 pass, 12 skip, 0 flaky | **v0.9.92** (Phase 50 shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,36 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 50: Keyboard + a11y + Phoenix telemetry polish (v0.9.92) ✅
+
+Detail: `docs/plans/phase-50-spec.md`
+ADR: `docs/adr/009-app-dock.md` (Phase 50 changelog appended in-place)
+
+Keyboard power users can now jump to any dock pane (Ctrl+Shift+1..9), return to the
+main session area (Ctrl+Shift+0), or detach the focused pane (Ctrl+Shift+D). Screen
+readers see the dock as a "complementary" landmark, panes as named regions, and get
+polite announcements on collapse/expand/detach/reattach. Resize handles and pane
+dividers are now keyboard-operable (arrow keys, 16px steps). Phoenix telemetry hooks
+fire for dock-pane lifecycle events when `telemetry.phoenix.enabled = true`.
+
+| Item                                                                                                    | Status |
+| ------------------------------------------------------------------------------------------------------- | ------ |
+| `telemetry.ts`: OTel-based dock-pane lifecycle emitter, gated on phoenix.enabled                        | ✅     |
+| `a11y-live.ts`: polite live-region announcer (clear-then-set cycle for re-announcements)                | ✅     |
+| `keyboard.ts`: `makePaneFocusKeyHandler` (Ctrl+Shift+1..9/0) + `makeDetachKeyHandler` (Ctrl+Shift+D)    | ✅     |
+| `keyboard.ts`: `useDockPaneKeyboardShortcuts` hook wires all three handlers via window.addEventListener | ✅     |
+| `session.tsx`: `DockKeyboard()` calls `useDockPaneKeyboardShortcuts()` alongside existing toggle        | ✅     |
+| `dock.tsx`: `<aside role="complementary">` landmark + `aria-label="App dock"`                           | ✅     |
+| `dock.tsx`: `aria-live="polite" aria-atomic="true"` hidden live region                                  | ✅     |
+| `dock.tsx`: resize handle — `role=separator`, `aria-orientation=vertical`, `tabindex=0`, arrow keys     | ✅     |
+| `dock.tsx`: each pane body → `<section role="region" aria-label={appName}>`                             | ✅     |
+| `divider.tsx`: `role=separator`, `aria-orientation=horizontal`, `tabindex=0`, ArrowUp/Down handlers     | ✅     |
+| `pane-header.tsx`: `tabindex=0` + `data-pane-index` + `focus-visible:ring-2` focus ring                 | ✅     |
+| Telemetry: mounted/unmounted/collapsed/expanded/detached/reattached events with ms_since_dock_open      | ✅     |
+| Tests: 749 → 777 (app) — 28 new (telemetry gate×8, a11y live×3, keyboard×12, dock a11y mirror×5)        | ✅     |
+| Preview smoke: 7-check §8 run via mcp\_\_Claude_Preview tools (see trip report)                         | ✅     |
+| Defers lazy iframe mount + iframe pool → Phase 50b                                                      | ✅     |
 
 ### Phase 49: Detachable Tauri windows (v0.9.89) ✅
 
