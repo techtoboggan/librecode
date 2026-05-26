@@ -23,6 +23,12 @@ export type DockTelemetryEvent =
   | "iframe_lazy_mount"
   /** Phase 50b — inner iframe unmounts (lazy-mount path: pane collapsed, not keep-alive). */
   | "iframe_lazy_unmount"
+  /** Phase 50b Sub-B — iframe parked in the pool when its DockPane entry is removed. */
+  | "iframe_pool_park"
+  /** Phase 50b Sub-B — pool hit: cached iframe claimed for re-pinned app (Phase 50c). */
+  | "iframe_pool_hit"
+  /** Phase 50b Sub-B — pool miss: no cached iframe; fresh mount required. */
+  | "iframe_pool_miss"
 
 export interface DockTelemetryPayload {
   paneURI: string

@@ -20,6 +20,7 @@ import { paneHeight, PANE_MIN_HEIGHT } from "./sizing"
 import { deriveStatus } from "./pane-status"
 import { createLiveAnnouncer } from "./a11y-live"
 import { emitDockEvent } from "./telemetry"
+import { getIframePool } from "./iframe-pool"
 
 export interface AppDockProps {
   sessionID?: string
@@ -324,6 +325,16 @@ function DockPane(props: DockPaneProps): JSX.Element {
     }),
   )
 
+  // Phase 50b Sub-B — capture the live iframe element + bridge disconnect fn
+  // so we can park the iframe in the pool when this entry is removed.
+  // Set once via onIframeReady; read in onCleanup (entry removed, not collapse).
+  let pooledIframe: HTMLIFrameElement | undefined
+  let pooledDisconnect: (() => void) | undefined
+  const onIframeReady = (iframe: HTMLIFrameElement, disconnect: () => void): void => {
+    pooledIframe = iframe
+    pooledDisconnect = disconnect
+  }
+
   // Register this pane as a drop target so drag-over events populate
   // event.droppable.id with the pane's URI.
   const droppable = createDroppable(props.entry.uri)
@@ -353,6 +364,22 @@ function DockPane(props: DockPaneProps): JSX.Element {
       msSinceDockOpen: Date.now() - mountedAt,
       sessionID: props.sessionID,
     })
+    // Phase 50b Sub-B — park the iframe in the pool on entry removal so a
+    // quick re-pin can claim it instead of doing a cold-start handshake.
+    // Built-in apps (server === "__builtin__") are always mounted and don't
+    // need pooling (Pitfall 7). The pool's park() moves the iframe DOM node
+    // off-screen so SolidJS's cleanup pass finds the node already moved and
+    // skips it, keeping the pooled iframe alive (Pitfall 8).
+    if (pooledIframe && pooledDisconnect && props.entry.app.server !== "__builtin__") {
+      const poolKey = `${props.entry.app.server}:${props.entry.uri}`
+      getIframePool().park(poolKey, pooledIframe, pooledDisconnect)
+      emitDockEvent(props.telemetryEnabled, "iframe_pool_park", {
+        paneURI: props.entry.uri,
+        appName: props.entry.app.name,
+        msSinceDockOpen: Date.now() - mountedAt,
+        sessionID: props.sessionID,
+      })
+    }
   })
 
   const onReconnect = () => {
@@ -508,6 +535,7 @@ function DockPane(props: DockPaneProps): JSX.Element {
               })
             }
             onCloseError={closeError}
+            onIframeReady={onIframeReady}
           />
         </Show>
       </div>
@@ -532,6 +560,12 @@ interface PaneIframeBodyProps {
   onReattach: () => void
   onFocusDetached: () => void
   onCloseError: () => void
+  /**
+   * Phase 50b Sub-B — called when the McpAppPanel iframe element and bridge
+   * disconnect fn are available. DockPane stores these refs to park the iframe
+   * in the pool when the entry is removed (dock.remove()).
+   */
+  onIframeReady?: (iframe: HTMLIFrameElement, disconnect: () => void) => void
 }
 
 function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
@@ -580,6 +614,7 @@ function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
             sessionID={props.sessionID}
             appName={props.entry.app.name}
             class="h-full"
+            onIframeReady={props.onIframeReady}
           />
         </div>
         <Show when={props.viewingError && props.status.kind === "failed"}>

@@ -476,6 +476,12 @@ export interface McpAppPanelProps {
   appName?: string
   /** Optional explicit class for the wrapper. */
   class?: string
+  /**
+   * Phase 50b Sub-B — called when the iframe element is ready. Provides
+   * the iframe DOM element and the bridge disconnect function so the caller
+   * (DockPane) can park the iframe in the pool on entry removal.
+   */
+  onIframeReady?: (iframe: HTMLIFrameElement, disconnect: () => void) => void
 }
 
 export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
@@ -790,6 +796,11 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             ref={(el) => {
               iframeRef = el
               setIframeSignal(el)
+              // Phase 50b Sub-B — notify DockPane of the ready iframe +
+              // the bridge disconnect fn so it can park on entry removal.
+              if (el && props.onIframeReady) {
+                props.onIframeReady(el, () => void disconnect())
+              }
             }}
             srcdoc={doc()}
             // allow-scripts: JavaScript execution (required for all MCP apps)
