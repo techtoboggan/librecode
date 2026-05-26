@@ -22,7 +22,7 @@
  * All assertions run through solid-js reactive primitives (createRoot +
  * signals / stores), no DOM serialisation required.
  */
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { createRoot } from "solid-js"
 import { createStore } from "solid-js/store"
 import { defaultDockState, addEntry, removeEntry, toggleVisibility, setWidth, setEntryCollapsed } from "./state"
@@ -487,5 +487,79 @@ describe("Phase 50b — lazy-mount: keepAlive decision vs collapsed state", () =
     const cfgRaw = { "ui://acme/notes": { alwaysLoaded: true } }
     const map = buildAlwaysLoadedMap(cfgRaw)
     expect(shouldKeepIframeAlive(THIRD_PARTY, EMPTY_RELAY, { alwaysLoadedByUri: map })).toBe(true)
+  })
+})
+
+// ── Phase 50c — PaneIframeBody pool-hit/miss decision logic ───────────────────
+//
+// PaneIframeBody checks the pool synchronously at render time (not in onMount)
+// so McpAppPanel's createResource source sees `cachedIframe` from the very first
+// render and skips the HTML fetch on pool hits.
+//
+// These tests exercise the pool-key construction and the claim logic that
+// PaneIframeBody mirrors.
+
+import { createIframePool } from "./iframe-pool"
+
+describe("Phase 50c — PaneIframeBody pool-hit / pool-miss decision logic", () => {
+  afterEach(() => {
+    const host = document.getElementById("librecode-iframe-pool")
+    host?.parentNode?.removeChild(host)
+  })
+
+  // Mirror of PaneIframeBody's poolKey derivation:
+  function poolKey(server: string, uri: string): string | undefined {
+    return server !== "__builtin__" ? `${server}:${uri}` : undefined
+  }
+
+  test("pool key format is 'server:uri' for non-builtin apps", () => {
+    expect(poolKey("my-mcp", "ui://my-mcp/dashboard")).toBe("my-mcp:ui://my-mcp/dashboard")
+  })
+
+  test("built-in apps produce no pool key — they always keep-alive, never pool", () => {
+    expect(poolKey("__builtin__", "ui://builtin/session-stats")).toBeUndefined()
+  })
+
+  test("pool miss → undefined cachedIframe → cold-start path taken", () => {
+    const pool = createIframePool()
+    const key = "s:ui://s/app"
+    const result = pool.has(key) ? pool.claim(key) : undefined
+    expect(result).toBeUndefined()
+    pool.dispose()
+  })
+
+  test("pool hit → cached iframe returned → HTML fetch skipped", () => {
+    const pool = createIframePool()
+    const iframe = document.createElement("iframe")
+    const key = "s:ui://s/app"
+    pool.park(key, iframe, () => {})
+    const result = pool.has(key) ? pool.claim(key) : undefined
+    expect(result).toBe(iframe)
+    pool.dispose()
+  })
+
+  test("pool hit is one-shot: second PaneIframeBody mount for same URI gets a miss", () => {
+    const pool = createIframePool()
+    const key = "s:ui://s/app"
+    pool.park(key, document.createElement("iframe"), () => {})
+    // First mount → hit
+    const first = pool.has(key) ? pool.claim(key) : undefined
+    expect(first).not.toBeUndefined()
+    // Second mount (e.g. remove + immediately re-add) → miss; fresh mount required
+    const second = pool.has(key) ? pool.claim(key) : undefined
+    expect(second).toBeUndefined()
+    pool.dispose()
+  })
+
+  test("cross-server miss: different server + same URI does NOT claim the pooled iframe", () => {
+    const pool = createIframePool()
+    const iframe = document.createElement("iframe")
+    pool.park("server-a:ui://shared/app", iframe, () => {})
+    // Different server — pool key won't match
+    const result = pool.has("server-b:ui://shared/app") ? pool.claim("server-b:ui://shared/app") : undefined
+    expect(result).toBeUndefined()
+    // Original entry still available for the correct server
+    expect(pool.has("server-a:ui://shared/app")).toBe(true)
+    pool.dispose()
   })
 })

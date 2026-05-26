@@ -379,7 +379,7 @@ function useAppBridge(
       dec,
     ) as unknown as NonNullable<typeof bridge.onrequestdisplaymode>
 
-    // Connect once the iframe's srcdoc has loaded
+    // Connect once the iframe's srcdoc has loaded.
     const handleLoad = () => {
       bridge.connect(transport).catch((err: unknown) => {
         if (err instanceof Error && err.message.includes("already connected")) return
@@ -389,6 +389,15 @@ function useAppBridge(
 
     iframe.addEventListener("load", handleLoad)
     setBridgeSignal(bridge)
+
+    // Phase 50c — pool-hit iframes are already loaded (srcdoc content intact
+    // from before parking). Connect immediately so the bridge is ready without
+    // waiting for the 'load' event, which won't re-fire since srcdoc hasn't
+    // changed. The "already connected" guard in handleLoad keeps this safe for
+    // cold-start iframes that happen to be complete by effect time.
+    if (iframe.contentDocument?.readyState === "complete") {
+      handleLoad()
+    }
 
     onCleanup(() => {
       iframe.removeEventListener("load", handleLoad)
@@ -482,6 +491,15 @@ export interface McpAppPanelProps {
    * (DockPane) can park the iframe in the pool on entry removal.
    */
   onIframeReady?: (iframe: HTMLIFrameElement, disconnect: () => void) => void
+  /**
+   * Phase 50c — pool-hit path: a recently-parked iframe element claimed from
+   * the iframe pool. When provided, skips `fetchAppHtml` (the iframe is already
+   * loaded with its srcdoc content) and wires a fresh AppBridge that connects
+   * immediately (readyState is "complete"). The iframe DOM node is inserted into
+   * the component's container via `appendChild` so the bridge's postMessage
+   * channel remains intact across the park → claim cycle.
+   */
+  cachedIframe?: HTMLIFrameElement
 }
 
 export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
@@ -497,8 +515,10 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   // adr-006: keyed on (server, uri) — both are props supplied at mount and
   // never written by event handlers in this component. Re-keys only when
   // the parent picks a different app, which is a legitimate reload.
+  // Phase 50c: returns undefined for pool hits (cachedIframe is a plain mount-time
+  // prop, not a reactive signal) so no fetch is issued — no Suspense coupling.
   const [html] = createResource(
-    () => ({ server: props.server, uri: props.uri }),
+    () => (props.cachedIframe ? undefined : { server: props.server, uri: props.uri }),
     ({ server, uri }) => fetchAppHtml(globalSDK.fetch, sdk.url, sdk.directory, server, uri),
   )
 
@@ -743,8 +763,10 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
         grants for this app and closes the bridge transport, and (new
         in v0.9.45) an Exit fullscreen button when the app has
         requested fullscreen.
+        Phase 50c: also shown for pool-hit iframes (cachedIframe set),
+        which never go through srcdoc() but still have an active bridge.
       */}
-      <Show when={srcdoc()}>
+      <Show when={srcdoc() || !!props.cachedIframe}>
         <div class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular">
           <span class="text-text-strong truncate">{props.appName ?? props.server}</span>
           <Show when={running() > 0}>
@@ -812,6 +834,28 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             aria-label={`MCP App: ${props.server}`}
           />
         )}
+      </Show>
+
+      {/*
+        Phase 50c — pool-hit path: insert the claimed iframe via appendChild
+        (moves the DOM node from the off-screen pool host into this flex
+        container). We also wire iframeRef / iframeSignal / onIframeReady
+        here so the DockPane can park this iframe again on the next removal.
+        The container is flex-col so the iframe's `flex-1` class fills it.
+      */}
+      <Show when={props.cachedIframe}>
+        <div
+          class="w-full flex-1 min-h-0 flex flex-col overflow-hidden"
+          ref={(el) => {
+            if (!el || !props.cachedIframe) return
+            el.appendChild(props.cachedIframe)
+            iframeRef = props.cachedIframe
+            setIframeSignal(props.cachedIframe)
+            if (props.onIframeReady) {
+              props.onIframeReady(props.cachedIframe, () => void disconnect())
+            }
+          }}
+        />
       </Show>
 
       <Show when={pendingPrompt()} keyed>

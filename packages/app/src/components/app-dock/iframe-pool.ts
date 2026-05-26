@@ -131,8 +131,15 @@ export function createIframePool(now: () => number = Date.now): IframePool {
       const entry = entries.get(key)
       if (!entry) return undefined
       entries.delete(key)
-      // Caller is now responsible for inserting the iframe and invoking cleanup
-      // on its own lifecycle end. The pool no longer owns it.
+      // Do NOT call entry.cleanup() here. By the time claim() is called from
+      // a new PaneIframeBody, the old McpAppPanel.onCleanup has already fired
+      // (Solid disposes children before parents), closing the old bridge and
+      // removing its transport listeners. Calling cleanup again would fire the
+      // HTTP POST that drops the app's session permission grants — which would
+      // destroy permissions for an app we are about to immediately re-show.
+      // The new owner registers its own bridge via useAppBridge; when that pane
+      // is eventually removed, its onIframeReady callback is stored in DockPane
+      // for the next park cycle.
       return entry.iframe
     },
 

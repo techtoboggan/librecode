@@ -234,3 +234,61 @@ describe("IframePool — getIframePool singleton", () => {
     expect(a).toBe(b)
   })
 })
+
+// ── Phase 50c — claim-side semantics ─────────────────────────────────────────
+//
+// Phase 50c adds the claim side of the iframe pool: PaneIframeBody checks the
+// pool at render time and passes a `cachedIframe` to McpAppPanel when there is
+// a hit, skipping `fetchAppHtml` and the cold-start bridge handshake.
+//
+// Key invariant: `claim()` must NOT call `entry.cleanup`. The old bridge is
+// already closed by McpAppPanel.onCleanup (Solid disposes children before
+// parents, so the bridge closes before DockPane.onCleanup calls park).
+// Calling cleanup again would fire the HTTP POST that drops the app's session
+// permission grants — destroying permissions for an app we're about to
+// immediately re-show (Pitfall 10c from the Phase 50b spec).
+
+describe("IframePool — Phase 50c claim-side semantics", () => {
+  test("claim returns the iframe without calling the cleanup callback", () => {
+    let cleanupCalled = false
+    const pool = createIframePool()
+    const iframe = makeIframe()
+    pool.park("s:ui://s/app", iframe, () => {
+      cleanupCalled = true
+    })
+    const claimed = pool.claim("s:ui://s/app")
+    expect(claimed).toBe(iframe)
+    // Cleanup is NOT invoked on claim — old bridge already closed by
+    // McpAppPanel.onCleanup; calling again would drop session grants.
+    expect(cleanupCalled).toBe(false)
+    pool.dispose()
+  })
+
+  test("claimed iframe is removed from the pool (one-shot consumption)", () => {
+    const pool = createIframePool()
+    pool.park("s:uri", makeIframe(), () => {})
+    pool.claim("s:uri")
+    // Second claim attempt: miss
+    const second = pool.claim("s:uri")
+    expect(second).toBeUndefined()
+    expect(pool.has("s:uri")).toBe(false)
+    pool.dispose()
+  })
+
+  test("pool key is server:uri — cross-server miss (different servers, same uri)", () => {
+    const pool = createIframePool()
+    const iframe = makeIframe()
+    pool.park("server-a:ui://shared/app", iframe, () => {})
+    // Looking up with a different server → miss
+    expect(pool.claim("server-b:ui://shared/app")).toBeUndefined()
+    // Original entry still there
+    expect(pool.has("server-a:ui://shared/app")).toBe(true)
+    pool.dispose()
+  })
+
+  test("pool-miss on empty pool returns undefined (cold-start path taken)", () => {
+    const pool = createIframePool()
+    expect(pool.claim("nonexistent:key")).toBeUndefined()
+    pool.dispose()
+  })
+})

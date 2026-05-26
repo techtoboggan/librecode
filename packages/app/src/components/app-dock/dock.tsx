@@ -569,7 +569,16 @@ interface PaneIframeBodyProps {
 }
 
 function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
+  // Phase 50c — check the pool synchronously at render time (before onMount)
+  // so McpAppPanel's createResource source sees cachedIframe from the very
+  // first render and skips the HTML fetch on hits. Built-in apps (server ===
+  // "__builtin__") are always keep-alive and never participate in the pool.
+  const poolKey = props.entry.app.server !== "__builtin__" ? `${props.entry.app.server}:${props.entry.uri}` : undefined
+  const cachedIframe: HTMLIFrameElement | undefined =
+    poolKey && getIframePool().has(poolKey) ? getIframePool().claim(poolKey) : undefined
+
   // Phase 50b — fire lazy-mount telemetry on mount/unmount of the iframe body.
+  // Phase 50c — also emit pool hit/miss for non-builtin apps.
   onMount(() => {
     emitDockEvent(props.telemetryEnabled, "iframe_lazy_mount", {
       paneURI: props.entry.uri,
@@ -577,6 +586,14 @@ function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
       msSinceDockOpen: Date.now() - props.mountedAt,
       sessionID: props.sessionID,
     })
+    if (poolKey) {
+      emitDockEvent(props.telemetryEnabled, cachedIframe ? "iframe_pool_hit" : "iframe_pool_miss", {
+        paneURI: props.entry.uri,
+        appName: props.entry.app.name,
+        msSinceDockOpen: Date.now() - props.mountedAt,
+        sessionID: props.sessionID,
+      })
+    }
   })
   onCleanup(() => {
     emitDockEvent(props.telemetryEnabled, "iframe_lazy_unmount", {
@@ -615,6 +632,7 @@ function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
             appName={props.entry.app.name}
             class="h-full"
             onIframeReady={props.onIframeReady}
+            cachedIframe={cachedIframe}
           />
         </div>
         <Show when={props.viewingError && props.status.kind === "failed"}>
