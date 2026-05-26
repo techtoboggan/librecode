@@ -406,9 +406,46 @@ packages/
     migration/    Drizzle SQL migrations
   desktop/      Tauri desktop app (Rust + Solid.js)
   app/          Shared UI application
+    src/
+      test-utils/ Test helpers (tauri-mock.ts Platform mock, shared fixtures)
   ui/           Component library (Solid.js + Tailwind)
   sdk/          TypeScript SDK
   util/         Shared utilities
   plugin/       Plugin system types
   script/       Monorepo build tooling
 ```
+
+## Testing layers (Phase 52 — ADR-010)
+
+LibreCode uses a three-layer testing architecture:
+
+| Layer                           | Tool                           | Speed     | Catches                                        |
+| ------------------------------- | ------------------------------ | --------- | ---------------------------------------------- |
+| **Layer 1** — Unit / component  | `bun test`                     | <2s suite | Logic bugs, state machines, pure helpers       |
+| **Layer 2** — Web preview smoke | `Claude_Preview` MCP           | ~15–30s   | Layout overflow, real route flows, render bugs |
+| **Layer 3** — Tauri E2E         | `tauri-playwright` (Phase 52C) | 3–5 min   | Tauri IPC, multi-window, CSP, native rendering |
+
+### Layer 1 — Tauri mocking
+
+LibreCode abstracts all Tauri IPC behind a Platform context
+(`packages/app/src/context/platform.tsx`). Unit tests mock the Platform
+object rather than raw IPC calls.
+
+Helper: `packages/app/src/test-utils/tauri-mock.ts`
+
+```ts
+import { createMockPlatform } from "@/test-utils/tauri-mock"
+import { mock } from "bun:test"
+
+mock.module("@/context/platform", () => ({
+  usePlatform: () =>
+    createMockPlatform({
+      openDetachedWindow: async (opts) => {
+        calls.push(opts.uri)
+      },
+    }),
+}))
+```
+
+See `docs/plans/preview-smoke-template.md` for Layer 2 procedures and
+`docs/adr/0010-test-architecture.md` for the full ADR (Phase 52E).
