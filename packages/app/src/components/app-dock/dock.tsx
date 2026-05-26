@@ -7,6 +7,7 @@ import { McpAppPanel } from "@/components/mcp-app-panel"
 import type { McpAppResource } from "@/components/mcp-app-panel/types"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { useGlobalSync } from "@/context/global-sync"
 import { usePlatform } from "@/context/platform"
 import { useAppDockState } from "./use-dock-state"
 import { DOCK_MAX_WIDTH, DOCK_MIN_WIDTH, type DockEntry } from "./types"
@@ -309,6 +310,7 @@ const sessionToastShown = new Set<string>()
 function DockPane(props: DockPaneProps): JSX.Element {
   const dock = useAppDockState()
   const sync = useSync()
+  const globalSync = useGlobalSync()
   const sdk = useSDK()
   const platform = usePlatform()
   const [viewingError, setViewingError] = createSignal(false)
@@ -359,6 +361,33 @@ function DockPane(props: DockPaneProps): JSX.Element {
   }
   const onViewError = () => setViewingError(true)
   const closeError = () => setViewingError(false)
+
+  // Phase 50b — "Always keep loaded" toggle.
+  // Built-in apps are always kept alive and don't need the toggle.
+  const canAlwaysKeepLoaded = (): boolean => props.entry.app.server !== "__builtin__"
+  const alwaysLoaded = (): boolean => sync.data.config?.mcp_apps?.[props.entry.uri]?.alwaysLoaded === true
+  const onToggleAlwaysLoaded = (): void => {
+    const current = alwaysLoaded()
+    const existingMcpApps = sync.data.config?.mcp_apps ?? {}
+    const next = {
+      ...existingMcpApps,
+      [props.entry.uri]: {
+        ...(existingMcpApps[props.entry.uri] ?? {}),
+        alwaysLoaded: !current,
+      },
+    }
+    // Optimistic local update so the UI responds immediately.
+    globalSync.set("config", "mcp_apps", next)
+    void globalSync.updateConfig({ mcp_apps: next }).catch((err: unknown) => {
+      // Roll back on failure.
+      globalSync.set("config", "mcp_apps", existingMcpApps)
+      showToast({
+        variant: "error",
+        title: "Failed to update setting",
+        description: String(err),
+      })
+    })
+  }
 
   // Phase 49 — detach this pane into its own Tauri window.
   // Phase 50 — also fires a11y announcement + telemetry event.
@@ -437,6 +466,9 @@ function DockPane(props: DockPaneProps): JSX.Element {
         onReconnect={onReconnect}
         onViewError={onViewError}
         onDetach={() => void onDetach()}
+        canAlwaysKeepLoaded={canAlwaysKeepLoaded()}
+        alwaysLoaded={alwaysLoaded()}
+        onToggleAlwaysLoaded={onToggleAlwaysLoaded}
       />
       {/*
         Phase 50b — lazy iframe mount for unknown collapsed apps.

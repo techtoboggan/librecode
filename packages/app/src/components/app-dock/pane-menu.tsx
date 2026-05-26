@@ -9,6 +9,15 @@ export interface PaneMenuProps {
   onReconnect: () => void
   onViewError: () => void
   onRemove: () => void
+  /**
+   * Phase 50b — when true, show the "Always keep loaded" toggle item.
+   * Hidden for built-in apps (they're always kept alive regardless).
+   */
+  canAlwaysKeepLoaded?: boolean
+  /** Phase 50b — current alwaysLoaded state (checked vs unchecked). */
+  alwaysLoaded?: boolean
+  /** Phase 50b — called when the user clicks the toggle item. */
+  onToggleAlwaysLoaded?: () => void
 }
 
 export function PaneMenu(props: PaneMenuProps): JSX.Element {
@@ -33,6 +42,22 @@ export function PaneMenu(props: PaneMenuProps): JSX.Element {
             <MenuItem testId={`pane-menu-view-error-${props.uri}`} onClick={props.onViewError}>
               View error
             </MenuItem>
+          </Show>
+          {/* Phase 50b — "Always keep loaded" toggle for non-builtin apps. */}
+          <Show when={props.canAlwaysKeepLoaded}>
+            <button
+              data-testid={`pane-menu-always-loaded-${props.uri}`}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={props.alwaysLoaded ?? false}
+              class="block w-full text-left px-3 py-1.5 text-12-regular rounded-sm hover:bg-surface-raised-base-hover text-text-base"
+              onClick={(e: MouseEvent) => {
+                e.stopPropagation()
+                props.onToggleAlwaysLoaded?.()
+              }}
+            >
+              <span aria-hidden="true">{props.alwaysLoaded ? "✓ " : "  "}</span>Always keep loaded
+            </button>
           </Show>
           <MenuItem testId={`pane-menu-remove-${props.uri}`} onClick={props.onRemove} variant="danger">
             Remove from dock

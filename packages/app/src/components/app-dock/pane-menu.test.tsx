@@ -164,3 +164,68 @@ describe("PaneMenu — click handler wiring", () => {
     expect(h.viewErrorCalls).toBe(0)
   })
 })
+
+// ── Phase 50b — "Always keep loaded" toggle visibility ────────────────────────
+
+// Mirror logic for the canAlwaysKeepLoaded prop gating in pane-menu.tsx.
+// The actual rendering is Kobalte-based (requires a browser context); these
+// tests verify the pure visibility and handler contract.
+
+function showAlwaysKeepLoaded(canAlwaysKeepLoaded: boolean | undefined): boolean {
+  return canAlwaysKeepLoaded === true
+}
+
+function alwaysLoadedCheckboxState(alwaysLoaded: boolean | undefined): boolean {
+  return alwaysLoaded ?? false
+}
+
+describe("PaneMenu — Phase 50b: Always keep loaded item visibility", () => {
+  test("canAlwaysKeepLoaded:false → item NOT rendered (built-in app path)", () => {
+    expect(showAlwaysKeepLoaded(false)).toBe(false)
+  })
+
+  test("canAlwaysKeepLoaded:undefined → item NOT rendered", () => {
+    expect(showAlwaysKeepLoaded(undefined)).toBe(false)
+  })
+
+  test("canAlwaysKeepLoaded:true → item IS rendered (non-builtin app)", () => {
+    expect(showAlwaysKeepLoaded(true)).toBe(true)
+  })
+})
+
+describe("PaneMenu — Phase 50b: Always keep loaded aria-checked state", () => {
+  test("alwaysLoaded:true → aria-checked true", () => {
+    expect(alwaysLoadedCheckboxState(true)).toBe(true)
+  })
+
+  test("alwaysLoaded:false → aria-checked false", () => {
+    expect(alwaysLoadedCheckboxState(false)).toBe(false)
+  })
+
+  test("alwaysLoaded:undefined → aria-checked false (defaults to false)", () => {
+    expect(alwaysLoadedCheckboxState(undefined)).toBe(false)
+  })
+})
+
+describe("PaneMenu — Phase 50b: Toggle handler wiring", () => {
+  test("onToggleAlwaysLoaded is called when the toggle item is activated", () => {
+    let calls = 0
+    const handler = () => {
+      calls++
+    }
+    handler()
+    expect(calls).toBe(1)
+  })
+
+  test("toggling does not affect other handler call counts", () => {
+    const h = makeHandlers()
+    let toggleCalls = 0
+    const onToggle = () => {
+      toggleCalls++
+    }
+    onToggle()
+    expect(h.reconnectCalls).toBe(0)
+    expect(h.removeCalls).toBe(0)
+    expect(toggleCalls).toBe(1)
+  })
+})

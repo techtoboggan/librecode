@@ -416,7 +416,6 @@ describe("DockPane Phase 49 — detached entry rendering", () => {
 
 import { shouldKeepIframeAlive, buildAlwaysLoadedMap } from "./keep-alive"
 import type { DockEntry } from "./types"
-import type { McpAppResource } from "@/components/mcp-app-panel/types"
 
 function makeApp(server: string, uri: string): McpAppResource {
   return { server, name: "Test App", uri }

@@ -23,6 +23,12 @@ export interface PaneHeaderProps {
   /** Phase 50 — 0-based index of this pane; stored as data-pane-index so the
    *  keyboard handler can querySelector the right header. */
   paneIndex?: number
+  /** Phase 50b — show "Always keep loaded" toggle in the pane menu. */
+  canAlwaysKeepLoaded?: boolean
+  /** Phase 50b — current alwaysLoaded state. */
+  alwaysLoaded?: boolean
+  /** Phase 50b — called when user toggles Always keep loaded. */
+  onToggleAlwaysLoaded?: () => void
 }
 
 /**
@@ -93,6 +99,9 @@ export function PaneHeader(props: PaneHeaderProps): JSX.Element {
           onReconnect={props.onReconnect}
           onViewError={props.onViewError}
           onRemove={props.onRemove}
+          canAlwaysKeepLoaded={props.canAlwaysKeepLoaded}
+          alwaysLoaded={props.alwaysLoaded}
+          onToggleAlwaysLoaded={props.onToggleAlwaysLoaded}
         />
       </div>
     </div>
