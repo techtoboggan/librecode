@@ -46,7 +46,7 @@ export function migrateDockState(raw: unknown): DockState {
 
   const obj = raw as Record<string, unknown>
 
-  const visibility = isVisibility(obj.visibility) ? obj.visibility : defaults.visibility
+  const persistedVisibility = isVisibility(obj.visibility) ? obj.visibility : defaults.visibility
   const width = clampWidth(typeof obj.width === "number" ? obj.width : defaults.width)
 
   const rawEntries = Array.isArray(obj.entries) ? obj.entries : []
@@ -82,7 +82,20 @@ export function migrateDockState(raw: unknown): DockState {
   const migratedFromPinnedAt =
     typeof obj.migratedFromPinnedAt === "number" && obj.migratedFromPinnedAt > 0 ? obj.migratedFromPinnedAt : undefined
 
-  return { visibility, width, entries, migratedFromPinnedAt }
+  // v0.9.94 hotfix — users who upgraded from <=v0.9.90 carry forward a
+  // stale `visibility: "hidden"` even after v0.9.91 flipped the default
+  // (the migration honored their persisted value). For users who have
+  // entries (a non-empty dock) but a stale hidden flag and no
+  // upgrade marker, force the visibility to `visible` once and stamp
+  // the marker so subsequent loads honor whatever the user chooses.
+  // Users without entries keep their hidden state — no point making
+  // an empty dock visible.
+  const visibilityUpgradedTo = typeof obj.visibilityUpgradedTo === "string" ? obj.visibilityUpgradedTo : undefined
+  const needsUpgrade = !visibilityUpgradedTo && persistedVisibility === "hidden" && entries.length > 0
+  const visibility: DockVisibility = needsUpgrade ? "visible" : persistedVisibility
+  const upgradedTo = visibilityUpgradedTo ?? (needsUpgrade ? "v0.9.94" : undefined)
+
+  return { visibility, width, entries, migratedFromPinnedAt, visibilityUpgradedTo: upgradedTo }
 }
 
 /** Add an entry. No-op if URI already present. Returns new state. */

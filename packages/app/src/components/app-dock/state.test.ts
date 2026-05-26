@@ -126,6 +126,59 @@ describe("migrateDockState", () => {
     expect(result.entries[0].uri).toBe(SAMPLE_APP.uri)
     expect(result.entries[0].app.name).toBe("Session Stats")
   })
+
+  // v0.9.94 hotfix — visibility upgrade for users carrying forward
+  // stale `hidden` from pre-v0.9.91 builds.
+  describe("v0.9.94 visibility upgrade", () => {
+    test("stale hidden + entries + no marker → forced visible + marker stamped", () => {
+      const result = migrateDockState({
+        visibility: "hidden",
+        width: 320,
+        entries: [{ uri: SAMPLE_APP.uri, addedAt: 1, app: SAMPLE_APP }],
+      })
+      expect(result.visibility).toBe("visible")
+      expect(result.visibilityUpgradedTo).toBe("v0.9.94")
+    })
+
+    test("stale hidden + entries + marker present → preference honored (still hidden)", () => {
+      const result = migrateDockState({
+        visibility: "hidden",
+        width: 320,
+        entries: [{ uri: SAMPLE_APP.uri, addedAt: 1, app: SAMPLE_APP }],
+        visibilityUpgradedTo: "v0.9.94",
+      })
+      expect(result.visibility).toBe("hidden")
+      expect(result.visibilityUpgradedTo).toBe("v0.9.94")
+    })
+
+    test("hidden + empty entries → kept hidden, no marker stamped", () => {
+      // No point making an empty dock visible.
+      const result = migrateDockState({ visibility: "hidden", width: 320, entries: [] })
+      expect(result.visibility).toBe("hidden")
+      expect(result.visibilityUpgradedTo).toBeUndefined()
+    })
+
+    test("already-visible state passes through cleanly without marker", () => {
+      const result = migrateDockState({
+        visibility: "visible",
+        width: 320,
+        entries: [{ uri: SAMPLE_APP.uri, addedAt: 1, app: SAMPLE_APP }],
+      })
+      expect(result.visibility).toBe("visible")
+      expect(result.visibilityUpgradedTo).toBeUndefined()
+    })
+
+    test("upgrade is idempotent: re-migrating an already-upgraded state preserves the marker", () => {
+      const first = migrateDockState({
+        visibility: "hidden",
+        width: 320,
+        entries: [{ uri: SAMPLE_APP.uri, addedAt: 1, app: SAMPLE_APP }],
+      })
+      const second = migrateDockState(first)
+      expect(second.visibility).toBe("visible")
+      expect(second.visibilityUpgradedTo).toBe("v0.9.94")
+    })
+  })
 })
 
 describe("addEntry", () => {

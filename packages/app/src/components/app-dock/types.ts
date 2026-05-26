@@ -35,6 +35,16 @@ export interface DockState {
    * not yet run.
    */
   migratedFromPinnedAt?: number
+  /**
+   * v0.9.94 hotfix — sentinel marking which version performed the
+   * stale-`visibility: "hidden"` upgrade. v0.9.91 flipped the default
+   * to `visible` but the migration honored persisted `hidden`, so
+   * users upgrading from <=v0.9.90 carried the old hidden state
+   * forward. Read by `migrateDockState` to force a one-time upgrade
+   * to `visible` when the user has entries but a stale hidden flag.
+   * Undefined = upgrade has not yet run.
+   */
+  visibilityUpgradedTo?: string
 }
 
 export const DOCK_MIN_WIDTH = 280
