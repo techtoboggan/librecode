@@ -1,0 +1,72 @@
+/**
+ * Phase 52 Sub-C — Tauri E2E test fixture.
+ *
+ * Exports a Playwright `test` + `expect` whose `tauriPage` fixture is a
+ * standard Playwright `Page` with Tauri IPC mocked via addInitScript.
+ *
+ * Why not createTauriTest from @srsholmes/tauri-playwright?
+ *   The library's browser-mode fixture hard-codes waitForLoadState("networkidle")
+ *   during setup. LibreCode maintains a persistent SSE connection to the backend
+ *   (port 4096), so networkidle never fires and every test times out at 30 s.
+ *   We import only `generateIpcMockScript` from the library (it is exported) and
+ *   build a minimal fixture ourselves, waiting for "load" which fires reliably
+ *   regardless of live SSE connections.
+ *
+ * Three modes (for future expansion):
+ *  - browser: headless Chromium + mocked Tauri IPC (CI default, this file)
+ *  - tauri:   real native webview via socket bridge (requires --features e2e-testing)
+ *  - cdp:     direct CDP to WebView2 (Windows, future)
+ *
+ * NOTE (Pitfall 7 — Bun-native): This file runs under Node.js (Playwright),
+ * not Bun. Do NOT import Bun-specific APIs here. Keep it pure Node/ESM.
+ *
+ * NOTE (Pitfall 6 — IPC mode): ipcMocks apply ONLY in browser mode.
+ * In tauri mode, the real backend runs and real IPC fires. Tests that
+ * rely on mocked responses must be skipped or adapted for tauri mode.
+ */
+
+import { test as base, expect, type Page } from "@playwright/test"
+// generateIpcMockScript is a public export of @srsholmes/tauri-playwright
+// (see node_modules/.../dist/index.d.ts line 881).
+import { generateIpcMockScript } from "@srsholmes/tauri-playwright"
+
+/**
+ * Tauri IPC mocks injected into every page before navigation.
+ *
+ * await_initialization must return ServerReadyData = { url, username, password }
+ * (see packages/desktop/src/bindings.ts). Returning null crashes the app's
+ * initialization path.
+ */
+const IPC_MOCKS = {
+  // Core initialization — returns the backend server URL and optional auth
+  await_initialization: () => ({ url: "http://127.0.0.1:4096", username: null, password: null }),
+  get_default_server_url: () => "http://127.0.0.1:4096",
+  // Display / platform queries
+  get_display_backend: () => "auto",
+  get_wsl_config: () => ({ enabled: false }),
+  // Detached window commands (Phase 49)
+  is_detached_app_window_open: () => false,
+  open_detached_app_window: () => null,
+  close_detached_app_window: () => null,
+  focus_detached_app_window: () => null,
+} as const
+
+/**
+ * Extended Playwright test with a `tauriPage` fixture.
+ *
+ * The fixture injects IPC mocks before each test's first navigation.
+ * It does NOT navigate during setup — each test calls goto() itself, so
+ * navigation options (waitUntil, timeout) can vary per test.
+ */
+export const test = base.extend<{ tauriPage: Page }>({
+  tauriPage: async ({ page }, use) => {
+    // Inject Tauri IPC mocks as an init script so they are active from the
+    // very first page load. addInitScript runs before any page scripts.
+    await page.addInitScript(
+      generateIpcMockScript(IPC_MOCKS as Record<string, (args?: Record<string, unknown>) => unknown>),
+    )
+    await use(page)
+  },
+})
+
+export { expect }

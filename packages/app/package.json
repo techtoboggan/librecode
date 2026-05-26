@@ -18,6 +18,8 @@
     "test:unit": "bun test --preload ./happydom.ts ./src",
     "test:unit:watch": "bun test --watch --preload ./happydom.ts ./src",
     "test:e2e": "playwright test",
+    "test:e2e:tauri:browser": "playwright test --config=e2e/playwright.tauri.config.ts --project=browser",
+    "test:e2e:tauri:tauri": "playwright test --config=e2e/playwright.tauri.config.ts --project=tauri",
     "test:e2e:local": "bun script/e2e-local.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report e2e/playwright-report"
@@ -26,6 +28,7 @@
   "devDependencies": {
     "@happy-dom/global-registrator": "20.0.11",
     "@playwright/test": "1.57.0",
+    "@srsholmes/tauri-playwright": "0.2.2",
     "@tailwindcss/vite": "catalog:",
     "@tsconfig/bun": "1.0.9",
     "@types/bun": "catalog:",
