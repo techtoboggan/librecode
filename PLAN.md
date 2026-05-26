@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-26 | ~460 commits | Tests: 2841 pass, 12 skip, 0 flaky | **v0.9.93** (Phase 50c shipped)
+> Last updated: 2026-05-26 | ~465 commits | Tests: 2872 pass, 13 skip, 0 flaky | **v0.10.0** (Phase 52 — Testing Architecture Overhaul shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -696,6 +696,34 @@ Deviations from spec: (1) `AddAppPopover` always rendered (not gated on
 `entries.length > 0`) so the first app can be added via popover without the "Try it"
 CTA; (2) used `createDraggable` + `createDroppable` pair instead of `createSortable`
 for cleaner separation of drag handle vs. drop target.
+
+### Phase 52: Testing Architecture Overhaul (v0.9.98 → v0.10.0) ✅
+
+Detail: `docs/plans/phase-52-spec.md`
+ADR: `docs/adr/0010-test-architecture.md`
+
+Three-layer testing stack established after a series of fix-forwards
+(v0.9.91→.94 dock invisible, v0.9.94 Timeline auth bypass, v0.9.95 dock
+off-screen) revealed a systemic gap: unit tests passed but real Tauri behavior
+was never exercised. Phase 52 closes the gap, adds a CI gate, and codifies the
+architecture in ADR-010.
+
+| Sub-phase                 | Item                                                                                                                       | Version  | Status |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------- | ------ |
+| 52A (regression backfill) | `dock-visibility-upgrade.test.ts`, `fetch-auth-audit.test.ts`, smoke template §10 "Regression coverage"                    | v0.9.98  | ✅     |
+| 52B (mockIPC helper)      | `test-utils/tauri-mock.ts` (`createMockPlatform`), docs in `architecture.md`                                               | v0.9.99  | ✅     |
+| 52C (Layer 3)             | `tauri-plugin-playwright` under `e2e-testing` feature, 5 E2E specs (4 pass + 1 browser-skip), `playwright.tauri.config.ts` | v0.9.100 | ✅     |
+| 52D (CI gate)             | `e2e.yml` workflow, `release.yml` `needs: [e2e]` on build jobs, security check                                             | v0.10.0  | ✅     |
+| 52E (docs)                | ADR-010 accepted, CLAUDE.md/architecture.md/development.md updated                                                         | v0.10.0  | ✅     |
+
+**New pitfall documented (Phase 52C)**: `@srsholmes/tauri-playwright`'s
+`createTauriTest` fixture calls `waitForLoadState("networkidle")` in setup,
+which never fires because LibreCode holds a live SSE connection to the
+backend. Solution: import `generateIpcMockScript` directly and build a
+custom fixture with `waitForLoadState("load")`.
+
+Tests: 861 (Sub-A baseline) → 867 → 872 → 872 (Sub-C adds 5 E2E specs outside
+`bun test` count) → 872 (Sub-D/E are CI + docs).
 
 ### Phase 50b: Lazy iframe mount + iframe pool (v0.9.93) ✅
 

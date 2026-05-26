@@ -392,3 +392,27 @@ mcp__Claude_Preview__preview_screenshot({ serverId: WEB_ID })
 - **No Tauri APIs**: `window.__TAURI__` is undefined. `usePlatform()`
   returns `platform: "web"`. Anything gated on `platform === "desktop"`
   won't be exercised — use a separate Tauri smoke (eyes-on) for those.
+  - **Tauri-desktop-only features**: `platform === "desktop"` gates
+    (detach button, native file picker, etc.) are invisible in Layer 2.
+    Use Layer 3 (`bun --cwd packages/app run test:e2e:tauri:browser`)
+    for those flows — see `docs/adr/0010-test-architecture.md`.
+
+---
+
+## 10. Layer cross-reference
+
+The three-layer architecture (ADR-010) and this smoke template are
+complementary — each layer catches a different bug class:
+
+| Layer   | Tool                              | Misses what Layer 2 catches  | Catches what Layer 2 misses           |
+| ------- | --------------------------------- | ---------------------------- | ------------------------------------- |
+| Layer 1 | `bun test`                        | Real CSS layout, real Tauri  | Logic bugs, migration edge cases      |
+| Layer 2 | `Claude_Preview` MCP (this guide) | Tauri IPC, multi-window, CSP | Layout overflow, render bugs          |
+| Layer 3 | `tauri-playwright`                | Web-only flows               | Tauri IPC, detach, auth in Tauri mode |
+
+**Run all three layers when**: landing a feature that touches Tauri IPC,
+dock layout, or auth. Run Layer 1 + 2 for pure UI/logic changes. Run
+Layer 1 alone for utility/pure function changes.
+
+See `docs/adr/0010-test-architecture.md` for the full decision tree and
+`docs/development.md` for per-layer run commands.

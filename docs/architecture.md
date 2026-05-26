@@ -419,11 +419,11 @@ packages/
 
 LibreCode uses a three-layer testing architecture:
 
-| Layer                           | Tool                           | Speed     | Catches                                        |
-| ------------------------------- | ------------------------------ | --------- | ---------------------------------------------- |
-| **Layer 1** — Unit / component  | `bun test`                     | <2s suite | Logic bugs, state machines, pure helpers       |
-| **Layer 2** — Web preview smoke | `Claude_Preview` MCP           | ~15–30s   | Layout overflow, real route flows, render bugs |
-| **Layer 3** — Tauri E2E         | `tauri-playwright` (Phase 52C) | 3–5 min   | Tauri IPC, multi-window, CSP, native rendering |
+| Layer                           | Tool                           | Speed                            | Catches                                        |
+| ------------------------------- | ------------------------------ | -------------------------------- | ---------------------------------------------- |
+| **Layer 1** — Unit / component  | `bun test`                     | <2s suite                        | Logic bugs, state machines, pure helpers       |
+| **Layer 2** — Web preview smoke | `Claude_Preview` MCP           | ~15–30s                          | Layout overflow, real route flows, render bugs |
+| **Layer 3** — Tauri E2E         | `tauri-playwright` (Phase 52C) | ~30s (browser) / 3–5 min (tauri) | Tauri IPC, multi-window, CSP, native rendering |
 
 ### Layer 1 — Tauri mocking
 
@@ -447,5 +447,23 @@ mock.module("@/context/platform", () => ({
 }))
 ```
 
+### Layer 3 — Tauri E2E
+
+Fixture at `packages/app/e2e/fixtures/tauri.ts` exports a `tauriPage`
+Playwright fixture (raw `Page` + Tauri IPC mocks via `addInitScript`).
+Three execution modes from the same spec files:
+
+```bash
+bun --cwd packages/app run test:e2e:tauri:browser  # fast, CI gate
+bun --cwd packages/app run test:e2e:tauri:tauri    # real webview, pre-release
+```
+
+The `tauri-plugin-playwright` is feature-gated (`--features e2e-testing`)
+and MUST NOT ship in production builds. See ADR-010 for the five security
+constraints that enforce this.
+
+CI: `e2e.yml` runs browser mode as a required gate before binary builds
+(`release.yml` → `needs: [e2e]` on `build-cli` and `build-desktop`).
+
 See `docs/plans/preview-smoke-template.md` for Layer 2 procedures and
-`docs/adr/0010-test-architecture.md` for the full ADR (Phase 52E).
+`docs/adr/0010-test-architecture.md` for the full ADR.

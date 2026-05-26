@@ -83,17 +83,39 @@ cd packages/librecode && bun test test/config/  # test a directory
 
 ### Testing
 
-- **Test runner**: `bun test` (built-in, not vitest/jest)
-- **File pattern**: `*.test.ts` colocated with source or in `test/` directory
-- **Coverage baseline** (as of 2026-04-08):
-  - packages/librecode: 72% lines, 62% functions
-  - packages/util: 99% lines, 97% functions
-- **Coverage targets** (for new and modified code):
-  - New files: minimum 80% line coverage
-  - Modified files: coverage must not decrease
-  - Utility/pure functions: target 95%+
-- **Test isolation**: Tests use temp dirs via `test/preload.ts` — never touch real user data
-- **No network calls** in unit tests. Mock external APIs.
+LibreCode uses a three-layer test architecture (ADR-010,
+`docs/adr/0010-test-architecture.md`):
+
+**Layer 1 — Unit tests (`bun test`)**
+
+- File pattern: `*.test.ts` / `*.test.tsx` colocated with source or in `test/`.
+- Coverage baseline (2026-04-08): packages/librecode 72% lines, packages/util 99%.
+- Coverage targets: new files ≥80% lines, modified files must not decrease,
+  utility/pure functions target 95%+.
+- Test isolation: `test/preload.ts` temp dirs — never touch real user data.
+- No network calls in unit tests. Mock external APIs.
+- For Tauri-API-calling components: use `@/test-utils/tauri-mock` (the
+  `createMockPlatform` helper). Do NOT call `@tauri-apps/api` directly in tests.
+
+**Layer 2 — Web preview smoke (`docs/plans/preview-smoke-template.md`)**
+
+- Manual / `Claude_Preview` MCP driven.
+- MANDATORY: desktop viewport (1280×800) via `preview_resize` before any assertion.
+- MANDATORY: `preview_screenshot` at baseline + each visible state change.
+- Required for any PR that ships UI changes.
+
+**Layer 3 — Tauri E2E (`bun --cwd packages/app run test:e2e:tauri:browser`)**
+
+- Playwright via `@srsholmes/tauri-playwright`; fixture in `packages/app/e2e/fixtures/tauri.ts`.
+- Three modes: `browser` (fast, CI gate), `tauri` (real webview, pre-release), `cdp` (Windows, future).
+- CI runs browser mode on every release tag via `e2e.yml` (Phase 52D gate).
+- Required for any PR that changes Tauri IPC, multi-window, or CSP.
+- See `docs/adr/0010-test-architecture.md` for security constraints on the
+  `e2e-testing` cargo feature.
+
+**Regression rule (mandatory)**: every bug fix MUST include a regression test in
+the appropriate layer. State in the PR: "This regression would have been caught by
+Layer N." See Phase 52 sub-phases for reference examples.
 
 ### Git
 

@@ -118,17 +118,52 @@ export OPENAI_API_KEY="sk-..."
 
 ## Testing
 
+LibreCode uses a three-layer testing architecture (ADR-010). Run the
+appropriate layer depending on what changed.
+
+### Layer 1 — Unit tests (fast, ~2s)
+
 ```bash
 cd packages/librecode
-bun test --timeout 30000          # All tests
-bun test test/session/             # Test a directory
-bun test --coverage               # With coverage report
+bun test --timeout 30000           # All CLI tests
+bun test test/session/             # Subset by directory
+bun test --coverage                # With line coverage
 
 cd packages/util && bun test       # Util tests
 cd packages/plugin && bun test     # Plugin tests
 cd packages/app && bun run test:unit  # App unit tests
-cd packages/app && bun run test:e2e   # E2E tests (Playwright)
 ```
+
+### Layer 2 — Web preview smoke (manual, ~15–30s)
+
+Driven by the `Claude_Preview` MCP tools. See
+`docs/plans/preview-smoke-template.md` for the full procedure. Required
+for all UI-visible changes.
+
+Key rules (v0.9.97+):
+
+- Always resize to 1280×800 desktop viewport before any assertion.
+- Always screenshot at baseline + each visible state change.
+
+### Layer 3 — Tauri E2E (Playwright)
+
+```bash
+# Browser mode: headless Chromium + mocked Tauri IPC (~30s, CI gate)
+bun --cwd packages/app run test:e2e:tauri:browser
+
+# Tauri mode: real native webview via socket bridge (~3-5min, pre-release)
+bun --cwd packages/app run test:e2e:tauri:tauri
+
+# View last Playwright report
+bun --cwd packages/app run test:e2e:report
+```
+
+Browser mode requires the Vite dev server to be running (port 3000).
+In CI, Playwright's `webServer` config starts it automatically.
+In development, start it first: `bun --cwd packages/app run dev`.
+
+See `docs/adr/0010-test-architecture.md` for which layer to use and
+`docs/plans/preview-smoke-template.md` for Layer 2 procedure.
 
 ---
 
