@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-25 | ~459 commits | Tests: 2831 pass, 12 skip, 0 flaky | **v0.9.93** (Phase 50b shipped)
+> Last updated: 2026-05-26 | ~460 commits | Tests: 2841 pass, 12 skip, 0 flaky | **v0.9.93** (Phase 50c shipped)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
@@ -743,7 +743,44 @@ Off-screen host div keeps the iframe alive across SolidJS cleanup. Pool claim pa
 | **Sub-B** `dock.tsx`: `onIframeReady` callback chain (DockPane → PaneIframeBody → McpAppPanel) + pool park on `onCleanup`      | ✅     |
 | Tests: 777 → 836 (app) — 59 new; 1995 librecode, 0 failures                                                                    | ✅     |
 | Preview smoke: all 7 checks (including Sub-B pool park) passed via mcp\_\_Claude_Preview tools                                 | ✅     |
-| **Pool claim path (fast re-pin)** — deferred to Phase 50c                                                                      | 🔲     |
+| **Pool claim path (fast re-pin)** — deferred to Phase 50c                                                                      | ✅     |
+
+### Phase 50c: Iframe pool claim side — fast re-pin (v0.9.93) ✅
+
+Completes the iframe pool round-trip begun in Phase 50b Sub-B. When a user re-pins
+an app within 5 minutes of removing it, `PaneIframeBody` now claims the parked
+iframe from the pool instead of doing a cold-start `fetchAppHtml` + full iframe
+reload + AppBridge handshake.
+
+**How it works:**
+
+- `PaneIframeBody` checks `getIframePool().has(poolKey)` synchronously at render
+  time (before `onMount`). If hit, `claim()` returns the iframe element.
+- The `cachedIframe` prop is passed to `McpAppPanel`, which skips `createResource`
+  (source returns `undefined` → no fetch) and inserts the claimed iframe via
+  `appendChild` (DOM move, not clone — keeps content intact).
+- `useAppBridge` detects `readyState === "complete"` and calls `bridge.connect()`
+  immediately rather than waiting for the `load` event (which won't re-fire since
+  the iframe's srcdoc hasn't changed).
+- `claim()` does NOT call `entry.cleanup()` — the old bridge was already closed by
+  `McpAppPanel.onCleanup` (Solid disposes children before parents), so calling it
+  again would wrongly drop the app's session permission grants.
+- Telemetry: `iframe_pool_hit` / `iframe_pool_miss` emitted from `onMount` for
+  non-builtin apps.
+
+| Item                                                                                                | Status |
+| --------------------------------------------------------------------------------------------------- | ------ |
+| `dock.tsx PaneIframeBody`: synchronous pool check + `cachedIframe` prop wiring                      | ✅     |
+| `dock.tsx PaneIframeBody`: `iframe_pool_hit` / `iframe_pool_miss` telemetry in `onMount`            | ✅     |
+| `mcp-app-panel.tsx`: `cachedIframe?: HTMLIFrameElement` prop on `McpAppPanelProps`                  | ✅     |
+| `mcp-app-panel.tsx`: `createResource` source returns `undefined` for pool hits (no fetch)           | ✅     |
+| `mcp-app-panel.tsx`: pool-hit render path (container `<div>` + `ref` → `appendChild`)               | ✅     |
+| `mcp-app-panel.tsx`: header `<Show>` covers both srcdoc and pool-hit cases                          | ✅     |
+| `mcp-app-panel.tsx useAppBridge`: immediate `bridge.connect()` when `readyState === "complete"`     | ✅     |
+| `iframe-pool.ts claim()`: comment documents why cleanup is NOT called (session-grant safety)        | ✅     |
+| `iframe-pool.test.ts`: +4 Phase 50c claim-side tests (no-cleanup invariant, one-shot, cross-server) | ✅     |
+| `dock.test.tsx`: +5 PaneIframeBody pool-hit/miss decision logic tests                               | ✅     |
+| Tests: 836 → 846 (app) — +10 new; all pass                                                          | ✅     |
 
 ### Phase 50: Keyboard + a11y + Phoenix telemetry polish (v0.9.92) ✅
 

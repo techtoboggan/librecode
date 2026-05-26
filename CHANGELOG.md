@@ -4,7 +4,7 @@ All notable changes to LibreCode are documented here.
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
 versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.93] - 2026-05-25
+## [0.9.93] - 2026-05-26
 
 ### Added
 
@@ -24,12 +24,13 @@ versions follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   forces the keep-alive path even if the app hasn't used state-relay.
   The setting persists in `librecode.jsonc` under
   `mcp_apps.<uri>.alwaysLoaded`.
-- **App Dock iframe pool (Sub-B foundation).** When an app is removed from
-  the dock (`dock.remove()`), its iframe is parked in an off-screen pool
-  for up to 5 minutes (LRU-3 eviction). Re-pinning the same app within
-  that window will eventually claim the cached iframe, skipping the
-  cold-start AppBridge handshake entirely. The claim path ships in
-  Phase 50c; this release adds the park plumbing and the pool module.
+- **App Dock iframe pool — full park + claim round-trip (Phase 50c).** When
+  an app is removed from the dock, its iframe is parked in an off-screen
+  pool (LRU-3, 5-min TTL). Re-pinning the same app within that window
+  claims the parked iframe: no `fetchAppHtml` round-trip, no srcdoc
+  reload, no iframe parse. The `AppBridge` reconnects immediately via
+  `readyState === "complete"` detection. Telemetry: `iframe_pool_hit` /
+  `iframe_pool_miss` events.
 
 ### Changed
 
