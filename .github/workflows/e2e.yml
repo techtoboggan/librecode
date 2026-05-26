@@ -1,0 +1,139 @@
+name: E2E (Tauri)
+# Phase 52D — Tauri E2E tests as a required release gate.
+#
+# Two jobs in one workflow:
+#   1. browser mode  — headless Chromium + mocked Tauri IPC (~30s, NO Cargo)
+#   2. cargo compile — verifies tauri-plugin-playwright still compiles under
+#                      the e2e-testing feature flag (no test run, just build)
+#
+# Tauri mode (real native webview via socket bridge) is commented out until
+# Phase 53 wires the TauriProcessManager fixture. Browser mode is sufficient
+# as a gate: it exercises 4 of 5 specs; the 5th (detach-flow) is intentionally
+# skipped in browser mode because canDetach() requires a Tauri desktop context.
+#
+# The Playwright webServer config auto-starts the Vite dev server when
+# process.env.CI is set (reuseExistingServer: false). No manual startup step
+# is needed here.
+#
+# Security gate (ADR-010 constraint 4): verifies tauri-plugin-playwright
+# is `optional = true` in Cargo.toml and NOT in the default feature list.
+#
+# Platform: Linux only (Phase 53 adds macOS + Windows).
+# Pitfall 3: MUST use libwebkit2gtk-4.1-dev, NOT -4.0-dev (Tauri 2.x).
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        required: false
+        type: string
+        description: "Git ref to check out (default: current)"
+
+jobs:
+  e2e-linux:
+    name: E2E — Linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      # ── Toolchain ─────────────────────────────────────────────────────
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.11"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # ── System packages (for Cargo step; Chromium installed via Playwright) ─
+      # NOTE (Pitfall 3): -4.1-dev, NOT -4.0-dev. Tauri 2.x links against 4.1.
+      - name: Install Tauri system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      # ── Cargo cache (Pitfall 12 — first build is slow without cache) ───
+      - name: Cache cargo registry + build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            packages/desktop/src-tauri/target
+          key: e2e-cargo-${{ runner.os }}-${{ hashFiles('packages/desktop/src-tauri/Cargo.lock') }}
+          restore-keys: e2e-cargo-${{ runner.os }}-
+
+      # ── Node / npm deps ───────────────────────────────────────────────
+      - run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium browser
+        run: bun --cwd packages/app x playwright install --with-deps chromium
+
+      # ── Security gate (ADR-010 §Constraints rule 4) ───────────────────
+      # Source-level check: plugin is optional = true and not in default features.
+      # This verifies the production Cargo build cannot accidentally include it.
+      - name: Verify tauri-plugin-playwright is optional-only
+        run: |
+          TOML="packages/desktop/src-tauri/Cargo.toml"
+          # Rule 1: must have optional = true
+          grep -A3 'tauri-plugin-playwright' "$TOML" | grep -q 'optional = true' \
+            || { echo "::error::tauri-plugin-playwright missing optional = true in Cargo.toml"; exit 1; }
+          # Rule 2: must NOT appear in default features
+          if grep -A20 '^\[features\]' "$TOML" | grep 'default' | grep -q 'e2e-testing'; then
+            echo "::error::e2e-testing in [features] default — plugin would ship in production builds"
+            exit 1
+          fi
+          echo "Security check passed"
+
+      # ── Browser-mode E2E (the actual gate, ~30s) ──────────────────────
+      # Playwright's webServer config starts the Vite dev server automatically
+      # when CI=true (reuseExistingServer: false in playwright.tauri.config.ts).
+      # 4 pass + 1 skipped (detach-flow: requires platform === "desktop").
+      - name: Run E2E — browser mode
+        run: bun --cwd packages/app run test:e2e:tauri:browser
+        env:
+          CI: "true"
+          PLAYWRIGHT_BASE_URL: "http://127.0.0.1:3000"
+
+      # ── Cargo compile with e2e-testing feature ────────────────────────
+      # Verifies the plugin still compiles and the feature flag works.
+      # Does NOT produce a release binary — uses debug profile (target/debug/).
+      # Pitfall 9: LIBRECODE_REGEN_BINDINGS=0 prevents bindings.ts from being
+      # regenerated to the broken specta output format.
+      - name: Build desktop with e2e-testing feature (compile check)
+        run: |
+          cd packages/desktop/src-tauri
+          LIBRECODE_REGEN_BINDINGS=0 cargo build --features e2e-testing
+        env:
+          LIBRECODE_REGEN_BINDINGS: "0"
+
+      # ── Tauri-mode E2E (Phase 53 TODO) ───────────────────────────────
+      # Wire TauriProcessManager in e2e/fixtures/tauri.ts, then uncomment:
+      # - name: Run E2E — tauri mode (real webview, xvfb)
+      #   run: |
+      #     sudo Xvfb :99 -ac -screen 0 1280x800x24 &
+      #     export DISPLAY=:99
+      #     sleep 1
+      #     bun --cwd packages/app run test:e2e:tauri:tauri
+      #   env:
+      #     DISPLAY: ":99"
+
+      # ── Upload failure artifacts ──────────────────────────────────────
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report-tauri
+          path: |
+            packages/app/e2e/playwright-report-tauri/
+            packages/app/e2e/test-results-tauri/
+          retention-days: 7

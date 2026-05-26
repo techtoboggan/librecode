@@ -12,12 +12,23 @@
  * Run:
  *   bun run test:e2e:tauri:browser   # fast iteration
  *   bun run test:e2e:tauri:tauri     # real webview pre-release
+ *
+ * webServer (Phase 52D):
+ *   reuseExistingServer is true locally (dev server must already be running)
+ *   and false in CI (Playwright starts + stops the server for the test run).
+ *   Uses VITE_LIBRECODE_SERVER_HOST=127.0.0.1 to prevent the app from
+ *   hanging on an unavailable backend in CI.
  */
 
 import { defineConfig, devices } from "@playwright/test"
+import { fileURLToPath } from "node:url"
+import { join } from "node:path"
 
 const webPort = Number(process.env.PLAYWRIGHT_PORT ?? 3000)
 const webBaseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${webPort}`
+
+// Root of packages/app/ (parent of this config file's directory)
+const appRoot = fileURLToPath(new URL("..", import.meta.url))
 
 export default defineConfig({
   testDir: "./tauri",
@@ -27,8 +38,25 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   workers: 1,
   reporter: process.env.CI
-    ? [["github"], ["html", { outputFolder: "playwright-report-tauri", open: "never" }]]
+    ? [["github"], ["html", { outputFolder: join(appRoot, "e2e/playwright-report-tauri"), open: "never" }]]
     : "list",
+
+  // Auto-start the Vite dev server in CI; reuse existing server locally.
+  // In CI there is no running backend at :4096 — browser-mode tests
+  // do not require it because they navigate to UI-only routes and check
+  // DOM structure / console errors, not live data.
+  webServer: {
+    command: "bun run dev",
+    cwd: appRoot,
+    url: webBaseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 60_000,
+    env: {
+      // Suppress Vite from auto-opening a browser tab in CI
+      BROWSER: "none",
+    },
+  },
+
   use: {
     baseURL: webBaseURL,
     trace: "on-first-retry",

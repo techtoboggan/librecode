@@ -44,6 +44,15 @@ jobs:
     needs: prep
     uses: ./.github/workflows/ci.yml
 
+  # ─── Stage 1b: Tauri E2E gate ────────────────────────────────────────────
+  # Runs in parallel with publish-npm (both need only quality).
+  # build-cli and build-desktop are gated on this job: binaries only ship
+  # once the E2E suite passes (Phase 52D).
+  e2e:
+    name: E2E gate (Tauri browser mode)
+    needs: [prep, quality]
+    uses: ./.github/workflows/e2e.yml
+
   # ─── Stage 2: Publish npm packages ────────────────────────────────────────
   publish-npm:
     name: Publish npm
@@ -56,7 +65,7 @@ jobs:
   # ─── Stage 3: Build CLI tarballs ──────────────────────────────────────────
   build-cli:
     name: Build CLI (${{ matrix.target }})
-    needs: [prep, publish-npm]
+    needs: [prep, publish-npm, e2e]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -102,7 +111,7 @@ jobs:
   # ─── Stage 4: Build desktop apps ──────────────────────────────────────────
   build-desktop:
     name: Build desktop
-    needs: [prep, publish-npm]
+    needs: [prep, publish-npm, e2e]
     uses: ./.github/workflows/desktop.yml
     with:
       version: ${{ needs.prep.outputs.version }}
