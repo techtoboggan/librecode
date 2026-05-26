@@ -2472,7 +2472,7 @@ dependencies = [
 
 [[package]]
 name = "librecode-desktop"
-version = "0.9.96"
+version = "0.9.97"
 dependencies = [
  "chrono",
  "comrak",
