@@ -56,6 +56,26 @@ describe("DockEdgeHandle visibility predicate (v0.9.95)", () => {
   })
 })
 
+// Phase 52 Sub-A — integration regression for the v0.9.95 edge-handle
+// "click → dock re-opens" cycle. The component calls dock.toggle() which
+// maps directly to toggleVisibility. Tests the full state round-trip so
+// the "click handle → dock visible → handle disappears" guarantee is
+// locked in at the state level.
+describe("DockEdgeHandle click state cycle (v0.9.95)", () => {
+  test("click on handle transitions dock from hidden+entries to visible, handle then hides", () => {
+    // Arrange: hidden dock with one entry — this is the state where the handle shows
+    const initial = addEntry(toggleVisibility(defaultDockState()), { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    expect(shouldShowEdgeHandle(initial)).toBe(true)
+
+    // Act: simulate handle click (dock.toggle() → toggleVisibility)
+    const afterClick = toggleVisibility(initial)
+
+    // Assert: dock is now visible; handle predicate returns false (handle hides)
+    expect(afterClick.visibility).toBe("visible")
+    expect(shouldShowEdgeHandle(afterClick)).toBe(false)
+  })
+})
+
 describe("DockEdgeHandle label pluralization", () => {
   function makeLabel(count: number): string {
     return `Show app dock (${count} app${count === 1 ? "" : "s"})`

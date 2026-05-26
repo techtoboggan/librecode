@@ -212,6 +212,14 @@ describe("addEntry", () => {
     expect(next.entries[0].addedAt).toBeGreaterThanOrEqual(before)
     expect(next.entries[0].addedAt).toBeLessThanOrEqual(after)
   })
+
+  // Phase 52 Sub-A carry-forward stability — spread in addEntry must
+  // preserve all state fields including the v0.9.94 upgrade sentinel.
+  test("addEntry preserves visibilityUpgradedTo marker (Phase 52)", () => {
+    const state = { ...defaultDockState(), visibilityUpgradedTo: "v0.9.94" }
+    const next = addEntry(state, { uri: SAMPLE_APP.uri, app: SAMPLE_APP })
+    expect(next.visibilityUpgradedTo).toBe("v0.9.94")
+  })
 })
 
 describe("removeEntry", () => {
