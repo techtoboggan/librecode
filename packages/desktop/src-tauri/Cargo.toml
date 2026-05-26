@@ -14,10 +14,21 @@ edition = "2024"
 name = "librecode_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# e2e-testing: embeds tauri-plugin-playwright so Playwright can drive the
+# real Tauri webview. MUST NOT be enabled in production builds.
+# See ADR-010 and docs/plans/phase-52-spec.md §Constraints for the full
+# security contract (5 hard rules that must all be in place).
+e2e-testing = ["tauri-plugin-playwright"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# Pinned to exact version per ADR-010 Pitfall 2 — the 0.2.x API may break
+# between minor versions. Only active when built with --features e2e-testing.
+tauri-plugin-playwright = { version = "=0.2.2", optional = true }
+
 # `devtools` feature enables WebKit/Chromium inspector in release builds —
 # gated behind LIBRECODE_DEVTOOLS=1 at runtime so the default install
 # doesn't ship with an always-on inspector. Essential for beta-testing

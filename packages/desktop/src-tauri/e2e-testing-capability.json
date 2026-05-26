@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "e2e-testing",
+  "description": "Permissions for the Playwright E2E testing plugin. MUST NOT ship to production. Only active when the crate is built with --features e2e-testing. See ADR-010 and docs/plans/phase-52-spec.md §Constraints.",
+  "windows": ["main", "detached-*"],
+  "permissions": ["playwright:default"]
+}

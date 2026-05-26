@@ -314,7 +314,25 @@ pub fn run() {
         .arg("librecode-cli")
         .output();
 
-    let mut builder = tauri::Builder::default()
+    // e2e-testing feature: embed tauri-plugin-playwright so Playwright can
+    // drive the real Tauri webview via a local socket bridge. MUST NOT be
+    // present in production builds — the plugin exposes a debug interface
+    // that runs arbitrary JS inside the webview. See ADR-010 and
+    // docs/plans/phase-52-spec.md §Constraints rules 1-5.
+    //
+    // Use a separate variable (tauri_builder) for the initial Builder so
+    // that the specta `builder` binding (from make_specta_builder()) remains
+    // in scope and unambiguously referenced by .invoke_handler(builder.invoke_handler())
+    // and builder.mount_events(&handle) below.
+    #[allow(unused_mut)] // `mut` is used only when e2e-testing feature is active
+    let mut tauri_builder = tauri::Builder::default();
+
+    #[cfg(feature = "e2e-testing")]
+    {
+        tauri_builder = tauri_builder.plugin(tauri_plugin_playwright::init());
+    }
+
+    let mut builder = tauri_builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Focus existing window when another instance is launched
             if let Some(window) = app.get_webview_window(MainWindow::LABEL) {

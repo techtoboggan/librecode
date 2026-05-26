@@ -2472,7 +2472,7 @@ dependencies = [
 
 [[package]]
 name = "librecode-desktop"
-version = "0.9.97"
+version = "0.9.99"
 dependencies = [
  "chrono",
  "comrak",
@@ -2499,6 +2499,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-os",
+ "tauri-plugin-playwright",
  "tauri-plugin-process",
  "tauri-plugin-shell",
  "tauri-plugin-single-instance",
@@ -5388,6 +5389,20 @@ dependencies = [
  "tauri",
  "tauri-plugin",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "tauri-plugin-playwright"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2de803dd4ac54e9457e45f5e3f1f654eab2581d8cd60a14defc18d66725fcea5"
+dependencies = [
+ "log",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-plugin",
+ "tokio",
 ]
 
 [[package]]
