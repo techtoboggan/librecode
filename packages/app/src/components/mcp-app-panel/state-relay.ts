@@ -24,6 +24,12 @@ export function createStateRelay(options: {
   fetchFn: FetchLike
   baseUrl: string
   contentWindow: Window | null
+  /**
+   * Phase 50b — optional callback fired when a `mcp-app-state:save`
+   * message is received. Signals that this app actively persists
+   * state and should be kept alive across collapse cycles.
+   */
+  onSaveObserved?: () => void
 }): (e: { data?: unknown; source?: unknown }) => void {
   const post = (message: Record<string, unknown>) => {
     try {
@@ -57,6 +63,12 @@ export function createStateRelay(options: {
     }
 
     if (data.type === "mcp-app-state:save") {
+      // Phase 50b — notify dock that this app emits state-relay saves.
+      // Use queueMicrotask to avoid blocking the iframe→host message
+      // round-trip (constraint from phase-50b-spec §3).
+      if (options.onSaveObserved) {
+        queueMicrotask(options.onSaveObserved)
+      }
       const url = new URL(`${options.baseUrl}/mcp/apps/state`)
       url.searchParams.set("server", options.server)
       url.searchParams.set("uri", options.uri)

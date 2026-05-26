@@ -29,6 +29,7 @@ import {
   createResource,
   createSignal,
   onCleanup,
+  useContext,
   Show,
   type JSX,
 } from "solid-js"
@@ -42,6 +43,7 @@ import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
+import { DockContext } from "@/components/app-dock/use-dock-state"
 import { McpAppDownloadDialog } from "./mcp-app-download-dialog"
 import { McpAppPermissionPrompt } from "./mcp-app-permission-prompt"
 import { createDownloadHandler, deliverBlobAsDownload } from "./mcp-app-download"
@@ -481,6 +483,8 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   const globalSDK = useGlobalSDK()
   const sync = useSync()
   const permission = usePermission()
+  // Phase 50b — optional dock context; panel can be rendered outside dock.
+  const dockCtx = useContext(DockContext)
   let iframeRef: HTMLIFrameElement | undefined
   const [iframeSignal, setIframeSignal] = createSignal<HTMLIFrameElement | undefined>(undefined)
 
@@ -611,12 +615,16 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     // iframe through to `/mcp/apps/state`. Lets MCP apps persist their
     // own per-(server, uri) state (e.g. user preferences, view
     // settings, custom dashboards) across LibreCode restarts.
+    //
+    // Phase 50b: pass onSaveObserved so the dock knows this app actively
+    // persists state and should be kept alive across collapse cycles.
     const handleStateRelay = createStateRelay({
       server: props.server,
       uri: props.uri,
       fetchFn: globalSDK.fetch,
       baseUrl: sdk.url,
       contentWindow: iframe.contentWindow,
+      onSaveObserved: dockCtx ? () => dockCtx.markRelayObserved(props.uri) : undefined,
     })
 
     window.addEventListener("message", handleMessage)

@@ -1,4 +1,4 @@
-import { createContext, onMount, startTransition, untrack, useContext, type JSX } from "solid-js"
+import { batch, createContext, createSignal, onMount, startTransition, untrack, useContext, type JSX } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { useSDK } from "@/context/sdk"
@@ -40,6 +40,17 @@ export interface DockContextValue {
   detach: (uri: string) => void
   /** Phase 49 — un-detach an entry (re-attach it to the dock inline). */
   reattach: (uri: string) => void
+  /**
+   * Phase 50b — set of app URIs that have emitted at least one
+   * `mcp-app-state:save` message this session. Transient (resets
+   * on dock unmount/reload). Used by shouldKeepIframeAlive.
+   */
+  observedRelay: () => ReadonlySet<string>
+  /**
+   * Phase 50b — record that an app has been observed emitting
+   * state-relay save traffic. Idempotent; uses batch() internally.
+   */
+  markRelayObserved: (uri: string) => void
 }
 
 /** Exported for testing — wrap with DockContext.Provider to inject a mock. */
@@ -50,6 +61,11 @@ interface ProviderProps {
 }
 
 export function AppDockProvider(props: ProviderProps): JSX.Element {
+  // Phase 50b — transient set of URIs observed emitting state-relay saves.
+  // Resets on dock provider unmount (workspace switch effectively resets it
+  // because the provider is workspace-scoped and remounts on navigation).
+  const [observedRelaySet, setObservedRelaySet] = createSignal<ReadonlySet<string>>(new Set<string>())
+
   // adr-006: keyed on sdk.directory which is mount-time stable. The
   // persisted store fires NO createResource directly here — it uses
   // synchronous localStorage hydration. Visibility/width changes mutate
@@ -107,6 +123,18 @@ export function AppDockProvider(props: ProviderProps): JSX.Element {
   const detach = (uri: string) => void startTransition(() => setStore(detachEntry(store as DockState, uri)))
   const reattach = (uri: string) => void startTransition(() => setStore(reattachEntry(store as DockState, uri)))
 
+  // Phase 50b — mark a URI as having observed state-relay traffic.
+  // Idempotent: if the URI is already in the set, skip the update.
+  const markRelayObserved = (uri: string): void => {
+    batch(() => {
+      const current = observedRelaySet()
+      if (current.has(uri)) return
+      const next = new Set(current)
+      next.add(uri)
+      setObservedRelaySet(next)
+    })
+  }
+
   const value: DockContextValue = {
     state,
     toggle,
@@ -119,6 +147,8 @@ export function AppDockProvider(props: ProviderProps): JSX.Element {
     applyDividerDrag,
     detach,
     reattach,
+    observedRelay: observedRelaySet,
+    markRelayObserved,
   }
 
   return <DockContext.Provider value={value}>{props.children}</DockContext.Provider>

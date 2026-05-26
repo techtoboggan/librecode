@@ -1,5 +1,6 @@
 /**
- * Integration tests for the AppDockProvider migration hook (Phase 44).
+ * Integration tests for the AppDockProvider migration hook (Phase 44)
+ * and Phase 50b relay-observation tracking.
  *
  * This project's unit test suite runs Solid.js in the server-side build;
  * `render` from `solid-js/web` is not available. These tests exercise the
@@ -12,7 +13,7 @@
  * is met — not the Solid component scaffold itself.
  */
 import { describe, expect, test } from "bun:test"
-import { createRoot } from "solid-js"
+import { batch, createRoot, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { defaultDockState, addEntry } from "./state"
 import { planLegacyMigration, markMigrated } from "./migration"
@@ -123,5 +124,87 @@ describe("AppDockProvider migration hook", () => {
 
     const { toastTitle: plural } = simulateMigrationMount(defaultDockState(), [APP_A, APP_B], NOW)
     expect(plural).toBe("Restored 2 apps from your tab pins")
+  })
+})
+
+// ── Phase 50b — relay observation tracking ────────────────────────────────────
+//
+// Mirrors the markRelayObserved + observedRelay logic from use-dock-state.tsx
+// without mounting the full Solid component tree. Tests run in createRoot to
+// get a reactive context for createSignal / batch.
+
+function createObservationTracker(): {
+  observedRelay: () => ReadonlySet<string>
+  markRelayObserved: (uri: string) => void
+} {
+  let observedRelay!: () => ReadonlySet<string>
+  let markRelayObserved!: (uri: string) => void
+
+  createRoot((dispose) => {
+    const [observedRelaySet, setObservedRelaySet] = createSignal<ReadonlySet<string>>(new Set<string>())
+
+    const mark = (uri: string): void => {
+      batch(() => {
+        const current = observedRelaySet()
+        if (current.has(uri)) return
+        const next = new Set(current)
+        next.add(uri)
+        setObservedRelaySet(next)
+      })
+    }
+
+    observedRelay = observedRelaySet
+    markRelayObserved = mark
+
+    // Keep the root alive until tests complete; this is a unit test
+    // fixture so we intentionally don't call dispose() here — bun's
+    // test runner cleans up after each file.
+    void dispose
+  })
+
+  return { observedRelay, markRelayObserved }
+}
+
+describe("Phase 50b — relay observation tracking", () => {
+  test("markRelayObserved adds the URI to observedRelay()", () => {
+    const { observedRelay, markRelayObserved } = createObservationTracker()
+    expect(observedRelay().has("ui://app")).toBe(false)
+    markRelayObserved("ui://app")
+    expect(observedRelay().has("ui://app")).toBe(true)
+  })
+
+  test("markRelayObserved is idempotent — repeated marks do not duplicate", () => {
+    const { observedRelay, markRelayObserved } = createObservationTracker()
+    markRelayObserved("ui://app")
+    markRelayObserved("ui://app")
+    markRelayObserved("ui://app")
+    expect(observedRelay().size).toBe(1)
+  })
+
+  test("multiple distinct URIs can be marked independently", () => {
+    const { observedRelay, markRelayObserved } = createObservationTracker()
+    markRelayObserved("ui://a/app")
+    markRelayObserved("ui://b/app")
+    expect(observedRelay().has("ui://a/app")).toBe(true)
+    expect(observedRelay().has("ui://b/app")).toBe(true)
+    expect(observedRelay().size).toBe(2)
+  })
+
+  test("observedRelay returns a ReadonlySet (same reference if no marks)", () => {
+    const { observedRelay } = createObservationTracker()
+    const first = observedRelay()
+    const second = observedRelay()
+    // No marks — same set reference (no spurious re-renders)
+    expect(first).toBe(second)
+  })
+
+  test("marking a URI changes the set reference (new Set created)", () => {
+    const { observedRelay, markRelayObserved } = createObservationTracker()
+    const before = observedRelay()
+    markRelayObserved("ui://app")
+    const after = observedRelay()
+    // New Set is created — signal fires for reactive subscribers
+    expect(before).not.toBe(after)
+    expect(after.has("ui://app")).toBe(true)
   })
 })
