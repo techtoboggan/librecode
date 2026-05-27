@@ -135,6 +135,22 @@ export {
   totalSamplingCostUsd,
 } from "./mcp-app-sampling"
 
+// ─── Iframe load tracking (WebKit sandbox-safe) ──────────────────────────────
+//
+// We MUST NOT read `iframe.contentDocument` (or `.contentWindow.document` /
+// `.location`) on these `sandbox="allow-scripts"` iframes. They run at a null
+// origin, and WebKitGTK — Tauri's real webview — throws a SecurityError on any
+// such cross-frame access ("Sandbox access violation: Blocked a frame at
+// 'tauri://localhost' from accessing a frame at 'null'…"). Chromium silently
+// returns null instead, which is why this only ever broke in the real desktop
+// app and never in browser-mode E2E or the web preview.
+//
+// To know whether a (possibly pool-parked) iframe has finished loading without
+// touching its document, we record it in this WeakSet from the 'load' handler.
+// The flag travels with the DOM node across appendChild moves (pool hits), and
+// "parked but already loaded" is exactly the semantics we want.
+const loadedIframes = new WeakSet<HTMLIFrameElement>()
+
 // ─── SSE event forwarding hook ───────────────────────────────────────────────
 
 function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
@@ -381,6 +397,7 @@ function useAppBridge(
 
     // Connect once the iframe's srcdoc has loaded.
     const handleLoad = () => {
+      loadedIframes.add(iframe)
       bridge.connect(transport).catch((err: unknown) => {
         if (err instanceof Error && err.message.includes("already connected")) return
         console.error("[McpAppPanel] AppBridge connect failed:", err)
@@ -393,9 +410,12 @@ function useAppBridge(
     // Phase 50c — pool-hit iframes are already loaded (srcdoc content intact
     // from before parking). Connect immediately so the bridge is ready without
     // waiting for the 'load' event, which won't re-fire since srcdoc hasn't
-    // changed. The "already connected" guard in handleLoad keeps this safe for
-    // cold-start iframes that happen to be complete by effect time.
-    if (iframe.contentDocument?.readyState === "complete") {
+    // changed. We track load state in `loadedIframes` (set by handleLoad) rather
+    // than reading `iframe.contentDocument.readyState` — the latter throws a
+    // sandbox SecurityError in WebKitGTK (see loadedIframes doc above). The
+    // "already connected" guard in handleLoad keeps this safe for cold-start
+    // iframes that happen to be complete by effect time.
+    if (loadedIframes.has(iframe)) {
       handleLoad()
     }
 
