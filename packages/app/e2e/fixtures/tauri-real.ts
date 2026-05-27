@@ -34,6 +34,28 @@ import { createTauriTest } from "@srsholmes/tauri-playwright"
 // (packages/app/e2e/fixtures/) that's ../../../desktop.
 const DESKTOP_ROOT = fileURLToPath(new URL("../../../desktop", import.meta.url)).replace(/\/$/, "")
 
+/**
+ * base64url-encode a directory path exactly as the app's `base64Encode`
+ * (@librecode/util/encode) does — same helper as the browser-mode fixture
+ * (fixtures/tauri.ts). Lets us build the `/{encoded}/session` route for any
+ * machine/CI runner instead of hardcoding a developer's home-dir path.
+ */
+function base64UrlEncode(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+
+// Repo root resolved from this file: fixtures/ → e2e/ → app/ → packages/ → root.
+const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url)).replace(/\/$/, "")
+
+/**
+ * Session route for the repo checkout, computed at runtime. The librecode
+ * backend serves `/session?directory=<REPO_ROOT>` for any readable dir, so
+ * this works on a fresh CI runner where there are no "recent projects" on the
+ * splash. The real app boots to the home route (devUrl `/`) — specs navigate
+ * here to reach the session route where the App Dock lives.
+ */
+export const SESSION_URL = `http://localhost:1420/${base64UrlEncode(REPO_ROOT)}/session`
+
 export const { test, expect } = createTauriTest({
   // The Vite dev server `bun tauri dev` starts (tauri.conf devUrl).
   devUrl: "http://localhost:1420",

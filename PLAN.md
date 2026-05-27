@@ -725,6 +725,27 @@ custom fixture with `waitForLoadState("load")`.
 Tests: 861 (Sub-A baseline) → 867 → 872 → 872 (Sub-C adds 5 E2E specs outside
 `bun test` count) → 872 (Sub-D/E are CI + docs).
 
+### Phase 54: Real tauri-mode E2E (socket bridge) — advisory 🟡
+
+Layer-3 extension beyond the browser-mode gate (Phase 52C): drive the REAL
+native WebKitGTK webview via `@srsholmes/tauri-playwright` in `tauri` mode over
+a unix socket. Separate fixture (`e2e/fixtures/tauri-real.ts`) + config
+(`playwright.tauri-real.config.ts`) + its OWN non-blocking workflow
+(`e2e-tauri.yml`, ~30-min cold cargo build, fires on tags + `workflow_dispatch`).
+Advisory until proven green across a few runs, then fold into `release.yml`.
+
+| Item                                                                                                                                                                                                                                           | Status      |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| Foundation smoke (`smoke.spec.ts`) — app boots, socket round-trips `evaluate`, `__TAURI_INTERNALS__` present (desktop platform)                                                                                                                | ✅          |
+| Dock sandbox-iframe regression (`dock-sandbox-iframe.spec.ts`) — opens dock + adds built-in MCP app in the real webview; asserts the `sandbox="allow-scripts"` `srcdoc` iframe renders AND no sandbox `SecurityError` reaches the host console | 🟡 advisory |
+
+The dock spec is the end-to-end guard for the v0.10.12 WebKitGTK crash (reading
+`iframe.contentDocument` on a null-origin sandboxed frame threw a SecurityError
+and broke the whole dock — invisible to Chromium-based browser-mode E2E). Layer 1
+already guards it via a source grep (`mcp-app-panel.sandbox-guard.test.ts`); this
+proves it end-to-end in the only webview that actually throws. Iterate via
+`workflow_dispatch`, not release tags.
+
 ### Phase 50b: Lazy iframe mount + iframe pool (v0.9.93) ✅
 
 Detail: `docs/plans/phase-50b-spec.md`
