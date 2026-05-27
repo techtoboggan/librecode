@@ -38,8 +38,21 @@ jobs:
       # then the integration pass — sibling mcp/ tests install sticky
       # bun mock.module shims that would break the real-transport
       # integration tests if they shared the same `bun test` invocation.
+      #
+      # LIBRECODE_MODELS_PATH: pin the models.dev data to the committed test
+      # fixture from process start. test/preload.ts also sets this, but Flag
+      # captures process.env.LIBRECODE_MODELS_PATH at module-eval time — if a
+      # src module imports flag.ts before preload's env-set propagates,
+      # Provider.Data() falls through to a live `fetch(models.dev/api.json)`,
+      # which intermittently fails on a fresh runner (no cache, no bundled
+      # snapshot) → `defaultModel()` throws "no providers found". This flake
+      # blocked v0.10.7 and v0.10.8 (both passed on rerun). Setting it at the
+      # job level guarantees it's present from t=0, so Data() always reads the
+      # fixture and never touches the network.
       - run: bun run test
         working-directory: packages/librecode
+        env:
+          LIBRECODE_MODELS_PATH: ${{ github.workspace }}/packages/librecode/test/tool/fixtures/models-api.json
 
   test-util:
     name: Test (util)
