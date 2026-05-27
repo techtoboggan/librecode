@@ -6,10 +6,12 @@ name: E2E (Tauri)
 #   2. cargo compile — verifies tauri-plugin-playwright still compiles under
 #                      the e2e-testing feature flag (no test run, just build)
 #
-# Tauri mode (real native webview via socket bridge) is commented out until
-# Phase 53 wires the TauriProcessManager fixture. Browser mode is sufficient
-# as a gate: it exercises 4 of 5 specs; the 5th (detach-flow) is intentionally
-# skipped in browser mode because canDetach() requires a Tauri desktop context.
+# Real tauri-mode (native webview via socket bridge) runs in its OWN
+# workflow — .github/workflows/e2e-tauri.yml — NOT here, so its ~30-min cold
+# cargo build never blocks the release (binary builds `need: [e2e]`). Browser
+# mode is sufficient as the gate: it exercises 4 of 5 specs; the 5th
+# (detach-flow) is intentionally skipped in browser mode because canDetach()
+# requires a Tauri desktop context.
 #
 # The Playwright webServer config auto-starts the Vite dev server when
 # process.env.CI is set (reuseExistingServer: false). No manual startup step
@@ -154,8 +156,12 @@ jobs:
         env:
           LIBRECODE_REGEN_BINDINGS: "0"
 
-      # Real tauri-mode E2E now lives in the separate `tauri-real-linux`
-      # job below (Phase 54) — kept non-blocking until proven stable.
+      # Real tauri-mode E2E lives in its OWN workflow (e2e-tauri.yml), NOT
+      # here and NOT in release.yml's `needs` chain. Rationale: it does a
+      # full cold cargo build of the desktop crate (~30 min) and is still
+      # being hardened. Keeping it out of this reusable workflow means the
+      # release's binary builds (which `need: [e2e]`) are never blocked by
+      # it. It runs in parallel on tag push as an advisory signal.
 
       # ── Upload failure artifacts ──────────────────────────────────────
       - uses: actions/upload-artifact@v4
@@ -165,84 +171,4 @@ jobs:
           path: |
             packages/app/e2e/playwright-report-tauri/
             packages/app/e2e/test-results-tauri/
-          retention-days: 7
-
-  # ── Real tauri-mode E2E (Phase 54) — NON-BLOCKING until proven ────────
-  # Launches the actual app (`bun tauri dev --features e2e-testing`) under
-  # xvfb on a headless runner — no real display to leak to — and drives the
-  # native WebKitGTK webview via tauri-plugin-playwright's socket bridge.
-  # The socket bridge was verified to work locally (headless): the
-  # feature-built app opens /tmp/tauri-playwright.sock and boots its sidecar.
-  #
-  # continue-on-error at the JOB level: this runs on every release and
-  # reports results, but a failure does NOT fail the e2e workflow (and so
-  # does NOT block binary builds) while the real-app launch + socket dance
-  # is being hardened. Flip to blocking once it's reliably green.
-  #
-  # Needs the REAL CLI sidecar (the app spawns it as its backend) — a stub
-  # won't do here, unlike the compile-check above.
-  tauri-real-linux:
-    name: E2E — tauri mode (real webview)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref }}
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: "1.3.11"
-      - uses: dtolnay/rust-toolchain@stable
-      - name: Install Tauri system deps + xvfb
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            xvfb
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            packages/desktop/src-tauri/target
-          key: e2e-tauri-cargo-${{ runner.os }}-${{ hashFiles('packages/desktop/src-tauri/Cargo.lock') }}
-          restore-keys: e2e-tauri-cargo-${{ runner.os }}-
-      - run: bun install --frozen-lockfile
-      - name: Build real CLI sidecar
-        run: bun run script/build.ts --single
-        working-directory: packages/librecode
-      - name: Stage CLI sidecar for Tauri externalBin
-        run: |
-          mkdir -p packages/desktop/src-tauri/sidecars
-          # build.ts --single emits dist/librecode-linux-x64/bin/librecode
-          # (same path desktop.yml's cli_src uses). Resolve it robustly in
-          # case the dir name varies, then stage where externalBin expects.
-          src="packages/librecode/dist/librecode-linux-x64/bin/librecode"
-          if [ ! -f "$src" ]; then
-            src=$(find packages/librecode/dist -path '*/bin/librecode' -type f | head -1)
-          fi
-          echo "sidecar src: $src"
-          test -f "$src" || { echo "::error::CLI sidecar binary not found under packages/librecode/dist"; ls -R packages/librecode/dist | head -40; exit 1; }
-          cp "$src" packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
-          chmod +x packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
-      - name: Run E2E — tauri mode (real webview, headless xvfb)
-        working-directory: packages/app
-        env:
-          CI: "true"
-          LIBRECODE_REGEN_BINDINGS: "0"
-        # xvfb-run gives the spawned Tauri app a private headless display;
-        # TauriProcessManager launches `bun tauri dev --features e2e-testing`
-        # and the fixture connects over the socket. -a auto-picks a free
-        # display number.
-        run: xvfb-run -a bun run test:e2e:tauri:real
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report-tauri-real
-          path: |
-            packages/app/e2e/playwright-report-tauri-real/
-            packages/app/e2e/test-results-tauri-real/
           retention-days: 7
