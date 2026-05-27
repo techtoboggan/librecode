@@ -20,6 +20,7 @@
     "test:e2e": "playwright test",
     "test:e2e:tauri:browser": "playwright test --config=e2e/playwright.tauri.config.ts --project=browser",
     "test:e2e:tauri:tauri": "playwright test --config=e2e/playwright.tauri.config.ts --project=tauri",
+    "test:e2e:tauri:real": "playwright test --config=e2e/playwright.tauri-real.config.ts --project=tauri",
     "test:e2e:local": "bun script/e2e-local.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:report": "playwright show-report e2e/playwright-report"

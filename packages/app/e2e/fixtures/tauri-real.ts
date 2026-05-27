@@ -1,0 +1,49 @@
+/**
+ * Phase 54 — REAL Tauri-mode E2E fixture (socket bridge).
+ *
+ * Separate from fixtures/tauri.ts (browser-mode, custom). This one uses
+ * the library's createTauriTest in `tauri` mode: TauriProcessManager
+ * launches `bun tauri dev --features e2e-testing`, the embedded
+ * tauri-plugin-playwright opens a unix socket, and PluginClient drives
+ * the REAL native WebKitGTK webview over it.
+ *
+ * Why a separate fixture (not createTauriTest for both modes):
+ *   createTauriTest's BROWSER branch hard-codes
+ *   `page.waitForLoadState("networkidle")` in setup, which never fires
+ *   because LibreCode holds a live SSE connection — that's why the
+ *   browser fixture is hand-rolled. The TAURI branch connects via the
+ *   socket and does NOT wait for networkidle, so it's safe to use here.
+ *
+ * Scope reality: the plugin drives the MAIN webview through one socket.
+ * A detached window is a separate webview the socket can't reach, so
+ * tauri-mode specs assert real-desktop behavior on the main window
+ * (e.g. the detach button EXISTS — it's hidden in web mode — and
+ * clicking it fires real Tauri IPC), not cross-window driving.
+ *
+ * Verified locally (headless): the feature-built app opens
+ * /tmp/tauri-playwright.sock and boots its sidecar. CI runs this under
+ * xvfb-run on a headless runner (no real display to leak to).
+ *
+ * NOTE: runs under Node (Playwright), not Bun — keep Bun-only APIs out.
+ */
+
+import { fileURLToPath } from "node:url"
+import { createTauriTest } from "@srsholmes/tauri-playwright"
+
+// packages/desktop — where `bun tauri dev` runs. From this file
+// (packages/app/e2e/fixtures/) that's ../../../desktop.
+const DESKTOP_ROOT = fileURLToPath(new URL("../../../desktop", import.meta.url)).replace(/\/$/, "")
+
+export const { test, expect } = createTauriTest({
+  // The Vite dev server `bun tauri dev` starts (tauri.conf devUrl).
+  devUrl: "http://localhost:1420",
+  // Launch the real app with the e2e plugin compiled in. Matches the
+  // repo's `dev:desktop` invocation (`bun --cwd packages/desktop tauri dev`),
+  // run from DESKTOP_ROOT so `bun tauri dev` resolves the desktop package.
+  tauriCommand: "bun tauri dev",
+  tauriCwd: DESKTOP_ROOT,
+  tauriFeatures: ["e2e-testing"],
+  mcpSocket: "/tmp/tauri-playwright.sock",
+  // Cold CI: vite + a full cargo build of the desktop crate. Generous.
+  startTimeout: 900,
+})
