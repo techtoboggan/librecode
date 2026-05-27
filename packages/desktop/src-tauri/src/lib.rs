@@ -362,6 +362,18 @@ pub fn run() {
         .setup(move |app| {
             let handle = app.handle().clone();
 
+            // Phase 53 — add the Playwright E2E capability at runtime (gated on
+            // the feature) instead of via a static capability file, so the
+            // production build never includes it and tauri_build never has to
+            // validate it. The plugin's `playwright:default` permission is
+            // compiled into the ACL regardless; this grants it to the windows.
+            #[cfg(feature = "e2e-testing")]
+            {
+                handle
+                    .add_capability(include_str!("../e2e-testing-capability.json"))
+                    .expect("failed to add e2e-testing capability at runtime");
+            }
+
             let log_dir = app
                 .path()
                 .app_log_dir()

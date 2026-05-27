@@ -1,29 +1,17 @@
 fn main() {
-    // Phase 52 Sub-C: conditionally stage the e2e-testing capabilities JSON
-    // BEFORE tauri_build::build() scans the capabilities/ directory.
+    // Phase 53: the e2e-testing capability is added at RUNTIME via
+    // app.handle().add_capability(include_str!(...)) in lib.rs's setup hook
+    // (gated on the e2e-testing feature), NOT as a static capability file.
     //
-    // The `playwright:default` permission is only valid when
-    // tauri-plugin-playwright is compiled in (--features e2e-testing).
-    // Leaving the capability active in a non-feature build would make
-    // tauri_build abort with "unknown permission playwright:default".
-    //
-    // Convention: the source lives at capabilities/e2e-testing.src.json
-    // (not auto-discovered). This build script copies it to the live path
-    // when the feature is active, and removes the live path otherwise.
-    // Source lives OUTSIDE capabilities/ so tauri_build's glob scan doesn't
-    // pick it up when the feature is inactive.
-    let e2e_src = "e2e-testing-capability.json";
-    let e2e_live = "capabilities/e2e-testing.json";
-    println!("cargo:rerun-if-env-changed=CARGO_FEATURE_E2E_TESTING");
-    println!("cargo:rerun-if-changed={}", e2e_src);
-
-    if std::env::var("CARGO_FEATURE_E2E_TESTING").is_ok() {
-        std::fs::copy(e2e_src, e2e_live).expect("failed to copy e2e-testing capabilities");
-    } else {
-        // Silently remove the live file if it was left over from a prior
-        // e2e build so production builds don't accidentally pick it up.
-        let _ = std::fs::remove_file(e2e_live);
-    }
-
+    // Why: a static capabilities/*.json referencing `playwright:default` is
+    // validated by tauri_build::build() at compile time against the plugin's
+    // permission manifest. On fresh CI runners that validation failed with a
+    // build-script error (the manifest ordering differs from a warm local
+    // target — could not be reproduced locally, only in clean CI). Adding the
+    // capability at runtime sidesteps build-time validation entirely: the
+    // plugin's `playwright:default` permission is still compiled into the ACL
+    // (it ships with the crate), so the runtime resolve succeeds, but there is
+    // no static capability for tauri_build to choke on. Production builds
+    // (no feature) never embed or add it. See ADR-010 + phase-52-spec.md.
     tauri_build::build()
 }
