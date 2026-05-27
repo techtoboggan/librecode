@@ -8,15 +8,33 @@
 
 ---
 
-## 0. Status at end of Phase 53
+## 0. RESOLVED — root cause was the missing sidecar, not the plugin
 
-| Piece                                          | State                                                                           |
-| ---------------------------------------------- | ------------------------------------------------------------------------------- |
-| Browser-mode E2E (Layer 3)                     | ✅ HARD GATE, green, CI-portable (v0.10.5)                                      |
-| Cargo PRODUCTION build (no feature)            | ✅ Fixed — runtime capability, no static file, plugin permission not referenced |
-| Cargo FEATURE build (`--features e2e-testing`) | ❌ Panics in `tauri_build::build()` on fresh CI runners                         |
-| Tauri-mode E2E (real webview)                  | ⛔ Blocked — needs the feature build to work                                    |
-| Compile-check CI step                          | Advisory (`continue-on-error`) — can't be hard until the feature build is fixed |
+> **Update (v0.10.8):** the §1 blocker is SOLVED. A `-vv` diagnostic on a
+> throwaway branch surfaced the swallowed panic:
+> `tauri_build::build()` aborts with
+> `resource path 'sidecars/librecode-cli-x86_64-unknown-linux-gnu' doesn't exist`.
+> `tauri.conf.json`'s `externalBin` requires the CLI sidecar at build time;
+> the e2e job never staged it. Local builds passed only because a real
+> sidecar lingered in `sidecars/` from prior dev work — the warm-vs-cold
+> difference, fully explained. The playwright plugin was a RED HERRING
+> through v0.10.0–.6. Reproduced locally (move the sidecar aside → exact
+> CI error) and fixed by staging a stub sidecar before the compile-check
+> (a stub suffices: `cargo build` only validates the externalBin path
+> exists, never executes it). The compile-check is now a HARD gate.
+
+| Piece                                          | State                                                             |
+| ---------------------------------------------- | ----------------------------------------------------------------- |
+| Browser-mode E2E (Layer 3)                     | ✅ HARD GATE, green, CI-portable (v0.10.5)                        |
+| Cargo PRODUCTION build (no feature)            | ✅ Fixed — runtime capability, no static file                     |
+| Cargo FEATURE build (`--features e2e-testing`) | ✅ Fixed — stub sidecar staged before compile-check (v0.10.8)     |
+| Compile-check CI step                          | ✅ HARD gate (v0.10.8)                                            |
+| Tauri-mode E2E (real webview)                  | ⏳ Remaining work — now UNBLOCKED (needs real sidecar + xvfb, §4) |
+
+The rest of this doc (§1–3) is retained as the forensic record of how
+the panic was diagnosed. **The only remaining work is §4** (tauri-mode
+E2E with a REAL sidecar + xvfb), which is no longer blocked — it just
+needs the heavier setup.
 
 ---
 

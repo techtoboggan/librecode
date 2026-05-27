@@ -128,21 +128,26 @@ jobs:
       # --features e2e-testing` compiles clean. continue-on-error removed.
       # Pitfall 9: LIBRECODE_REGEN_BINDINGS=0 keeps bindings.ts from being
       # regenerated to the broken specta output format.
-      # continue-on-error: the runtime-capability redesign fixed the
-      # PRODUCTION build (verified — no static capability, plugin permission
-      # not referenced when the feature is off). But `cargo build --features
-      # e2e-testing` STILL panics in tauri_build::build() on fresh CI runners
-      # even with no static capability — it's a tauri-plugin-playwright 0.2.2
-      # ↔ tauri_build incompatibility triggered only when the plugin is
-      # compiled in on a cold cargo cache (passes on warm local targets, so
-      # not locally reproducible without nuking the whole registry). The panic
-      # message is swallowed by cargo (exit 101, no stderr). This is upstream,
-      # not our code. Kept advisory so it can't block releases. Investigating
-      # the fresh-build panic + tauri-mode E2E (which needs this build) is a
-      # separate effort tracked for Phase 54. The high-value browser-mode gate
-      # above remains HARD.
-      - name: Build desktop with e2e-testing feature (compile check, advisory)
-        continue-on-error: true
+      # Phase 54 — the fresh-CI build panic was NOT the playwright plugin
+      # (that was a red herring through v0.10.6). A -vv diagnostic surfaced
+      # the swallowed panic: tauri_build::build() aborts with "resource path
+      # `sidecars/librecode-cli-<triple>` doesn't exist" because tauri.conf's
+      # externalBin requires the CLI sidecar to be present at build time. The
+      # e2e job never staged it; local builds passed only because a real
+      # sidecar lingered in sidecars/ from prior dev. Reproduced locally by
+      # moving the sidecar aside (exact CI error) and fixed by staging a stub.
+      #
+      # A stub is sufficient here: this is a COMPILE check (cargo build, not a
+      # bundle), so tauri_build only validates the externalBin path EXISTS —
+      # it never executes it. Tauri-mode E2E (running the real app) needs the
+      # real sidecar; that's the next step in phase-54-spec.md.
+      - name: Stage stub CLI sidecar (externalBin existence check)
+        run: |
+          mkdir -p packages/desktop/src-tauri/sidecars
+          printf '#!/bin/sh\necho stub\n' > packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
+          chmod +x packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
+
+      - name: Build desktop with e2e-testing feature (compile check, HARD)
         run: |
           cd packages/desktop/src-tauri
           LIBRECODE_REGEN_BINDINGS=0 cargo build --features e2e-testing
