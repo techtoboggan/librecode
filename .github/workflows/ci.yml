@@ -39,20 +39,29 @@ jobs:
       # bun mock.module shims that would break the real-transport
       # integration tests if they shared the same `bun test` invocation.
       #
-      # LIBRECODE_MODELS_PATH: pin the models.dev data to the committed test
-      # fixture from process start. test/preload.ts also sets this, but Flag
-      # captures process.env.LIBRECODE_MODELS_PATH at module-eval time — if a
-      # src module imports flag.ts before preload's env-set propagates,
-      # Provider.Data() falls through to a live `fetch(models.dev/api.json)`,
-      # which intermittently fails on a fresh runner (no cache, no bundled
-      # snapshot) → `defaultModel()` throws "no providers found". This flake
-      # blocked v0.10.7 and v0.10.8 (both passed on rerun). Setting it at the
-      # job level guarantees it's present from t=0, so Data() always reads the
-      # fixture and never touches the network.
+      # Two env vars together make the models.dev data fully deterministic and
+      # network-free, killing the recurring "no providers found" flake:
+      #
+      # LIBRECODE_MODELS_PATH — pin Provider.Data() to the committed fixture
+      #   from process start (Flag captures process.env at module-eval, so a
+      #   job-level env guarantees it's present from t=0).
+      #
+      # LIBRECODE_DISABLE_MODELS_FETCH — the REAL root cause of the residual
+      #   flake (v0.10.7/.8/.12 all "no providers found", passed on rerun).
+      #   models.ts fires a fire-and-forget `modelsDevRefresh()` at module-eval
+      #   (and on a 1h interval) UNLESS this flag is set. That background fetch
+      #   hits the live network and, on success, calls `Data.reset()` —
+      #   clearing the memoized fixture data mid-suite and racing every test
+      #   that reads providers. Pinning MODELS_PATH fixed the initial load but
+      #   left this reset race running, so the flake survived. This flag skips
+      #   the auto-fetch + interval entirely; Data() still reads the fixture
+      #   first, so providers are present with zero network access. Verified:
+      #   full core suite (2004 tests) green and offline with both set.
       - run: bun run test
         working-directory: packages/librecode
         env:
           LIBRECODE_MODELS_PATH: ${{ github.workspace }}/packages/librecode/test/tool/fixtures/models-api.json
+          LIBRECODE_DISABLE_MODELS_FETCH: "1"
 
   test-util:
     name: Test (util)
