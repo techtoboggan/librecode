@@ -110,41 +110,60 @@ describe("session.prompt missing file", () => {
 
 describe("session.prompt special characters", () => {
   test("handles filenames with # character", async () => {
-    await using tmp = await tmpdir({
-      git: true,
-      init: async (dir) => {
-        await Bun.write(path.join(dir, "file#name.txt"), "special content\n")
-      },
-    })
+    // Configure a real authed provider deterministically (OPENAI_API_KEY +
+    // agent model), exactly like the sibling agent-variant test. Without it
+    // this test depended on an unrelated test leaking a provider credential
+    // into process.env before its state() memoized — the cross-test pollution
+    // that caused the intermittent "no providers found" failure (and, when no
+    // file-capable provider was present, the Read-tool path that fails to read
+    // the "#" file). With openai authed + the build agent, model resolution
+    // and the file read are both deterministic; this test then asserts what it
+    // intends: that a "#" in the filename round-trips through prompt resolution
+    // and the file content is read.
+    const prevKey = process.env.OPENAI_API_KEY
+    process.env.OPENAI_API_KEY = "test-openai-key"
+    try {
+      await using tmp = await tmpdir({
+        git: true,
+        config: { agent: { build: { model: "openai/gpt-5.2" } } },
+        init: async (dir) => {
+          await Bun.write(path.join(dir, "file#name.txt"), "special content\n")
+        },
+      })
 
-    await Instance.provide({
-      directory: tmp.path,
-      fn: async () => {
-        const session = await Session.create({})
-        const template = "Read @file#name.txt"
-        const parts = await SessionPrompt.resolvePromptParts(template)
-        const fileParts = parts.filter((part) => part.type === "file")
+      await Instance.provide({
+        directory: tmp.path,
+        fn: async () => {
+          const session = await Session.create({})
+          const template = "Read @file#name.txt"
+          const parts = await SessionPrompt.resolvePromptParts(template)
+          const fileParts = parts.filter((part) => part.type === "file")
 
-        expect(fileParts.length).toBe(1)
-        expect(fileParts[0].filename).toBe("file#name.txt")
-        expect(fileParts[0].url).toContain("%23")
+          expect(fileParts.length).toBe(1)
+          expect(fileParts[0].filename).toBe("file#name.txt")
+          expect(fileParts[0].url).toContain("%23")
 
-        const decodedPath = fileURLToPath(fileParts[0].url)
-        expect(decodedPath).toBe(path.join(tmp.path, "file#name.txt"))
+          const decodedPath = fileURLToPath(fileParts[0].url)
+          expect(decodedPath).toBe(path.join(tmp.path, "file#name.txt"))
 
-        const message = await SessionPrompt.prompt({
-          sessionID: session.id,
-          parts,
-          noReply: true,
-        })
-        const stored = await MessageV2.get({ sessionID: session.id, messageID: message.info.id })
-        const textParts = stored.parts.filter((part) => part.type === "text")
-        const hasContent = textParts.some((part) => part.text.includes("special content"))
-        expect(hasContent).toBe(true)
+          const message = await SessionPrompt.prompt({
+            sessionID: session.id,
+            agent: "build",
+            parts,
+            noReply: true,
+          })
+          const stored = await MessageV2.get({ sessionID: session.id, messageID: message.info.id })
+          const textParts = stored.parts.filter((part) => part.type === "text")
+          const hasContent = textParts.some((part) => part.text.includes("special content"))
+          expect(hasContent).toBe(true)
 
-        await Session.remove(session.id)
-      },
-    })
+          await Session.remove(session.id)
+        },
+      })
+    } finally {
+      if (prevKey === undefined) delete process.env.OPENAI_API_KEY
+      else process.env.OPENAI_API_KEY = prevKey
+    }
   })
 })
 
