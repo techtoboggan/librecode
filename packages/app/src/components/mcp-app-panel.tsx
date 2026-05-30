@@ -50,6 +50,7 @@ import { createDownloadHandler, deliverBlobAsDownload } from "./mcp-app-download
 import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
 import { createSamplingHandler } from "./mcp-app-sampling"
+import { hardenSandboxedFrame } from "./mcp-app-panel/frame-harden"
 import { DEFAULT_CSP, injectCsp } from "./mcp-app-panel/csp"
 import { injectTheme, readThemeTokens } from "./mcp-app-panel/theme"
 import { fetchAppHtml, fetchAppList, fetchSessionActivity, fetchSessionStatsSeed } from "./mcp-app-panel/fetch"
@@ -838,6 +839,10 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             ref={(el) => {
               iframeRef = el
               setIframeSignal(el)
+              // Neutralize cross-frame contentDocument access before any focus
+              // utility (Kobalte) can walk into this sandboxed frame and throw
+              // in WebKitGTK — the v0.10.x dock crash. See hardenSandboxedFrame.
+              if (el) hardenSandboxedFrame(el)
               // Phase 50b Sub-B — notify DockPane of the ready iframe +
               // the bridge disconnect fn so it can park on entry removal.
               if (el && props.onIframeReady) {
@@ -871,6 +876,9 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             el.appendChild(props.cachedIframe)
             iframeRef = props.cachedIframe
             setIframeSignal(props.cachedIframe)
+            // Idempotent — a pooled frame already carries the own-property from
+            // its original creation, but re-apply defensively (HARDENED guards).
+            hardenSandboxedFrame(props.cachedIframe)
             if (props.onIframeReady) {
               props.onIframeReady(props.cachedIframe, () => void disconnect())
             }
