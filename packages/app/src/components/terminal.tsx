@@ -513,8 +513,15 @@ export const Terminal = (props: TerminalProps) => {
         url.searchParams.set("directory", sdk.directory)
         url.searchParams.set("cursor", String(seek))
         url.protocol = url.protocol === "https:" ? "wss:" : "ws:"
+        const password = server.current?.http.password ?? ""
         url.username = server.current?.http.username ?? "librecode"
-        url.password = server.current?.http.password ?? ""
+        url.password = password
+        // WebKitGTK (the Tauri desktop webview) drops `ws://user:pass@host` URL
+        // userinfo — it never sends the Authorization header — so the handshake
+        // 401'd on desktop. Also pass the credential as a `?token=` query param,
+        // which the server accepts for WS upgrades. Harmless in Chromium, which
+        // authenticates via the userinfo above.
+        if (password) url.searchParams.set("token", password)
 
         const socket = new WebSocket(url)
         socket.binaryType = "arraybuffer"

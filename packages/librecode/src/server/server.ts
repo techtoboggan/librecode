@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto"
 import { NamedError } from "@librecode/util/error"
 import { Hono } from "hono"
 import { basicAuth } from "hono/basic-auth"
@@ -149,6 +150,34 @@ function extractClientIp(c: import("hono").Context): string {
  * we return from extractClientIp covers this case. Explicit 127.* / ::1
  * strings from X-Forwarded-For also count.
  */
+/** Constant-time string comparison (length-guarded) for credential checks. */
+function timingSafeEqualStr(a: string, b: string): boolean {
+  const ba = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ba.length !== bb.length) return false
+  return timingSafeEqual(ba, bb)
+}
+
+/**
+ * Whether a request authenticates via the WebSocket `?token=` query param.
+ *
+ * WebSocket upgrades can't carry an Authorization header from browser JS, and
+ * WebKitGTK (the Tauri desktop webview) drops `ws://user:pass@host` URL
+ * userinfo — so the desktop terminal's PTY socket sent no credential and the
+ * server 401'd the handshake. We accept an equivalent `?token=` query param,
+ * but ONLY for the upgrade handshake (gated on the Upgrade header) so it never
+ * becomes a credential channel for ordinary HTTP routes. Constant-time match.
+ */
+export function wsUpgradeAuthorized(
+  upgradeHeader: string | undefined | null,
+  token: string | undefined | null,
+  password: string,
+): boolean {
+  if ((upgradeHeader || "").toLowerCase() !== "websocket") return false
+  if (!token) return false
+  return timingSafeEqualStr(token, password)
+}
+
 function isLoopbackClient(ip: string): boolean {
   if (ip === "local") return true
   if (ip === "::1" || ip === "[::1]" || ip === "0:0:0:0:0:0:0:1") return true
@@ -174,6 +203,15 @@ const serverCreateApp = (opts: { cors?: string[] }): Hono => {
       const password = Flag.LIBRECODE_SERVER_PASSWORD
       if (!password) return next()
       const username = Flag.LIBRECODE_SERVER_USERNAME ?? "librecode"
+
+      // WebSocket upgrades can't carry an Authorization header from browser JS,
+      // and WebKitGTK drops `ws://user:pass@host` URL userinfo — so the desktop
+      // terminal's PTY socket sent no credential and the server 401'd the
+      // handshake. Accept a `?token=` query param for upgrades (see
+      // wsUpgradeAuthorized). The request logger below records the pathname
+      // only (never the query string), so the token isn't logged. Missing/wrong
+      // token falls through to basic-auth (Chromium sends userinfo) → 401.
+      if (wsUpgradeAuthorized(c.req.header("upgrade"), c.req.query("token"), password)) return next()
 
       // A07 — rate-limit basic-auth BEFORE invoking it. Avoids timing-based
       // enumeration and throttles brute-force attempts from the LAN.
