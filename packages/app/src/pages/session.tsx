@@ -177,11 +177,19 @@ export default function Page() {
   const size = createSizing()
   const desktopReviewOpen = createMemo(() => isDesktop() && view().reviewPanel.opened())
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
-  const desktopSidePanelOpen = createMemo(() => desktopReviewOpen() || desktopFileTreeOpen())
+  // Review mode gives the session panel an explicit, user-resizable width (the
+  // drag divider); the side panel absorbs the rest and already subtracts the
+  // dock (session-side-panel.tsx). Every other desktop case lets flexbox fill
+  // only the REMAINING row width via flex-1 (see the session-panel classList).
+  const sessionPanelFixed = createMemo(() => isDesktop() && desktopReviewOpen())
   const sessionPanelWidth = createMemo(() => {
-    if (!desktopSidePanelOpen()) return "100%"
-    if (desktopReviewOpen()) return `${layout.session.width()}px`
-    return `calc(100% - ${layout.fileTree.width()}px)`
+    if (sessionPanelFixed()) return `${layout.session.width()}px`
+    // Non-review: "auto" + flex-1 fills the leftover space after the flex-none
+    // side panel and App Dock. The old `100%` / `calc(100% - fileTree)` ignored
+    // the dock sibling entirely, so the 320px dock rendered past the viewport's
+    // right edge — present in the DOM but off-screen (the "I can't see the
+    // dock" report; confirmed in real WebKitGTK via the tauri-real harness).
+    return "auto"
   })
   const centered = createMemo(() => isDesktop() && !desktopReviewOpen())
 
@@ -903,7 +911,13 @@ export default function Page() {
             {/* Session panel */}
             <div
               classList={{
-                "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-stronger flex-1 md:flex-none": true,
+                "@container relative flex flex-col min-h-0 h-full bg-background-stronger flex-1 shrink-0": true,
+                // Desktop review: fixed, user-resizable width (flex-none + explicit px).
+                "md:flex-none": sessionPanelFixed(),
+                // Desktop non-review: grow AND shrink to fill only the leftover row
+                // width, so the flex-none App Dock + side panel keep their space and
+                // the dock never overflows off the right edge (dock-visibility fix).
+                "md:flex-1 md:shrink md:min-w-0": !sessionPanelFixed(),
                 "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
                   !size.active() && !ui.reviewSnap,
               }}

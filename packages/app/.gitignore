@@ -1,5 +1,7 @@
 src/assets/theme.css
 e2e/test-results
 e2e/test-results-tauri
+e2e/test-results-tauri-real
 e2e/playwright-report
 e2e/playwright-report-tauri
+e2e/playwright-report-tauri-real
