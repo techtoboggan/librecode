@@ -972,6 +972,32 @@ New files: `migration.ts` (pure planner), `migration.test.ts` (+23 tests),
 (+2 BDD E2E scenarios). Net: +31 unit tests.
 Deviations from spec: none.
 
+### Phase 55: Agent HUD — overlay mode + telemetry channels 🎯 PLANNED
+
+ADR: `docs/adr/0011-agent-hud-telemetry-channels.md`
+Spec: `docs/plans/phase-55-agent-hud-spec.md`
+
+Turn MCP apps into real-time **renderers of the agentic platform's state** —
+where it's focusing, what's cleared/gained/remaining — as a HUD, pipeline map,
+RTS minimap, or ARPG world. Platform ships the contract + one reference HUD;
+the community writes the creative views as ordinary sandboxed MCP apps. Two
+data sources: **derived** telemetry (auto, from the bus) + **agent-authored**
+scene state (a `scene` tool the agent/plugins drive). Every UI-visible
+sub-phase is verified in the real WebKitGTK webview (Phase-54 harness).
+
+| Sub-phase | Scope                                                                   | Status |
+| --------- | ----------------------------------------------------------------------- | ------ |
+| 55A       | `overlay` display mode (translucent HUD over session, click-through)    | ⬜     |
+| 55B       | Telemetry Channel framework + broker + 5 derived channels (opt-in)      | ⬜     |
+| 55C       | Mission HUD reference app (tasks/agents/cost, overlay)                  | ⬜     |
+| 55D       | Agent-authored `scene` channel (`scene` tool + per-session persistence) | ⬜     |
+| 55E       | Author SDK (`@librecode/sdk/hud`) + starter template + docs             | ⬜     |
+| 55F       | `skills` channel — DEFERRED (needs new backend skill-invocation events) | ⬜     |
+
+Naming note: "telemetry channels" (not "provider" — collides with LLM
+`Provider`; not "signal" — collides with Solid `createSignal`). One sub-phase
+per PR; ship 55A→55E, 55F deferred.
+
 ### Phase 60: Windows Code-Signing + Store Submission
 
 _(Previously Phase 42b — renumbered to free 42–51 for the MCP-Apps overhaul arc.)_
