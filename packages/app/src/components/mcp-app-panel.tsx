@@ -187,6 +187,13 @@ const BUILTIN_CHANNEL_SUBSCRIPTIONS: Record<string, ChannelName[]> = {
   "ui://builtin/mission-hud": ["tasks", "agents", "cost"],
 }
 
+// H0: apps that opt into the overlay HUD display mode. Phase 55B (H1) reads
+// `_meta.ui.displayModes` from the manifest; only this lookup changes.
+const OVERLAY_CAPABLE_URIS = new Set<string>(["ui://builtin/mission-hud"])
+function isOverlayCapable(uri: string): boolean {
+  return OVERLAY_CAPABLE_URIS.has(uri)
+}
+
 function useTelemetryChannels(
   iframeRef: Accessor<HTMLIFrameElement | undefined>,
   uri: string,
@@ -890,6 +897,20 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             />
           </Show>
           <span class="flex-1" />
+          {/* Phase 55A: host-rendered control to promote an overlay-capable app
+              to the HUD overlay. Shown only inline + for opt-in apps. */}
+          <Show when={displayMode() === "inline" && isOverlayCapable(props.uri)}>
+            <button
+              type="button"
+              class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
+              onClick={() => setDisplayMode("overlay")}
+              title="Show as a HUD over the session"
+              aria-label="Show as overlay"
+              data-testid="mcp-app-overlay-toggle"
+            >
+              ⤢ Overlay
+            </button>
+          </Show>
           {/* Exit affordance for any non-inline mode (Phase 55A: overlay too). */}
           <Show when={displayMode() !== "inline"}>
             <button
@@ -898,6 +919,7 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
               onClick={() => setDisplayMode("inline")}
               title={`Exit ${displayMode()} (Esc)`}
               aria-label={`Exit ${displayMode()}`}
+              data-testid="mcp-app-exit-displaymode"
             >
               Exit {displayMode()}
             </button>
