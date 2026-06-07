@@ -63,6 +63,8 @@ import {
 } from "./mcp-app-panel/seed"
 import { createStateRelay } from "./mcp-app-panel/state-relay"
 import { createEventForwarder } from "./mcp-app-panel/events"
+import { type ChannelName } from "./mcp-app-panel/channels"
+import { createTelemetryBroker } from "./mcp-app-panel/telemetry-broker"
 import {
   createCallToolHandler,
   createListPromptsHandler,
@@ -173,6 +175,39 @@ function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) 
       () => iframe.contentWindow,
     )
     onCleanup(unsub)
+  })
+}
+
+// ─── Telemetry channels (Phase 55B-lite) ─────────────────────────────────────
+//
+// H0: hardcoded channel opt-in keyed by builtin URI. Phase 55B (H1) reads
+// `_meta.ui.channels` from the app manifest so ANY app can subscribe — only
+// this lookup changes; the broker (telemetry-broker.ts) is unchanged.
+const BUILTIN_CHANNEL_SUBSCRIPTIONS: Record<string, ChannelName[]> = {
+  "ui://builtin/mission-hud": ["tasks", "agents", "cost"],
+}
+
+function useTelemetryChannels(
+  iframeRef: Accessor<HTMLIFrameElement | undefined>,
+  uri: string,
+  sessionID: () => string | undefined,
+) {
+  const globalSDK = useGlobalSDK()
+  const sdk = useSDK()
+  createEffect(() => {
+    const iframe = iframeRef()
+    if (!iframe) return
+    const channels = BUILTIN_CHANNEL_SUBSCRIPTIONS[uri]
+    if (!channels?.length) return
+    const stop = createTelemetryBroker({
+      channels,
+      sessionID,
+      listen: (cb) => globalSDK.event.listen(cb),
+      getTarget: () => iframe.contentWindow,
+      fetchActivity: (sid) => fetchSessionActivity(globalSDK.fetch, sdk.url, sdk.directory, sid),
+      fetchStats: (sid) => fetchSessionStatsSeed(globalSDK.fetch, sdk.url, sdk.directory, sid),
+    })
+    onCleanup(stop)
   })
 }
 
@@ -636,6 +671,27 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
   }
   // Forward SSE events to the iframe so built-in apps receive live data
   useEventForwarding(iframeSignal)
+
+  // Phase 55B-lite: shape bus telemetry into per-app channels (tasks/agents/cost)
+  // for apps that opt in. Additive alongside the legacy forwarder above.
+  useTelemetryChannels(iframeSignal, props.uri, () => props.sessionID)
+
+  // Phase 55A: an app can request a display-mode change via a raw postMessage
+  // (builtins talk over raw postMessage, not the AppBridge App client). The
+  // Mission HUD's "Overlay" button posts { type: "mcp-app-display-mode", mode }.
+  createEffect(() => {
+    const iframe = iframeSignal()
+    if (!iframe) return
+    const onMsg = (e: MessageEvent) => {
+      if (e.source !== iframe.contentWindow) return
+      const data = e.data as { type?: unknown; mode?: unknown }
+      if (data?.type !== "mcp-app-display-mode" || typeof data.mode !== "string") return
+      const requested = data.mode
+      setDisplayMode((cur) => resolveDisplayModeRequest(requested, cur))
+    }
+    window.addEventListener("message", onMsg)
+    onCleanup(() => window.removeEventListener("message", onMsg))
+  })
 
   // Seed the iframe with a snapshot the first time it tells us it's ready.
   // The built-in apps only listen for incremental events, so on a fresh mount

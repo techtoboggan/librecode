@@ -1,10 +1,12 @@
 import _FS_ACTIVITY_GRAPH from "./fs-activity-graph.html" with { type: "text" }
 import _SESSION_STATS from "./session-stats.html" with { type: "text" }
+import _MISSION_HUD from "./mission-hud.html" with { type: "text" }
 
 // Bun import assertions return the text content, but TypeScript types them
 // as an opaque bundle type. Cast to string for the HTML content.
 const FS_ACTIVITY_GRAPH = _FS_ACTIVITY_GRAPH as unknown as string
 const SESSION_STATS = _SESSION_STATS as unknown as string
+const MISSION_HUD = _MISSION_HUD as unknown as string
 
 export interface BuiltinApp {
   /** Virtual server name for the app */
@@ -33,6 +35,13 @@ const BUILTIN_APPS: BuiltinApp[] = [
     uri: "ui://builtin/session-stats",
     description: "Token usage, tool call distribution, and cost tracking dashboard.",
     html: SESSION_STATS,
+  },
+  {
+    server: "__builtin__",
+    name: "Mission HUD",
+    uri: "ui://builtin/mission-hud",
+    description: "Live heads-up display — tasks cleared/remaining, active agents, and cost. Try the Overlay button.",
+    html: MISSION_HUD,
   },
 ]
 

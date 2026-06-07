@@ -1,0 +1,262 @@
+<!doctype html>
+<!--
+  Mission HUD — Phase 55C reference renderer (ADR-0011).
+
+  A real-time heads-up display of the agentic platform's state, built as an
+  ordinary builtin MCP app. It consumes three telemetry channels (tasks, agents,
+  cost) delivered by the host broker as `mcp-app-channel` postMessage envelopes,
+  and can promote itself to `overlay` display mode (a translucent layer over the
+  live session) via a raw `mcp-app-display-mode` message.
+
+  This is the template third-party renderers copy. Vanilla HTML+JS only:
+  the CSP is `connect-src 'none'` (no network) and data arrives via postMessage.
+  Theme tokens (--lc-*) are injected by the host.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        font:
+          12px/1.45 ui-sans-serif,
+          system-ui,
+          sans-serif;
+        color: var(--lc-text, #e8e8e8);
+        background: transparent;
+      }
+      .hud {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px;
+        /* Translucent so the session shows through in overlay mode; solid
+           fallback first for engines without color-mix. */
+        background: var(--lc-bg-raised, #161616);
+        background: color-mix(in srgb, var(--lc-bg-raised, #161616) 82%, transparent);
+        backdrop-filter: blur(7px);
+        -webkit-backdrop-filter: blur(7px);
+        border-left: 1px solid var(--lc-border, #2a2a2a);
+        overflow: auto;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .title {
+        font-weight: 600;
+        color: var(--lc-text-strong, #fff);
+        letter-spacing: 0.02em;
+      }
+      .spacer {
+        flex: 1;
+      }
+      button.toggle {
+        pointer-events: auto;
+        font: inherit;
+        padding: 3px 9px;
+        border-radius: 6px;
+        border: 1px solid var(--lc-border, #2a2a2a);
+        background: var(--lc-bg-panel, #1d1d1d);
+        color: var(--lc-text-weak, #b6b6b6);
+        cursor: pointer;
+      }
+      button.toggle:hover {
+        color: var(--lc-text-strong, #fff);
+        border-color: var(--lc-accent, #6ea8fe);
+      }
+      .card {
+        border: 1px solid var(--lc-border-weaker, #242424);
+        border-radius: 8px;
+        padding: 10px;
+        background: color-mix(in srgb, var(--lc-bg, #111) 55%, transparent);
+      }
+      .card h3 {
+        margin: 0 0 7px;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--lc-text-weaker, #8a8a8a);
+      }
+      .stat {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 1px 0;
+      }
+      .stat b {
+        color: var(--lc-text-strong, #fff);
+        font-variant-numeric: tabular-nums;
+      }
+      .bar {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--lc-bg, #111);
+        overflow: hidden;
+        margin: 6px 0 2px;
+      }
+      .bar > span {
+        display: block;
+        height: 100%;
+        background: var(--lc-accent, #6ea8fe);
+        transition: width 0.3s ease;
+      }
+      ul {
+        list-style: none;
+        margin: 4px 0 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      li {
+        display: flex;
+        gap: 7px;
+        align-items: baseline;
+      }
+      .glyph {
+        width: 1em;
+        flex: none;
+        text-align: center;
+      }
+      .done {
+        color: var(--lc-text-weaker, #8a8a8a);
+        text-decoration: line-through;
+      }
+      .active {
+        color: var(--lc-accent, #6ea8fe);
+      }
+      .muted {
+        color: var(--lc-text-weaker, #8a8a8a);
+      }
+      .truncate {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <div class="row">
+        <span class="title">Mission HUD</span>
+        <span class="spacer"></span>
+        <button class="toggle" id="overlayBtn" type="button" title="Show as a HUD over the session">⤢ Overlay</button>
+      </div>
+
+      <div class="card">
+        <h3>Tasks</h3>
+        <div class="bar"><span id="taskBar" style="width: 0%"></span></div>
+        <div class="stat"><span>Cleared</span><b id="taskCleared">0 / 0</b></div>
+        <ul id="taskList"></ul>
+        <div class="muted" id="taskEmpty">No tasks yet.</div>
+      </div>
+
+      <div class="card">
+        <h3>Agents</h3>
+        <ul id="agentList"></ul>
+        <div class="muted" id="agentEmpty">Idle — no active agents.</div>
+      </div>
+
+      <div class="card">
+        <h3>Cost</h3>
+        <div class="stat"><span>Spend</span><b id="costUsd">$0.0000</b></div>
+        <div class="stat"><span>Tokens in / out</span><b id="costTokens">0 / 0</b></div>
+        <div class="stat"><span>Messages</span><b id="costMsgs">0</b></div>
+      </div>
+    </div>
+
+    <script>
+      ;(function () {
+        var $ = function (id) {
+          return document.getElementById(id)
+        }
+        var STATUS_GLYPH = { completed: "✓", cancelled: "✗", in_progress: "◐", pending: "○" }
+
+        function renderTasks(s) {
+          var total = s.total || 0
+          var cleared = s.cleared || 0
+          $("taskCleared").textContent = cleared + " / " + total
+          $("taskBar").style.width = (total ? Math.round((cleared / total) * 100) : 0) + "%"
+          var items = s.items || []
+          $("taskEmpty").style.display = items.length ? "none" : "block"
+          var ul = $("taskList")
+          ul.innerHTML = ""
+          items.slice(0, 12).forEach(function (t) {
+            var li = document.createElement("li")
+            var g = document.createElement("span")
+            g.className = "glyph"
+            g.textContent = STATUS_GLYPH[t.status] || "○"
+            var label = document.createElement("span")
+            label.className =
+              "truncate" +
+              (t.status === "completed" || t.status === "cancelled"
+                ? " done"
+                : t.status === "in_progress"
+                  ? " active"
+                  : "")
+            label.textContent = t.content || ""
+            li.appendChild(g)
+            li.appendChild(label)
+            ul.appendChild(li)
+          })
+        }
+
+        function renderAgents(s) {
+          var agents = (s && s.agents) || []
+          $("agentEmpty").style.display = agents.length ? "none" : "block"
+          var ul = $("agentList")
+          ul.innerHTML = ""
+          agents.slice(0, 8).forEach(function (a) {
+            var li = document.createElement("li")
+            var g = document.createElement("span")
+            g.className = "glyph active"
+            g.textContent = "▸"
+            var label = document.createElement("span")
+            label.className = "truncate"
+            var phase = a.phase || "working"
+            label.textContent = phase + (a.tool ? " · " + a.tool : "") + (a.file ? " · " + a.file : "")
+            li.appendChild(g)
+            li.appendChild(label)
+            ul.appendChild(li)
+          })
+        }
+
+        function renderCost(s) {
+          $("costUsd").textContent = "$" + (s.usd || 0).toFixed(4)
+          $("costTokens").textContent = (s.tokensIn || 0).toLocaleString() + " / " + (s.tokensOut || 0).toLocaleString()
+          $("costMsgs").textContent = String(s.messages || 0)
+        }
+
+        var RENDER = { tasks: renderTasks, agents: renderAgents, cost: renderCost }
+
+        window.addEventListener("message", function (e) {
+          var d = e.data
+          if (!d || d.type !== "mcp-app-channel") return
+          var fn = RENDER[d.channel]
+          if (fn && d.payload) fn(d.payload)
+        })
+
+        $("overlayBtn").addEventListener("click", function () {
+          // Promote to a HUD over the session. The host's panel header (or Esc)
+          // returns to inline — in overlay the iframe is click-through, so the
+          // HUD itself can't host the exit control.
+          parent.postMessage({ type: "mcp-app-display-mode", mode: "overlay" }, "*")
+        })
+
+        // Tell the host we're listening; it replies with channel snapshots.
+        parent.postMessage({ type: "mcp-app-ready" }, "*")
+      })()
+    </script>
+  </body>
+</html>
