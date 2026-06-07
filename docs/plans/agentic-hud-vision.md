@@ -59,7 +59,7 @@ both easier to trust and more fun to use than a wall of streaming text.
    WebKitGTK (the Phase-54 harness), never Chromium-only. We earned this rule
    the hard way (v0.10.12–.16).
 
-## 4. Strategic bets (proposed — confirm in §6)
+## 4. Strategic bets (accepted — see §6)
 
 - **Bet A — Ship a vertical slice before investing in the ecosystem.** Validate
   that an overlay HUD _feels_ right and that people leave it open, before
