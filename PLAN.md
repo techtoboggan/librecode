@@ -972,7 +972,7 @@ New files: `migration.ts` (pure planner), `migration.test.ts` (+23 tests),
 (+2 BDD E2E scenarios). Net: +31 unit tests.
 Deviations from spec: none.
 
-### Phase 55: Agent HUD — overlay mode + telemetry channels 🎯 IN PROGRESS (H0)
+### Phase 55: Agent HUD — overlay mode + telemetry channels 🎯 H0 SHIPPED — awaiting gate
 
 North star: `docs/plans/agentic-hud-vision.md`
 ADR: `docs/adr/0011-agent-hud-telemetry-channels.md`
@@ -992,9 +992,9 @@ good — do you leave it open?").
 
 | Horizon | Sub-phase | Scope                                                               | Status |
 | ------- | --------- | ------------------------------------------------------------------- | ------ |
-| **H0**  | 55A       | `overlay` display mode (translucent HUD over session, click-thru)   | 🚧     |
-| **H0**  | 55B-lite  | Telemetry broker + 3 channels (tasks/agents/cost), opt-in           | ⬜     |
-| **H0**  | 55C       | Mission HUD reference app — the slice we validate the feel on       | ⬜     |
+| **H0**  | 55A       | `overlay` display mode (translucent HUD over session, click-thru)   | ✅     |
+| **H0**  | 55B-lite  | Telemetry broker + 3 channels (tasks/agents/cost), opt-in           | ✅     |
+| **H0**  | 55C       | Mission HUD reference app — the slice we validate the feel on       | ✅     |
 | H1      | 55B-full  | All 5 derived channels + contract versioning (`seq`/`version`)      | ⬜     |
 | H1      | 55D       | Agent-authored `scene` channel (`scene` tool, opt-in; persistence)  | ⬜     |
 | H1      | 55E       | Author SDK (`@librecode/sdk/hud`) + starter template + docs         | ⬜     |
@@ -1003,9 +1003,11 @@ good — do you leave it open?").
 | —       | 55F       | `skills` channel — DEFERRED (needs backend skill-invocation events) | ⬜     |
 
 Naming note: "telemetry channels" (not "provider" — collides with LLM
-`Provider`; not "signal" — collides with Solid `createSignal`). One sub-phase
-per PR. H0 (55A→55C) ships as a unit (overlay has nothing to show without the
-Mission HUD); validate, then decide on H1.
+`Provider`; not "signal" — collides with Solid `createSignal`). H0 (55A→55C)
+shipped as a unit. **Verified in real WebKitGTK** (e2e/tauri-real/mission-hud.spec.ts):
+Mission HUD mounts via the dock with zero console errors; the header toggle
+promotes it to overlay (position:fixed, z-40, in-viewport, click-through).
+**Gate next:** does it feel good in daily use → decide whether to fund H1.
 
 ### Phase 60: Windows Code-Signing + Store Submission
 
