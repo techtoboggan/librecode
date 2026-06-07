@@ -5,8 +5,13 @@
  * mcp-app-panel.tsx.
  */
 
-/** Display modes the host supports. `pip` deferred per ADR-005 §5. */
-export const HOST_AVAILABLE_DISPLAY_MODES = ["inline", "fullscreen"] as const
+/**
+ * Display modes the host supports. `pip` deferred per ADR-005 §5.
+ * `overlay` (Phase 55A, ADR-0011): a translucent HUD layer rendered OVER the
+ * live session (between the timeline and `fullscreen`'s z-index), click-through
+ * by default. Opt-in per app via `_meta.ui.displayModes`.
+ */
+export const HOST_AVAILABLE_DISPLAY_MODES = ["inline", "fullscreen", "overlay"] as const
 export type HostDisplayMode = (typeof HOST_AVAILABLE_DISPLAY_MODES)[number]
 
 /**

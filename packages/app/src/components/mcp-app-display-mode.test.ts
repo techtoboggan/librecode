@@ -1,17 +1,17 @@
 /**
- * Unit coverage for the v0.9.45 ui/request-display-mode resolver.
+ * Unit coverage for the ui/request-display-mode resolver.
  *
- * Per ADR-005 §5 + the v0.9.45 implementation:
- *   - "fullscreen" supported (returns "fullscreen")
- *   - "pip" not supported (defer; returns the current mode unchanged)
- *   - Anything else returns the current mode (per spec we don't error)
+ * Supported modes: "inline", "fullscreen", and "overlay" (Phase 55A / ADR-0011).
+ *   - Supported requests win.
+ *   - "pip" still not supported (deferred per ADR-005 §5) → keeps current.
+ *   - Anything else returns the current mode (per spec we don't error).
  */
 import { describe, expect, test } from "bun:test"
 import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeRequest } from "./mcp-app-display-mode"
 
 describe("HOST_AVAILABLE_DISPLAY_MODES", () => {
-  test("inline + fullscreen, pip explicitly excluded (deferred per ADR-005)", () => {
-    expect([...HOST_AVAILABLE_DISPLAY_MODES]).toEqual(["inline", "fullscreen"])
+  test("inline + fullscreen + overlay; pip still excluded (deferred per ADR-005)", () => {
+    expect([...HOST_AVAILABLE_DISPLAY_MODES]).toEqual(["inline", "fullscreen", "overlay"])
   })
 })
 
@@ -24,13 +24,23 @@ describe("resolveDisplayModeRequest", () => {
     expect(resolveDisplayModeRequest("fullscreen", "inline")).toBe("fullscreen")
   })
 
+  test("overlay → overlay (Phase 55A)", () => {
+    expect(resolveDisplayModeRequest("overlay", "inline")).toBe("overlay")
+    expect(resolveDisplayModeRequest("overlay", "fullscreen")).toBe("overlay")
+  })
+
+  test("can return from overlay back to inline/fullscreen", () => {
+    expect(resolveDisplayModeRequest("inline", "overlay")).toBe("inline")
+    expect(resolveDisplayModeRequest("fullscreen", "overlay")).toBe("fullscreen")
+  })
+
   test("pip → keeps current (unsupported, no error per spec)", () => {
-    const current: HostDisplayMode = "inline"
+    const current: HostDisplayMode = "overlay"
     expect(resolveDisplayModeRequest("pip", current)).toBe(current)
   })
 
   test("garbage values keep current too", () => {
     expect(resolveDisplayModeRequest("nonsense", "inline")).toBe("inline")
-    expect(resolveDisplayModeRequest("", "fullscreen")).toBe("fullscreen")
+    expect(resolveDisplayModeRequest("", "overlay")).toBe("overlay")
   })
 })

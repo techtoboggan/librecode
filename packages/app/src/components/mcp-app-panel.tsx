@@ -33,7 +33,7 @@ import {
   Show,
   type JSX,
 } from "solid-js"
-import { AppBridge, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
+import { AppBridge, type McpUiDisplayMode, PostMessageTransport } from "@modelcontextprotocol/ext-apps/app-bridge"
 import z from "zod"
 import { useDialog } from "@librecode/ui/context/dialog"
 import { useTheme } from "@librecode/ui/theme"
@@ -152,6 +152,14 @@ export {
 // "parked but already loaded" is exactly the semantics we want.
 const loadedIframes = new WeakSet<HTMLIFrameElement>()
 
+// Phase 55A: `overlay` is a LibreCode host extension. The MCP ext-apps
+// `displayMode` union is closed (`inline|fullscreen|pip`), but
+// `McpUiHostContextSchema` is `.passthrough()`, so "overlay" round-trips fine
+// at runtime — opt-in apps read `hostContext.displayMode === "overlay"`. This
+// one documented boundary cast keeps the closed upstream type happy without
+// scattering `as unknown as` across the bridge call sites.
+const asBridgeDisplayMode = (mode: HostDisplayMode): McpUiDisplayMode => mode as unknown as McpUiDisplayMode
+
 // ─── SSE event forwarding hook ───────────────────────────────────────────────
 
 function useEventForwarding(iframeRef: Accessor<HTMLIFrameElement | undefined>) {
@@ -259,10 +267,11 @@ function useAppBridge(
       {
         hostContext: {
           theme: theme.mode(),
-          displayMode: displayMode(),
+          displayMode: asBridgeDisplayMode(displayMode()),
           // v0.9.45 — surface what we support so apps can hide a
           // fullscreen toggle if we ever need to drop the capability.
-          availableDisplayModes: [...HOST_AVAILABLE_DISPLAY_MODES],
+          // Phase 55A: includes "overlay" so opt-in apps know it's offered.
+          availableDisplayModes: HOST_AVAILABLE_DISPLAY_MODES.map(asBridgeDisplayMode),
         },
       },
     )
@@ -451,7 +460,7 @@ function useAppBridge(
     if (!bridge) return
     const mode = displayMode()
     try {
-      bridge.setHostContext({ displayMode: mode })
+      bridge.setHostContext({ displayMode: asBridgeDisplayMode(mode) })
     } catch {
       // pre-handshake — initial value already supplied via constructor.
     }
@@ -573,11 +582,11 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     appName: () => props.appName ?? props.server,
   })
 
-  // Esc exits fullscreen — common keyboard convention. Active only
-  // while the panel is in fullscreen mode so we don't intercept Esc
-  // for other UI when inline.
+  // Esc exits fullscreen OR overlay — common keyboard convention. Active only
+  // while the panel is in a non-inline mode so we don't intercept Esc for other
+  // UI when inline. (Phase 55A: overlay added.)
   createEffect(() => {
-    if (displayMode() !== "fullscreen") return
+    if (displayMode() === "inline") return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         setDisplayMode("inline")
@@ -585,6 +594,20 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     }
     window.addEventListener("keydown", onKey)
     onCleanup(() => window.removeEventListener("keydown", onKey))
+  })
+
+  // Phase 55A: a pooled (cachedIframe) iframe carries a static class from its
+  // original creation — its reactive classList binding is gone once it's parked
+  // and re-claimed into a new panel via appendChild. Re-apply the overlay
+  // styling (transparent + click-through) imperatively so display-mode toggles
+  // still take effect for re-pinned apps. (The fresh-create iframe handles this
+  // reactively via classList; the two paths are mutually exclusive per panel.)
+  createEffect(() => {
+    const f = props.cachedIframe
+    if (!f) return
+    const overlay = displayMode() === "overlay"
+    f.style.backgroundColor = overlay ? "transparent" : ""
+    f.style.pointerEvents = overlay ? "none" : ""
   })
 
   // ADR-005 §2: when the host's tool-call route blocks on a permission
@@ -769,10 +792,16 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
     <div
       class={`flex flex-col overflow-hidden ${props.class ?? ""}`}
       classList={{
-        "relative w-full h-full": displayMode() !== "fullscreen",
+        "relative w-full h-full": displayMode() === "inline",
         // v0.9.45 fullscreen overlay: pin to viewport, top of stack,
         // black-out background. Esc + the header X both return to inline.
         "fixed inset-0 z-50 bg-background-base": displayMode() === "fullscreen",
+        // Phase 55A overlay HUD: a translucent layer pinned to the right edge,
+        // OVER the session (z-40, below fullscreen's z-50, above the timeline).
+        // pointer-events:none on the container makes the HUD click-through to
+        // the session; the header re-enables pointer-events on its controls and
+        // the iframe is transparent + non-interactive (display-only HUD for H0).
+        "fixed top-0 right-0 h-full w-[min(28rem,40vw)] z-40 pointer-events-none": displayMode() === "overlay",
       }}
       data-component="mcp-app-panel"
       data-display-mode={displayMode()}
@@ -788,7 +817,14 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
         which never go through srcdoc() but still have an active bridge.
       */}
       <Show when={srcdoc() || !!props.cachedIframe}>
-        <div class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular">
+        <div
+          class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular"
+          classList={{
+            // Phase 55A: the overlay container is pointer-events:none for
+            // click-through; re-enable on the header so its controls stay usable.
+            "pointer-events-auto": displayMode() === "overlay",
+          }}
+        >
           <span class="text-text-strong truncate">{props.appName ?? props.server}</span>
           <Show when={running() > 0}>
             <span
@@ -798,15 +834,16 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             />
           </Show>
           <span class="flex-1" />
-          <Show when={displayMode() === "fullscreen"}>
+          {/* Exit affordance for any non-inline mode (Phase 55A: overlay too). */}
+          <Show when={displayMode() !== "inline"}>
             <button
               type="button"
               class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
               onClick={() => setDisplayMode("inline")}
-              title="Exit fullscreen (Esc)"
-              aria-label="Exit fullscreen"
+              title={`Exit ${displayMode()} (Esc)`}
+              aria-label={`Exit ${displayMode()}`}
             >
-              Exit fullscreen
+              Exit {displayMode()}
             </button>
           </Show>
           <button
@@ -854,7 +891,14 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             // Intentionally NO allow-same-origin — keeps the app in a null-origin
             // sandbox so it cannot access host cookies, localStorage, or IndexedDB.
             sandbox="allow-scripts"
-            class="w-full flex-1 border-none bg-background-base"
+            class="w-full flex-1 border-none"
+            classList={{
+              "bg-background-base": displayMode() !== "overlay",
+              // Phase 55A: in overlay the iframe is transparent (the session
+              // shows through where the HUD doesn't paint) and click-through
+              // (display-only HUD for H0; interactive overlays are a later opt-in).
+              "bg-transparent pointer-events-none": displayMode() === "overlay",
+            }}
             title="MCP App"
             aria-label={`MCP App: ${props.server}`}
           />
