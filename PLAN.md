@@ -972,8 +972,9 @@ New files: `migration.ts` (pure planner), `migration.test.ts` (+23 tests),
 (+2 BDD E2E scenarios). Net: +31 unit tests.
 Deviations from spec: none.
 
-### Phase 55: Agent HUD — overlay mode + telemetry channels 🎯 PLANNED
+### Phase 55: Agent HUD — overlay mode + telemetry channels 🎯 IN PROGRESS (H0)
 
+North star: `docs/plans/agentic-hud-vision.md`
 ADR: `docs/adr/0011-agent-hud-telemetry-channels.md`
 Spec: `docs/plans/phase-55-agent-hud-spec.md`
 
@@ -985,18 +986,26 @@ data sources: **derived** telemetry (auto, from the bus) + **agent-authored**
 scene state (a `scene` tool the agent/plugins drive). Every UI-visible
 sub-phase is verified in the real WebKitGTK webview (Phase-54 harness).
 
-| Sub-phase | Scope                                                                   | Status |
-| --------- | ----------------------------------------------------------------------- | ------ |
-| 55A       | `overlay` display mode (translucent HUD over session, click-through)    | ⬜     |
-| 55B       | Telemetry Channel framework + broker + 5 derived channels (opt-in)      | ⬜     |
-| 55C       | Mission HUD reference app (tasks/agents/cost, overlay)                  | ⬜     |
-| 55D       | Agent-authored `scene` channel (`scene` tool + per-session persistence) | ⬜     |
-| 55E       | Author SDK (`@librecode/sdk/hud`) + starter template + docs             | ⬜     |
-| 55F       | `skills` channel — DEFERRED (needs new backend skill-invocation events) | ⬜     |
+**Posture (planning session 2026-05-30): prove-then-invest.** Only **H0** is
+committed; H1/H2 are contingent on the H0 gate ("does the overlay HUD feel
+good — do you leave it open?").
+
+| Horizon | Sub-phase | Scope                                                               | Status |
+| ------- | --------- | ------------------------------------------------------------------- | ------ |
+| **H0**  | 55A       | `overlay` display mode (translucent HUD over session, click-thru)   | 🚧     |
+| **H0**  | 55B-lite  | Telemetry broker + 3 channels (tasks/agents/cost), opt-in           | ⬜     |
+| **H0**  | 55C       | Mission HUD reference app — the slice we validate the feel on       | ⬜     |
+| H1      | 55B-full  | All 5 derived channels + contract versioning (`seq`/`version`)      | ⬜     |
+| H1      | 55D       | Agent-authored `scene` channel (`scene` tool, opt-in; persistence)  | ⬜     |
+| H1      | 55E       | Author SDK (`@librecode/sdk/hud`) + starter template + docs         | ⬜     |
+| H2      | —         | Marketplace tie-in + first-party showcase HUDs (pipeline map, RTS)  | ⬜     |
+| H3      | —         | Speculative/community: ARPG worlds, command center, streamed/replay | ⬜     |
+| —       | 55F       | `skills` channel — DEFERRED (needs backend skill-invocation events) | ⬜     |
 
 Naming note: "telemetry channels" (not "provider" — collides with LLM
 `Provider`; not "signal" — collides with Solid `createSignal`). One sub-phase
-per PR; ship 55A→55E, 55F deferred.
+per PR. H0 (55A→55C) ships as a unit (overlay has nothing to show without the
+Mission HUD); validate, then decide on H1.
 
 ### Phase 60: Windows Code-Signing + Store Submission
 
