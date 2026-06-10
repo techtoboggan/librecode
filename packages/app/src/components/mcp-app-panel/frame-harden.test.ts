@@ -77,12 +77,21 @@ describe("real @kobalte/utils focus walk over a sandboxed iframe", () => {
     const iframe = makeWebKitSandboxedIframe()
     document.body.appendChild(iframe)
     // Force Kobalte's `isFrame(activeElement) && activeElement.contentDocument`
-    // branch by making our throwing iframe the document's active element.
+    // branch by making our throwing iframe the document's active element. The
+    // own property MUST be removed afterwards — happy-dom shares one document
+    // across the whole bun-test process, and leaking this getter broke
+    // focusTerminalById tests in files that happened to run later (a real
+    // ordering-dependent failure: green in CI, red locally).
     Object.defineProperty(document, "activeElement", { configurable: true, get: () => iframe })
+    try {
+      expect(() => getActiveElement(document.body)).toThrow()
 
-    expect(() => getActiveElement(document.body)).toThrow()
-
-    hardenSandboxedFrame(iframe)
-    expect(() => getActiveElement(document.body)).not.toThrow()
+      hardenSandboxedFrame(iframe)
+      expect(() => getActiveElement(document.body)).not.toThrow()
+    } finally {
+      // Removes the own property, restoring the prototype's native getter.
+      delete (document as { activeElement?: unknown }).activeElement
+      iframe.remove()
+    }
   })
 })
