@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-05-26 | ~465 commits | Tests: 2872 pass, 13 skip, 0 flaky | **v0.10.0** (Phase 52 — Testing Architecture Overhaul shipped)
+> Last updated: 2026-06-10 | Tests: core 2002+3 pass / 9 skip, app 893 pass, 0 fail | **v0.10.17** (Phase 55 H0 — Agent HUD slice shipped, verified in real WebKitGTK; awaiting the H0 gate)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 
