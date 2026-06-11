@@ -63,3 +63,31 @@ export const { test, expect } = createTauriTest({
 
 // Kept for any future spec that needs the desktop package path.
 export { DESKTOP_ROOT }
+
+/**
+ * Poll an expression until truthy. The library's waitForSelector/waitForFunction
+ * are capped by the socket bridge's per-command timeout (~30s) regardless of
+ * the timeout argument — but a cold vite dev server can take >30s to compile a
+ * route chunk on first request (exactly what fresh CI runners hit). Polling
+ * with short evaluate() calls keeps each command fast while allowing a long
+ * total budget.
+ */
+export async function waitForExpr(
+  tauriPage: { evaluate: (expr: string) => Promise<unknown> },
+  expr: string,
+  timeoutMs = 180_000,
+  pollMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  let lastErr: unknown
+  while (Date.now() < deadline) {
+    try {
+      const v = await tauriPage.evaluate(expr)
+      if (v === true || v === "true") return
+    } catch (err) {
+      lastErr = err // page may be mid-reload; keep polling
+    }
+    await new Promise((r) => setTimeout(r, pollMs))
+  }
+  throw new Error(`waitForExpr timed out after ${timeoutMs}ms: ${expr}${lastErr ? ` (last error: ${lastErr})` : ""}`)
+}

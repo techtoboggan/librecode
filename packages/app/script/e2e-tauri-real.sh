@@ -85,4 +85,11 @@ fi
 echo "plugin socket up: $SOCK"
 
 cd "$APP_DIR"
+
+# The socket file appears slightly before the main window registers with the
+# plugin; starting Playwright on socket-existence intermittently fails the
+# first fixture eval ("window 'main' not found after retries"). Gate on a
+# real eval round-trip succeeding.
+TAURI_PLAYWRIGHT_SOCKET="$SOCK" bun e2e/scripts/wait-tauri-ready.mjs 120
+
 TAURI_PLAYWRIGHT_SOCKET="$SOCK" bunx playwright test --config=e2e/playwright.tauri-real.config.ts --project=tauri "$@"

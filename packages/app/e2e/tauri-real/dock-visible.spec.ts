@@ -15,15 +15,18 @@
  * spec is the real-WebKit guard. Runs headless under xvfb in CI (e2e-tauri.yml).
  */
 
-import { test, expect, SESSION_URL } from "../fixtures/tauri-real"
+import { test, expect, SESSION_URL, waitForExpr } from "../fixtures/tauri-real"
 
 test("App Dock renders fully inside the viewport (real WebKit)", async ({ tauriPage }) => {
   // Navigate to the checkout's session route — the dock only renders there,
   // and a stateless CI boot lands on Home (locally the restored last-session
-  // masked this). Then give the layout a beat to settle (flex reflow + mount).
-  await new Promise((r) => setTimeout(r, 4000))
+  // masked this). Wait on the dock CONDITION via polling, not a fixed sleep
+  // and not the library's waitForSelector: cold vite compiles route chunks on
+  // demand (>30s possible) and the socket bridge caps single commands at ~30s.
   await tauriPage.goto(SESSION_URL)
-  await new Promise((r) => setTimeout(r, 6000))
+  await waitForExpr(tauriPage, `!!document.querySelector('[data-testid="app-dock"]')`)
+  // Small settle for flex reflow after mount.
+  await new Promise((r) => setTimeout(r, 1500))
 
   const raw = await tauriPage.evaluate(`(function(){
     var dock = document.querySelector('[data-testid="app-dock"]');

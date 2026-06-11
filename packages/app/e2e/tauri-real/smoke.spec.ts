@@ -14,7 +14,7 @@
  * Tauri IPC). Kept minimal here to maximize first-run signal.
  */
 
-import { test, expect } from "../fixtures/tauri-real"
+import { test, expect, waitForExpr } from "../fixtures/tauri-real"
 
 test("real app boots + webview renders via socket bridge (Phase 54)", async ({ tauriPage }) => {
   // The fixture has already launched the app, connected the socket, and
@@ -22,9 +22,13 @@ test("real app boots + webview renders via socket bridge (Phase 54)", async ({ t
   const title = await tauriPage.evaluate("document.title")
   expect(title).toBe("LibreCode")
 
-  // The app shell mounted (real desktop platform). The splash/home renders
-  // a recognizable control; assert the document has real content, not a
-  // blank/error page.
+  // The app shell mounted (real desktop platform). Poll on the CONDITION:
+  // routes are lazy (Suspense fallback is an empty div) and a cold vite dev
+  // server compiles each route chunk on first request — an immediate read can
+  // catch the fallback mid-load (body was 252 chars on CI iteration 2). The
+  // socket bridge caps single commands at ~30s, hence polling over the
+  // library's waitForFunction.
+  await waitForExpr(tauriPage, "document.body.innerHTML.length > 500")
   const bodyLen = await tauriPage.evaluate("document.body.innerHTML.length")
   expect(Number(bodyLen)).toBeGreaterThan(500)
 
