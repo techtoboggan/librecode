@@ -44,7 +44,14 @@ rm -f "$SOCK"
 echo "launching desktop app (log: $LOG)..."
 (
   cd "$DESKTOP_DIR"
-  exec env TAURI_PLAYWRIGHT_SOCKET="$SOCK" LIBRECODE_REGEN_BINDINGS=0 bun tauri dev --features e2e-testing
+  # LIBRECODE_E2E_WINDOW_SIZE: xvfb has no window manager, so the app's
+  # maximized(true) no-ops there and the window would stay at wry's 800x600
+  # default — too narrow for the desktop layout the specs assert. The
+  # e2e-testing build honors this explicit size (windows.rs), giving local +
+  # CI the same deterministic 1280x800 viewport the Layer-2 template mandates.
+  exec env TAURI_PLAYWRIGHT_SOCKET="$SOCK" LIBRECODE_REGEN_BINDINGS=0 \
+    LIBRECODE_E2E_WINDOW_SIZE=1280x800 \
+    bun tauri dev --features e2e-testing
 ) >"$LOG" 2>&1 &
 APP_PID=$!
 

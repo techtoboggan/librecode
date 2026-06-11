@@ -66,6 +66,22 @@ impl MainWindow {
           "#
         ));
 
+        // e2e-testing builds: honor an explicit window size from the harness
+        // (script/e2e-tauri-real.sh sets LIBRECODE_E2E_WINDOW_SIZE=1280x800).
+        // Under xvfb there is NO window manager, so `.maximized(true)` above is
+        // silently a no-op and the window stays at wry's 800x600 default —
+        // below the desktop layout the real-webview E2E suite asserts (the
+        // dock needs ≥768px + room). An explicit inner_size is honored without
+        // a WM. Feature-gated: production builds are untouched.
+        #[cfg(feature = "e2e-testing")]
+        let window_builder = match std::env::var("LIBRECODE_E2E_WINDOW_SIZE").ok().and_then(|v| {
+            let (w, h) = v.split_once('x')?;
+            Some((w.parse::<f64>().ok()?, h.parse::<f64>().ok()?))
+        }) {
+            Some((w, h)) => window_builder.inner_size(w, h).maximized(false),
+            None => window_builder,
+        };
+
         let window = window_builder.build()?;
 
         // Set the window icon programmatically so it appears in Wayland taskbars.
