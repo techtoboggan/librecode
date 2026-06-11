@@ -15,11 +15,14 @@
  * spec is the real-WebKit guard. Runs headless under xvfb in CI (e2e-tauri.yml).
  */
 
-import { test, expect } from "../fixtures/tauri-real"
+import { test, expect, SESSION_URL } from "../fixtures/tauri-real"
 
 test("App Dock renders fully inside the viewport (real WebKit)", async ({ tauriPage }) => {
-  // The fixture boots straight into a session route. Give the layout a beat to
-  // settle (flex reflow + dock mount).
+  // Navigate to the checkout's session route — the dock only renders there,
+  // and a stateless CI boot lands on Home (locally the restored last-session
+  // masked this). Then give the layout a beat to settle (flex reflow + mount).
+  await new Promise((r) => setTimeout(r, 4000))
+  await tauriPage.goto(SESSION_URL)
   await new Promise((r) => setTimeout(r, 6000))
 
   const raw = await tauriPage.evaluate(`(function(){

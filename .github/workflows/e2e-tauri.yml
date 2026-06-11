@@ -63,6 +63,16 @@ jobs:
           key: e2e-tauri-cargo-${{ runner.os }}-${{ hashFiles('packages/desktop/src-tauri/Cargo.lock') }}
           restore-keys: e2e-tauri-cargo-${{ runner.os }}-
       - run: bun install --frozen-lockfile
+
+      # Playwright still needs its driver browser even in tauri mode (the
+      # library launches it alongside the socket bridge). Missing this was the
+      # instant "Executable doesn't exist … chrome-headless-shell" failure that
+      # kept this workflow red from day one — it only ever worked locally
+      # because dev machines already had Chromium from browser-mode runs.
+      - name: Install Playwright Chromium browser
+        working-directory: packages/app
+        run: bunx playwright install --with-deps chromium
+
       - name: Build real CLI sidecar
         run: bun run script/build.ts --single
         working-directory: packages/librecode
@@ -80,6 +90,18 @@ jobs:
           test -f "$src" || { echo "::error::CLI sidecar binary not found under packages/librecode/dist"; ls -R packages/librecode/dist | head -40; exit 1; }
           cp "$src" packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
           chmod +x packages/desktop/src-tauri/sidecars/librecode-cli-x86_64-unknown-linux-gnu
+      # Pre-build the desktop crate with EXACTLY the flags `bun tauri dev
+      # --features e2e-testing` uses (`cargo run --no-default-features
+      # --features e2e-testing`). A cold cargo build (~20 min on a fresh
+      # runner) would otherwise race the 15-min Playwright test timeout inside
+      # the test step; as its own step it's visible, cacheable, and the test
+      # step's `cargo run` becomes a no-op rebuild.
+      - name: Pre-build desktop crate (e2e-testing)
+        working-directory: packages/desktop/src-tauri
+        env:
+          LIBRECODE_REGEN_BINDINGS: "0"
+        run: cargo build --no-default-features --features e2e-testing
+
       - name: Run E2E — tauri mode (real webview, headless xvfb)
         working-directory: packages/app
         env:
@@ -88,8 +110,11 @@ jobs:
         # xvfb-run gives the spawned Tauri app a private headless display;
         # TauriProcessManager launches `bun tauri dev --features e2e-testing`
         # and the fixture connects over the socket. -a auto-picks a free
-        # display number.
-        run: xvfb-run -a bun run test:e2e:tauri:real
+        # display number. --server-args is REQUIRED: xvfb-run's default screen
+        # is 640x480, below the app's 768px isDesktop() breakpoint — the dock
+        # doesn't render at all on a mobile-sized viewport (matches the
+        # 1280x800 the local harness and Layer-2 smoke template use).
+        run: xvfb-run -a --server-args="-screen 0 1280x800x24" bun run test:e2e:tauri:real
       - uses: actions/upload-artifact@v4
         if: always()
         with:

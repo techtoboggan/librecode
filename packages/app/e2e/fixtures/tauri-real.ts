@@ -34,16 +34,32 @@ import { createTauriTest } from "@srsholmes/tauri-playwright"
 // (packages/app/e2e/fixtures/) that's ../../../desktop.
 const DESKTOP_ROOT = fileURLToPath(new URL("../../../desktop", import.meta.url)).replace(/\/$/, "")
 
+/**
+ * Session route for the repo checkout, mirroring fixtures/tauri.ts (Phase 52F):
+ * base64url-encode the directory exactly as the app's base64Encode does. The
+ * dock only renders under a session route, and a fresh CI runner has no
+ * last-session to restore — specs MUST navigate here explicitly. (Locally the
+ * app restores the developer's previous session, which masked this; a
+ * stateless CI boot lands on Home, where there is no dock.)
+ */
+function base64UrlEncode(value: string): string {
+  return Buffer.from(value, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+}
+const REPO_ROOT = fileURLToPath(new URL("../../../..", import.meta.url)).replace(/\/$/, "")
+export const SESSION_URL = `http://localhost:1420/${base64UrlEncode(REPO_ROOT)}/session`
+
 export const { test, expect } = createTauriTest({
   // The Vite dev server `bun tauri dev` starts (tauri.conf devUrl).
   devUrl: "http://localhost:1420",
-  // Launch the real app with the e2e plugin compiled in. Matches the
-  // repo's `dev:desktop` invocation (`bun --cwd packages/desktop tauri dev`),
-  // run from DESKTOP_ROOT so `bun tauri dev` resolves the desktop package.
-  tauriCommand: "bun tauri dev",
-  tauriCwd: DESKTOP_ROOT,
-  tauriFeatures: ["e2e-testing"],
+  // NO tauriCommand: the suite connects to an ALREADY-RUNNING app launched
+  // once by script/e2e-tauri-real.sh (the `bun run test:e2e:tauri:real`
+  // entrypoint). When the fixture launched the app per-test, the library's
+  // SIGTERM between tests orphaned vite (which kept port 1420, strictPort),
+  // so the next test's relaunch exited 1 and the one after hung to the full
+  // startTimeout. One shared instance kills the whole failure class and is
+  // ~3x faster; the runner owns launch + process-group teardown.
   mcpSocket: "/tmp/tauri-playwright.sock",
-  // Cold CI: vite + a full cargo build of the desktop crate. Generous.
-  startTimeout: 900,
 })
+
+// Kept for any future spec that needs the desktop package path.
+export { DESKTOP_ROOT }

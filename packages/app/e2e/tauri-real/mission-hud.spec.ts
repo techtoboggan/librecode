@@ -11,11 +11,16 @@
  * Run headless under xvfb (see WebKit-divergence playbook).
  */
 
-import { test, expect } from "../fixtures/tauri-real"
+import { test, expect, SESSION_URL } from "../fixtures/tauri-real"
 
 const HUD_URI = "ui://builtin/mission-hud"
 
 test("Mission HUD mounts + promotes to a click-through overlay (real WebKit)", async ({ tauriPage }) => {
+  // Navigate to the checkout's session route — the dock (and its add trigger)
+  // only exists there; a stateless CI boot lands on Home.
+  await new Promise((r) => setTimeout(r, 4000))
+  await tauriPage.goto(SESSION_URL)
+
   // Capture console + window errors for the regression check (no SecurityError).
   await tauriPage.evaluate(`
     (() => {
@@ -29,11 +34,17 @@ test("Mission HUD mounts + promotes to a click-through overlay (real WebKit)", a
   `)
   await new Promise((r) => setTimeout(r, 6000))
 
-  // Open the dock's add popover and add the Mission HUD (the real user flow —
-  // no localStorage/session-id assumptions).
-  await tauriPage.locator('[data-testid="dock-add-trigger"]').click()
-  await new Promise((r) => setTimeout(r, 600))
-  await tauriPage.locator(`[data-testid="dock-add-${HUD_URI}"]`).click()
+  // Add the Mission HUD via the dock's real add flow — but only if it isn't
+  // already docked. Dock entries persist in workspace localStorage, and the
+  // add popover hides apps that are already in the dock, so a developer
+  // machine that ran this spec before would otherwise fail at the add step
+  // (fresh CI always takes the add path).
+  const alreadyDocked = await tauriPage.evaluate(`!!document.querySelector('[data-testid="mcp-app-overlay-toggle"]')`)
+  if (!alreadyDocked) {
+    await tauriPage.locator('[data-testid="dock-add-trigger"]').click()
+    await new Promise((r) => setTimeout(r, 600))
+    await tauriPage.locator(`[data-testid="dock-add-${HUD_URI}"]`).click()
+  }
   await new Promise((r) => setTimeout(r, 4000))
 
   const mounted = await tauriPage.evaluate(`(() => {
