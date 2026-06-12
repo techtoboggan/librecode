@@ -179,8 +179,11 @@ export default function Page() {
   const desktopFileTreeOpen = createMemo(() => isDesktop() && layout.fileTree.opened())
   // Review mode gives the session panel an explicit, user-resizable width (the
   // drag divider); the side panel absorbs the rest and already subtracts the
-  // dock (session-side-panel.tsx). Every other desktop case lets flexbox fill
-  // only the REMAINING row width via flex-1 (see the session-panel classList).
+  // dock (session-side-panel.tsx). That width is a TARGET, not a floor — the
+  // panel is flex-initial so it shrinks when the window is narrower than
+  // width + dock (the 800px wry-default-window overflow). Every other desktop
+  // case lets flexbox fill only the REMAINING row width via flex-1 (see the
+  // session-panel classList).
   const sessionPanelFixed = createMemo(() => isDesktop() && desktopReviewOpen())
   const sessionPanelWidth = createMemo(() => {
     if (sessionPanelFixed()) return `${layout.session.width()}px`
@@ -911,13 +914,21 @@ export default function Page() {
             {/* Session panel */}
             <div
               classList={{
-                "@container relative flex flex-col min-h-0 h-full bg-background-stronger flex-1 shrink-0": true,
-                // Desktop review: fixed, user-resizable width (flex-none + explicit px).
-                "md:flex-none": sessionPanelFixed(),
+                // md:shrink + md:min-w-0 apply in BOTH desktop modes (hoisted here —
+                // classList removes duplicate tokens listed under a false key): the
+                // session panel must always be the row's shrinkable item so the
+                // flex-none App Dock never overflows off the right edge.
+                "@container relative flex flex-col min-h-0 h-full bg-background-stronger flex-1 shrink-0 md:shrink md:min-w-0": true,
+                // Desktop review: explicit, user-resizable width — but flex-initial
+                // (0 1 auto), NOT flex-none, so the panel shrinks below that width
+                // when the window is too narrow to hold width + dock. With flex-none
+                // the 600px default pushed the 320px dock past the right edge at
+                // windows under 920px (real-WebKitGTK CI at wry's default 800×600).
+                "md:flex-initial": sessionPanelFixed(),
                 // Desktop non-review: grow AND shrink to fill only the leftover row
                 // width, so the flex-none App Dock + side panel keep their space and
                 // the dock never overflows off the right edge (dock-visibility fix).
-                "md:flex-1 md:shrink md:min-w-0": !sessionPanelFixed(),
+                "md:flex-1": !sessionPanelFixed(),
                 "transition-[width] duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[width] motion-reduce:transition-none":
                   !size.active() && !ui.reviewSnap,
               }}
