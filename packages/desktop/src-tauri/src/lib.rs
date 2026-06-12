@@ -305,7 +305,7 @@ pub fn run() {
     // forensic — see packages/desktop/src/bindings.ts header comment). The
     // checked-in file is hand-maintained.
     #[cfg(debug_assertions)]
-    if std::env::var("LIBRECODE_REGEN_BINDINGS").is_ok() {
+    if regen_bindings_requested(std::env::var("LIBRECODE_REGEN_BINDINGS").ok()) {
         export_types(&builder);
     }
 
@@ -481,12 +481,32 @@ fn export_types(builder: &tauri_specta::Builder<tauri::Wry>) {
         .expect("Failed to export typescript bindings");
 }
 
+/// Regeneration requires LIBRECODE_REGEN_BINDINGS to be EXACTLY "1". The
+/// previous `.is_ok()` check treated ANY value as enabled — including the
+/// `LIBRECODE_REGEN_BINDINGS=0` that script/e2e-tauri-real.sh and the CI
+/// workflows export to say "do NOT regenerate" — so every harness run
+/// silently overwrote the hand-maintained bindings.ts with the conflated
+/// types the gate exists to keep out (see bindings.ts header).
+#[cfg(any(debug_assertions, test))]
+fn regen_bindings_requested(value: Option<String>) -> bool {
+    value.as_deref() == Some("1")
+}
+
+#[cfg(test)]
+#[test]
+fn regen_bindings_requires_exactly_1() {
+    assert!(!regen_bindings_requested(None));
+    assert!(!regen_bindings_requested(Some("0".to_string())));
+    assert!(!regen_bindings_requested(Some("true".to_string())));
+    assert!(regen_bindings_requested(Some("1".to_string())));
+}
+
 #[cfg(test)]
 #[test]
 fn test_export_types() {
     // Gated behind LIBRECODE_REGEN_BINDINGS=1 because the pinned specta/
     // tauri-specta revs produce conflated types — see bindings.ts header.
-    if std::env::var("LIBRECODE_REGEN_BINDINGS").is_err() {
+    if !regen_bindings_requested(std::env::var("LIBRECODE_REGEN_BINDINGS").ok()) {
         return;
     }
     let builder = make_specta_builder();
