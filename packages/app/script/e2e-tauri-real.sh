@@ -49,8 +49,10 @@ echo "launching desktop app (log: $LOG)..."
   # default — too narrow for the desktop layout the specs assert. The
   # e2e-testing build honors this explicit size (windows.rs), giving local +
   # CI the same deterministic 1280x800 viewport the Layer-2 template mandates.
+  # Overridable from the caller's env for narrow-window repros (e.g.
+  # LIBRECODE_E2E_WINDOW_SIZE=900x700 — the v0.10.18 dock-overflow band).
   exec env TAURI_PLAYWRIGHT_SOCKET="$SOCK" LIBRECODE_REGEN_BINDINGS=0 \
-    LIBRECODE_E2E_WINDOW_SIZE=1280x800 \
+    LIBRECODE_E2E_WINDOW_SIZE="${LIBRECODE_E2E_WINDOW_SIZE:-1280x800}" \
     bun tauri dev --features e2e-testing
 ) >"$LOG" 2>&1 &
 APP_PID=$!
