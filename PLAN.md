@@ -2,7 +2,7 @@
 
 > Fork of [anomalyco/opencode v1.2.27](https://github.com/anomalyco/opencode/tree/v1.2.27)
 > Goal: Local-first AI coding agent with clean architecture and community provider ecosystem.
-> Last updated: 2026-06-11 | Tests: core 2002+3 pass / 9 skip, app 893 pass, 0 fail | **v0.10.17** (Phase 55 H0 — Agent HUD slice shipped, verified in real WebKitGTK; awaiting the H0 gate). On main since: narrow-window dock-overflow fix (review-mode session panel `md:flex-initial`, found via the tauri-real harness at wry's 800×600 default; regression in `e2e/tauri/dock-fits.spec.ts` at 800/900px)
+> Last updated: 2026-06-12 | Tests: core 2002+3 pass / 9 skip, app 893 pass, 0 fail | **v0.10.17** (Phase 55 H0 — Agent HUD slice shipped, verified in real WebKitGTK; awaiting the H0 gate). On main since: narrow-window dock-overflow fix (review-mode session panel `md:flex-initial`, found via the tauri-real harness at wry's 800×600 default; regression in `e2e/tauri/dock-fits.spec.ts` at 800/900px); e2e viewport determinism fix (e2e builds with `LIBRECODE_E2E_WINDOW_SIZE` skip the window-state plugin — it restored persisted geometry over the requested size — and drop GTK CSD chrome; harness seeds a decoy state file so stateless CI exercises the path; regression in `e2e/tauri-real/window-size.spec.ts`)
 >
 > **Release track:** staying on `0.9.x` patch tags until real beta testing validates the product end-to-end. No `1.0.0-preview.x` tags yet. Phase 29 closed all 7 high + 7 medium OWASP findings. Phases 30–35 shipped Tauri/desktop hardening, full MCP-Apps host, Activity Graph + Session Stats polish, native MCP CLI, Agentic Control Panel, and Multica/Phoenix integrations.
 

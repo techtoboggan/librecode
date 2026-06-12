@@ -324,12 +324,32 @@ pub fn run() {
     // that the specta `builder` binding (from make_specta_builder()) remains
     // in scope and unambiguously referenced by .invoke_handler(builder.invoke_handler())
     // and builder.mount_events(&handle) below.
-    #[allow(unused_mut)] // `mut` is used only when e2e-testing feature is active
     let mut tauri_builder = tauri::Builder::default();
 
     #[cfg(feature = "e2e-testing")]
     {
         tauri_builder = tauri_builder.plugin(tauri_plugin_playwright::init());
+    }
+
+    // Window-geometry persistence. SKIPPED when the E2E harness pinned an
+    // explicit viewport (e2e-testing feature + LIBRECODE_E2E_WINDOW_SIZE):
+    // the plugin restores any persisted .window-state.json AFTER
+    // MainWindow::create applied the requested inner_size, silently
+    // overriding it. CI is stateless and never noticed; local dev profiles
+    // (.dev/config/com.librecode.desktop.dev/.window-state.json) carry saved
+    // geometry — observed 900x700 requested, 956px measured. Skipping
+    // registration (rather than denylisting "main") is deliberate: the
+    // plugin's save path iterates its disk-loaded cache, which the denylist
+    // does NOT filter, so a denylisted run would still clobber the profile's
+    // saved geometry on exit. windows.rs::window_state_enabled() mirrors
+    // this gate for the save listener — keep the two in sync.
+    if crate::windows::window_state_enabled() {
+        tauri_builder = tauri_builder.plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(window_state_flags())
+                .with_denylist(&[LoadingWindow::LABEL])
+                .build(),
+        );
     }
 
     let mut builder = tauri_builder
@@ -342,12 +362,6 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_os::init())
-        .plugin(
-            tauri_plugin_window_state::Builder::new()
-                .with_state_flags(window_state_flags())
-                .with_denylist(&[LoadingWindow::LABEL])
-                .build(),
-        )
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())

@@ -23,6 +23,20 @@ fn use_decorations() -> bool {
     true
 }
 
+/// Explicit window size requested by the E2E harness
+/// (script/e2e-tauri-real.sh sets LIBRECODE_E2E_WINDOW_SIZE=WxH).
+/// `Some` means "this run wants a deterministic viewport": MainWindow::create
+/// applies the size, and lib.rs skips the window-state plugin entirely so a
+/// persisted .window-state.json can neither override the size after creation
+/// nor get clobbered by the run on exit. Feature-gated: production builds
+/// never read the variable.
+#[cfg(feature = "e2e-testing")]
+pub fn e2e_window_size() -> Option<(f64, f64)> {
+    let value = std::env::var("LIBRECODE_E2E_WINDOW_SIZE").ok()?;
+    let (w, h) = value.split_once('x')?;
+    Some((w.parse::<f64>().ok()?, h.parse::<f64>().ok()?))
+}
+
 pub struct MainWindow(WebviewWindow);
 
 impl Deref for MainWindow {
@@ -72,13 +86,18 @@ impl MainWindow {
         // silently a no-op and the window stays at wry's 800x600 default —
         // below the desktop layout the real-webview E2E suite asserts (the
         // dock needs ≥768px + room). An explicit inner_size is honored without
-        // a WM. Feature-gated: production builds are untouched.
+        // a WM. Decorations off too: with no WM, GTK falls back to drawing
+        // client-side decorations whose theme-dependent headerbar is counted
+        // inside the builder's inner_size (observed: 1280x800 requested →
+        // 1280x753 viewport). The env var promises a deterministic viewport
+        // of exactly WxH (window-size.spec.ts asserts it), so drop the
+        // chrome. Feature-gated: production builds are untouched.
         #[cfg(feature = "e2e-testing")]
-        let window_builder = match std::env::var("LIBRECODE_E2E_WINDOW_SIZE").ok().and_then(|v| {
-            let (w, h) = v.split_once('x')?;
-            Some((w.parse::<f64>().ok()?, h.parse::<f64>().ok()?))
-        }) {
-            Some((w, h)) => window_builder.inner_size(w, h).maximized(false),
+        let window_builder = match e2e_window_size() {
+            Some((w, h)) => window_builder
+                .inner_size(w, h)
+                .maximized(false)
+                .decorations(false),
             None => window_builder,
         };
 
@@ -92,7 +111,13 @@ impl MainWindow {
         // Ensure window is focused after creation (e.g., after update/relaunch)
         let _ = window.set_focus();
 
-        setup_window_state_listener(app, &window);
+        // When the harness pinned an explicit size, lib.rs did NOT register the
+        // window-state plugin — save_window_state() would panic on the
+        // unmanaged PluginState, and persisting e2e geometry into the dev
+        // profile would be wrong anyway. Skip the listener for those runs.
+        if window_state_enabled() {
+            setup_window_state_listener(app, &window);
+        }
         setup_detached_window_close_hook(&window);
 
         // LIBRECODE_DEVTOOLS=1 opens the webview inspector as soon as the
@@ -116,6 +141,20 @@ impl MainWindow {
         }
 
         Ok(Self(window))
+    }
+}
+
+/// Whether window-geometry persistence is active for this run. False only in
+/// e2e-testing builds where the harness requested a deterministic viewport —
+/// mirrors the plugin-registration gate in lib.rs (keep the two in sync).
+pub fn window_state_enabled() -> bool {
+    #[cfg(feature = "e2e-testing")]
+    {
+        e2e_window_size().is_none()
+    }
+    #[cfg(not(feature = "e2e-testing"))]
+    {
+        true
     }
 }
 
