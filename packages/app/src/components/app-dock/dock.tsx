@@ -335,10 +335,13 @@ function DockPane(props: DockPaneProps): JSX.Element {
   // so we can park the iframe in the pool when this entry is removed.
   // Set once via onIframeReady; read in onCleanup (entry removed, not collapse).
   let pooledIframe: HTMLIFrameElement | undefined
-  let pooledDisconnect: (() => void) | undefined
+  // Phase 55 — the bridge disconnect fn, kept in a signal so the ⋮ kebab's
+  // Disconnect item appears once the iframe is ready. Also read by onCleanup to
+  // park the iframe in the pool on entry removal.
+  const [disconnectFn, setDisconnectFn] = createSignal<(() => void) | undefined>()
   const onIframeReady = (iframe: HTMLIFrameElement, disconnect: () => void): void => {
     pooledIframe = iframe
-    pooledDisconnect = disconnect
+    setDisconnectFn(() => disconnect)
   }
 
   // Register this pane as a drop target so drag-over events populate
@@ -376,9 +379,10 @@ function DockPane(props: DockPaneProps): JSX.Element {
     // need pooling (Pitfall 7). The pool's park() moves the iframe DOM node
     // off-screen so SolidJS's cleanup pass finds the node already moved and
     // skips it, keeping the pooled iframe alive (Pitfall 8).
-    if (pooledIframe && pooledDisconnect && props.entry.app.server !== "__builtin__") {
+    const disconnect = disconnectFn()
+    if (pooledIframe && disconnect && props.entry.app.server !== "__builtin__") {
       const poolKey = `${props.entry.app.server}:${props.entry.uri}`
-      getIframePool().park(poolKey, pooledIframe, pooledDisconnect)
+      getIframePool().park(poolKey, pooledIframe, disconnect)
       emitDockEvent(props.telemetryEnabled, "iframe_pool_park", {
         paneURI: props.entry.uri,
         appName: props.entry.app.name,
@@ -394,6 +398,14 @@ function DockPane(props: DockPaneProps): JSX.Element {
   }
   const onViewError = () => setViewingError(true)
   const closeError = () => setViewingError(false)
+
+  // Phase 55 — drop this app's session permission grants + close its bridge
+  // transport, but keep the pane (distinct from "Remove from dock"). Moved out
+  // of the McpAppPanel inner header into the ⋮ kebab when the title de-duped.
+  const onDisconnect = (): void => {
+    disconnectFn()?.()
+    props.announcer.announce(`${props.entry.app.name} disconnected`)
+  }
 
   // Phase 50b — "Always keep loaded" toggle.
   // Built-in apps are always kept alive and don't need the toggle.
@@ -502,6 +514,7 @@ function DockPane(props: DockPaneProps): JSX.Element {
         canAlwaysKeepLoaded={canAlwaysKeepLoaded()}
         alwaysLoaded={alwaysLoaded()}
         onToggleAlwaysLoaded={onToggleAlwaysLoaded}
+        onDisconnect={disconnectFn() ? onDisconnect : undefined}
       />
       {/*
         Phase 50b — lazy iframe mount for unknown collapsed apps.
@@ -637,6 +650,7 @@ function PaneIframeBody(props: PaneIframeBodyProps): JSX.Element {
             sessionID={props.sessionID}
             appName={props.entry.app.name}
             class="h-full"
+            embedded
             onIframeReady={props.onIframeReady}
             cachedIframe={cachedIframe}
           />

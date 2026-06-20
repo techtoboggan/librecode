@@ -27,11 +27,40 @@
       #header {
         padding: 8px 12px;
         display: flex;
-        align-items: center;
-        gap: 8px;
+        flex-direction: column;
+        gap: 3px;
         font-size: 12px;
         color: var(--lc-text-weak, #888);
         border-bottom: 1px solid var(--lc-border, #333);
+        flex-shrink: 0;
+      }
+      #status-line {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      #status-label {
+        min-width: 0;
+        flex: 0 1 auto;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #file-count {
+        margin-left: auto;
+        flex: 0 0 auto;
+        white-space: nowrap;
+      }
+      #status-summary {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-size: 11px;
+        color: var(--lc-text-weaker, #666);
+        min-height: 14px;
+      }
+      #status-summary .err {
+        color: var(--lc-danger, #f87171);
       }
       #header .dot {
         width: 6px;
@@ -93,9 +122,12 @@
   <body>
     <div id="container">
       <div id="header">
-        <span class="dot idle" id="status-dot"></span>
-        <span id="status-label">Waiting for activity...</span>
-        <span id="file-count" style="margin-left: auto"></span>
+        <div id="status-line">
+          <span class="dot idle" id="status-dot"></span>
+          <span id="status-label">Waiting for activity...</span>
+          <span id="file-count"></span>
+        </div>
+        <div id="status-summary"></div>
       </div>
       <div id="canvas-wrap">
         <canvas id="graph"></canvas>
@@ -133,12 +165,66 @@
         other: "#888",
         idle: "#444",
       }
+      // Above this many file nodes we stop drawing every basename (they
+      // overlap into mush) and label only the active / just-touched nodes.
+      const LABEL_LIMIT = 24
       const canvas = document.getElementById("graph")
       const ctx = canvas.getContext("2d")
       const empty = document.getElementById("empty")
       const dot = document.getElementById("status-dot")
       const label = document.getElementById("status-label")
       const countEl = document.getElementById("file-count")
+      const summaryEl = document.getElementById("status-summary")
+
+      // In-flight phases. Anything else (completed / error / post-turn) reads
+      // as not-active. Shared by the header summary AND the draw-loop halo so
+      // they can't drift apart (v0.9.66 kept these as separate literals).
+      const ACTIVE_PHASES = new Set(["pending", "running", "thinking", "tool_use", "working"])
+
+      // Collapse every tracked agent into glanceable counts + the file the
+      // lead active agent is touching, instead of enumerating each agent's
+      // phase (which wrapped into a wall of text and buried the canvas).
+      // `phase` is a free-form string, so unknown values bucket into `other`.
+      function summarizeActivity(map) {
+        let active = 0
+        let done = 0
+        let error = 0
+        let other = 0
+        let total = 0
+        let activeFile = null
+        for (const a of Object.values(map)) {
+          if (!a || !a.phase || a.phase === "exit") continue
+          total++
+          if (ACTIVE_PHASES.has(a.phase)) {
+            active++
+            if (!activeFile && a.file) activeFile = a.file
+          } else if (a.phase === "error" || a.phase === "cancelled") {
+            error++
+          } else if (a.phase === "completed") {
+            done++
+          } else {
+            other++
+          }
+        }
+        return { active, done, error, other, total, activeFile }
+      }
+
+      // Header line 2: cumulative outcomes. The error count is always rendered
+      // (in the danger color) so a summary can never hide a failure.
+      function renderSummary(s) {
+        const parts = []
+        if (s.done) parts.push(s.done + " done")
+        if (s.active) parts.push(s.active + " active")
+        if (s.other) parts.push(s.other + " other")
+        summaryEl.textContent = parts.join(" · ")
+        if (s.error) {
+          if (summaryEl.textContent) summaryEl.append(" · ")
+          const e = document.createElement("span")
+          e.className = "err"
+          e.textContent = s.error + " error"
+          summaryEl.append(e)
+        }
+      }
 
       let files = {}
       let agents = {}
@@ -207,7 +293,6 @@
         // (pending / running / thinking / tool_use). Everything else
         // — including "completed" — drops out of the halo.
         let activeFile = null
-        const ACTIVE_PHASES = new Set(["pending", "running", "thinking", "tool_use", "working"])
         for (const a of Object.values(agents)) {
           if (!a || !a.phase || !ACTIVE_PHASES.has(a.phase)) continue
           if (a.file) {
@@ -216,9 +301,15 @@
           }
         }
 
+        // Thin out detail as the graph gets crowded: smaller dots past 50
+        // nodes, and basenames only when there are few (or the node is live).
+        const showLabels = nodes.length <= LABEL_LIMIT
+        const rMax = nodes.length > 50 ? 9 : 14
+        const rMin = nodes.length > 50 ? 3 : 4
+
         for (const n of nodes) {
           const age = now - (n.updatedAt || now)
-          const r = Math.max(4, 14 - Math.min(age / 5000, 10))
+          const r = Math.max(rMin, rMax - Math.min(age / 5000, 10))
           const alpha = Math.max(0.3, 1 - age / 30000)
           const color = COLORS[n.kind] || COLORS.idle
           const recent = age < 1200 // ms — "just happened" window
@@ -245,10 +336,12 @@
           ctx.globalAlpha = alpha
           ctx.fill()
           ctx.globalAlpha = 1
-          ctx.font = "10px system-ui"
-          ctx.fillStyle = "#aaa"
-          ctx.textAlign = "center"
-          ctx.fillText(n.name, n.x, n.y + r + 12)
+          if (showLabels || isActive || recent) {
+            ctx.font = "10px system-ui"
+            ctx.fillStyle = "#aaa"
+            ctx.textAlign = "center"
+            ctx.fillText(n.name, n.x, n.y + r + 12)
+          }
         }
         requestAnimationFrame(draw)
       }
@@ -275,23 +368,26 @@
           empty.style.display = hasAnything ? "none" : "flex"
           if (!hasAnything) empty.textContent = "Waiting for file activity — chat-only turns don't move the graph"
           countEl.textContent = count ? count + " files" : agentCount ? agentCount + " agents" : ""
-          // v0.9.66 — match the pulse denylist above. The header dot
-          // should pulse only while at least one agent is still in an
-          // active phase; "completed" / "error" / post-turn states
+          // v0.9.66 — the header dot pulses only while at least one agent is
+          // still in an active phase; "completed" / "error" / post-turn states
           // all read as idle so the user sees the work has stopped.
-          const activePhaseSet = new Set(["pending", "running", "thinking", "tool_use", "working"])
-          const hasActive = Object.values(agents).some((a) => a && a.phase && activePhaseSet.has(a.phase))
+          const summary = summarizeActivity(agents)
+          const hasActive = summary.active > 0
           dot.className = "dot " + (hasActive ? "active" : "idle")
-          const agentPhases = Object.values(agents)
-            .map((a) => a.phase)
-            .filter((p) => p && p !== "exit")
-          label.textContent = agentPhases.length
-            ? agentPhases.join(", ")
-            : count
+          // Line 1 — live focus: name what's being worked on right now. The
+          // canvas halo already shows *where*; this names *what*. Falls back
+          // to idle / waiting states when nothing is in flight.
+          label.textContent = hasActive
+            ? summary.activeFile
+              ? "✎ " + basename(summary.activeFile)
+              : summary.active + (summary.active === 1 ? " agent working" : " agents working")
+            : summary.total || count
               ? "Idle"
               : agentCount
                 ? "Agent idle"
                 : "Waiting for activity..."
+          // Line 2 — cumulative outcomes (done / active / error).
+          renderSummary(summary)
         }
       })
 

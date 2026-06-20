@@ -18,6 +18,10 @@ export interface PaneMenuProps {
   alwaysLoaded?: boolean
   /** Phase 50b — called when the user clicks the toggle item. */
   onToggleAlwaysLoaded?: () => void
+  /** Phase 55 — when provided, show a "Disconnect" item that drops this app's
+   *  session permission grants + closes its bridge (keeps the pane). Distinct
+   *  from onRemove (unpins). Omitted while no live bridge exists. */
+  onDisconnect?: () => void
 }
 
 export function PaneMenu(props: PaneMenuProps): JSX.Element {
@@ -58,6 +62,13 @@ export function PaneMenu(props: PaneMenuProps): JSX.Element {
             >
               <span aria-hidden="true">{props.alwaysLoaded ? "✓ " : "  "}</span>Always keep loaded
             </button>
+          </Show>
+          {/* Phase 55 — Disconnect drops session permission grants + closes the
+              bridge but keeps the pane; Remove (below) unpins it entirely. */}
+          <Show when={props.onDisconnect}>
+            <MenuItem testId={`pane-menu-disconnect-${props.uri}`} onClick={() => props.onDisconnect?.()}>
+              Disconnect
+            </MenuItem>
           </Show>
           <MenuItem testId={`pane-menu-remove-${props.uri}`} onClick={props.onRemove} variant="danger">
             Remove from dock

@@ -22,13 +22,22 @@ import { useGlobalSDK } from "@/context/global-sdk"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
 import { useSync } from "@/context/sync"
-import { useAppDockState } from "@/components/app-dock"
+import { dockOffsetWidth, useAppDockState } from "@/components/app-dock"
 import { createFileTabListSync } from "@/pages/session/file-tab-scroll"
 import { FileTabContent } from "@/pages/session/file-tabs"
 import { createOpenSessionFileTab, createSessionTabs, getTabReorderIndex, type Sizing } from "@/pages/session/helpers"
 import { SessionFileTreePanel } from "@/pages/session/session-file-tree-panel"
 import { setSessionHandoff } from "@/pages/session/handoff"
 import { useSessionLayout } from "@/pages/session/session-layout"
+
+/**
+ * Floor width (px) for the review panel. When the App Dock is open its width is
+ * subtracted from the review panel's `calc(100% - …)`; on a typical window that
+ * left the review panel a sliver (~180px) and clipped it. This floor forces the
+ * (flex-initial, shrinkable) session panel to yield the space instead, while
+ * the dock — shrink-0 and the row's last child — stays on-screen.
+ */
+const REVIEW_MIN_WIDTH = 360
 
 export function SessionSidePanel(props: {
   reviewPanel: () => JSX.Element
@@ -81,13 +90,16 @@ export function SessionSidePanel(props: {
   // v0.9.95: clicking the edge handle re-opened the dock but it rendered
   // past the viewport's right edge because this panel greedily consumed
   // `100% - session.width` without accounting for the dock's footprint).
-  const dockOffsetPx = createMemo(() => {
-    const s = dock.state()
-    return s.visibility === "visible" ? s.width : 0
-  })
+  const dockOffsetPx = createMemo(() => dockOffsetWidth(dock.state()))
   const panelWidth = createMemo(() => {
     if (!open()) return "0px"
-    if (reviewOpen()) return `calc(100% - ${layout.session.width()}px - ${dockOffsetPx()}px)`
+    // Floor the review panel at REVIEW_MIN_WIDTH so opening the dock can't
+    // collapse it: the dock's width is subtracted here, and the max() forces
+    // the flex-initial session panel to yield the space instead of the review
+    // panel shrinking to a sliver. The dock stays on-screen because it is
+    // shrink-0 and the last child in the row.
+    if (reviewOpen())
+      return `max(${REVIEW_MIN_WIDTH}px, calc(100% - ${layout.session.width()}px - ${dockOffsetPx()}px))`
     return `${layout.fileTree.width()}px`
   })
   const treeWidth = createMemo(() => (fileOpen() ? `${layout.fileTree.width()}px` : "0px"))

@@ -29,6 +29,9 @@ export interface PaneHeaderProps {
   alwaysLoaded?: boolean
   /** Phase 50b — called when user toggles Always keep loaded. */
   onToggleAlwaysLoaded?: () => void
+  /** Phase 55 — called when user clicks "Disconnect" in the ⋮ menu. Undefined
+   *  (no live bridge yet) hides the item. Distinct from onRemove (unpins). */
+  onDisconnect?: () => void
 }
 
 /**
@@ -102,6 +105,7 @@ export function PaneHeader(props: PaneHeaderProps): JSX.Element {
           canAlwaysKeepLoaded={props.canAlwaysKeepLoaded}
           alwaysLoaded={props.alwaysLoaded}
           onToggleAlwaysLoaded={props.onToggleAlwaysLoaded}
+          onDisconnect={props.onDisconnect}
         />
       </div>
     </div>

@@ -69,3 +69,27 @@ for (const viewport of [
     })
   })
 }
+
+/**
+ * v0.11 — the inverse failure of v0.10.18. At a normal desktop width the dock
+ * stayed on-screen but its 320px footprint was subtracted ENTIRELY from the
+ * review panel (`calc(100% - sessionWidth - dock)`), collapsing review to a
+ * ~180px sliver (Tristan: "opening the file manager + review cuts off the
+ * review panel"). Fixed by flooring the review panel at REVIEW_MIN_WIDTH
+ * (360px) so the flex-initial session panel yields the space instead.
+ */
+test.describe("review-open desktop width 1100×800", () => {
+  test.use({ viewport: { width: 1100, height: 800 } })
+
+  test("dock fits AND the review panel keeps a usable width (v0.11)", async ({ tauriPage }) => {
+    await expectDockFits(tauriPage)
+
+    const review = tauriPage.locator("#review-panel")
+    await expect(review).toHaveAttribute("aria-hidden", "false")
+
+    const box = await review.boundingBox()
+    expect(box).not.toBeNull()
+    // Floor is 360px; allow slack for borders / sub-pixel rounding.
+    expect(box!.width).toBeGreaterThanOrEqual(340)
+  })
+})

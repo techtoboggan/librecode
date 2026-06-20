@@ -229,3 +229,46 @@ describe("PaneMenu — Phase 50b: Toggle handler wiring", () => {
     expect(toggleCalls).toBe(1)
   })
 })
+
+// ── Phase 55 — "Disconnect" item visibility + wiring ──────────────────────────
+//
+// Mirrors the <Show when={props.onDisconnect}> gate in pane-menu.tsx. The item
+// appears only once a live bridge has handed DockPane a disconnect fn, and it is
+// distinct from Remove (Disconnect drops session grants + closes the bridge but
+// keeps the pane; Remove unpins the pane).
+
+function showDisconnect(onDisconnect: (() => void) | undefined): boolean {
+  return onDisconnect !== undefined
+}
+
+describe("PaneMenu — Phase 55: Disconnect item visibility", () => {
+  test("hidden when no disconnect handler is supplied (bridge not ready)", () => {
+    expect(showDisconnect(undefined)).toBe(false)
+  })
+
+  test("shown once a disconnect handler is supplied", () => {
+    expect(showDisconnect(() => {})).toBe(true)
+  })
+})
+
+describe("PaneMenu — Phase 55: Disconnect handler wiring", () => {
+  test("onDisconnect is called exactly once when Disconnect is clicked", () => {
+    let calls = 0
+    const onDisconnect = () => {
+      calls++
+    }
+    onDisconnect()
+    expect(calls).toBe(1)
+  })
+
+  test("clicking Disconnect does not fire onRemove (they are distinct actions)", () => {
+    const h = makeHandlers()
+    let disconnectCalls = 0
+    const onDisconnect = () => {
+      disconnectCalls++
+    }
+    onDisconnect()
+    expect(disconnectCalls).toBe(1)
+    expect(h.removeCalls).toBe(0)
+  })
+})

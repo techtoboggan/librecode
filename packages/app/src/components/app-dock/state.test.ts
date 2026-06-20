@@ -4,6 +4,7 @@ import {
   clampWidth,
   defaultDockState,
   detachEntry,
+  dockOffsetWidth,
   migrateDockState,
   reattachEntry,
   removeEntry,
@@ -429,5 +430,19 @@ describe("migrateDockState Phase 43 fields", () => {
       entries: [{ uri: SAMPLE_APP.uri, addedAt: 999, app: SAMPLE_APP }],
     })
     expect(result.entries[0].heightPx).toBeUndefined()
+  })
+})
+
+describe("dockOffsetWidth", () => {
+  test("returns the dock width when visible", () => {
+    expect(dockOffsetWidth({ visibility: "visible", width: 320 })).toBe(320)
+  })
+
+  test("returns 0 when hidden so the layout reclaims the space", () => {
+    expect(dockOffsetWidth({ visibility: "hidden", width: 320 })).toBe(0)
+  })
+
+  test("reads the current width, not a fixed default", () => {
+    expect(dockOffsetWidth({ visibility: "visible", width: 480 })).toBe(480)
   })
 })

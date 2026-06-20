@@ -643,3 +643,34 @@ test(
     )
   },
 )
+
+test(
+  "Phase 55: docked pane shows the app name once + Disconnect lives in the ⋮ menu",
+  { tag: "@smoke" },
+  async ({ page, withProject }) => {
+    await withProject(
+      async ({ gotoSession }) => {
+        await gotoSession()
+
+        await page.getByRole("button", { name: TOGGLE_BUTTON_LABEL_SHOW }).click()
+        await expect(page.locator(DOCK_SELECTOR)).toBeVisible({ timeout: 3000 })
+
+        await page.locator(ADD_TRIGGER_SELECTOR).click()
+        await page.locator(`[data-testid="dock-add-${STATS_URI}"]`).click()
+        await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toBeVisible({ timeout: 3000 })
+
+        // De-dup regression: the app name renders ONCE in the pane — in the
+        // PaneHeader — and NOT also in the McpAppPanel inner header (which is
+        // suppressed when embedded + inline). Before the fix it appeared twice.
+        const pane = page.locator(`[data-testid="dock-pane-${STATS_URI}"]`)
+        await expect(page.locator(`[data-testid="pane-header-${STATS_URI}"]`)).toContainText("Session Stats")
+        await expect(pane.locator('[data-component="mcp-app-panel"]').locator('text="Session Stats"')).toHaveCount(0)
+
+        // Disconnect moved into the ⋮ kebab (appears once the bridge is live).
+        await page.locator(`[data-testid="pane-menu-${STATS_URI}"]`).click()
+        await expect(page.locator(`[data-testid="pane-menu-disconnect-${STATS_URI}"]`)).toBeVisible({ timeout: 5000 })
+      },
+      { extraConfig: appDockConfig },
+    )
+  },
+)

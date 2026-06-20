@@ -49,3 +49,25 @@ describe("builtin apps registry", () => {
     expect(getBuiltinAppHtml("ui://other/app")).toBeUndefined()
   })
 })
+
+describe("activity graph — readable at scale (regression)", () => {
+  // The JS lives in a sandboxed srcdoc <script> and can't be imported, so we
+  // guard the source string. This is the layer that would have caught the bug
+  // where every agent phase was joined into one wrapping wall of text.
+  const html = getBuiltinAppHtml("ui://builtin/activity-graph") ?? ""
+
+  test("aggregates agent phases instead of enumerating them", () => {
+    expect(html).toContain("summarizeActivity")
+    expect(html).not.toContain('.join(", ")')
+  })
+
+  test("status label is pinned to a single truncating line", () => {
+    expect(html).toContain("white-space: nowrap")
+    expect(html).toContain("min-width: 0")
+    expect(html).toContain("text-overflow: ellipsis")
+  })
+
+  test("thins canvas labels when the graph is crowded", () => {
+    expect(html).toContain("LABEL_LIMIT")
+  })
+})

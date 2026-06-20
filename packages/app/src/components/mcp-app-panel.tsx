@@ -51,6 +51,7 @@ import { HOST_AVAILABLE_DISPLAY_MODES, type HostDisplayMode, resolveDisplayModeR
 import { createUiMessageHandler, createUpdateContextHandler } from "./mcp-app-message"
 import { createSamplingHandler } from "./mcp-app-sampling"
 import { hardenSandboxedFrame } from "./mcp-app-panel/frame-harden"
+import { shouldShowInnerHeader, showFullInnerChrome } from "./mcp-app-panel/chrome"
 import { DEFAULT_CSP, injectCsp } from "./mcp-app-panel/csp"
 import { injectTheme, readThemeTokens } from "./mcp-app-panel/theme"
 import { fetchAppHtml, fetchAppList, fetchSessionActivity, fetchSessionStatsSeed } from "./mcp-app-panel/fetch"
@@ -84,6 +85,7 @@ import type { McpAppResource } from "./mcp-app-panel/types"
 
 export { DEFAULT_CSP, injectCsp } from "./mcp-app-panel/csp"
 export { buildThemeCss, injectTheme } from "./mcp-app-panel/theme"
+export { shouldShowInnerHeader, showFullInnerChrome } from "./mcp-app-panel/chrome"
 export {
   BUILTIN_URI_ACTIVITY_GRAPH,
   BUILTIN_URI_SESSION_STATS,
@@ -572,6 +574,12 @@ export interface McpAppPanelProps {
    * channel remains intact across the park → claim cycle.
    */
   cachedIframe?: HTMLIFrameElement
+  /**
+   * True when hosted inside a DockPane (which already renders a PaneHeader with
+   * the app name + status dot + ⋮ menu). Suppresses this component's redundant
+   * inner title bar while inline. Defaults to false for detached/standalone use.
+   */
+  embedded?: boolean
 }
 
 export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
@@ -879,7 +887,14 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
         Phase 50c: also shown for pool-hit iframes (cachedIframe set),
         which never go through srcdoc() but still have an active bridge.
       */}
-      <Show when={srcdoc() || !!props.cachedIframe}>
+      <Show
+        when={shouldShowInnerHeader({
+          embedded: props.embedded,
+          displayMode: displayMode(),
+          overlayCapable: isOverlayCapable(props.uri),
+          hasDoc: !!srcdoc() || !!props.cachedIframe,
+        })}
+      >
         <div
           class="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border-weak-base bg-surface-panel text-12-regular"
           classList={{
@@ -888,13 +903,18 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
             "pointer-events-auto": displayMode() === "overlay",
           }}
         >
-          <span class="text-text-strong truncate">{props.appName ?? props.server}</span>
-          <Show when={running() > 0}>
-            <span
-              class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"
-              title={`${running()} in-flight request${running() === 1 ? "" : "s"}`}
-              aria-label="MCP app is running a request"
-            />
+          {/* Title + running dot: hidden in the dock-inline case (the PaneHeader
+              already shows the name + a status dot). Kept for detached windows
+              and fullscreen/overlay, which have no PaneHeader. */}
+          <Show when={showFullInnerChrome(props.embedded, displayMode())}>
+            <span class="text-text-strong truncate">{props.appName ?? props.server}</span>
+            <Show when={running() > 0}>
+              <span
+                class="inline-block w-2 h-2 rounded-full bg-green-500 animate-pulse"
+                title={`${running()} in-flight request${running() === 1 ? "" : "s"}`}
+                aria-label="MCP app is running a request"
+              />
+            </Show>
           </Show>
           <span class="flex-1" />
           {/* Phase 55A: host-rendered control to promote an overlay-capable app
@@ -924,15 +944,19 @@ export function McpAppPanel(props: McpAppPanelProps): JSX.Element {
               Exit {displayMode()}
             </button>
           </Show>
-          <button
-            type="button"
-            class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
-            onClick={() => void disconnect()}
-            title="Close the bridge and drop this app's session grants"
-            aria-label="Disconnect MCP app"
-          >
-            Disconnect
-          </button>
+          {/* Disconnect: in the dock this lives in the ⋮ kebab menu instead, so
+              hide it here when embedded-inline. Shown for detached + fullscreen. */}
+          <Show when={showFullInnerChrome(props.embedded, displayMode())}>
+            <button
+              type="button"
+              class="px-2 py-0.5 rounded text-11-regular text-text-weak hover:text-text-base hover:bg-background-stronger transition-colors"
+              onClick={() => void disconnect()}
+              title="Close the bridge and drop this app's session grants"
+              aria-label="Disconnect MCP app"
+            >
+              Disconnect
+            </button>
+          </Show>
         </div>
       </Show>
 

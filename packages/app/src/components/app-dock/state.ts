@@ -121,6 +121,16 @@ export function setWidth(state: DockState, width: number): DockState {
   return { ...state, width: clampWidth(width) }
 }
 
+/**
+ * Horizontal space the dock occupies in the session row: its width when
+ * visible, 0 when hidden. The session layout subtracts this so the review /
+ * files panel reserves room for the dock instead of being clipped by it.
+ * Pure → unit-testable.
+ */
+export function dockOffsetWidth(state: Pick<DockState, "visibility" | "width">): number {
+  return state.visibility === "visible" ? state.width : 0
+}
+
 /** Set collapsed flag on an entry. Missing URI → identity. Returns new state. */
 export function setEntryCollapsed(state: DockState, uri: string, collapsed: boolean): DockState {
   if (!state.entries.some((e) => e.uri === uri)) return state
